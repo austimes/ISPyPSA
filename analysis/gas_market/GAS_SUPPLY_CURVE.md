@@ -153,6 +153,44 @@ uv run python analysis/benchmarks/run_myopic.py \
     ... (other production flags as per the ccx chain)
 ```
 
+## 5a. Full-year validation (2026-08-14, runs `gscfy_c550` / `gbcfy_c550`)
+
+One full-year 30-min c550/2050 cell re-solved from the committed ccx chain state (PDLP
+3e-3, 6.9–7.2h — the TJ rescale makes the curve LP *faster* than the curve-free baseline),
+gas curve alone and gas+biomass curves together, vs the committed `ccx_c550_2050` baseline:
+
+| | gas GW | gas PJ | biomass GW/PJ | premium | marginal tranche |
+|---|---|---|---|---|---|
+| baseline | 19.8 | 536 | 0 / 0 | — | — |
+| gas curve | 19.1 | 471 | 0.6 / 75 | $1.59B/yr | lng_imports +$6 (131/360 PJ) |
+| gas+biomass | 19.2 | 476 | 0.5 / 63 | $1.62B + $0.18B | lng_imports +$6 (136 PJ) |
+
+- **At full-year coverage the curve trims gas burn ~12% (536→471 PJ) but firm gas
+  capacity barely moves (−0.7 GW)** — the model pays the +$6/GJ import premium for
+  ~131 PJ rather than shed the firm fleet, because full-year coverage includes the real
+  droughts the fleet exists to survive. The equilibrium sits ON the lng_imports tranche
+  (~$18–19/GJ delivered marginal), one step above the rep-week equilibrium.
+- **The rep-week paired result (−45% burn, −3.6 GW, biomass 0→3.6 GW) overstates the
+  substitution** — rep-week's weakened reliability test makes gas look far more
+  displaceable than it is. Consistent with the project's standing finding that firm
+  capacity is reliability-driven: the curve REPRICES gas energy (a real ~$1.6B/yr system
+  cost the flat price hid) much more than it removes gas capacity.
+- **Biomass response is small and robust to honest feedstock pricing**: 75 PJ at the
+  flat price vs 63 PJ under the biomass curve (30 PJ free byproduct + 33 PJ at +$5.5) —
+  the flat-$6 optimism flagged from the rep-week read is a second-order effect at
+  full-year.
+- Validation per §6.5: solved (volume, marginal adder) = (471 PJ, +$6) lies on the
+  assumed curve; USE = 0 in all three cells.
+- **Vintage caveat (2026-08-14, from `analysis/calibration/PHES_BEHAVIOUR_CHECK.md`):
+  the `ccx_c550_2050` baseline predates the hydro annual-energy-budget fix (commit
+  `4326148`) and carries zero GlobalConstraints — its conventional hydro runs
+  ~20.2 TWh/yr at the seasonal ceiling, while `gscfy`/`gbcfy` carry the budget
+  binding at 12.06 TWh/yr. The paired comparison above therefore mixes the curve
+  effect with a −8.1 TWh/yr hydro change that pushes gas the OTHER way: the
+  −65 PJ gas-burn delta is conservative (a lower bound on the equal-hydro curve
+  effect). The baseline's gas figures are likewise understated relative to
+  current code.**
+
 ## 6. Limitations and next steps
 
 1. **Annual budgets only.** Winter deliverability is the binding constraint in
