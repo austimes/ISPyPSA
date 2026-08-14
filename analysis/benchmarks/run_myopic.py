@@ -547,25 +547,27 @@ def main():
     )
     ap.add_argument(
         "--gas-supply-curve",
-        default=None,
+        default="analysis/gas_market/gas_supply_curve_central.csv",
         help="Path to a gas supply curve CSV (tranche, financial_year, "
         "cap_pj, adder_$/gj), threaded into config.gas_supply_curve."
         "curve_csv for every period. Prices gas consumption above "
         "each tranche boundary at an adder over the IASR baseline "
-        "gas price. Default: off (unlimited gas at IASR prices). "
-        "See analysis/gas_market/ for the parameterised curve.",
+        "gas price. PRODUCTION DEFAULT: the sourced central curve "
+        "(full-year validated, GAS_SUPPLY_CURVE.md incl. 5a). Pass "
+        "'none' for the pre-curve behaviour (unlimited gas at IASR "
+        "prices).",
     )
     ap.add_argument(
         "--biomass-supply-curve",
-        default=None,
+        default="analysis/bioenergy_market/biomass_supply_curve_central.csv",
         help="Path to a biomass feedstock supply curve CSV (tranche, "
         "financial_year, cap_pj, adder_$/gj), threaded into "
         "config.biomass_supply_curve.curve_csv for every period. Prices "
         "biomass feedstock consumption above each tranche boundary at an "
         "adder over the IASR baseline biomass price, and disables the flat "
-        "$6/GJ feedstock re-price pre-pass. Default: off (flat re-priced "
-        "feedstock, unlimited volume). See analysis/bioenergy_market/ "
-        "for the parameterised curve.",
+        "$6/GJ feedstock re-price pre-pass. PRODUCTION DEFAULT: the "
+        "sourced central curve (BIOMASS_SUPPLY_CURVE.md). Pass 'none' "
+        "for the flat re-priced feedstock with unlimited volume.",
     )
     ap.add_argument(
         "--parsed-traces-directory",
@@ -611,6 +613,12 @@ def main():
         "single-2018-year reliability standard itself (USE-penalty test).",
     )
     args = ap.parse_args()
+
+    # 'none' sentinel opts out of the production-default supply curves.
+    if args.gas_supply_curve and args.gas_supply_curve.lower() == "none":
+        args.gas_supply_curve = None
+    if args.biomass_supply_curve and args.biomass_supply_curve.lower() == "none":
+        args.biomass_supply_curve = None
 
     regions = [args.filter] if args.filter else None
     # Per-chain tranche directory: independent-static runs never touch it
