@@ -136,6 +136,7 @@ _BATTERY_ATTRIBUTE_ORDER = [
     "name",
     "bus",
     "p_nom",
+    "p_nom_max",
     "p_nom_extendable",
     "carrier",
     "max_hours",

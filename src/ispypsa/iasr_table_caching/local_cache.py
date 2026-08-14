@@ -170,6 +170,20 @@ def _build_required_tables(iasr_workbook_version: str = "6.0") -> list[str]:
             "technology_specific_lcfs",
         ] + _GENERATOR_PROPERTY_TABLES
         _BATTERY_REQUIRED_PROPERTY_TABLES = ["battery_properties"]
+        if iasr_workbook_version in ("7.4", "7.8"):
+            # PHES menu repair: cache the pumped-hydro property tables the
+            # workbook publishes on the same "Storage properties" sheet, plus
+            # the GHD-based sub-regional PHES build limits. Consumed by the
+            # analysis-layer PHES pre-pass (analysis/archetypes/_phes_menu.py);
+            # the templater's battery-only filter (templater/storage.py:56-62)
+            # still drops PHES rows natively — that upstream defect stands.
+            # Gated to the repo-override parser-config versions: the installed
+            # parser's 7.3/7.5 configs do not carry these table definitions.
+            _BATTERY_REQUIRED_PROPERTY_TABLES += [
+                "pumped_hydro_existing_committed_anticipated_additional_properties",
+                "pumped_hydro_new_entrant_properties",
+                "build_limits_phes",
+            ]
         if is_v7:
             # v7.x restructured the policy table set: renamed several to
             # `_target` form (dropped `_trajectory`), split NSW roadmap storage

@@ -47,6 +47,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pypsa
 
@@ -265,6 +266,12 @@ def inject_carried_tranches(
         pypsa_friendly["batteries"] = pd.concat(
             [pypsa_friendly["batteries"], aligned], ignore_index=True
         )
+        # Tranches saved before the PHES-menu schema carry no p_nom_max column;
+        # a fixed (non-extendable) carried row has no build limit to enforce.
+        if "p_nom_max" in pypsa_friendly["batteries"].columns:
+            pypsa_friendly["batteries"]["p_nom_max"] = pd.to_numeric(
+                pypsa_friendly["batteries"]["p_nom_max"], errors="coerce"
+            ).fillna(np.inf)
         diag["carried_batteries"] = int(len(aligned))
         diag["carried_battery_mw"] = float(aligned["p_nom"].sum())
     return diag
@@ -347,4 +354,42 @@ def adjust_capacity_caps_for_carried(
         mask = rhs["constraint_name"] == cname
         rhs.loc[mask, "rhs"] = (rhs.loc[mask, "rhs"] - carried_mw).clip(lower=0.0)
         adjustments[cname] = adjustments.get(cname, 0.0) + carried_mw
+    return adjustments
+
+
+def adjust_phes_build_limits_for_carried(
+    pypsa_friendly: dict[str, pd.DataFrame], current_year: int
+) -> dict[str, float]:
+    """Net carried PHES capacity off the current period's candidate p_nom_max.
+
+    The PHES menu's workbook build limits are per-candidate `p_nom_max`
+    columns, not custom-constraint RHS rows, so
+    `adjust_capacity_caps_for_carried` cannot see them. Without this, each
+    myopic period re-offers the FULL GHD sub-regional potential and a chain
+    could build a limit's worth of PHES every period. Matching is by shared
+    base name (`phes_24h_nnsw_2040` decrements candidate `phes_24h_nnsw_2050`),
+    mirroring the custom-constraint netting above. Call AFTER injection.
+
+    Returns {candidate_base_name: carried_MW_netted}; mutates `batteries`."""
+    bats = pypsa_friendly.get("batteries")
+    if bats is None or bats.empty or "p_nom_max" not in bats.columns:
+        return {}
+    finite_limit = np.isfinite(pd.to_numeric(bats["p_nom_max"], errors="coerce"))
+    candidates = bats[bats["p_nom_extendable"] & finite_limit]
+    carried = bats[(~bats["p_nom_extendable"]) & (bats["build_year"] < current_year)]
+    carried_by_base = (
+        carried.assign(base=carried["name"].map(_strip_vintage))
+        .groupby("base")["p_nom"]
+        .sum()
+    )
+    adjustments: dict[str, float] = {}
+    for idx in candidates.index:
+        base = _strip_vintage(bats.at[idx, "name"])
+        carried_mw = float(carried_by_base.get(base, 0.0))
+        if carried_mw <= 0:
+            continue
+        bats.at[idx, "p_nom_max"] = max(
+            float(bats.at[idx, "p_nom_max"]) - carried_mw, 0.0
+        )
+        adjustments[base] = carried_mw
     return adjustments

@@ -25,6 +25,7 @@ read as alternative policy pathways relative to a public authoritative source.
 """
 
 from ._pumped_storage_fix import apply as _pumped_storage_fix_apply
+from ._phes_menu import apply as _phes_menu_apply
 from ._maintenance_overlay import apply as _maintenance_overlay_apply
 from ._repowering import apply as _repowering_apply
 from ._biomass_cap import apply as _biomass_cap_apply
@@ -47,12 +48,18 @@ PRODUCTION_ARCHETYPES = [
 
 
 def _with_pre_passes(archetype_fn):
-    """Wrap an archetype mutation with five cross-archetype pre-passes:
+    """Wrap an archetype mutation with six cross-archetype pre-passes:
 
       1. Pumped-storage fix — re-route Wivenhoe / Shoalhaven / Borumba / Snowy 2.0
          from ecaa_generators to ecaa_batteries so they are modelled as PyPSA
          StorageUnits, not unconstrained Water-carrier generators.
          See _pumped_storage_fix.py for the data sources.
+
+      1b. PHES menu repair — appends the IASR's new-entrant pumped-hydro
+         candidates (10/24/48 h + BOTN - Cethana 20 h) at workbook costs,
+         build limits and lead times, and the two committed/policy PHES units
+         (Kidston, Phoenix) the templater's battery-only filter drops.
+         See _phes_menu.py for per-value workbook citations.
 
       2. Option B ageing-fleet maintenance overlay — adds a per-row ageing
          premium to fom_$/kw/annum on ECAA thermal generators in their final
@@ -87,6 +94,7 @@ def _with_pre_passes(archetype_fn):
 
     def wrapped(ispypsa_tables, config):
         ispypsa_tables = _pumped_storage_fix_apply(ispypsa_tables, config)
+        ispypsa_tables = _phes_menu_apply(ispypsa_tables, config)
         ispypsa_tables = _maintenance_overlay_apply(ispypsa_tables, config)
         ispypsa_tables = _repowering_apply(ispypsa_tables, config)
         ispypsa_tables = _biomass_cap_apply(ispypsa_tables, config)

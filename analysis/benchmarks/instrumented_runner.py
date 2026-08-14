@@ -449,6 +449,7 @@ def _run_staged_pipeline(
     if carried_tranches_dir is not None and current_year is not None:
         from analysis.benchmarks.recursive_dynamic import (
             adjust_capacity_caps_for_carried,
+            adjust_phes_build_limits_for_carried,
             inject_carried_tranches,
             load_tranches,
         )
@@ -462,9 +463,16 @@ def _run_staged_pipeline(
         timings["capacity_cap_carried_adjust"] = adjust_capacity_caps_for_carried(
             pypsa_friendly, current_year
         )
+        # Same cumulative-scope fix for the PHES menu's per-candidate workbook
+        # build limits (p_nom_max columns, invisible to the RHS netting above).
+        timings["phes_build_limit_carried_adjust"] = (
+            adjust_phes_build_limits_for_carried(pypsa_friendly, current_year)
+        )
         print(
             f"\n=== RECURSIVE-DYNAMIC INJECTION === {timings['recursive_dynamic']} "
-            f"| capacity-cap carried adjust: {timings['capacity_cap_carried_adjust']}",
+            f"| capacity-cap carried adjust: {timings['capacity_cap_carried_adjust']} "
+            f"| PHES build-limit carried adjust: "
+            f"{timings['phes_build_limit_carried_adjust']}",
             flush=True,
         )
 
