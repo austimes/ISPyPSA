@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from typing import Literal
 
+import numpy as np
 import pandas as pd
 from isp_trace_parser import construct_reference_year_mapping
 
@@ -169,6 +170,13 @@ def create_pypsa_friendly_inputs(
             axis=0,
             ignore_index=True,
         )
+        # ECAA rows have no build-limit column, so the ECAA/new-entrant concat
+        # leaves their p_nom_max NaN when PHES candidates carry workbook
+        # limits; a fixed unit's limit is its p_nom -> unlimited is correct.
+        if "p_nom_max" in pypsa_inputs["batteries"].columns:
+            pypsa_inputs["batteries"]["p_nom_max"] = pypsa_inputs["batteries"][
+                "p_nom_max"
+            ].fillna(np.inf)
     else:
         logging.warning(
             "No battery data returned from translator - no batteries added to model."
