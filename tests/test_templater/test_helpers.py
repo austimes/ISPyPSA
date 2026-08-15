@@ -140,6 +140,57 @@ def test_strip_all_text_after_numeric_value_series():
     pd.testing.assert_series_equal(result, expected)
 
 
+def test_strip_all_text_after_numeric_value_plain_multi_digit_integers():
+    """Plain (non-comma-formatted) integers of 4+ digits must survive intact.
+
+    Regression test. The original regex ordered its alternation as
+    `[0-9]{1,3}(?:,[0-9]{3})*|[0-9]+`, so the comma branch also matched a bare
+    1-3 digit run; the trailing `.*` then absorbed the remaining digits and the
+    overall match succeeded without ever backtracking into `[0-9]+`. Every plain
+    4+ digit value was truncated to its first three digits, which silently
+    understated IASR REZ/flow-path augmentation capacities by 10x (and, because
+    the templater derives $/MW from a preserved total project cost, overstated
+    their unit cost by the same factor).
+    """
+    test_series = pd.Series(
+        [
+            "1660",  # AEMO REZ N1 Option 1 additional network capacity (MW)
+            "1000",
+            "12345",
+            "2131000",  # new-entrant wind build cost ($/MW)
+            "1,660",  # comma-formatted equivalent, always worked
+            "680 MW",
+            "4600: 3000)",  # AEMO REZ SEVIC1 Option 1, source cell as published
+            "-1660 deficit",
+            "+1660",
+            "1660.5",
+            "12,345,678",
+            "999",  # 3-digit boundary, unchanged by the fix
+        ]
+    )
+
+    result = _strip_all_text_after_numeric_value(test_series)
+
+    expected = pd.Series(
+        [
+            "1660",
+            "1000",
+            "12345",
+            "2131000",
+            "1,660",
+            "680",
+            "4600",
+            "-1660",
+            "+1660",
+            "1660.5",
+            "12,345,678",
+            "999",
+        ]
+    )
+
+    pd.testing.assert_series_equal(result, expected)
+
+
 def test_strip_all_text_after_numeric_value_non_object_dtype():
     """Test that non-object dtype Series are returned unchanged."""
     # Test with numeric Series (non-object dtype)
