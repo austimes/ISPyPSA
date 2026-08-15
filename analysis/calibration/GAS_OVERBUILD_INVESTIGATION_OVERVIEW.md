@@ -23,6 +23,20 @@ Against AEMO's 2026 ISP scenarios (bulk-grid renormalised both sides,
 
 ### 2.1 Carbon price as the lever — RULED OUT (high confidence)
 
+> **WITHDRAWN 2026-08-15 — the shadow-price analysis, not merely caveated.** The
+> $3,500–11,700/t figure for matching AEMO's generation mix was computed against a wind
+> side carrying three independent defects, all since fixed on `storage-menu-repair`
+> (`vre_margin_diagnostic.md`; commits `7f12fd4`, `36ab6c6`, `78267c3`):
+> 14 of 38 REZ augmentation options offered at a tenth of their capacity and ten times
+> their unit cost, all 104,362 MW of offshore wind hard-capped at exactly 0 MW, and
+> 16.3 GW of existing VRE life-extended free of any FOM or repowering charge. A
+> carbon-price elasticity measured against a wind supply curve that was truncated,
+> mispriced and competing with free incumbents does not measure the economics it claims
+> to. The *mechanism* claim (carbon price decarbonises by retiring coal and swapping
+> CCS for unabated gas, not by displacing gas energy with VRE) is untested rather than
+> disproven. Re-derive from a repaired frontier before quoting any elasticity. The gas
+> share range 29.3% → 22.9% is likewise a pre-fix quantity.
+
 The 7×5 ccx frontier + shadow-price analysis: matching AEMO's *emissions intensity*
 takes a plausible $100–400/t through 2045, but matching AEMO's *renewable share /
 generation mix* takes $3,500–11,700/t (extrapolated) — economically meaningless. Carbon
@@ -113,6 +127,28 @@ c550 cell; medium-high for the trajectory shape (rep-week suggests binding from
 
 ### 2.8 Adjacent finding: the wind-share plateau (medium-high)
 
+> **SUPERSEDED 2026-08-15 by `vre_margin_diagnostic.md`.** Two of the three mechanisms
+> below are retracted:
+>
+> - *"REZ transmission-augmentation economics, exercised selectively because CCS gas is
+>   cheaper at the margin"* — the options recorded as available-but-declined were being
+>   offered at a tenth of their published capacity and ten times their true unit cost
+>   (14 of 38; N13 among them). A refusal of a 10x-mispriced option is not an economic
+>   judgement. The source memo's utilisation figures additionally double-count carried
+>   capacity that `adjust_capacity_caps_for_carried` has already netted off the RHS.
+> - *"2030-vintage wind reaching end-of-life through the 2040s"* — **withdrawn
+>   outright.** New-entrant wind and solar carry 30-year IASR technical lives and the
+>   earliest chain vintage is 2030, so no wind or solar vintage retires anywhere in the
+>   horizon; the only cohort that ever drops is the 2030 batteries at 20 years. The REZ
+>   capacity swings read as a replacement cycle are per-period new build, not standing
+>   capacity.
+>
+> What replaces them: wind's availability-weighted capture price is $64/MWh against a
+> $127/MWh mean bus price, because ~90% of an incremental wind MWh lands in hours that
+> already carry spill. The marginal built candidate sits at a margin of $0.39/MW/yr.
+> That shape penalty is genuine economics and survives the fixes; the mispriced
+> transmission and the zero-capped offshore did not.
+
 `rez_headroom_check_wind_solar_plateau.md`: model wind share plateaus ~41–43% from 2040
 while AEMO climbs to ~58–61% — driven by REZ transmission-augmentation economics (a
 finite AEMO-enumerated option list, exercised selectively because CCS gas is cheaper at
@@ -174,6 +210,27 @@ budget itself has since been re-sourced to AEMO's 2026 ISP Step Change hydro
 trajectory (declining 16.7→9.8 TWh/yr, 2027→2050; see
 `analysis/calibration/aemo_2026_isp_sc_hydro_generation.csv`), which tightens
 2045–2050 further.
+
+### 3.2 ccx frontier usability (2026-08-15): cost axis and mix shares are unusable
+
+Separate from, and additional to, the §3.1 hydro annotation. The three defects fixed on
+`storage-menu-repair` (`vre_margin_diagnostic.md`; commits `7f12fd4`, `36ab6c6`,
+`78267c3`) all sit upstream of the ccx solves, so every ccx network was built against a
+transmission option set offering 16,135 MW where AEMO publishes 44,670 MW at the
+correct least-cost selection, a candidate menu with all 104,362 MW of offshore wind
+pinned to zero, and 16.3 GW of existing VRE carrying no fixed cost at all.
+
+| ccx output | status for ShARP Pass 2 |
+|---|---|
+| Cost coordinate (`$/MWh`, frontier points) | **UNUSABLE** — transmission capex wrong on 14 of 38 REZ options and 1 of 10 flow paths, and the option *selection* was ranked on the corrupted values |
+| Generation mix shares (gas %, wind %, renewable %) | **UNUSABLE** — measured against a truncated, mispriced wind supply curve |
+| Carbon-price elasticity / shadow prices (§2.1) | **WITHDRAWN** — see the §2.1 annotation |
+| Reliability findings (USE = 0, drought-survival mechanism §2.5, firming adequacy) | **STAND, pending re-verification** — these are capacity-adequacy results driven by the demand and outage traces and the storage/hydro architecture, none of which the three fixes touch. Re-verify on the repaired frontier before publishing, but there is no identified mechanism by which the fixes would overturn them. |
+| Emissions intensity (tCO2/MWh) | **treat as indicative only** — dispatch-driven, so not directly corrupted, but it moves with the mix |
+
+The three defects were all upstream shared-templater or translator code, not fork
+analysis code, so this applies to every frontier this project has produced, not only
+ccx. Realising the repair needs a full re-solve.
 
 ## 4. Open items
 
