@@ -903,6 +903,7 @@ def _create_vre_build_and_resource_limit_constraints(
             generators,
             constraint_group_details["constraint_filter_col"],
             constraint_group_details["constraint_type"],
+            constraint_group_details.get("exclude_resource_types", ()),
         )
         _append_if_not_empty(lhs, constraint_group_lhs)
         _append_if_not_empty(rhs, constraint_group_rhs)
@@ -1006,6 +1007,7 @@ def _create_vre_constraint_lhs_rhs(
     generators: pd.DataFrame,
     constraint_filter_col: str,
     rhs_constraint_col: str,
+    exclude_resource_types: tuple[str, ...] = (),
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Create left-hand side and right-hand side DataFrames for VRE resource or
@@ -1028,6 +1030,11 @@ def _create_vre_constraint_lhs_rhs(
         rhs_constraint_col : str with the column name in `build_or_resource_limits`
             to use as the right-hand side of the constraint, one of `'resource_limit_mw'`
             or `'build_limit_mw'`.
+        exclude_resource_types : tuple of `isp_resource_type` values to hold out of the
+            constraint even when they match `constraint_filter_col`. Needed where a
+            coarse filter (`carrier == 'Wind'`) would otherwise capture generators the
+            limit was not written for, e.g. offshore candidates caught by an onshore
+            land-use limit.
 
     Returns:
         lhs : dataframe with the left-hand side of the constraint with columns 'constraint_name',
@@ -1051,6 +1058,8 @@ def _create_vre_constraint_lhs_rhs(
             + f" for constraint group type {constraint_group_type}"
         )
 
+    in_scope = ~generators["isp_resource_type"].isin(exclude_resource_types)
+
     lhs = []
     rhs = []
     for _, row in build_or_resource_limits.iterrows():
@@ -1059,6 +1068,7 @@ def _create_vre_constraint_lhs_rhs(
                 (generators[constraint_filter_col] == row[constraint_filter_col])
                 & (generators["bus"] == row["rez_id"])
                 & (generators["p_nom_extendable"] == True)
+                & in_scope
             ),
             "name",
         ]

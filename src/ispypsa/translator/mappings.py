@@ -248,6 +248,17 @@ _VRE_BUILD_LIMIT_CUSTOM_CONSTRAINT_GROUPS = {
         constraint_filter_col="carrier",
         constraint_type="build_limit_mw",
         can_be_relaxed=False,
+        # A land-use limit is definitionally onshore, and AEMO reports
+        # `land_use_limits_mw_wind = 0` for every offshore REZ (V8, V9, T4, N10,
+        # N11). Filtering on `carrier == "Wind"` alone caught the offshore
+        # candidates in that zero cap, and because this group sets
+        # can_be_relaxed=False there was no escape valve: every offshore
+        # candidate was pinned to exactly 0 MW, and the dedicated
+        # `offshore_wind_build_limits` group above (V8 WFL 5,000 / WFX 54,996,
+        # T4 20,360/8,024, N10 7,420, N11 4,452, V9 3,330/780 = 104,362 MW)
+        # was a dead letter. Excluding the offshore resource types here leaves
+        # each group governing what it was written for.
+        exclude_resource_types=("WFL", "WFX"),
     ),
 }
 """ _VRE_BUILD_LIMIT_CUSTOM_CONSTRAINT_GROUPS
