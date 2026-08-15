@@ -86,6 +86,21 @@ _ECAA_GENERATOR_NEW_COLUMN_MAPPING = {
     # summary's `auxiliary_load_%` column with the generator name (= Power
     # Station after the (c1) consolidation rename).
     "auxiliary_load_%": "generator",
+    # The summary's own `FOM ($/kW/annum)` cell is a lookup key, not a value, and
+    # AEMO only writes a station name there for thermal plant. Wind, solar and
+    # hydro rows carry a class label ("All Wind", "All Large scale solar PV",
+    # "All Hydro") and two gas rows carry a technology label ("OCGT (small GT)").
+    # `fixed_opex_existing_committed_anticipated_additional_generators` is keyed
+    # solely by Power Station and has no such rows, so the lookup missed and
+    # `_merge_and_set_ecaa_generators_static_properties` turned the leftover
+    # string into pd.NA on 274 of 336 rows. There is no class-level FOM anywhere
+    # in the workbook to reach instead (the Fixed OPEX sheet is 737 per-station
+    # rows, none of them an "All ..." aggregate), so the class labels are AEMO
+    # shorthand for "these are listed individually" and the per-station join is
+    # the intended mapping. Seed from the generator name like the other
+    # Power-Station-keyed lookups above; thermal is unaffected because its
+    # summary cell already held that same station name.
+    "fom_$/kw/annum": "generator",
 }
 
 _NEW_ENTRANT_GENERATOR_NEW_COLUMN_MAPPING = {
