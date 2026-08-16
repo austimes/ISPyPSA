@@ -1410,3 +1410,75 @@ def test_create_pypsa_friendly_new_entrant_generator_timeseries(tmp_path):
     got_trace = pd.read_parquet(tmp_path / Path("wind_traces/Wind_Q1_WM.parquet"))
 
     pd.testing.assert_frame_equal(expected_trace, got_trace)
+
+
+def test_calculate_dynamic_marginal_cost_adds_per_generator_ccs_transport(
+    csv_str_to_df,
+):
+    """The CCS supply curve prices CO2 transport per generator against its assigned
+    sink, so the adder varies by bus where the superseded scalar tns_price could not.
+    Storage is priced separately at the injectivity tranche, not here."""
+    snapshots = csv_str_to_df("""
+    investment_periods,     snapshots
+    2050,                   2049-07-01__12:00:00
+    """)
+    snapshots["snapshots"] = pd.to_datetime(snapshots["snapshots"])
+
+    generator_df = csv_str_to_df("""
+    name,                    carrier,  isp_fuel_cost_mapping,  isp_heat_rate_gj/mwh,  isp_vom_$/mwh_sent_out,  isp_residual_co2_t_per_mwh,  isp_captured_co2_t_per_mwh,  isp_ccs_transport_$/t,  marginal_cost
+    ccgt_with_ccs_snw_2050,  Gas,      SNW__new__CCGT,         9.039648,              0.0,                     0.046581,                    0.419232,                    84.39,                  ccgt_with_ccs_snw
+    """)
+
+    result = _calculate_dynamic_marginal_costs_single_generator(
+        generator_df.iloc[0],
+        pd.Series({"2049_50_$/gj": 10.0}),
+        snapshots,
+        carbon_price=550.0,
+    )
+
+    # fuel 9.039648 * 10 = 90.39648, VOM 0, carbon 550 * 0.046581 = 25.61955,
+    # transport 84.39 * 0.419232 = 35.37898848 -> 151.39501848 $/MWh
+    expected = csv_str_to_df("""
+    investment_periods,     snapshots,                  marginal_cost
+    2050,                   2049-07-01__12:00:00,       151.39501848
+    """)
+    expected["snapshots"] = pd.to_datetime(expected["snapshots"])
+
+    pd.testing.assert_frame_equal(
+        result.sort_index(), expected.sort_index(), rtol=1e-6
+    )
+
+
+def test_calculate_dynamic_marginal_cost_leaves_uncapturing_generators_alone(
+    csv_str_to_df,
+):
+    """A transport adder on a generator that captures nothing must not change its
+    cost, so the column is safe to attach to the whole generators table."""
+    snapshots = csv_str_to_df("""
+    investment_periods,     snapshots
+    2050,                   2049-07-01__12:00:00
+    """)
+    snapshots["snapshots"] = pd.to_datetime(snapshots["snapshots"])
+
+    generator_df = csv_str_to_df("""
+    name,           carrier,  isp_fuel_cost_mapping,  isp_heat_rate_gj/mwh,  isp_vom_$/mwh_sent_out,  isp_residual_co2_t_per_mwh,  isp_captured_co2_t_per_mwh,  isp_ccs_transport_$/t,  marginal_cost
+    ccgt_snw_2050,  Gas,      SNW__new__CCGT,         7.24923,               0.0,                     0.373550,                    0.0,                         84.39,                  ccgt_snw
+    """)
+
+    result = _calculate_dynamic_marginal_costs_single_generator(
+        generator_df.iloc[0],
+        pd.Series({"2049_50_$/gj": 10.0}),
+        snapshots,
+        carbon_price=550.0,
+    )
+
+    # fuel 72.4923 + carbon 550 * 0.37355 = 205.4525 -> 277.9448, no transport term.
+    expected = csv_str_to_df("""
+    investment_periods,     snapshots,                  marginal_cost
+    2050,                   2049-07-01__12:00:00,       277.944800
+    """)
+    expected["snapshots"] = pd.to_datetime(expected["snapshots"])
+
+    pd.testing.assert_frame_equal(
+        result.sort_index(), expected.sort_index(), rtol=1e-6
+    )

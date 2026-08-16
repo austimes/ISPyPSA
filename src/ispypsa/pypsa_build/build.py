@@ -8,6 +8,7 @@ from ispypsa.pypsa_build.buses import (
 )
 from ispypsa.pypsa_build.carriers import _add_carriers_to_network
 from ispypsa.pypsa_build.custom_constraints import _add_custom_constraints
+from ispypsa.pypsa_build.ccs_supply_curve import _add_ccs_supply_curve
 from ispypsa.pypsa_build.fuel_supply_curve import _add_fuel_supply_curve
 from ispypsa.pypsa_build.generators import (
     _add_custom_constraint_generators_to_network,
@@ -116,6 +117,14 @@ def build_pypsa_network(
             pypsa_friendly_tables["biomass_supply_curve"],
             pypsa_friendly_tables["generators"],
             "Biomass",
+        )
+
+    if "ccs_sink_tranches" in pypsa_friendly_tables:
+        _add_ccs_supply_curve(
+            network,
+            pypsa_friendly_tables["ccs_sink_tranches"],
+            pypsa_friendly_tables["ccs_transport_adders"],
+            pypsa_friendly_tables["generators"],
         )
 
     return network

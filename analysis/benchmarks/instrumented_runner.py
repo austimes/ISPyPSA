@@ -468,6 +468,19 @@ def _run_staged_pipeline(
         timings["phes_build_limit_carried_adjust"] = (
             adjust_phes_build_limits_for_carried(pypsa_friendly, current_year)
         )
+        # Carried rows are aligned to whatever columns existed when their tranche
+        # parquet was written, so vintages predating the CCS supply curve arrive
+        # with no transport adder. Re-apply it by bus now that they are in, or
+        # every carried CCS unit would dispose of its CO2 for free. The sink
+        # grouping for the injectivity constraint is derived from bus at
+        # constraint time and so is already immune to this.
+        if "ccs_transport_adders" in pypsa_friendly:
+            from ispypsa.translator.ccs_supply_curve import _add_ccs_transport_columns
+
+            pypsa_friendly["generators"] = _add_ccs_transport_columns(
+                pypsa_friendly["generators"], pypsa_friendly["ccs_transport_adders"]
+            )
+
         print(
             f"\n=== RECURSIVE-DYNAMIC INJECTION === {timings['recursive_dynamic']} "
             f"| capacity-cap carried adjust: {timings['capacity_cap_carried_adjust']} "

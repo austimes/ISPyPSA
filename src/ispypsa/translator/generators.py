@@ -699,15 +699,21 @@ def _calculate_dynamic_marginal_costs_single_generator(
 
     # dynamic_marginal_cost = fuel_price * heat_rate + VOM + carbon_adder + tns_adder
     # where carbon_adder = carbon_price * residual t/MWh
-    #       tns_adder    = tns_price    * captured t/MWh
+    #       tns_adder    = (tns_price + transport_$/t) * captured t/MWh
     # Residual / captured are pre-computed by _add_carbon_pricing_columns from
     # heat_rate × carrier_NGER × capture_rate (0 for non-CCS plants → no adder).
+    # `isp_ccs_transport_$/t` is the per-generator cost of piping captured CO2 to
+    # its assigned sink, set by the CCS supply curve; the sink's storage cost is
+    # priced separately against the injectivity tranche, not here. The scalar
+    # `tns_price` is the superseded flat alternative and the config forbids
+    # setting both, so exactly one of the two terms is ever non-zero.
     # Non-thermal generators (wind, solar, hydro) typically have heat_rate=0
     # and may have VOM not published in the IASR tables (treated as 0).
     heat_rate = generator_row["isp_heat_rate_gj/mwh"]
     vom = generator_row["isp_vom_$/mwh_sent_out"]
     residual = generator_row.get("isp_residual_co2_t_per_mwh", 0.0)
     captured = generator_row.get("isp_captured_co2_t_per_mwh", 0.0)
+    transport = generator_row.get("isp_ccs_transport_$/t", 0.0)
     if pd.isna(heat_rate):
         heat_rate = 0.0
     if pd.isna(vom):
@@ -716,8 +722,10 @@ def _calculate_dynamic_marginal_costs_single_generator(
         residual = 0.0
     if pd.isna(captured):
         captured = 0.0
+    if pd.isna(transport):
+        transport = 0.0
     carbon_adder = carbon_price * residual
-    tns_adder = tns_price * captured
+    tns_adder = (tns_price + transport) * captured
     dynamic_marginal_costs = (
         (gen_fuel_prices * heat_rate) + vom + carbon_adder + tns_adder
     )

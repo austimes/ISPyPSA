@@ -72,6 +72,8 @@ def _write_period_config(
     tns_price: float = 0.0,
     gas_supply_curve_csv: str | None = None,
     biomass_supply_curve_csv: str | None = None,
+    ccs_sink_tranches_csv: str | None = None,
+    ccs_transport_csv: str | None = None,
     parsed_traces_directory: str = "analysis/data/traces",
     dataset_year: int = 2024,
     iasr_final: bool = False,
@@ -194,6 +196,12 @@ carbon_pricing:
     if biomass_supply_curve_csv is not None:
         cfg_text += (
             f'biomass_supply_curve:\n  curve_csv: "{biomass_supply_curve_csv}"\n'
+        )
+    if ccs_sink_tranches_csv is not None:
+        cfg_text += (
+            f"ccs_supply_curve:\n"
+            f'  sink_tranches_csv: "{ccs_sink_tranches_csv}"\n'
+            f'  transport_csv: "{ccs_transport_csv}"\n'
         )
     cfg_path.write_text(cfg_text)
     return cfg_path
@@ -570,6 +578,28 @@ def main():
         "for the flat re-priced feedstock with unlimited volume.",
     )
     ap.add_argument(
+        "--ccs-supply-curve",
+        default="analysis/ccs_market/ccs_sink_tranches_conservative.csv",
+        help="Path to a CO2 sink injectivity tranche CSV (sink, "
+        "financial_year, cap_kt, storage_$/t), threaded into "
+        "config.ccs_supply_curve.sink_tranches_csv for every period. Limits "
+        "annual captured CO2 per storage sink and prices injection. "
+        "PRODUCTION DEFAULT: the conservative variant, in which every cap is "
+        "zero because no NEM-reachable sink with spare capacity is connected "
+        "to any CCS bus (CCS_SUPPLY_CURVE.md). Pass the optimistic variant "
+        "for the branch in which every live proposal is realised at "
+        "nameplate, or 'none' for the pre-curve behaviour (free unlimited "
+        "disposal, which is also AEMO's own ISP treatment).",
+    )
+    ap.add_argument(
+        "--ccs-transport-adders",
+        default="analysis/ccs_market/ccs_transport_adders.csv",
+        help="Path to the CO2 transport adder CSV (isp_sub_region_id, sink, "
+        "distance_km, transport_$/t), threaded into "
+        "config.ccs_supply_curve.transport_csv. Assigns each sub-region its "
+        "nearest permitted sink and prices the pipeline per tonne captured.",
+    )
+    ap.add_argument(
         "--parsed-traces-directory",
         default="analysis/data/traces",
         help="Base parsed-traces dir (isp_<dataset_year> is appended). Use "
@@ -619,6 +649,8 @@ def main():
         args.gas_supply_curve = None
     if args.biomass_supply_curve and args.biomass_supply_curve.lower() == "none":
         args.biomass_supply_curve = None
+    if args.ccs_supply_curve and args.ccs_supply_curve.lower() == "none":
+        args.ccs_supply_curve = None
 
     regions = [args.filter] if args.filter else None
     # Per-chain tranche directory: independent-static runs never touch it
@@ -664,6 +696,7 @@ def main():
         "tns_price": args.tns_price,
         "gas_supply_curve": args.gas_supply_curve,
         "biomass_supply_curve": args.biomass_supply_curve,
+        "ccs_supply_curve": args.ccs_supply_curve,
         "unserved_energy_cost": args.unserved_energy_cost,
         "reference_years": args.reference_years if args.reference_years else [2018],
         "started_at_iso": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -694,6 +727,8 @@ def main():
             tns_price=args.tns_price,
             gas_supply_curve_csv=args.gas_supply_curve,
             biomass_supply_curve_csv=args.biomass_supply_curve,
+            ccs_sink_tranches_csv=args.ccs_supply_curve,
+            ccs_transport_csv=args.ccs_transport_adders,
             parsed_traces_directory=args.parsed_traces_directory,
             dataset_year=args.dataset_year,
             iasr_final=args.iasr_final,
