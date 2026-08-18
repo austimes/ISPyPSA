@@ -1,0 +1,5 @@
+level,scalar,realised_ratio,isp_2026_scenario,scenario_fy2050_twh,provenance
+d087,0.869546,0.869546,Slower Growth,219.061,"AEMO 2026 ISP Final demand traces; FY2050 NEM POE50 OPSO_MODELLING RefYear2018 15 sub-regions; ratio to Step Change. Slower Growth is the 2026-ISP successor of the 2024-ISP 'Progressive Change' (src/ispypsa/iasr_table_caching/schema_normalisation.py:681)"
+d100,1.000000,1.000000,Step Change,251.925,"AEMO 2026 ISP Final demand traces; the scenario the repository's parsed store carries; ratio 1.0 by definition. Rewritten anyway so the round trip cannot masquerade as a demand signal"
+d110,1.100000,1.100000,,277.118,"Interpolated presentation level, not an ISP scenario. Disclosed assumption: 1.1 x Step Change, sitting between Step Change and Accelerated Transition"
+d123,1.234752,1.234752,Accelerated Transition,311.065,"AEMO 2026 ISP Final demand traces; FY2050 NEM POE50 OPSO_MODELLING RefYear2018 15 sub-regions; ratio to Step Change. Accelerated Transition is the 2026-ISP successor of the 2024-ISP 'Green Energy Exports' (src/ispypsa/iasr_table_caching/schema_normalisation.py:682)"
