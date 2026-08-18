@@ -56,7 +56,9 @@ def _cell_command(carbon_price: int, level: str, budget_min: int) -> list[str]:
         "--tns-price", CCS_FLAT_ADDER,
         "--ccs-supply-curve", "none",
         "--dataset-year", "2026", "--iasr-final",
-        "--parsed-traces-directory", str(TRACE_ROOT / f"traces_{level}"),
+        # as_posix, not str: the path is written into a double-quoted YAML scalar, and a
+        # Windows backslash path makes "C:\Users\..." a bad unicode escape at \U.
+        "--parsed-traces-directory", (TRACE_ROOT / f"traces_{level}").as_posix(),
         "--rep-weeks", *WEEKS,
         "--no-named-weeks",
         "--use-pdlp", "--pdlp-tolerance", PDLP_TOLERANCE,
