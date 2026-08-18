@@ -67,6 +67,7 @@ def _write_period_config(
     regions: list[str] | None,
     rep_weeks: list[int] | None = None,
     full_year: bool = False,
+    named_weeks: bool = True,
     resolution_min: int = 30,
     carbon_price: float = 0.0,
     tns_price: float = 0.0,
@@ -176,7 +177,7 @@ temporal:
       #     solar resource, moderate demand. Captures the VRE-favouring
       #     economic regime that single-rep-week sampling misses.
       representative_weeks: {"~" if full_year else (rep_weeks if rep_weeks is not None else [42])}
-      named_representative_weeks: {"~" if full_year else "[residual-peak-demand, peak-demand]"}
+      named_representative_weeks: {"~" if full_year or not named_weeks else "[residual-peak-demand, peak-demand]"}
   operational:
     resolution_min: 30
     reference_year_cycle: {ref_years}
@@ -461,8 +462,21 @@ def main():
         nargs="+",
         default=None,
         help="Override representative_weeks list (default [42]). "
-        "Named weeks (residual-peak-demand, peak-demand) remain. "
-        "E.g. --rep-weeks 42 33 gives 4-week sampling.",
+        "Named weeks (residual-peak-demand, peak-demand) remain unless "
+        "--no-named-weeks is passed. E.g. --rep-weeks 42 33 gives 4-week sampling.",
+    )
+    ap.add_argument(
+        "--no-named-weeks",
+        action="store_true",
+        help="Drop the named stress weeks (residual-peak-demand, peak-demand) "
+        "from capacity_expansion sampling, leaving only --rep-weeks. The "
+        "numbered and named sets are unioned (temporal_filters.py:145), so "
+        "without this flag an evenly-spaced N-week sample is really N+2 weeks "
+        "with the two stress weeks carrying 2/(N+2) of the sample against an "
+        "annual frequency of 2/52 -- the overweighting that biased three-week "
+        "sampling's gas share +36.7% against the full-year anchor. Use for "
+        "even-sampling designs; omit to keep the established stress-weighted "
+        "behaviour.",
     )
     ap.add_argument(
         "--full-year",
@@ -722,6 +736,7 @@ def main():
             regions,
             rep_weeks=args.rep_weeks,
             full_year=args.full_year,
+            named_weeks=not args.no_named_weeks,
             resolution_min=resolution_min,
             carbon_price=args.carbon_price,
             tns_price=args.tns_price,
