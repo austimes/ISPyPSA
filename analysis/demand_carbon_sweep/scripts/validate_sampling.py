@@ -38,6 +38,54 @@ def _annual_mwh(network: pypsa.Network) -> pd.Series:
     return network.generators_t.p.mul(network.snapshot_weightings["generators"], axis=0).sum()
 
 
+def _normalised_objective(record: dict, network: pypsa.Network) -> float | None:
+    """LP objective on a one-year basis, or None if the solver returned none.
+
+    PyPSA scales a period's objective contribution by
+    investment_period_weightings["objective"], which depends on the chain's step
+    length (5 for the anchor's 5-year-step chain, 1 for a single-period run). Dividing
+    it out is what makes two differently-chained runs comparable at all.
+    """
+    objective = record.get("objective_value")
+    if not objective:
+        return None
+    weightings = network.investment_period_weightings
+    if weightings.empty or "objective" not in weightings:
+        return float(objective)
+    return float(objective) / float(weightings["objective"].iloc[0])
+
+
+def _termination(record: dict) -> tuple[bool, str]:
+    """Acceptance test 4, on whichever solver's convergence fields are populated.
+
+    Gurobi barrier reports a complementarity measure in ipm_final_gap and is judged
+    against the Addendum 1 criterion of 1e-5. PDLP reports relative gap and
+    feasibility residuals and is judged against its requested tolerance, because its
+    model_status is Unknown even on a converged solve (a known HiGHS reporting quirk
+    on this LP class) and so cannot be used.
+    """
+    status = record.get("model_status")
+    if status == "Optimal":
+        return True, "Optimal"
+
+    pdlp_gap = record.get("pdlp_final_gap_rel")
+    if pdlp_gap is not None:
+        tolerance = record.get("solver_options", {}).get("pdlp_optimality_tolerance", 1e-3)
+        metrics = {
+            "gap": pdlp_gap,
+            "pinf": record.get("pdlp_final_pinf_rel"),
+            "dinf": record.get("pdlp_final_dinf_rel"),
+        }
+        converged = all(v is not None and v < tolerance for v in metrics.values())
+        detail = ", ".join(f"{k}={v:.3g}" for k, v in metrics.items())
+        return converged, f"PDLP {detail} vs tol {tolerance:g}"
+
+    gurobi_gap = record.get("ipm_final_gap")
+    if gurobi_gap is not None:
+        return gurobi_gap <= 1e-5, f"Gurobi gap={gurobi_gap:.3g} vs 1e-5"
+    return False, f"{status}, no convergence metrics"
+
+
 def _shares(network: pypsa.Network) -> pd.Series:
     energy = _annual_mwh(network)
     by_carrier = energy.groupby(network.generators.carrier).sum() / 1e6
@@ -78,20 +126,24 @@ def main() -> None:
           f"limit +/-{GAS_GATE_PP} pp   -> {'PASS' if gas_pass else 'FAIL'}")
     print(f"  wind share delta     {wind_delta:+7.3f} pp   (reported, not gated)")
 
-    anchor_obj = anchor_record.get("objective_value")
-    cell_obj = cell_record.get("objective_value")
+    # Objectives are NOT directly comparable across these two runs. The anchor was
+    # the terminal period of a 5-year-step chain, so PyPSA gave its investment period
+    # years=5 and an objective weighting of 4.546; a single-period run gets 1.0. The
+    # raw ratio is therefore ~4.5x and meaningless. Normalise both to a one-year basis.
+    anchor_obj = _normalised_objective(anchor_record, anchor)
+    cell_obj = _normalised_objective(cell_record, cell)
     if anchor_obj and cell_obj:
         cost_delta_pct = (cell_obj - anchor_obj) / anchor_obj * 100
         cost_pass = abs(cost_delta_pct) <= COST_GATE_PCT
         slack = anchor_obj * ANCHOR_PDLP_TOLERANCE
-        print(f"  objective            anchor {anchor_obj:,.0f}   cell {cell_obj:,.0f}")
+        print(f"  objective (1-yr norm) anchor {anchor_obj:,.0f}   cell {cell_obj:,.0f}")
         print(f"  cost delta           {cost_delta_pct:+7.3f} %    limit +/-{COST_GATE_PCT} %"
               f"   -> {'PASS' if cost_pass else 'FAIL'}")
         print(f"  anchor convergence slack at PDLP {ANCHOR_PDLP_TOLERANCE}: "
               f"~+/-A${slack / 1e6:,.0f}M ({ANCHOR_PDLP_TOLERANCE * 100:.1f} %)")
     else:
         print(f"  objective            anchor {anchor_obj}   cell {cell_obj}"
-              f"   -> cost delta NOT COMPUTABLE")
+              f"   -> cost delta NOT COMPUTABLE (solver returned no objective)")
 
     wall = cell_record.get("wall_clock_s")
     solve = cell_record.get("solve_s")
@@ -101,13 +153,9 @@ def main() -> None:
     print(f"  solve time           {solve} s")
     print(f"  lp rows              {cell_record.get('lp_rows'):,}")
 
-    status = cell_record.get("model_status")
-    gap = cell_record.get("ipm_final_gap")
-    status_ok = status == "Optimal" or (status == "Sub-optimal" and gap is not None and gap <= 1e-5)
-    print(f"\n  model_status         {status}")
-    print(f"  primal-dual gap      {gap}")
-    print(f"  primal residual      {cell_record.get('ipm_final_pinf')}")
-    print(f"  dual residual        {cell_record.get('ipm_final_dinf')}")
+    status_ok, detail = _termination(cell_record)
+    print(f"\n  model_status         {cell_record.get('model_status')}")
+    print(f"  convergence          {detail}")
     print(f"  acceptance test 4    -> {'PASS' if status_ok else 'FAIL'}")
 
     use = _annual_mwh(cell)[cell.generators.carrier == "Unserved Energy"].sum()
