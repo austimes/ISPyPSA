@@ -1,0 +1,80 @@
+{
+  "_provenance": "grid supply pathways design note, Aug 2026 (colleague's design, external to this repository). Values are quoted verbatim from the note's data appendix and are NOT re-derived, adjusted or improved here.",
+  "_units": {
+    "cost": "AUD/MWh (real-dollar year not stated in the design note)",
+    "intensity": "MtCO2e/TWh, numerically identical to tCO2e/MWh"
+  },
+  "anchor_2025": {
+    "cost_aud_per_mwh": 55,
+    "intensity_mt_per_twh": 0.591078,
+    "emissions_mt": 149.799883,
+    "supply_twh": 253.435
+  },
+  "pathways": [
+    {
+      "id": "incumbent_thermal_mix",
+      "cost_2030": 58,
+      "intensity_2030": 0.5,
+      "cost_2050": 88,
+      "intensity_2050": 0.12
+    },
+    {
+      "id": "policy_frontier",
+      "cost_2030": 87.7,
+      "intensity_2030": 0.1867,
+      "cost_2050": 135,
+      "intensity_2050": 0.0116
+    },
+    {
+      "id": "deep_clean_firmed",
+      "cost_2030": 95,
+      "intensity_2030": 0.1221,
+      "cost_2050": 150,
+      "intensity_2050": 0.00075
+    },
+    {
+      "id": "delayed_deep_transition",
+      "cost_2030": 75,
+      "intensity_2030": 0.206,
+      "cost_2050": 110,
+      "intensity_2050": 0.00075
+    },
+    {
+      "id": "persistent_constrained_transition",
+      "cost_2030": 68,
+      "intensity_2030": 0.206,
+      "cost_2050": 145,
+      "intensity_2050": 0.0237
+    }
+  ],
+  "policy_frontier_derived": {
+    "renewable_share_2030_prose_claim": 0.796,
+    "calibration_demand_twh": 254,
+    "implied_thermal_intensity_2030": 0.915,
+    "marginal_to_average_intensity_ratio": 4.9,
+    "_note": "The note states these as derived quantities. Verified internally consistent: 0.1867 / (1 - 0.796) = 0.915196, and 0.915196 / 0.1867 = 4.902 = 1 / (1 - 0.796). The ratio is a function of the renewable share alone; no emissions datum enters it."
+  },
+  "block_structure": {
+    "_source": "design note, proposed extension. Three segments per pathway.",
+    "planned": {
+      "cap_twh": 254,
+      "cost_basis": "the authored pathway cost",
+      "intensity_basis": "the authored pathway intensity"
+    },
+    "marginal_firmed_renewables": {
+      "cost_basis": "planned cost plus an escalating adder",
+      "adder_specified_in_note": false,
+      "intensity_mt_per_twh": 0.0
+    },
+    "thermal_overflow": {
+      "cost_basis": "priced below the marginal-renewables block",
+      "intensity_mt_per_twh": 0.9
+    }
+  },
+  "stylised_assumptions_added_here": {
+    "_warning": "NOT from the design note. Added only so the block curve can be drawn, and labelled 'stylised illustration' wherever it appears.",
+    "renewables_adder_aud_per_mwh": 40,
+    "thermal_overflow_cost_aud_per_mwh": 110,
+    "block_width_twh": 25
+  }
+}
