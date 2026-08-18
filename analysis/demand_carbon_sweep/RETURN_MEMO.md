@@ -1,7 +1,12 @@
 # Post-repair 4x4 carbon price x demand sweep: return memo
 
-**Verdict: STOPPED before Stage 2.** Stage 0 is complete and delivered. Stage 1 fired four of
-the brief's own surface-and-pause conditions. No cells were built. One decision is needed.
+**Verdict: STOPPED before Stage 2.** Stage 0 is complete and delivered. No cells were built.
+
+Sections 1 to 4 below are the original return, which established that the brief's Stage 1
+premise was wrong. Addendum 1 accepted that, banked Stage 0, and replaced Stage 1 with a
+13-week even-sampling gate. **Section 8 is the current state and supersedes section 5.** In
+short: the replacement sampling gate PASSES, the solver gate FAILS, and the pause is now
+narrowly about how termination is judged rather than about the sweep's design.
 
 Branch `analysis/demand-carbon-sweep`, not pushed. Run artefacts gitignored.
 
@@ -294,3 +299,125 @@ Run identifiers referenced: anchor `vrefix_gbc_c550_2050`; Stage 1.1 probe `samp
 
 No pre-repair evidence is used anywhere in this memo. Nothing from the seven-price frontier
 family enters any comparison.
+
+---
+
+## 8. Stage 1 under Addendum 1: sampling passes, the solver does not
+
+Supersedes section 5. Addendum 1 withdrew Config A and Config B, banked Stage 0, and set the
+sampling to thirteen evenly spaced weeks at 30-minute resolution with week 51 deliberately
+**not** forced in.
+
+### 8.1 An implementation problem that had to be solved first
+
+`run_myopic.py`'s config writer appended the two named stress weeks unconditionally, and
+`temporal_filters.py:145` **unions** the numbered and named sets. Asking for thirteen even
+weeks therefore produced **fifteen**, two of them the stress weeks, carrying 2/15 = 13.3% of
+the sample against an annual frequency of 2/52 = 3.8%. That is the same overweighting mechanism
+Addendum 1 set out to remove, and it would also have made the week-51 sensitivity meaningless.
+
+Added `--no-named-weeks` to the run harness (analysis-layer orchestration, not `src/ispypsa/`),
+default off. Verified across all three states:
+
+| flags | `representative_weeks` | `named_representative_weeks` |
+|---|---|---|
+| default | `[2, 6, 10]` | `[residual-peak-demand, peak-demand]` (unchanged) |
+| `--no-named-weeks` | `[2, 6, 10]` | `~` |
+| `--full-year` | `~` | `~` (unchanged) |
+
+### 8.2 The sampling gate PASSES, and even spacing is what did it
+
+`val13_c550_2050`: 13 even weeks at 30 min, the anchor's own carried tranches, Gurobi Method 2 /
+Crossover 0 / `BarConvTol` 1e-6. LP 15,057,871 rows / 6,862,940 columns / 29.1M nonzeros,
+presolved to 4,705,263 rows.
+
+| quantity | 3-week (withdrawn) | **13 even weeks** | gate |
+|---|---|---|---|
+| gas share delta vs anchor | +2.903 pp | **-1.183 pp** | +/-3 pp **PASS** |
+| wind share delta | -11.167 pp | **+0.966 pp** | reported |
+| solar share delta | +8.638 pp | +0.314 pp | reported |
+| wall clock | 0.28 h | **1.26 h** | 4 h **PASS** |
+
+Full mix (% of generation): wind 52.893 (anchor 51.927), solar 32.032 (31.718), gas 10.785
+(11.968), water 3.654 (3.761), biomass 0.636 (0.618).
+
+The week count was not the fix; the even spacing was. Thirteen stress-weighted weeks would have
+inherited the three-week bias, which is why 8.1 mattered.
+
+### 8.3 Week-51 sensitivity (report only, not a gate)
+
+| sample | gas share |
+|---|---|
+| week 50 in slot (even spacing) | 10.785 % |
+| week 51 in slot (stress week swapped in) | 13.476 % |
+| **movement** | **+2.691 pp** |
+| full-year anchor | 11.968 % |
+
+Both samples sit inside the 3 pp gate, but the **even sample is closer to the anchor** (-1.18 pp)
+than the stress-loaded one (+1.51 pp). Addendum 1's instruction not to force week 51 in is
+confirmed by measurement: at a thirteen-week sample size a deliberate stress inclusion
+overshoots.
+
+### 8.4 The solver gate FAILS, and the mandated re-solve does not rescue it
+
+| run | `BarConvTol` | status | gap | pinf | dinf | objective |
+|---|---|---|---|---|---|---|
+| `val13_c550_2050` | 1e-6 | Sub-optimal | 3.73 | 0.0806 | 0.00349 | none |
+| `val13x_c550_2050` (mandated re-solve) | **1e-8** | Sub-optimal | **4.05** | 0.112 | 0.00303 | none |
+| `val13s51_c550_2050` | 1e-6 | Sub-optimal | 3.84 | 0.0985 | 0.0027 | none |
+
+Against the replacement criterion (gap <= 1e-5) all three fail by five orders of magnitude. The
+barrier stalls rather than diverges: over iterations 161-172 of the 1e-6 run, primal
+infeasibility held at ~8.1e-02 and complementarity at ~3.7 while the objective moved in the
+sixth significant figure. Tightening the tolerance made it marginally worse, as expected of a
+stall.
+
+A `NumericFocus 3` + `BarHomogeneous 1` diagnostic (not requested by the addendum; run so the
+pause would be actionable) was **far worse**: iteration 85 at 2.49 h with primal infeasibility
+**4.87e+01** against the baseline's final 8.06e-02, at ~120 s/iteration. Stopped as
+non-viable rather than left to consume the machine.
+
+Acceptance test 1 also fails, at 19.97 MWh of unserved energy against the anchor's zero. On
+258 TWh that is 7.7e-8 of energy, consistent with a crossover-off interior point rather than a
+genuine capacity shortfall.
+
+### 8.5 Three findings that narrow the pause
+
+1. **The stalled solutions are stable.** 1e-6 and 1e-8 on the identical sample agree to
+   **0.002 pp on gas** and 0.036 pp on wind. The failure is in the convergence *certificate*,
+   not in the solution. The 3.674 pp spread across the three sampled solves is almost entirely
+   the week-51 *sample* difference, not solver noise.
+2. **The cost deliverable survives.** Neither `extract_method_years.py` nor
+   `extract_frontier_points.py` reads `network.objective`; cost is built from
+   `capital_cost x p_nom_opt` plus `marginal_cost x dispatch x weightings`. Run against the
+   Sub-optimal network it returns a complete row: 38.903 excl-fuel-carbon + 12.685 fuel + 3.455
+   carbon = **55.04 AUD/MWh**, 258.455 TWh delivered, CO2e 0.006282 t/MWh, renewable share
+   89.215 %. So total and average system cost, the finite-difference marginals and acceptance
+   test 3 are all recoverable. The extractor independently flags `tolerance_robust: False`.
+3. **Absent objective is not absent cost.** The `objective_value: None` in the records is a
+   PyPSA reporting consequence of Sub-optimal termination, not missing information.
+
+### 8.6 What the pause is actually about
+
+Not the sweep's design, which is validated, and not the cost deliverable, which is recoverable.
+It is narrowly: **is a stable Sub-optimal interior solution acceptable, or should the sweep move
+to PDLP?** PDLP is the anchor's own solver and the recorded working path for this LP class after
+the storage repair. `val13p_c550` (PDLP 1e-3, identical 13-week sample) is in flight so the
+choice rests on measurement. If PDLP converges, it is the better basis on every count; if it
+does not, the decision is whether to accept Sub-optimal with a stability criterion (the
+1e-6/1e-8 agreement above) in place of the unreachable 1e-5 gap.
+
+Runtime note for Stage 2: the 1.26 h validation ran uncontended on all 112 cores. Stage 2 at
+four cells wide and 26 threads each will be slower per solve, so the 3-hour per-period limit has
+less headroom than the validation suggests.
+
+### 8.7 Additional artefacts
+
+| path | what |
+|---|---|
+| `scripts/validate_sampling.py` | the Stage 1 gate comparison |
+| `scripts/run_sweep.py` | the 16-cell driver (built, dry-run verified, not yet run) |
+| `scripts/build_deliverables.py` | results, storage, marginals, manifest, acceptance tables |
+
+Run identifiers: `val13_c550_2050`, `val13x_c550_2050` (1e-8), `val13s51_c550_2050` (week 51),
+`val13nf_c550_2050` (NumericFocus, stopped), `val13p_c550_2050` (PDLP, in flight).
