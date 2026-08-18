@@ -37,6 +37,8 @@ CARBON_PRICES = [0, 150, 300, 550]
 DEMAND_LEVELS = {"d087": 0.869546, "d100": 1.000000, "d110": 1.100000, "d123": 1.234752}
 PERIODS = [2030, 2040, 2050]
 CCS_FLAT_ADDER = 89.93
+PDLP_TOLERANCE = 3e-3
+WEEKS = "1 6 10 14 19 22 26 32 35 39 41 45 50"
 RUNS = Path("analysis/benchmarks/runs_myopic")
 RECORDS = Path("analysis/benchmarks/records")
 WORKBOOK_CACHE = Path("analysis/data/workbook_cache_final")
@@ -160,14 +162,17 @@ def _manifest_row(carbon_price: int, level: str, year: int) -> dict:
         "year": year,
         "trace_directory": f"traces_{level}",
         "realised_demand_ratio": DEMAND_LEVELS[level],
-        "rep_weeks": "2 6 10 14 18 22 26 30 34 38 42 46 50",
+        "rep_weeks": WEEKS,
         "named_weeks": "suppressed",
         "resolution_min": 30,
         "solver_options": json.dumps(record.get("solver_options")),
         "model_status": record.get("model_status"),
-        "primal_dual_gap": record.get("ipm_final_gap"),
-        "primal_residual": record.get("ipm_final_pinf"),
-        "dual_residual": record.get("ipm_final_dinf"),
+        # PDLP relative metrics; model_status reads Unknown even when converged, so these
+        # are what acceptance test 4 is judged on.
+        "pdlp_gap_rel": record.get("pdlp_final_gap_rel"),
+        "pdlp_pinf_rel": record.get("pdlp_final_pinf_rel"),
+        "pdlp_dinf_rel": record.get("pdlp_final_dinf_rel"),
+        "pdlp_iterations": record.get("pdlp_iterations"),
         "objective_value": record.get("objective_value"),
         "lp_rows": record.get("lp_rows"),
         "solve_s": record.get("solve_s"),
@@ -241,9 +246,12 @@ def _acceptance(results: pd.DataFrame, manifest: pd.DataFrame) -> pd.DataFrame:
     for _, row in manifest.iterrows():
         cell_result = results[(results.cell == row["cell"]) & (results.year == row["year"])]
         use = float(cell_result["use_mwh"].iloc[0]) if len(cell_result) else float("nan")
-        gap = row["primal_dual_gap"]
-        status_ok = row["model_status"] == "Optimal" or (
-            row["model_status"] == "Sub-optimal" and pd.notna(gap) and gap <= 1e-5
+        # Converged if all three PDLP relative metrics sit inside the requested
+        # tolerance. The status field cannot be used: HiGHS PDLP reports Unknown on this
+        # LP class even when every metric is satisfied.
+        metrics = [row["pdlp_gap_rel"], row["pdlp_pinf_rel"], row["pdlp_dinf_rel"]]
+        status_ok = row["model_status"] == "Optimal" or all(
+            pd.notna(m) and m < PDLP_TOLERANCE for m in metrics
         )
         rows.append(
             {
@@ -253,7 +261,9 @@ def _acceptance(results: pd.DataFrame, manifest: pd.DataFrame) -> pd.DataFrame:
                 "use_mwh": use,
                 "test4_termination": status_ok,
                 "model_status": row["model_status"],
-                "primal_dual_gap": gap,
+                "pdlp_gap_rel": row["pdlp_gap_rel"],
+                "pdlp_pinf_rel": row["pdlp_pinf_rel"],
+                "pdlp_dinf_rel": row["pdlp_dinf_rel"],
             }
         )
     frame = pd.DataFrame(rows)

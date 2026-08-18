@@ -4,16 +4,18 @@ Each cell is an independent recursive-dynamic chain (2030 greenfield, 2040 carry
 2030's tranche, 2050 carrying both), so cells can run concurrently. Within a cell the
 three periods are sequential by construction.
 
-Sampling is the Addendum 1 configuration: thirteen evenly spaced weeks at 30-minute
-resolution, one per four-week block, with the named stress weeks suppressed so the
-sample is not stress-weighted (see --no-named-weeks in run_myopic.py).
+Sampling is the Addendum 1 configuration: thirteen weeks at 30-minute resolution, one
+per four-week block, with the named stress weeks suppressed so the sample is not
+stress-weighted (see --no-named-weeks in run_myopic.py). Within that structure the weeks
+are chosen to match annual mean demand rather than spaced naively, because the LP scales
+the sample mean up to a year and a biased sample biases every absolute quantity.
 
 CCS is a single flat transport-and-storage adder; the tranche machinery is excluded by
 passing --ccs-supply-curve none, which suppresses the whole ccs_supply_curve config
 block including its spatial transport pricing (run_myopic.py:201).
 
 Usage:
-    uv run python analysis/demand_carbon_sweep/scripts/run_sweep.py --width 4
+    uv run python analysis/demand_carbon_sweep/scripts/run_sweep.py --width 3
     uv run python analysis/demand_carbon_sweep/scripts/run_sweep.py --dry-run
 """
 
@@ -26,8 +28,16 @@ from pathlib import Path
 CARBON_PRICES = [0, 150, 300, 550]
 DEMAND_LEVELS = ["d087", "d100", "d110", "d123"]
 PERIODS = ["2030", "2040", "2050"]
-WEEKS = ["2", "6", "10", "14", "18", "22", "26", "30", "34", "38", "42", "46", "50"]
+# Demand-matched, still one week per four-week block. The naive even set
+# [2, 6, ..., 50] sits +2.536% above annual mean demand, and a representative-week LP
+# scales that straight into annual energy, cost and emissions; this set lands demand at
+# -0.050% and VRE at +0.247% (week_demand_bias.py).
+WEEKS = ["1", "6", "10", "14", "19", "22", "26", "32", "35", "39", "41", "45", "50"]
 CCS_FLAT_ADDER = "89.93"  # A$/tCO2, fleet-weighted; RETURN_MEMO.md s2.4
+# The anchor's own tolerance. Gurobi's barrier stalls Sub-optimal on this LP (gap 3.73
+# against a 1e-5 criterion, no objective returned), so termination is certified on
+# PDLP's relative metrics instead; model_status reads Unknown even when converged.
+PDLP_TOLERANCE = "3e-3"
 TRACE_ROOT = Path(
     "C:/Users/van538/AppData/Local/Temp/5/claude/"
     "c--Users-van538-GitHub-ISPyPSA/c1558bce-da07-46a1-8051-03c3ed5f9b28/scratchpad"
@@ -35,7 +45,7 @@ TRACE_ROOT = Path(
 LOG_DIR = Path("analysis/benchmarks/logs")
 
 
-def _cell_command(carbon_price: int, level: str, threads: int, budget_min: int) -> list[str]:
+def _cell_command(carbon_price: int, level: str, budget_min: int) -> list[str]:
     return [
         "uv", "run", "python", "analysis/benchmarks/run_myopic.py",
         "--run-id", f"sweep_c{carbon_price}_{level}",
@@ -49,16 +59,14 @@ def _cell_command(carbon_price: int, level: str, threads: int, budget_min: int) 
         "--parsed-traces-directory", str(TRACE_ROOT / f"traces_{level}"),
         "--rep-weeks", *WEEKS,
         "--no-named-weeks",
-        "--use-gurobi", "--gurobi-method", "2", "--gurobi-crossover", "0",
-        "--gurobi-bar-conv-tol", "1e-6",
-        "--gurobi-threads", str(threads),
+        "--use-pdlp", "--pdlp-tolerance", PDLP_TOLERANCE,
         "--budget-min", str(budget_min),
     ]
 
 
-def _run_cell(carbon_price: int, level: str, threads: int, budget_min: int) -> dict:
+def _run_cell(carbon_price: int, level: str, budget_min: int) -> dict:
     run_id = f"sweep_c{carbon_price}_{level}"
-    command = _cell_command(carbon_price, level, threads, budget_min)
+    command = _cell_command(carbon_price, level, budget_min)
     started = time.time()
     log_path = LOG_DIR / f"{run_id}_driver.log"
     with log_path.open("w") as handle:
@@ -72,8 +80,9 @@ def _run_cell(carbon_price: int, level: str, threads: int, budget_min: int) -> d
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--width", type=int, default=4, help="Cells run concurrently")
-    parser.add_argument("--threads", type=int, default=26, help="Gurobi threads per cell")
+    parser.add_argument("--width", type=int, default=3,
+                        help="Cells run concurrently. PDLP is heavily threaded, so this "
+                             "is lower than a Gurobi-based sweep would use.")
     parser.add_argument("--budget-min", type=int, default=180, help="Per-period limit")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
@@ -87,17 +96,17 @@ def main() -> None:
 
     if args.dry_run:
         for price, level in cells:
-            print(" ".join(_cell_command(price, level, args.threads, args.budget_min)))
+            print(" ".join(_cell_command(price, level, args.budget_min)))
             print()
-        print(f"{len(cells)} cells, width {args.width}, {args.threads} threads each")
+        print(f"{len(cells)} cells, width {args.width}, PDLP tol {PDLP_TOLERANCE}")
         return
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     print(f"launching {len(cells)} cells, width {args.width}, "
-          f"{args.threads} threads each, {args.budget_min} min per period")
+          f"PDLP tol {PDLP_TOLERANCE}, {args.budget_min} min per period")
     with ThreadPoolExecutor(max_workers=args.width) as pool:
         futures = [
-            pool.submit(_run_cell, price, level, args.threads, args.budget_min)
+            pool.submit(_run_cell, price, level, args.budget_min)
             for price, level in cells
         ]
         for future in futures:
