@@ -421,3 +421,78 @@ less headroom than the validation suggests.
 
 Run identifiers: `val13_c550_2050`, `val13x_c550_2050` (1e-8), `val13s51_c550_2050` (week 51),
 `val13nf_c550_2050` (NumericFocus, stopped), `val13p_c550_2050` (PDLP, in flight).
+
+---
+
+## 9. Solver settled, sampling corrected, and a live constraint conflict
+
+### 9.1 PDLP converges where the barrier stalls
+
+`val13p_c550_2050`, PDLP at 1e-3 on the even 13-week sample:
+
+| metric | value | target |
+|---|---|---|
+| `pdlp_final_gap_rel` | 9.83e-04 | < 1e-3 |
+| `pdlp_final_pinf_rel` | 2.10e-04 | < 1e-3 |
+| `pdlp_final_dinf_rel` | 3.55e-06 | < 1e-3 |
+| unserved energy | **0.000 MWh** | zero |
+| objective | 10,118,370,749 | present |
+| wall clock | 2.58 h | < 4 h |
+
+`model_status` still reads `Unknown`; HiGHS logs `Model status changed from "Optimal" to
+"Unknown" since relative violation of tolerances is 6.55e+03`, its own stricter internal
+check. Termination is therefore certified on the three relative metrics, never on the status
+field. Adopted for Stage 2 at the anchor's own **3e-3**.
+
+Two corroborations of the earlier Gurobi runs: its printed objective agrees with PDLP's to
+**6e-5**, and its 19.97 MWh of unserved energy does not reproduce under PDLP, confirming it as
+a crossover-off interior artifact rather than a capacity shortfall.
+
+### 9.2 The objective comparison in section 8 was on the wrong basis
+
+The anchor was the terminal period of a five-year-step chain, so PyPSA weighted its period
+objective by **4.546**; a single-period run gets 1.0. The raw ratio is ~4.5x and meaningless.
+`validate_sampling.py` now divides both sides out. This is why no grid cell should be compared
+against the full-year anchor on cost, as Addendum 1 already directed.
+
+### 9.3 The even week set carried a +2.5% demand bias; the corrected set removes it
+
+Chasing the residual cost delta found the substantive defect. A representative-week LP scales
+the sample mean up to a year, so a sample whose mean demand differs from the annual mean biases
+every absolute quantity.
+
+| week set | demand bias (offline) | VRE bias (offline) | served demand (solved) | vs anchor |
+|---|---|---|---|---|
+| anchor, full year | — | — | 251.925 TWh | — |
+| even `[2, 6, ..., 46, 50]` | +2.536 % | -0.376 % | 258.455 TWh | **+2.592 %** |
+| week-51 variant | +2.464 % | -3.089 % | not solved at 3e-3 | — |
+| **`[1, 6, 10, 14, 19, 22, 26, 32, 35, 39, 41, 45, 50]`** | **-0.050 %** | **+0.247 %** | **251.938 TWh** | **+0.005 %** |
+
+The offline diagnostic (`week_demand_bias.py`) predicted -0.050 % and the solve came in at
++0.005 %, so it is reliable for choosing future samples without solving. The corrected set is
+still one week per four-week block, satisfying Addendum 1's structure literally.
+
+`val13m_c550_2050` on the corrected set: gas share **-1.768 pp** vs anchor (PASS), wind
++0.663 pp, unserved energy **0.000 MWh**, `pdlp_final_gap_rel` 1.00e-03, pinf 7.38e-05, dinf
+1.28e-06.
+
+### 9.4 The conflict that stopped the launch
+
+The corrected sample is numerically harder: **41,520 PDLP iterations against 20,800** for the
+same tolerance.
+
+| week set | est. wall per period at 3e-3 | 3 h Stage 2 limit |
+|---|---|---|
+| even | ~2.2 h | fits |
+| **demand-matched** | **~3.5 h** | **breaches** |
+
+Extrapolated from the measured trajectory (0.410 s/iteration; gap crosses 3e-3 near iteration
+29,500), not measured directly, because the run was launched at 1e-3 before the tolerance was
+settled. At 1e-3 it took **4.90 h**, itself over Addendum 1's 4 h validation gate.
+
+So two of the brief's own constraints now conflict: the sampling that is measurably correct on
+demand cannot meet the per-period time limit. 48 period solves at ~3.5 h is on the order of a
+week sequentially, and PDLP threads too aggressively for much concurrency to help. Every 2050
+solve run so far has been a worst case (largest carried fleet); 2030 and 2040 are expected to be
+faster but **that has not been measured**, which is the cheapest thing to establish before
+committing to the full grid.
