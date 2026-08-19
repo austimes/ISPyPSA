@@ -127,23 +127,41 @@ def _mix_row(cell: str, year: int) -> dict:
     return row
 
 
+def _duration_class(hours: float) -> str:
+    """Bin a storage duration. ECAA units carry derived, non-round durations (1.06 h,
+    1.89 h, ...), so raw max_hours grouping yields dozens of near-duplicate rows."""
+    if hours < 2:
+        return "1_under_2h"
+    if hours < 4:
+        return "2_2to4h"
+    if hours < 8:
+        return "3_4to8h"
+    if hours <= 8:
+        return "4_8h"
+    if hours <= 24:
+        return "5_over8to24h"
+    return "6_over24h"
+
+
 def _storage_rows(cell: str, year: int) -> list[dict]:
     network = _network(cell, year)
     units = network.storage_units
-    built = units[units.p_nom_opt > REPORTING_FLOOR_MW]
-    rows = []
-    for (carrier, hours), power_mw in built.groupby(["carrier", "max_hours"])["p_nom_opt"].sum().items():
-        rows.append(
+    built = units[units.p_nom_opt > REPORTING_FLOOR_MW].copy()
+    built["duration_class"] = built["max_hours"].map(_duration_class)
+    grouped = built.groupby(["carrier", "duration_class"]).apply(
+        lambda g: pd.Series(
             {
-                "cell": cell,
-                "year": year,
-                "carrier": carrier,
-                "duration_h": hours,
-                "power_gw": power_mw / 1e3,
-                "energy_gwh": power_mw * hours / 1e3,
+                "power_gw": g["p_nom_opt"].sum() / 1e3,
+                "energy_gwh": (g["p_nom_opt"] * g["max_hours"]).sum() / 1e3,
+                "units": len(g),
             }
-        )
-    return rows
+        ),
+        include_groups=False,
+    )
+    return [
+        {"cell": cell, "year": year, "carrier": carrier, "duration_class": duration_class, **row}
+        for (carrier, duration_class), row in grouped.iterrows()
+    ]
 
 
 # ------------------------------------------------------------------- manifest
@@ -324,6 +342,10 @@ def main() -> None:
     frontier = pd.concat(frontier_frames, ignore_index=True)
     mix = pd.DataFrame(mix_rows)
     results = frontier.merge(mix, on=["cell", "year"], how="left", suffixes=("", "_mix"))
+    # A carrier absent from one cell-year (no Brown Coal built by 2050, say) leaves NaN
+    # rather than the zero it means, which would poison the marginal differences.
+    absent = [c for c in results.columns if c.startswith(("twh_", "share_", "gw_"))]
+    results[absent] = results[absent].fillna(0.0)
     manifest = pd.DataFrame(manifest_rows)
     marginals = _marginals(results)
     per_cell, per_grid = _acceptance(results, manifest)
