@@ -274,9 +274,14 @@ def _acceptance(results: pd.DataFrame, manifest: pd.DataFrame) -> pd.DataFrame:
         # Converged if all three PDLP relative metrics sit inside the requested
         # tolerance. The status field cannot be used: HiGHS PDLP reports Unknown on this
         # LP class even when every metric is satisfied.
+        #
+        # Inclusive, not strict. HiGHS logs the metrics to three significant figures, so
+        # a solve that terminates exactly at tolerance records as the tolerance itself
+        # (c550_d110_2050: recorded 0.003, actual 2.9985e-3 from the logged objectives).
+        # PDLP only stops early on convergence; a limit hit shows up as status != completed.
         metrics = [row["pdlp_gap_rel"], row["pdlp_pinf_rel"], row["pdlp_dinf_rel"]]
         status_ok = row["model_status"] == "Optimal" or all(
-            pd.notna(m) and m < PDLP_TOLERANCE for m in metrics
+            pd.notna(m) and m <= PDLP_TOLERANCE for m in metrics
         )
         rows.append(
             {

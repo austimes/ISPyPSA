@@ -76,7 +76,7 @@ def _termination(record: dict) -> tuple[bool, str]:
             "pinf": record.get("pdlp_final_pinf_rel"),
             "dinf": record.get("pdlp_final_dinf_rel"),
         }
-        converged = all(v is not None and v < tolerance for v in metrics.values())
+        converged = all(v is not None and v <= tolerance for v in metrics.values())
         detail = ", ".join(f"{k}={v:.3g}" for k, v in metrics.items())
         return converged, f"PDLP {detail} vs tol {tolerance:g}"
 
