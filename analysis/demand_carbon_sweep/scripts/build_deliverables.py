@@ -248,8 +248,15 @@ def _marginals(results: pd.DataFrame) -> pd.DataFrame:
                         "marginal_co2e_t_per_mwh": d_co2e / d_mwh,
                         "marginal_thermal_twh": thermal,
                         "marginal_renewable_twh": renewable,
-                        "marginal_thermal_share_pct": thermal / (d_mwh / 1e6) * 100,
-                        "marginal_renewable_share_pct": renewable / (d_mwh / 1e6) * 100,
+                        # Per marginal MWh *delivered*. These two sum above 100 %
+                        # because marginal generation exceeds marginal demand: storage
+                        # round-trip and network losses have to be generated too.
+                        "marginal_thermal_per_delivered_pct": thermal / (d_mwh / 1e6) * 100,
+                        "marginal_renewable_per_delivered_pct": renewable / (d_mwh / 1e6) * 100,
+                        # Per marginal MWh *generated*, so the pair sums to 100 %. This is
+                        # the technology identity of the marginal MWh.
+                        "marginal_thermal_pct_of_generation": thermal / (thermal + renewable) * 100,
+                        "marginal_renewable_pct_of_generation": renewable / (thermal + renewable) * 100,
                     }
                 )
     return pd.DataFrame(rows)
