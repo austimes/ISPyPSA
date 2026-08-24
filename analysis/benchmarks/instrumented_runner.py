@@ -287,6 +287,8 @@ def _run_staged_pipeline(
     existing_fom_keeping: bool = False,
     span_weight_years: int | None = None,
     disestablishment_cost: float = 0.0,
+    co2_cap_t: float | None = None,
+    renewable_share_min: float | None = None,
 ) -> dict:
     """Run the ISPyPSA pipeline with per-stage timing. Returns timings dict.
 
@@ -567,6 +569,67 @@ def _run_staged_pipeline(
                 flush=True,
             )
 
+    # Intensity-x-demand map constraints. Both are added straight to the linopy
+    # model built by build_pypsa_network — the same seam the fuel supply curve
+    # and the disestablishment term use — so no model code changes. Coefficient
+    # construction mirrors _constrain_fuel_burn_to_purchases (outer product of
+    # snapshot weights and per-generator coefficients, built on the variable's
+    # own coords so xarray aligns with linopy's snapshot MultiIndex).
+    if co2_cap_t is not None or renewable_share_min is not None:
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        weights = network.snapshot_weightings["generators"].to_numpy()
+
+    if co2_cap_t is not None:
+        # Absolute annual CO2e cap on generation combustion. Coefficients are the
+        # translator's isp_residual_co2_t_per_mwh (carrier total Scope-1 CO2e
+        # factor x heat rate x (1 - capture_rate)), so CCS residual emissions at
+        # the configured capture rate are INSIDE the cap and captured CO2 is not.
+        gens_pf = pypsa_friendly["generators"].set_index("name")
+        resid = pd.to_numeric(
+            gens_pf["isp_residual_co2_t_per_mwh"], errors="coerce"
+        ).fillna(0.0)
+        resid = resid.reindex(network.generators.index).fillna(0.0)
+        emitting = resid[resid > 0]
+        p = network.model.variables.Generator_p.loc[:, emitting.index.to_list()]
+        t_per_mw = xr.DataArray(
+            np.outer(weights, emitting.to_numpy()), coords=p.coords, dims=p.dims
+        )
+        network.model.add_constraints(
+            (p * t_per_mw).sum() <= float(co2_cap_t), name="co2_cap_annual_t"
+        )
+        timings["co2_cap_annual_t"] = float(co2_cap_t)
+        print(
+            f"\n=== CO2 CAP === {co2_cap_t:.1f} t CO2e/yr over "
+            f"{len(emitting)} emitting generators",
+            flush=True,
+        )
+
+    if renewable_share_min is not None:
+        # Minimum renewable share of real generation (the wedge comparator):
+        # sum_renew(w p) >= r x sum_real(w p), i.e. renewables weighted (1 - r)
+        # and non-renewable real generators weighted -r, >= 0. Slack generators
+        # and unserved energy are excluded from both sides, matching r_total.
+        g = network.generators
+        real = (g["bus"] != "bus_for_custom_constraint_gens") & (
+            g["carrier"] != "Unserved Energy"
+        )
+        renewable = g["carrier"].isin({"Wind", "Solar", "Water", "Biomass"})
+        names = list(g.index[real])
+        share = float(renewable_share_min)
+        coeff = np.where(renewable[real].to_numpy(), 1.0 - share, -share)
+        p = network.model.variables.Generator_p.loc[:, names]
+        share_coeff = xr.DataArray(
+            np.outer(weights, coeff), coords=p.coords, dims=p.dims
+        )
+        network.model.add_constraints(
+            (p * share_coeff).sum() >= 0.0, name="renewable_share_min"
+        )
+        timings["renewable_share_min"] = share
+        print(f"\n=== RENEWABLE SHARE MIN === {share:.4f}", flush=True)
+
     # HiGHS C++ writes directly to OS fd 1. When this runner is launched by
     # run_chain.py, fd 1 is the per-run log file — so HiGHS output is captured
     # without any in-process redirect. When run standalone, HiGHS output goes
@@ -589,6 +652,45 @@ def _run_staged_pipeline(
     t = time.perf_counter()
     save_pypsa_network(network, outputs_dir, "capacity_expansion")
     timings["save_network_s"] = time.perf_counter() - t
+
+    # Realised residual CO2e and constraint duals. The linopy model is not
+    # persisted with the NetCDF, so the cap/share duals must be read here,
+    # in-process, and written both into the record and outputs/ for extraction.
+    import pandas as pd
+
+    pf_gens = pypsa_friendly["generators"].set_index("name")
+    resid_full = pd.to_numeric(
+        pf_gens["isp_residual_co2_t_per_mwh"], errors="coerce"
+    ).fillna(0.0).reindex(network.generators.index).fillna(0.0)
+    dispatch_mwh = (
+        network.generators_t.p.clip(lower=0)
+        .mul(network.snapshot_weightings["generators"], axis=0)
+        .sum()
+    )
+    timings["annual_residual_co2e_t"] = float((dispatch_mwh * resid_full).sum())
+
+    if co2_cap_t is not None or renewable_share_min is not None:
+        constraint_report = {
+            "objective_weight": float(
+                network.investment_period_weightings["objective"].iloc[0]
+            ),
+            "annual_residual_co2e_t": timings["annual_residual_co2e_t"],
+        }
+        for cname in ("co2_cap_annual_t", "renewable_share_min"):
+            if cname not in network.model.constraints:
+                continue
+            try:
+                constraint_report[f"{cname}_dual"] = float(
+                    network.model.constraints[cname].dual
+                )
+            except Exception as e:  # dual genuinely unavailable — report, not drop
+                constraint_report[f"{cname}_dual"] = None
+                constraint_report[f"{cname}_dual_error"] = f"{type(e).__name__}: {e}"
+        timings["constraint_report"] = constraint_report
+        (outputs_dir / "constraint_duals.json").write_text(
+            json.dumps(constraint_report, indent=2, default=str)
+        )
+        print(f"\n=== CONSTRAINT DUALS === {constraint_report}", flush=True)
 
     t = time.perf_counter()
     results = extract_tabular_results(network, ispypsa_tables)
@@ -823,6 +925,25 @@ def main():
         "retired existing capacity, added as -D*p_nom to the objective (x1, NOT "
         "span-weighted). A unit sheds only when FOM*span > D. Default 0 (off).",
     )
+    ap.add_argument(
+        "--co2-cap-t",
+        type=float,
+        default=None,
+        help="Absolute annual CO2e cap (tonnes) on generation combustion, added "
+        "as a linear constraint over Generator_p with the translator's "
+        "isp_residual_co2_t_per_mwh coefficients (CCS residual inside the cap, "
+        "captured CO2 outside). The constraint's dual is recorded in the run "
+        "record and outputs/constraint_duals.json. Default: no cap.",
+    )
+    ap.add_argument(
+        "--renewable-share-min",
+        type=float,
+        default=None,
+        help="Minimum renewable share (0-1) of real generation (Wind/Solar/"
+        "Water/Biomass over all non-slack, non-unserved generation), added as "
+        "a linear constraint. Used for the intensity-vs-share wedge subset. "
+        "Default: no constraint.",
+    )
     args = ap.parse_args()
     if args.carried_tranches_dir is not None and args.current_year is None:
         ap.error("--carried-tranches-dir requires --current-year.")
@@ -901,6 +1022,8 @@ def main():
             existing_fom_keeping=args.existing_fom_keeping,
             span_weight_years=args.span_weight_years,
             disestablishment_cost=args.disestablishment_cost,
+            co2_cap_t=args.co2_cap_t,
+            renewable_share_min=args.renewable_share_min,
         )
         record.update(timings)
         record["wall_clock_s"] = time.perf_counter() - t_total
