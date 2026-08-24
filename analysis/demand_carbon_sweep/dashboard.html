@@ -348,9 +348,10 @@
         <span class="panel-unit">% of marginal generation</span>
       </div>
       <p class="panel-sub">Thermal against renewable share of the marginal generation, normalised
-        to 100%. The composition is strikingly stable while its emissions intensity is not &mdash;
-        a supply block parameterised on one year's composition still needs its own emissions
-        coefficient per year.</p>
+        to 100%. Composition is fairly stable <em>across years at a given carbon price</em>, but
+        swings hard <em>across prices</em>: at 2030 the marginal megawatt-hour is 87% thermal
+        with no carbon price and 16% thermal at $550/t. A supply block therefore needs its own
+        composition per price point, not one composition with a per-year emissions coefficient.</p>
       <svg class="plot" id="ms" role="img"></svg>
       <div class="legend" id="ms-leg"></div>
     </section>
@@ -361,8 +362,9 @@
         <span class="panel-unit">% of generation</span>
       </div>
       <p class="panel-sub">One line per carbon price at the selected demand level. The crossing at
-        2030 is the coal-to-gas substitution described above; by 2040 there is little coal left to
-        displace and the ordering settles.</p>
+        2030 is the coal-to-gas substitution described above &mdash; gas rises with price up to
+        $300/t before falling again at $550/t. By 2040 there is little coal left to displace and
+        the ordering settles into the expected monotone decline.</p>
       <svg class="plot" id="pw" role="img"></svg>
       <div class="legend" id="pw-leg"></div>
     </section>
@@ -950,7 +952,7 @@ function drawStatic() {
     { k: "Marginal cost @ $550, 2050", v: fmt(mcAvg, 0) + "<small>AUD/MWh</small>",
       s: "mean over the three demand steps" },
     { k: "Marginal MWh is thermal", v: fmt(thAvg, 1) + "<small>%</small>",
-      s: "at $550/t, 2050" },
+      s: "at $550/t, 2050 — but 87% at $0/t, 2030" },
   ].map((t) => '<div class="tile"><span class="tile-k">' + t.k + "</span>" +
       '<span class="tile-v">' + t.v + "</span>" +
       (t.pill ? '<span class="pill pill-' + (t.pill[0] === "good" ? "good" : t.pill[0] === "warn" ? "warn" : "crit") +
