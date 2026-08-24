@@ -1,12 +1,23 @@
 # Post-repair 4x4 carbon price x demand sweep: return memo
 
-**Verdict: STOPPED before Stage 2.** Stage 0 is complete and delivered. No cells were built.
+**Verdict: DONE.** All 16 scenarios × 3 milestone years = 48 period solves are complete,
+assembled and reported. One acceptance test fails, for a real economic reason, and is reported
+as a finding rather than suppressed or excluded.
 
-Sections 1 to 4 below are the original return, which established that the brief's Stage 1
-premise was wrong. Addendum 1 accepted that, banked Stage 0, and replaced Stage 1 with a
-13-week even-sampling gate. **Section 8 is the current state and supersedes section 5.** In
-short: the replacement sampling gate PASSES, the solver gate FAILS, and the pause is now
-narrowly about how termination is judged rather than about the sweep's design.
+**Read section 10 first** — it is the result. Sections 1 to 9 are the working record, kept
+because two of the brief's premises turned out to be wrong and the corrections are the reason
+the numbers in section 10 can be trusted:
+
+- **§1–4** the original return, which established that the brief's Stage 1 anchor premise was
+  wrong (the anchor is a full-year solve, not three representative weeks) and that three-week
+  stress-weighted sampling biases gas share by +36.7%.
+- **§8–9** Addendum 1's replacement gate: even sampling clears it, the Gurobi barrier does not
+  converge on this LP and PDLP does, and the naively spaced week set carried a +2.5% demand bias
+  that would have inflated every absolute quantity.
+- **§10** the sweep itself.
+
+Full test-by-test detail is in [`ACCEPTANCE_REPORT.md`](ACCEPTANCE_REPORT.md). The dashboard is
+`dashboard.html`.
 
 Branch `analysis/demand-carbon-sweep`, not pushed. Run artefacts gitignored.
 
@@ -496,3 +507,110 @@ week sequentially, and PDLP threads too aggressively for much concurrency to hel
 solve run so far has been a worst case (largest carried fleet); 2030 and 2040 are expected to be
 faster but **that has not been measured**, which is the cheapest thing to establish before
 committing to the full grid.
+
+---
+
+## 10. Stage 2 — the sweep
+
+### 10.1 What was run
+
+16 scenarios × 3 milestone years = **48 period solves**, full NEM, ISP sub-regional topology,
+myopic recursive-dynamic chains over 2030/2040/2050. Thirteen demand-matched weeks at 30-minute
+resolution with the named stress weeks suppressed. HiGHS PDLP at 3e-3. Flat CCS
+transport-and-storage adder of A$89.93/tCO2 with the tranche machinery excluded. Demand carried
+entirely on rewritten trace directories.
+
+Total solver time 141.5 h; period solves 118–313 min (mean 177); largest LP 13,935,295 rows.
+
+### 10.2 Acceptance
+
+| test | result |
+|---|---|
+| 1 · zero unserved energy | **PASS** — 0.000 MWh in all 48 |
+| 2 · gas share falls with carbon price | **4 violations, all at 2030** |
+| 3 · total cost rises with demand | **PASS** — 0 violations |
+| 4 · termination | **PASS** — 48/48 |
+| companion · total thermal share falls with carbon price | **PASS** — 0 violations |
+| companion · emissions intensity falls with carbon price | **PASS** — 0 violations |
+
+**The one failure is economics, not arithmetic.** Carbon pricing displaces fuels in
+emissions-intensity order, so in 2030 it removes coal first (37.99% → 0.02% between $0 and
+$550/t) and gas backfills part of the gap (1.25% → 6.56%). Total thermal share falls
+monotonically throughout (39.24% → 6.58%), as does emissions intensity (0.395 → 0.022 t/MWh). A
+tighter re-solve moves gas share **+0.003 pp** against a **4.45 pp** violation, so it is not
+solver slack. Test 2 assumes gas is the marginal displaced fuel, which is only true once coal has
+left the fleet; the two companion monotonicities express the intent without that assumption and
+hold everywhere. Recommendation: scope test 2 to low-coal periods or replace it with the
+companions.
+
+### 10.3 The result the sweep exists for
+
+Marginal grid supply, averaged over the three demand steps:
+
+| year | carbon | marginal cost AUD/MWh | marginal tCO2e/MWh | marginal thermal % |
+|---|---|---|---|---|
+| 2030 | $0 | 75.4 | 0.778 | **87.3** |
+| 2030 | $150 | 137.1 | 0.257 | 30.8 |
+| 2030 | $300 | 154.1 | 0.094 | 20.4 |
+| 2030 | $550 | 168.5 | 0.031 | 15.8 |
+| 2040 | $0 | 115.0 | 0.140 | 35.3 |
+| 2040 | $550 | 192.7 | 0.018 | 20.0 |
+| 2050 | $0 | 124.6 | 0.159 | 41.8 |
+| 2050 | $150 | 160.6 | 0.122 | 27.7 |
+| 2050 | $300 | 179.8 | 0.085 | 20.9 |
+| 2050 | $550 | 191.2 | 0.018 | 16.7 |
+
+**For the piecewise-linear supply-block parameterisation, the load-bearing point is that the
+marginal MWh's *composition* is not a constant.** It is reasonably stable across years at a fixed
+carbon price (at $550/t: 15.8 / 20.0 / 16.7% thermal across 2030/2040/2050) but swings from
+**87.3% thermal to 15.8% thermal** across carbon prices within 2030 alone. A block parameterised
+on one composition with a per-year emissions coefficient would be wrong by a wide margin at low
+carbon prices. Each price point needs its own composition.
+
+Every marginal is a difference of two solved scenarios with both endpoints carried in
+`marginals.csv`, so each one is auditable against its two cells rather than presented as a bare
+ratio.
+
+### 10.4 Scenario surface
+
+Cost is monotone in both axes across the whole grid, from 45.5 AUD/MWh at ($0, ×0.87, 2030) to
+130.6 at ($550, ×1.23, 2040). Renewable fraction spans 52.5% (2030, $0, high demand) to 95.4%
+(2050, $550, low demand). Storage build rises with carbon price in every year.
+
+### 10.5 Caveats — carry these with any figure
+
+1. **Temporal sampling** is thirteen weeks at 30-minute resolution, chosen to match annual mean
+   demand rather than spaced naively. It reproduces the full-year anchor's served energy to
+   **+0.005%** and its gas share to **−1.8 pp**. Sampling bias at scenarios other than the
+   validation cell is assumed comparable but was **not separately measured**.
+2. **Uniform demand scaling** moves energy and peak together and leaves load shape untouched,
+   whereas real electrification reshapes it. Levels are ratios of AEMO's own 2026 ISP scenario
+   traces: 0.8695 is Slower Growth, 1.2348 is Accelerated Transition, and **1.1 is an interpolated
+   presentation level with no scenario behind it**.
+3. **CCS** is a single flat A$89.93/tCO2 transport-and-storage adder, fleet-weighted from the
+   authored curve. The spatial tranche machinery — per-sub-region transport pricing and
+   injectivity limits — is excluded pending its design. On that curve's own evidence the binding
+   constraint is spatial, so a flat adder is optimistic about where CO2 can actually go.
+4. **Myopic foresight** at ten-year steps: each year carries the previous years' surviving build
+   with no view of later years, and the 2040/2050 fleets inherit coarser vintages than a
+   five-year chain would give.
+5. **Draft-accuracy solver tolerance.** All 48 solves converged on PDLP's relative metrics at
+   3e-3, the tolerance the full-year anchor was itself accepted at. `model_status` reads
+   `Unknown` even on converged solves for this LP class and is never the acceptance criterion.
+6. **Cost is reconstructed**, not read from the LP objective: carried capacity enters each year at
+   zero capital cost by design, so the objective understates fleet capital and is non-monotonic
+   across the pathway.
+7. **The per-period time limit ran at 5 h, not the specified 3 h**, raised on measured evidence;
+   two solves exceeded even that and were relaunched at 10 h. No reported solve was truncated.
+8. **Not comparable to the full-year anchor cell-by-cell.** Anchor comparisons live in the Stage 1
+   validation only. The anchor also had free unlimited CO2 disposal, where the sweep prices it.
+
+### 10.6 What I would do next, in order
+
+1. **Settle test 2's specification** — it is a one-line decision (scope to low-coal periods, or
+   adopt the companions) and it is the only open item in the acceptance set.
+2. **Measure sampling bias at more than one cell.** Caveat 1 is the widest unquantified gap in
+   the deliverable; one full-year solve at a low-carbon cell would bound it where coal is still
+   dispatching, which is where the sample is least likely to behave like the validation cell.
+3. **Decide the CCS spatial question.** The flat adder is a placeholder and the curve's own
+   analysis says the binding constraint is where the CO2 goes, not what it costs.
