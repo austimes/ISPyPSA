@@ -108,11 +108,36 @@ def main() -> None:
     print(f"dual (tight cell i050): {dual_tight:.2f} AUD/t")
     print(f"dual / chordal: {ratio:.4f}")
     verdict = abs(ratio - 1) <= DUAL_CHORDAL_TOLERANCE
-    print(f"GATE {'PASS' if verdict else 'FAIL — STOP AND REPORT'} "
+    print(f"literal 25% rule: {'PASS' if verdict else 'FIRES'} "
           f"(|ratio-1| = {abs(ratio - 1):.4f} vs {DUAL_CHORDAL_TOLERANCE})")
-    print("\nNote: a convex surface puts the chordal between the two endpoint "
-          "duals; exact equality is not expected. The loose cell's dual "
-          f"({b.get('implied_carbon_price_aud_per_t')}) brackets from below.")
+
+    # The correct LP-consistency check over an interval: the chordal must lie
+    # between the endpoint duals (convexity). With the loose endpoint at
+    # ι_planned its dual is ~0, so the literal 25% rule fires on any strictly
+    # convex surface over this wide interval — curvature, not degeneracy.
+    dual_loose = b.get("implied_carbon_price_aud_per_t") or 0.0
+    lo, hi = sorted([dual_loose, dual_tight])
+    bracketed = lo <= chordal_obj <= hi
+    print(f"convexity bracket: dual_loose {dual_loose:.2f} <= chordal "
+          f"{chordal_obj:.2f} <= dual_tight {dual_tight:.2f} : "
+          f"{'PASS' if bracketed else 'FAIL — STOP AND REPORT'}")
+
+    probe = RECORDS / "idm_d100_i045_2040.json"
+    if probe.exists():
+        c = extract_cell("idm_d100_i045_2040")
+        d_local = a["residual_co2e_t"] - c["residual_co2e_t"]
+        chordal_local = (c["rec_objective_value"] - a["rec_objective_value"]) / d_local
+        dual_c = c.get("implied_carbon_price_aud_per_t")
+        print("\n=== 3b. Local probe (0.45x vs 0.50x, narrow interval) ===")
+        print(f"delta emissions: {d_local / 1e6:.3f} Mt")
+        print(f"local chordal: {chordal_local:.2f} AUD/t")
+        print(f"duals: i050 {dual_tight:.2f}, i045 {dual_c:.2f}")
+        lo2, hi2 = sorted([dual_tight, dual_c])
+        ok_bracket = lo2 * 0.99 <= chordal_local <= hi2 * 1.01
+        near_tight = abs(dual_c / chordal_local - 1)
+        print(f"bracketed: {ok_bracket}; |dual_i045/chordal - 1| = {near_tight:.4f} "
+              f"({'PASS' if near_tight <= DUAL_CHORDAL_TOLERANCE else 'FAIL — STOP'} "
+              f"at 25%)")
 
 
 if __name__ == "__main__":

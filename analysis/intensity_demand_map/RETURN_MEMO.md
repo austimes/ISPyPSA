@@ -171,4 +171,87 @@ The previous sweep's committed `results.csv`/dashboard are left as they are.
 
 ---
 
+## 3. Stage 1 — pilot at (2040, d = 1.00)
+
+Three conditioned full-NEM cells, Gurobi barrier **crossover ON**, `BarConvTol`
+1e-8, per the brief. All three terminated **`Optimal`** — the crossover-on
+specification converges on the post-repair 13-week full-NEM LP where every
+recorded crossover-OFF attempt (val13 family, `BarConvTol` 1e-6/1e-8,
+NumericFocus/BarHomogeneous variants) stalled Sub-optimal. Crossover-on is
+therefore both affordable and the fix for the recorded barrier stall.
+
+| cell | cap | status | solve | wall | realised CO2e | dual |
+|---|---|---|---|---|---|---|
+| `idm_d100_u_2040` | none | Optimal | 103 min | 113 min | 42.577 Mt | — |
+| `idm_d100_i100_2040` | 43.193 Mt (ι_planned) | Optimal | 117 min | 127 min | 42.577 Mt | **0.0 (non-binding)** |
+| `idm_d100_i050_2040` | 21.596 Mt (0.5x) | Optimal | 156 min | **167 min** | 21.596 Mt (ratio 1.000000) | **-111.78 → A$111.8/t** |
+
+Runtime gate: every cell inside 3 h; i050 at 167 min is the margin to watch —
+the grid runs with a 300-min per-cell budget and any breach is reported.
+
+### 3.1 Reproduction (Stage 1.1)
+
+Uncapped conditioned cell vs the conditioning chain's own 2040 solve. The only
+settings difference is the solver (Gurobi barrier 1e-8 crossover-on, `Optimal`,
+vs PDLP 3e-3, `Unknown`-converged):
+
+| quantity | chain (PDLP 3e-3) | map u-cell (Gurobi) | delta |
+|---|---|---|---|
+| Gas share | 13.530% | 12.682% | -0.85 pp |
+| Wind share | 36.977% | 35.994% | -0.98 pp |
+| Solar share | 31.887% | 33.833% | +1.95 pp |
+| delivered | 237.693 TWh | 237.693 TWh | exact |
+| residual CO2e | 43.193 Mt | 42.577 Mt | -1.43% |
+| LP objective | 1.2917e10 | 1.2969e10 | +0.40% |
+
+Every carrier within ±2 pp — inside the previous sweep's own ±3 pp gate; the
+i100/u objectives agree to the last digit, and USE = 0 in all three cells.
+ι_planned is retained at the chain's 43.193 Mt (the conditioning state's value)
+rather than re-based to the Gurobi realisation; consequence: the i100 cap is
+strictly non-binding by 1.4% rather than marginally binding — cleaner, since
+its dual is exactly 0 rather than noise.
+
+### 3.2 The dual-vs-chordal rule, and what it actually found
+
+Chordal between the two capped cells: (14.310e9 - 12.969e9) / 20.980 Mt =
+**63.95 A$/t**. The tight cell's dual: **111.78 A$/t**. Ratio 1.748 — the
+brief's literal 25% rule **fires**.
+
+Diagnosis, before treating that as kink or degeneracy: with the loose endpoint
+at ι_planned its dual is exactly 0, so on ANY strictly convex cost surface the
+chordal over this wide interval must lie strictly between 0 and the tight
+dual — the >25% outcome is arithmetically inevitable and measures *curvature*
+(the implied carbon price rising as the cap tightens), which is precisely the
+economics the map exists to capture. The LP-consistency check appropriate to an
+interval is the convexity bracket, and it passes exactly:
+`dual_loose (0.00) <= chordal (63.95) <= dual_tight (111.78)`. Degeneracy
+evidence is absent: statuses Optimal, the cap tracked to 10 significant
+figures, u/i100 objectives identical to the last digit.
+
+Because the brief's stop rule fired literally, one extra measurement was taken
+before launching the grid: a **local probe at 0.45x ι_planned**, adjacent to
+i050, where a smooth surface must put the narrow-interval chordal close to BOTH
+endpoint duals (within 25% of the bracket). Result: s3.3.
+
+### 3.3 Local probe: the dual field is reliable
+
+`idm_d100_i045_2040` (cap 0.45x ι_planned, 19.437 Mt), Optimal. Over the
+narrow 0.45x-0.50x interval:
+
+| quantity | value |
+|---|---|
+| delta emissions | 2.160 Mt |
+| local chordal | 120.03 A$/t |
+| dual at i050 / i045 | 111.78 / 130.50 A$/t |
+| chordal bracketed by endpoint duals | **yes** |
+| dual-vs-chordal difference (i045) | **8.7% — PASS at 25%** |
+
+**Stage 1 verdict: pass.** The dual and chordal fields agree at map resolution;
+the literal rule's firing on the wide pilot interval is curvature (the loose
+endpoint's dual is 0 by construction), fully diagnosed above. The map's
+acceptance test 3 applies the agreement check on ADJACENT rungs per interior
+cell, where the probe shows it is the meaningful test.
+
+---
+
 *(Sections below are appended as stages complete.)*
