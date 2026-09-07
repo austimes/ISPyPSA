@@ -454,4 +454,96 @@ i025 to i005 across the three years).
 
 ---
 
+## 8. Acceptance report
+
+**89 cells assembled** (78 realised ladder cells + 9 wedge cells + 2 Stage-1
+diagnostic-only cells retained for reference). One data-integrity issue found
+and fixed during assembly: `idm_d110_i150_2030` failed silently on a Gurobi
+license-server connection error that the retry logic (which only retries
+"use limit" errors) did not catch — the process exited cleanly with a
+`status: completed` record and no saved network. All 104 solved records were
+scanned for this exact signature (`model_status` and `objective_value` both
+null on a `completed` record); it was the only occurrence. Re-solved
+successfully (Optimal, 34 min). `run_cell.py` now detects and fails loudly on
+this pattern.
+
+| test | result |
+|---|---|
+| 1 · zero unserved energy | **28 of 89 cells carry nonzero USE**, max 0.00036% of delivered energy (900 MWh against 252-378 TWh). Reported per-cell in `acceptance_per_cell.csv`, not smoothed. Consistent in scale with the previous sweep's own characterisation of similar values as solver-tolerance noise rather than a genuine capacity shortfall; concentrated at 2050 and most prominent at the non-binding i100/s100 coordinate. |
+| 2 · cost monotone in demand (fixed intensity), monotone in intensity (fixed demand) | **PASS — 0 violations** across all 36 grid/axis combinations tested. |
+| 3 · dual finite, correct sign, and agrees with the chordal per interior cell | **Intensity axis: 56 of 60 adjacent pairs (93.3%) within the convexity bracket.** All 4 exceptions diagnosed, not smoothed: 1 is a pure near-zero-denominator degenerate case (delta emissions = -7.5e-9 t, floating-point noise); the other 3 are at the i100-i150 pair specifically, where i100 is only WEAKLY binding (duals 13-66 A$/t, far below the map's typical range) and a modest absolute cost difference divided by a comparatively small emissions delta amplifies the chordal 1.1x-4.8x past the tight-cell dual. **Demand axis: 59 of 60 pairs (98.3%) within +/-25% of the brief's tolerance.** The 1 exception (2030, i150, d110->d150, ratio 0.672) is again at the i150 overflow rung, the coordinate specifically included to test the thermal-overflow direction rather than the map's working interior. |
+| 4 · realised intensity within 1% of the cap in every binding cell | **PASS.** Every binding cell tracked to at least 8 significant figures (Gurobi cells) or within 0.07% (the one PDLP-converged cell, `idm_d150_i025_2030`). |
+| 5 · abated and unabated gas reported separately in every cell | **PASS.** `map_results.csv` carries `twh_gas_ccs` / `twh_gas_unabated` and `gw_gas_ccs` / `gw_gas_unabated` for every cell. |
+
+**No monotonicity violations survived** (none needed a tightened re-solve).
+No cell's dual-vs-chordal disagreement was left unexplained; every exception
+traces to a specific, disclosed mechanism (degenerate near-zero denominator,
+or a weakly-binding boundary far below the map's characteristic dual
+magnitudes) rather than an unresolved kink in the interior of the map.
+
+---
+
+## 9. Run manifest
+
+`manifest.csv` (89 rows): cell id, trace directory, cap/share value, solver
+settings, termination status, gap, wall time, and result paths for every
+solved cell. `wall_clock_s` reflects the FINAL successful attempt only — 19 of
+the 76 grid cells needed a retry beyond the original 300-min budget (Stage 2,
+s4), and the manifest does not sum retried attempts' wall-clock. Solve-time
+distribution across all 89 cells: mean 198 min, median 167 min, max 597 min
+(`idm_d110_i050_2050`, an uncontended extended retry that used nearly its
+whole 600-min allowance). 88 of 89 cells terminated `Optimal`; 1
+(`idm_d150_i025_2030`) is the PDLP-accepted cell, `model_status: Unknown` with
+all three relative convergence metrics inside 3e-3 (s4).
+
+## 10. Caveats block
+
+- **Conditioning offset against the pathway anchors** (s2.1): generation
+  -8.8%/-15.9%/-21.1% and renewable share -18.8/-19.8/-16.0 pp against the
+  colleague's 2030/2040/2050 anchors. The map is anchored at the model's own
+  no-carbon-instrument current-policy state, not at the colleague's planned
+  trajectory; this offset does not change over the grid (it is fixed by the
+  conditioning chain) and should be disclosed alongside every figure drawn
+  from this map.
+- **Boundary reconciliation residual** (s2.2): the colleague's planned
+  quantities sit 9-13% below AEMO Step Change total supply (grid + rooftop)
+  on a component-decomposed basis; the residual is NEGATIVE and undecomposed
+  beyond OPSO + PV_TOT, most plausibly the β = 1.3 bridge. Flagged for the
+  colleague, not resolved here.
+- **Sampled weeks except the tail.** All cells except the one full-year
+  validation solve (s11) use the previous sweep's validated 13 demand-matched
+  weeks at 30-minute resolution. Sampling bias was validated at a much higher
+  intensity in the previous sweep; the transfer to this map's tight-cap
+  coordinates is measured, not assumed, in s11.
+- **Single-year comparative statics.** Each milestone year is a conditioned
+  single-year solve with no perfect foresight and no chain path dependence —
+  by design (the brief's own framing), but it means there is no anticipation
+  or vintaging effect between 2030/2040/2050 cells; each is a snapshot at that
+  year's conditioned state, not a trajectory.
+- **CCS residual-emissions treatment.** The cap covers generation combustion
+  Scope-1 CO2e with CCS residual emissions (at the modelled capture rate)
+  INSIDE the accounting; captured CO2 is outside it (Stage 0.3). Every
+  reported intensity and cap value uses this same accounting.
+- **Solver tolerance and degenerate cells.** Gurobi barrier, crossover ON,
+  `BarConvTol` 1e-8, per the pilot spec. 88 of 89 cells cleared this
+  specification; 1 (`idm_d150_i025_2030`) is accepted on PDLP at 3e-3 after
+  two Gurobi attempts (300 min, then 600 min uncontended-equivalent) failed to
+  converge — its dual is a crossover-off interior-point value and is flagged
+  as less reliable at a potential kink than the Gurobi duals everywhere else,
+  per the brief's own stated caveat.
+- **One silent solve failure, found and fixed** (s8): a Gurobi license-server
+  connection blip left one cell's record reporting `completed` with no actual
+  solve. All 104 records were scanned for the signature; only this one cell
+  was affected, and it has been re-solved and verified.
+- **28 cells carry negligible unserved energy** (max 0.00036% of delivered
+  energy), reported per-cell rather than excluded, consistent with the scale
+  of solver-tolerance artefacts documented in the previous sweep.
+- **Intensity floor is not a hard wall in the tested range** (s6): every
+  probed coordinate remained feasible down to 10-500 tonnes; the reported
+  "floor" is the asymptotic cost ceiling the dual approaches, not an
+  infeasibility boundary, and 2030's ceiling is an order of magnitude below
+  2040/2050's at both demand levels tested.
+
+---
+
 *(Sections below are appended as stages complete.)*
