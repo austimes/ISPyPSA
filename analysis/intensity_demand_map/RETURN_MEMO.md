@@ -254,4 +254,76 @@ cell, where the probe shows it is the meaningful test.
 
 ---
 
+## 4. Stage 2 — the grid
+
+76 cells attempted across the realised cell list (full ladder at d in {1.00, 1.10,
+1.50}, reduced ladder at d in {1.05, 1.20, 1.35}, per year). **75 terminated
+Gurobi `Optimal`** (barrier crossover-on, `BarConvTol` 1e-8, per the pilot
+spec); **1 cell accepted on PDLP** (`idm_d150_i025_2030`, all three relative
+metrics inside 3e-3: gap 0.00298, pinf 2.08e-4, dinf 1.81e-6) after two Gurobi
+attempts failed to converge even at an extended 600-min budget — flagged with
+the brief's own caveat that a crossover-off interior-point dual is less
+reliable at a kink than the Gurobi duals everywhere else in the map.
+
+19 of 76 cells needed a retry beyond the original 300-min budget. Diagnosis on
+three of those that still failed at 600 min: two (`idm_d110_i025_2050`,
+`idm_d150_i050_2050`) cleared cleanly in 128–211 min once re-run **uncontended**
+(full thread count, no width-2 seat sharing) — the failures were resource
+contention from sharing Gurobi's two licence seats across simultaneous
+crossovers, not a property of the LP. Every binding cap tracked to the cap
+value to at least 8 significant figures; USE = 0 in every solved cell.
+
+## 5. Stage 2 — wedge subset
+
+9 cells (3 per year, matched at d = 1.00 to the i100/i025/i005 intensity rungs).
+**Matching rule applied:** the share-constrained cell's `renewable_share_min` is
+set to the matched intensity-capped cell's realised `r_total`, so the two
+solves are compared at the same renewable-share outcome rather than the same
+emissions outcome. All 9 `Optimal`. Coherence check: the 2040 wedge cell
+matched to the non-binding `i100_2040` cell also returned a renewable-share
+dual of ≈0 — the two constraint families agree on which coordinates are
+genuinely binding.
+
+## 6. Stage 2 — intensity floor: the saturation boundary
+
+Per the brief, bisecting below the tightest ladder rung (0.05x ι_planned) at
+d in {1.00, 1.50} per year, capped at 4 additional solves per coordinate.
+
+### 6.1 (2050, d = 1.00): floor NOT located within budget — a finding, not a gap
+
+| cap (x ι_planned) | cap (t) | status | dual (A$/t) |
+|---|---|---|---|
+| 0.05 (ladder rung) | 1,201,796 | Optimal | 845 |
+| 0.02 | 480,719 | Optimal | 5,282 |
+| 0.005 | 120,180 | Optimal | 111,638 |
+| 0.001 | 24,036 | Optimal | 189,605 |
+| ~0 (500 t) | 500 | Optimal | **190,585** |
+
+All 4 of the budgeted additional solves returned **feasible**. The dual grows
+steeply from 0.05x to 0.001x but then **plateaus** between 24,036 t and 500 t
+(189,605 -> 190,585, a 0.5% move across a 48x tighter cap) — the marginal cost
+of the last tonne is asymptoting to a finite ceiling around **A$190k/tCO2e**
+rather than the cap becoming infeasible. **No infeasibility boundary was found
+within the 4-solve budget at this coordinate.** Reported per the brief's own
+instruction to report rather than force a result: the conditioned 2050 fleet
+at Step Change demand can apparently be pushed to near-total decarbonisation
+given unlimited budget for the marginal MWh, at extreme but finite cost. This
+is itself the boundary measurement for this coordinate — there may be no hard
+floor above zero, only an accelerating cost curve.
+
+### 6.2 (2050, d = 1.50): a much steeper curve at the same relative intensity
+
+| cap (x ι_planned) | cap (t) | status | dual (A$/t) |
+|---|---|---|---|
+| 0.05 (ladder rung) | 1,802,695 | Optimal | (ladder value, not yet re-quoted here) |
+| 0.02 | 721,078 | Optimal | **265,321** |
+
+At the SAME 0.02x multiplier, d = 1.50's dual (265,321) is ~50x d = 1.00's
+(5,282) — demand pushes the floor much closer. Further bisection in progress.
+
+*(Remaining floor coordinates — 2030/2040 at d100/d150 — appended as they
+complete.)*
+
+---
+
 *(Sections below are appended as stages complete.)*
