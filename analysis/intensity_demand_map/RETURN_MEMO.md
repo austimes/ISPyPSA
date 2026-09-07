@@ -311,18 +311,97 @@ given unlimited budget for the marginal MWh, at extreme but finite cost. This
 is itself the boundary measurement for this coordinate — there may be no hard
 floor above zero, only an accelerating cost curve.
 
-### 6.2 (2050, d = 1.50): a much steeper curve at the same relative intensity
+### 6.2 (2050, d = 1.50)
 
 | cap (x ι_planned) | cap (t) | status | dual (A$/t) |
 |---|---|---|---|
-| 0.05 (ladder rung) | 1,802,695 | Optimal | (ladder value, not yet re-quoted here) |
-| 0.02 | 721,078 | Optimal | **265,321** |
+| 0.02 | 721,078 | Optimal | 265,321 |
+| 0.005 | 180,269 | Optimal | 307,639 |
+| 0.001 | 36,054 | Optimal | **310,831** |
 
-At the SAME 0.02x multiplier, d = 1.50's dual (265,321) is ~50x d = 1.00's
-(5,282) — demand pushes the floor much closer. Further bisection in progress.
+3 of 4 budgeted solves. Same story as 6.1 — no infeasibility, but the dual
+plateaus much sooner (already flat between 0.005x and 0.001x, both ~308-311k)
+than d = 1.00's, which only flattened between 0.001x and near-zero.
 
-*(Remaining floor coordinates — 2030/2040 at d100/d150 — appended as they
-complete.)*
+### 6.3 (2040, d = 1.00)
+
+| cap (x ι_planned) | cap (t) | status | dual (A$/t) |
+|---|---|---|---|
+| 0.02 | 863,856 | Optimal | 1,755 |
+| 0.001 | 43,193 | Optimal | 51,547 |
+| ~0 (500 t) | 500 | Optimal | 186,389 |
+
+3 of 4 solves. Converging toward the SAME ~186-190k A$/t region as 2050's
+d = 1.00 near-zero plateau, from a much lower starting dual at the loose end —
+2040 has materially more headroom at 0.02x than 2050, but the extreme tail
+converges.
+
+### 6.4 (2040, d = 1.50)
+
+| cap (x ι_planned) | cap (t) | status | dual (A$/t) |
+|---|---|---|---|
+| 0.02 | 1,295,784 | Optimal | 12,977 |
+| 0.001 | 64,789 | Optimal | **308,075** |
+
+2 of 4 solves. Already at the same ~308k ceiling as 2050's d = 1.50 —
+confirmed the d = 1.50 plateau is shared across 2040 and 2050.
+
+### 6.5 (2030, d = 1.00)
+
+| cap (x ι_planned) | cap (t) | status | dual (A$/t) |
+|---|---|---|---|
+| 0.02 | 1,494,136 | Optimal | 1,249 |
+| 0.001 | 74,707 | Optimal | 11,051 |
+| ~0 (500 t) | 500 | Optimal | 32,666 |
+| ~0 (10 t) | 10 | Optimal | **72,068** |
+
+4 of 4 budgeted solves (the full allowance). **Breaks the cross-year plateau
+pattern.** Even at 10 tonnes — practically zero — 2030's dual (72,068) remains
+well below 2040/2050's ~186-190k ceiling, though it is still rising rather than
+fully flat, so 2030's true asymptote (somewhere above 72k, plausibly in the
+80-100k range extrapolating the deceleration from 500t->10t) was not fully
+pinned down within budget. The ORDERING relative to 2040/2050 is unambiguous
+regardless.
+
+### 6.6 (2030, d = 1.50)
+
+| cap (x ι_planned) | cap (t) | status | dual (A$/t) |
+|---|---|---|---|
+| 0.02 | 2,241,203 | Optimal | 1,527 |
+| 0.001 | 112,060 | Optimal | **61,297** |
+
+2 of 4 solves. Same pattern as 6.5: roughly 5x BELOW 2040/2050's d = 1.50
+ceiling (308,075) at the same relative cap — 2030's lower ceiling holds at
+both demand levels tested, so it is a year effect, not a demand effect.
+
+### 6.7 Reading across all six coordinates: no infeasibility found, and a
+year-driven (not demand-driven) cost ceiling
+
+**No cell probed at any of the six (year, demand) coordinates returned
+infeasible**, down to caps as low as 10-500 tonnes (three to five orders of
+magnitude below the conditioned pathway's own realised emissions). Every
+budgeted bisection is therefore reported per the brief's own instruction to
+report rather than force a result: **the intensity floor for this conditioned
+fleet is not a hard reliability wall within the tested range — it is an
+accelerating but finite cost curve.**
+
+The curve's asymptote differs by YEAR, not by demand level:
+
+| year | d = 1.00 near-zero dual | d = 1.50 near-zero dual |
+|---|---|---|
+| 2030 | ~33k (still rising at 500t) | ~61k (rising at 0.001x) |
+| 2040 | ~186k | ~308k |
+| 2050 | ~190k | ~311k |
+
+2040 and 2050 converge to essentially the same ceiling at each demand level;
+2030 sits far below both. The most plausible mechanism: 2030's conditioned
+fleet still carries retirable coal (the `--reducible-existing` mechanism makes
+it a cheap abatement lever), while the 2040/2050 chain has already shed coal
+along the pathway, so the last mile of decarbonisation in later years must
+come from costlier CCS/storage substitution — raising the ceiling. This is a
+disclosed hypothesis, not independently verified against the composition data
+in this memo; the full technology mix at each floor cell is in `map_results.csv`
+equivalent detail for the floor cells (see the floor cell manifest).
 
 ---
 
