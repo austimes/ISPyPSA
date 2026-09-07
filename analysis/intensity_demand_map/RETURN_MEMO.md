@@ -405,4 +405,53 @@ equivalent detail for the floor cells (see the floor cell manifest).
 
 ---
 
+## 7. Wedge report: what a renewables-share representation forgoes
+
+Matching rule (s5): at each matched coordinate the share-constrained cell's
+`renewable_share_min` is set to the intensity-capped cell's REALISED `r_total`,
+so the two solves are compared at the same renewable-share outcome.
+
+| year | cap | r_total (both) | intensity: I | share: S | cost wedge | intensity wedge | I gas-CCS TWh | S gas-CCS TWh |
+|---|---|---|---|---|---|---|---|---|
+| 2030 | i100 (non-binding) | 61.06% | 0.3909 | 0.3909 | 0.0% | 0.0% | 0 | 0 |
+| 2030 | i025 | 87.86% | 0.0988 | 0.1292 | **-4.3%** | **+30.7%** | 0.00 | 0.00 |
+| 2030 | i005 | 93.94% | 0.0198 | 0.0671 | **-11.4%** | **+239.3%** | 3.78 | **0.00** |
+| 2040 | i100 (non-binding) | 75.08% | 0.1791 | 0.1791 | 0.0% | 0.0% | 0 | 0 |
+| 2040 | i025 | 89.92% | 0.0454 | 0.0776 | -4.0% | +70.8% | 0.00 | 0.00 |
+| 2040 | i005 | 92.74% | 0.0091 | 0.0614 | **-15.1%** | **+576.0%** | 15.05 | **0.00** |
+| 2050 | i100 (non-binding) | 81.68% | 0.0946 | 0.0946 | 0.0% | 0.0% | 0 | 0 |
+| 2050 | i025 | 93.09% | 0.0239 | 0.0364 | -3.4% | +52.8% | 4.02 | **0.00** |
+| 2050 | i005 | 95.41% | 0.0048 | 0.0254 | **-13.3%** | **+432.9%** | 10.58 | **0.00** |
+
+(intensity columns in t CO2e/MWh delivered; cost wedge = (share cost - intensity
+cost) / intensity cost; intensity wedge = (share intensity - intensity's
+intensity) / intensity's intensity.)
+
+**The i100 rows are a sanity check, not a finding** — that coordinate is
+non-binding for both constraint families, so the two solves converge to the
+identical unconstrained optimum (wedge exactly 0), confirming the matching
+mechanism is implemented correctly.
+
+**At every binding coordinate, the share-constrained solve builds ZERO CCS-gas
+capacity**, while the intensity-constrained solve builds up to 15.05 TWh of it.
+This is the wedge in one fact: CCS-gas is not "renewable", so it earns nothing
+toward a share target — a renewables-share representation has no mechanism to
+see it as valuable, however cheap it is against the alternative of leaving
+emissions high. The share-constrained solver instead reaches its (matched)
+share target with somewhat more biomass and otherwise unconstrained unabated
+gas.
+
+**The forgone cost is real but so is the forgone abatement, and the abatement
+loss dominates.** At the tightest tested coordinate (i005), matching the same
+renewable share the intensity target achieves costs **11-15% less**, but
+realises **2.4x to 6.8x MORE residual emissions** than the intensity target it
+was matched to. A renewables-share representation of the current-policy
+pathway would report a materially cheaper decarbonisation cost at any given
+"clean share" than the system's true emissions cost at that share implies —
+the wedge the colleague's model needs quantified is exactly this gap, and it
+grows sharply with stringency (roughly 31% -> 577% intensity slippage from
+i025 to i005 across the three years).
+
+---
+
 *(Sections below are appended as stages complete.)*

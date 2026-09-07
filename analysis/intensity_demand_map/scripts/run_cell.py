@@ -149,6 +149,7 @@ def main() -> None:
     print(f"finished {args.run_id}: {result}")
 
     record_path = RECORDS / f"{args.run_id}.json"
+    solve_failed = False
     if record_path.exists():
         record = json.loads(record_path.read_text())
         for key in ("status", "model_status", "objective_value", "solve_s",
@@ -156,7 +157,27 @@ def main() -> None:
                     "constraint_report"):
             if key in record:
                 print(f"  {key}: {record[key]}")
-    if result.get("status") == "timed_out" or result.get("returncode") not in (0, None):
+        # solve_ok=False (e.g. a license-server connection error that isn't a
+        # retryable "use limit" case) leaves the pipeline returning early: the
+        # process still exits 0 and the record still says status="completed",
+        # with no network ever saved. model_status/objective_value both None
+        # is the signature — distinct from a PDLP cell, which always sets
+        # model_status (even "Unknown") when a solve actually ran.
+        if (
+            record.get("status") == "completed"
+            and record.get("model_status") is None
+            and record.get("objective_value") is None
+        ):
+            solve_failed = True
+            print(f"  SOLVE FAILED SILENTLY (solve_ok=False, no network saved) "
+                  f"-- see logs/{args.run_id}.log for the exception")
+    else:
+        solve_failed = True
+    if (
+        result.get("status") == "timed_out"
+        or result.get("returncode") not in (0, None)
+        or solve_failed
+    ):
         sys.exit(1)
 
 
