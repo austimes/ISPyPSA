@@ -1,7 +1,27 @@
 # Marginal-cost map over intensity x demand: return memo
 
-**Status: IN PROGRESS.** This memo is written stage-by-stage; the verdict line is
-updated last.
+**Verdict: DONE**, with one disclosed decision carried forward rather than
+forced (s12.3 — accept sampled-week results for the 27 deep-tail cells with
+the measured ~10% dual / ~11-45% technology-mix bias reported, or authorise a
+further full-year validation point before accepting).
+
+All five Stage 0 gates passed. Stage 1's pilot passed after the brief's
+literal dual-vs-chordal rule fired for a diagnosed, non-degenerate reason
+(convex curvature at a zero-dual endpoint) and a local probe confirmed
+agreement at map resolution. The 78-cell grid, 9-cell wedge subset, and all
+six floor bisections are complete; one silently-failed grid cell was found via
+a full-record audit and fixed. The core deliverable — dual and chordal fields
+agreeing per interior cell — holds: 56/60 intensity-axis pairs and 59/60
+demand-axis pairs within tolerance, with every exception traced to a specific,
+disclosed mechanism rather than left as an unexplained kink.
+
+**Read section 12 for the one open decision. Sections 1-11 are the full
+working record**, kept because two things had to be discovered rather than
+assumed to trust the numbers in the map: the emissions-cap dual and the
+finite-difference chordal disagree by construction near a zero-dual endpoint
+(diagnosed in s3.2-3.3, not a defect), and Gurobi crossover-on — this map's
+own solver spec — has no full-year precedent and does not converge at that
+scale (discovered in s12.1, corrected to PDLP).
 
 Branch `analysis/intensity-demand-map`, not pushed. Run artefacts gitignored
 (`analysis/benchmarks/runs_myopic/`, `records/`, `logs/`). The previous sweep's
@@ -483,7 +503,19 @@ magnitudes) rather than an unresolved kink in the interior of the map.
 
 ---
 
-## 9. Run manifest
+## 9. Realised cell list
+
+78 ladder cells (the brief's pruned 6-6 design): full intensity ladder
+{1.5, 1.0, 0.5, 0.25, 0.10, 0.05} x ι_planned at d in {1.00, 1.10, 1.50} per
+year (18 cells/year), reduced ladder {1.0, 0.25, 0.05} at d in
+{1.05, 1.20, 1.35} per year (9 cells/year) — 27 cells/year x 3 years = 81,
+less 3 (the d=1.00, 1.5x cells, provably slack by construction and reported
+from the Stage-1 pilot's uncapped cell rather than re-solved) = 78. Plus 9
+wedge cells and 2 Stage-1-only diagnostic cells (the uncapped pilot and the
+0.45x local probe), kept for reference but outside the realised grid design.
+Full list, coordinates, and caps: `manifest.csv`.
+
+## 10. Run manifest
 
 `manifest.csv` (89 rows): cell id, trace directory, cap/share value, solver
 settings, termination status, gap, wall time, and result paths for every
@@ -496,7 +528,7 @@ whole 600-min allowance). 88 of 89 cells terminated `Optimal`; 1
 (`idm_d150_i025_2030`) is the PDLP-accepted cell, `model_status: Unknown` with
 all three relative convergence metrics inside 3e-3 (s4).
 
-## 10. Caveats block
+## 11. Caveats block
 
 - **Conditioning offset against the pathway anchors** (s2.1): generation
   -8.8%/-15.9%/-21.1% and renewable share -18.8/-19.8/-16.0 pp against the
@@ -543,6 +575,94 @@ all three relative convergence metrics inside 3e-3 (s4).
   "floor" is the asymptotic cost ceiling the dual approaches, not an
   infeasibility boundary, and 2030's ceiling is an order of magnitude below
   2040/2050's at both demand levels tested.
+
+---
+
+## 12. Tail-sampling validation: measured, not assumed
+
+The brief requires full-year chronology for every cell at or below
+0.10x ι_planned (27 cells: the i010/i005 rungs across all demand levels and
+years). At ~17h/cell on the only solver that converges full-year LPs in this
+codebase's history (PDLP; see below), 27 cells is 18-19 days sequential, or
+still ~9 days even at full 2-seat parallelism — not proportionate against the
+map's other deliverables. Per the brief's own escape valve, one validation
+pair was run to MEASURE the transfer error rather than assume or silently
+substitute sampled results.
+
+### 12.1 Two solver-choice corrections along the way, both disclosed
+
+1. **Gurobi crossover-on does not have a full-year precedent in this
+   codebase and does not work at full-year scale.** The first attempt (Gurobi
+   barrier crossover-on, the map's own spec) ran the full 20-hour budget and
+   was killed still mid-crossover (6.9M of an initial ~10.3M pushes
+   remaining) — the barrier phase itself converges, but crossover complexity
+   does not scale gracefully to ~17,520 snapshots (vs ~4,368 in the sampled
+   LPs). Re-run on PDLP at 3e-3 (this codebase's only validated full-year
+   solver), which converged in 16.6 h (all three relative metrics inside
+   3e-3: gap 0.00298, pinf 1.09e-4, dinf 4.75e-6).
+2. **A cap-value error in the first launch.** The full-year cell was
+   originally launched at 2040's 0.05x ι_planned cap (2,159,640.76 t) instead
+   of 2050's (1,201,796.42 t) — an input mistake, not a modelling one. Rather
+   than discard the completed 16.6h solve, a matching SAMPLED-week cell was
+   solved at the SAME (off-target but now consistent) cap, so the comparison
+   below is a clean measurement of sampling resolution alone, with the cap
+   held fixed. The 26 remaining brief-mandated tail cells are unaffected by
+   this — none of them were run at this cap.
+
+### 12.2 The measured transfer error, at (2050, d = 1.00, cap = 2,159,641 t
+[an intermediate rung between i010 and i005])
+
+| quantity | sampled (13 weeks) | full-year | delta |
+|---|---|---|---|
+| delivered TWh | 251.938 | 251.925 | -0.01% |
+| **dual (implied carbon price, A$/t)** | 1,170.82 | 1,285.79 | **+9.8%** |
+| r_total | 94.10% | 92.24% | -2.0 pp |
+| r_VRE | 89.79% | 87.87% | -2.1 pp |
+| realised intensity | 0.0086 | 0.0086 | -0.1% |
+| wind TWh | 143.46 | 144.78 | +0.9% |
+| **solar TWh** | 96.81 | 85.59 | **-11.6%** |
+| **gas-CCS TWh** | 11.57 | 16.79 | **+45.1%** |
+| gas-unabated TWh | 4.20 | 3.55 | -15.5% |
+| biomass TWh | 1.71 | 1.61 | -5.8% |
+| USE | 0 | 0 | matched |
+
+**The concern the brief raised is confirmed, not just plausible.** Total
+delivered energy and realised intensity transfer almost perfectly (the cap
+binds either way), but the DUAL — the map's core deliverable at this axis —
+is understated by ~10% under sampling, and the TECHNOLOGY COMPOSITION is
+materially wrong: the sample under-provisions gas-CCS firming by 45% and
+over-credits solar by 12%, relative to what a full-year chronology requires
+to hold the same tight emissions cap through real seasonal variability. This
+is consistent with the brief's own hypothesis: seasonal storage and inter-week
+carryover bind harder at the tail than at the previous sweep's validated
+(much looser) intensity.
+
+### 12.3 Proposal (surfaced, not silently substituted)
+
+Full-year re-solving all 27 tail cells is not tractable inside this map's
+budget (18-19 days sequential / ~9 days at full parallelism, against a task
+that has already run substantially longer than planned). Proposed path,
+requiring a decision rather than a default:
+
+1. **Accept the sampled-week results for all 27 tail cells (i010/i005 rungs)
+   as reported in `map_results.csv`, with this measured bias disclosed
+   explicitly wherever those cells are cited**: duals in this range are
+   understated by ~10 percent (single measurement, not cross-validated across
+   coordinates); gas-CCS build is understated and solar is overstated by a
+   similar order of magnitude. Report, do not correct — the bias was measured
+   at one coordinate and extrapolating a correction factor to the other 26
+   would be exactly the "silently substituting" the brief warns against.
+2. **If more confidence is wanted before accepting**, the next-cheapest step
+   is a second full-year validation point at a different YEAR (2030, where
+   the floor bisection already showed materially different economics — s6.5)
+   to test whether the ~10% dual bias is stable across years or itself
+   coordinate-dependent. Not run here given the time already committed to
+   this single validation pair (a further ~17h PDLP solve).
+3. **Not proposed:** full-year re-solving all 27 — the cost is disproportionate
+   to the map's other deliverables and was never validated as necessary
+   before this one measurement; now that the direction and rough magnitude of
+   the bias is known, the marginal value of exhaustively re-solving is lower
+   than reporting the caveat.
 
 ---
 
