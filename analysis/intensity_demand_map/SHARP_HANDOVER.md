@@ -10,8 +10,9 @@ comparative statics around the current-policy pathway, with both duals per
 cell). They were produced by different instruments on the same model and have
 been cross-validated against each other (s4).
 
-Source repository: `ISPyPSA` fork, branch `analysis/intensity-demand-map`
-(includes `analysis/demand-carbon-sweep` history). Working records:
+Source repository: `https://github.com/nickvanschoten/ISPyPSA`, branch
+`analysis/intensity-demand-map` (includes the `analysis/demand-carbon-sweep`
+history — clone that one branch and both datasets' files are present). Working records:
 `analysis/intensity_demand_map/RETURN_MEMO.md` (this map),
 `analysis/demand_carbon_sweep/RETURN_MEMO.md` (the sweep). Economics read:
 `analysis/intensity_demand_map/MAP_ANALYSIS.md`. Dashboards: the sweep's
