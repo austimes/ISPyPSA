@@ -216,7 +216,9 @@ should be regenerated conditioned on THAT trajectory — a ~10-45% effect at
 | Sweep trajectories (48 cell-years) | `analysis/demand_carbon_sweep/results.csv`, `marginals.csv`, `storage.csv`, `manifest.csv` |
 | Sweep dashboard | artifact `6058d274-aab9-4dab-b706-8772928cef67` (also `analysis/demand_carbon_sweep/cost_dashboard.html`) |
 | Boundary reconciliation data | `analysis/intensity_demand_map/stage0_boundary.csv` |
-| Solved networks (regenerable, not committed) | `analysis/benchmarks/runs_myopic/idm_*`, `sweep_*` |
+| Retained-fleet cost export (per Dataset B cell-year: installed vs retained existing capacity, LP keeping cost, per-carrier retained split; reconciles 1.000 exactly with results.csv's `existing_fleet_fom_aud_per_yr`) | `analysis/intensity_demand_map/sweep_retained_fleet_costs.csv` |
+| Solved networks — Dataset B (full NetCDFs + `pypsa_friendly` + `ispypsa_inputs` per run, ~18 GB) | `C:\Users\van538\OneDrive - CSIRO\Transfer\runs_myopic` (copied from the solve workstation; also regenerable from committed configs) |
+| Solved networks — Dataset A (`idm_*`, regenerable, not committed) | solve workstation `analysis/benchmarks/runs_myopic/` |
 
 ## 7. Trust boundaries — carry these into ShARP
 
