@@ -1,0 +1,65 @@
+{
+  "run_id": "sweep_c550_d087_2030",
+  "config": "C:\\Users\\van538\\GitHub\\ISPyPSA\\analysis\\benchmarks\\configs_myopic\\sweep_c550_d087_2030.yaml",
+  "archetype": "cost_optimal",
+  "solver_options": {
+    "solver": "pdlp",
+    "pdlp_optimality_tolerance": 0.003,
+    "primal_feasibility_tolerance": 0.003,
+    "dual_feasibility_tolerance": 0.003
+  },
+  "started_at": 1787094907.931281,
+  "started_at_iso": "2026-08-19T09:15:07",
+  "iasr_load_s": 2.584824200021103,
+  "templating_s": 418.67714559985325,
+  "retirement": {
+    "reducible_existing_units": 329,
+    "reducible_existing_installed_mw": 73870.4,
+    "capped_below_installed_mw": 0.0,
+    "keeping_cost_per_mw": {
+      "min": 19531.97,
+      "max": 215566.1,
+      "mean": 49762.539299398726
+    },
+    "monotone_floor_applied": false
+  },
+  "recursive_dynamic": {
+    "carried_generators": 0,
+    "carried_batteries": 0,
+    "carried_generator_mw": 0.0,
+    "carried_battery_mw": 0.0
+  },
+  "capacity_cap_carried_adjust": {},
+  "phes_build_limit_carried_adjust": {},
+  "translation_s": 39.45962670003064,
+  "pypsa_build_s": 85.95811249990948,
+  "solve_s": 6469.235549000092,
+  "solve_ok": true,
+  "save_network_s": 5.7656161999329925,
+  "extract_results_s": 24.921807000180706,
+  "annual_generation_mwh_by_period": {
+    "2030": 168681526.43483895
+  },
+  "wall_clock_s": 7057.964013800025,
+  "status": "completed",
+  "peak_rss_bytes": 40342446080,
+  "peak_rss_gib": 37.57183074951172,
+  "lp_rows": 12030865,
+  "lp_cols": 5513237,
+  "lp_nonzeros": 24027733,
+  "model_status": "Unknown",
+  "highs_run_time_s": 6255.39,
+  "simplex_iterations": null,
+  "ipm_iterations": null,
+  "ipm_final_pinf": null,
+  "ipm_final_dinf": null,
+  "ipm_final_gap": null,
+  "objective_value": 7764811683.9,
+  "pdlp_iterations": 17680,
+  "pdlp_final_pinf_abs": 6640.0,
+  "pdlp_final_pinf_rel": 0.00051,
+  "pdlp_final_dinf_abs": 21.1,
+  "pdlp_final_dinf_rel": 2.01e-06,
+  "pdlp_final_gap_abs": 45700000.0,
+  "pdlp_final_gap_rel": 0.00295
+}

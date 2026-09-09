@@ -1,0 +1,80 @@
+{
+  "run_id": "sweep_c0_d123_2040",
+  "config": "C:\\Users\\van538\\GitHub\\ISPyPSA\\analysis\\benchmarks\\configs_myopic\\sweep_c0_d123_2040.yaml",
+  "archetype": "cost_optimal",
+  "solver_options": {
+    "solver": "pdlp",
+    "pdlp_optimality_tolerance": 0.003,
+    "primal_feasibility_tolerance": 0.003,
+    "dual_feasibility_tolerance": 0.003
+  },
+  "started_at": 1787161576.6641047,
+  "started_at_iso": "2026-08-20T03:46:16",
+  "iasr_load_s": 2.767210400197655,
+  "templating_s": 417.24731820006855,
+  "retirement": {
+    "reducible_existing_units": 308,
+    "reducible_existing_installed_mw": 61742.899999999994,
+    "capped_below_installed_mw": 5761.032648161186,
+    "keeping_cost_per_mw": {
+      "min": 12219.6,
+      "max": 215566.1,
+      "mean": 52018.35629949405
+    },
+    "monotone_floor_applied": true
+  },
+  "recursive_dynamic": {
+    "carried_generators": 8,
+    "carried_batteries": 3,
+    "carried_generator_mw": 1535.7689486160548,
+    "carried_battery_mw": 18.269432758367575
+  },
+  "capacity_cap_carried_adjust": {
+    "N4_Solar_build_limit": 123.94927795490783,
+    "N4_Solar_resource_limit": 123.94927795490783,
+    "N6_Solar_build_limit": 9.718120040197533,
+    "N6_Solar_resource_limit": 9.718120040197533,
+    "N9a_Solar_build_limit": 116.23597303458767,
+    "N9a_Solar_resource_limit": 116.23597303458767,
+    "Q1_WH_resource_limit": 320.50053291333626,
+    "Q1_Wind_build_limit": 320.50053291333626,
+    "S6_Solar_build_limit": 86.73948195713594,
+    "S6_Solar_resource_limit": 86.73948195713594,
+    "T2_WH_resource_limit": 205.2566185269256,
+    "T2_Wind_build_limit": 205.2566185269256,
+    "T3_WH_resource_limit": 458.44872690646605,
+    "T3_Wind_build_limit": 458.44872690646605
+  },
+  "phes_build_limit_carried_adjust": {},
+  "translation_s": 39.09792259987444,
+  "pypsa_build_s": 86.11840669997036,
+  "solve_s": 7177.28499220009,
+  "solve_ok": true,
+  "save_network_s": 6.0275837001390755,
+  "extract_results_s": 25.359979199944064,
+  "annual_generation_mwh_by_period": {
+    "2040": 303086215.66161996
+  },
+  "wall_clock_s": 7768.190108799841,
+  "status": "completed",
+  "peak_rss_bytes": 38709178368,
+  "peak_rss_gib": 36.05073165893555,
+  "lp_rows": 12760339,
+  "lp_cols": 5819006,
+  "lp_nonzeros": 25498490,
+  "model_status": "Unknown",
+  "highs_run_time_s": 6953.31,
+  "simplex_iterations": null,
+  "ipm_iterations": null,
+  "ipm_final_pinf": null,
+  "ipm_final_dinf": null,
+  "ipm_final_gap": null,
+  "objective_value": 19441132821.0,
+  "pdlp_iterations": 18680,
+  "pdlp_final_pinf_abs": 9480.0,
+  "pdlp_final_pinf_rel": 0.00074,
+  "pdlp_final_dinf_abs": 22.6,
+  "pdlp_final_dinf_rel": 2.22e-06,
+  "pdlp_final_gap_abs": 116000000.0,
+  "pdlp_final_gap_rel": 0.003
+}

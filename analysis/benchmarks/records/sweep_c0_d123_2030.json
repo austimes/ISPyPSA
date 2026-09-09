@@ -1,0 +1,65 @@
+{
+  "run_id": "sweep_c0_d123_2030",
+  "config": "C:\\Users\\van538\\GitHub\\ISPyPSA\\analysis\\benchmarks\\configs_myopic\\sweep_c0_d123_2030.yaml",
+  "archetype": "cost_optimal",
+  "solver_options": {
+    "solver": "pdlp",
+    "pdlp_optimality_tolerance": 0.003,
+    "primal_feasibility_tolerance": 0.003,
+    "dual_feasibility_tolerance": 0.003
+  },
+  "started_at": 1787148423.5135546,
+  "started_at_iso": "2026-08-20T00:07:03",
+  "iasr_load_s": 0.27696139994077384,
+  "templating_s": 410.7783558999654,
+  "retirement": {
+    "reducible_existing_units": 329,
+    "reducible_existing_installed_mw": 73870.4,
+    "capped_below_installed_mw": 0.0,
+    "keeping_cost_per_mw": {
+      "min": 19531.97,
+      "max": 215566.1,
+      "mean": 49762.539299398726
+    },
+    "monotone_floor_applied": false
+  },
+  "recursive_dynamic": {
+    "carried_generators": 0,
+    "carried_batteries": 0,
+    "carried_generator_mw": 0.0,
+    "carried_battery_mw": 0.0
+  },
+  "capacity_cap_carried_adjust": {},
+  "phes_build_limit_carried_adjust": {},
+  "translation_s": 41.29921680013649,
+  "pypsa_build_s": 90.69789090007544,
+  "solve_s": 12487.359482999891,
+  "solve_ok": true,
+  "save_network_s": 5.313393699936569,
+  "extract_results_s": 24.496532900026068,
+  "annual_generation_mwh_by_period": {
+    "2030": 237549808.27154467
+  },
+  "wall_clock_s": 13071.504879399901,
+  "status": "completed",
+  "peak_rss_bytes": 38668369920,
+  "peak_rss_gib": 36.012725830078125,
+  "lp_rows": 12030865,
+  "lp_cols": 5513237,
+  "lp_nonzeros": 24027733,
+  "model_status": "Unknown",
+  "highs_run_time_s": 12274.15,
+  "simplex_iterations": null,
+  "ipm_iterations": null,
+  "ipm_final_pinf": null,
+  "ipm_final_dinf": null,
+  "ipm_final_gap": null,
+  "objective_value": 5432727780.9,
+  "pdlp_iterations": 34880,
+  "pdlp_final_pinf_abs": 2180.0,
+  "pdlp_final_pinf_rel": 0.000167,
+  "pdlp_final_dinf_abs": 0.989,
+  "pdlp_final_dinf_rel": 9.39e-08,
+  "pdlp_final_gap_abs": 32300000.0,
+  "pdlp_final_gap_rel": 0.00298
+}

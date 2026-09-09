@@ -1,0 +1,65 @@
+{
+  "run_id": "sweep_c550_d100_2030",
+  "config": "C:\\Users\\van538\\GitHub\\ISPyPSA\\analysis\\benchmarks\\configs_myopic\\sweep_c550_d100_2030.yaml",
+  "archetype": "cost_optimal",
+  "solver_options": {
+    "solver": "pdlp",
+    "pdlp_optimality_tolerance": 0.003,
+    "primal_feasibility_tolerance": 0.003,
+    "dual_feasibility_tolerance": 0.003
+  },
+  "started_at": 1787094907.9768536,
+  "started_at_iso": "2026-08-19T09:15:07",
+  "iasr_load_s": 1.9749066000804305,
+  "templating_s": 415.7335117000621,
+  "retirement": {
+    "reducible_existing_units": 329,
+    "reducible_existing_installed_mw": 73870.4,
+    "capped_below_installed_mw": 0.0,
+    "keeping_cost_per_mw": {
+      "min": 19531.97,
+      "max": 215566.1,
+      "mean": 49762.539299398726
+    },
+    "monotone_floor_applied": false
+  },
+  "recursive_dynamic": {
+    "carried_generators": 0,
+    "carried_batteries": 0,
+    "carried_generator_mw": 0.0,
+    "carried_battery_mw": 0.0
+  },
+  "capacity_cap_carried_adjust": {},
+  "phes_build_limit_carried_adjust": {},
+  "translation_s": 41.26660059997812,
+  "pypsa_build_s": 90.52439789986238,
+  "solve_s": 8987.851759099867,
+  "solve_ok": true,
+  "save_network_s": 5.659385000122711,
+  "extract_results_s": 25.69376409985125,
+  "annual_generation_mwh_by_period": {
+    "2030": 194604453.24016848
+  },
+  "wall_clock_s": 9580.636224200018,
+  "status": "completed",
+  "peak_rss_bytes": 40155623424,
+  "peak_rss_gib": 37.3978385925293,
+  "lp_rows": 12030865,
+  "lp_cols": 5513237,
+  "lp_nonzeros": 24027733,
+  "model_status": "Unknown",
+  "highs_run_time_s": 8771.64,
+  "simplex_iterations": null,
+  "ipm_iterations": null,
+  "ipm_final_pinf": null,
+  "ipm_final_dinf": null,
+  "ipm_final_gap": null,
+  "objective_value": 11766117875.0,
+  "pdlp_iterations": 24480,
+  "pdlp_final_pinf_abs": 10200.0,
+  "pdlp_final_pinf_rel": 0.000781,
+  "pdlp_final_dinf_abs": 10.6,
+  "pdlp_final_dinf_rel": 1.01e-06,
+  "pdlp_final_gap_abs": 68800000.0,
+  "pdlp_final_gap_rel": 0.00293
+}

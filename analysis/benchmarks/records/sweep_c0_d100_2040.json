@@ -1,0 +1,65 @@
+{
+  "run_id": "sweep_c0_d100_2040",
+  "config": "C:\\Users\\van538\\GitHub\\ISPyPSA\\analysis\\benchmarks\\configs_myopic\\sweep_c0_d100_2040.yaml",
+  "archetype": "cost_optimal",
+  "solver_options": {
+    "solver": "pdlp",
+    "pdlp_optimality_tolerance": 0.003,
+    "primal_feasibility_tolerance": 0.003,
+    "dual_feasibility_tolerance": 0.003
+  },
+  "started_at": 1787123756.124192,
+  "started_at_iso": "2026-08-19T17:15:56",
+  "iasr_load_s": 2.590472799958661,
+  "templating_s": 408.06180370016955,
+  "retirement": {
+    "reducible_existing_units": 308,
+    "reducible_existing_installed_mw": 61742.899999999994,
+    "capped_below_installed_mw": 10398.768565728113,
+    "keeping_cost_per_mw": {
+      "min": 12219.6,
+      "max": 215566.1,
+      "mean": 52018.35629949405
+    },
+    "monotone_floor_applied": true
+  },
+  "recursive_dynamic": {
+    "carried_generators": 0,
+    "carried_batteries": 0,
+    "carried_generator_mw": 0.0,
+    "carried_battery_mw": 0.0
+  },
+  "capacity_cap_carried_adjust": {},
+  "phes_build_limit_carried_adjust": {},
+  "translation_s": 38.7623938000761,
+  "pypsa_build_s": 86.24385179998353,
+  "solve_s": 7307.30537889991,
+  "solve_ok": true,
+  "save_network_s": 5.8475430000107735,
+  "extract_results_s": 25.286477900110185,
+  "annual_generation_mwh_by_period": {
+    "2040": 245915372.51034814
+  },
+  "wall_clock_s": 7888.496453200001,
+  "status": "completed",
+  "peak_rss_bytes": 40277090304,
+  "peak_rss_gib": 37.510963439941406,
+  "lp_rows": 12598723,
+  "lp_cols": 5744750,
+  "lp_nonzeros": 25232042,
+  "model_status": "Unknown",
+  "highs_run_time_s": 7088.27,
+  "simplex_iterations": null,
+  "ipm_iterations": null,
+  "ipm_final_pinf": null,
+  "ipm_final_dinf": null,
+  "ipm_final_gap": null,
+  "objective_value": 12916653554.0,
+  "pdlp_iterations": 19080,
+  "pdlp_final_pinf_abs": 7630.0,
+  "pdlp_final_pinf_rel": 0.000596,
+  "pdlp_final_dinf_abs": 33.4,
+  "pdlp_final_dinf_rel": 3.28e-06,
+  "pdlp_final_gap_abs": 76100000.0,
+  "pdlp_final_gap_rel": 0.00295
+}
