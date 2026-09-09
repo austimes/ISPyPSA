@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intensity x demand map — current-policy conditioning</title>
+<style>
+  :root {
+    --surface: #fcfcfb; --page: #f9f9f7;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e8e7e3; --border: #e0dfda;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #1a1a19; --page: #0d0d0d;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #32312e; --border: #3a3936;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+      --s5: #d55181; --s6: #008300; --s7: #9085e9;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: var(--page); color: var(--ink);
+    font: 14px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 2px; }
+  .sub { color: var(--ink2); font-size: 12.5px; margin: 0 0 18px; }
+  .note { color: var(--ink2); font-size: 12px; margin: 6px 0 0; max-width: 72em; }
+  .tiles { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .tile {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px; min-width: 170px;
+  }
+  .tile .v { font-size: 22px; font-weight: 650; }
+  .tile .k { font-size: 11.5px; color: var(--ink2); margin-top: 2px; }
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 18px 10px; margin-bottom: 18px;
+    overflow-x: auto;
+  }
+  .row { display: flex; gap: 18px; flex-wrap: wrap; }
+  svg text { fill: var(--ink2); font-size: 11px; }
+  svg .axis line, svg .axis path { stroke: var(--grid); }
+  svg .lbl { fill: var(--ink); font-size: 11.5px; font-weight: 600; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px;
+            color: var(--ink2); margin: 4px 0 8px; }
+  .legend .sw { display: inline-block; width: 10px; height: 10px;
+                border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .legend .ring { background: transparent !important; border: 2px solid; }
+  #tip {
+    position: fixed; display: none; pointer-events: none; z-index: 10;
+    background: var(--ink); color: var(--surface); padding: 6px 9px;
+    border-radius: 6px; font-size: 12px; max-width: 300px;
+  }
+  details { margin: 8px 0 4px; }
+  summary { color: var(--ink2); font-size: 12px; cursor: pointer; }
+  table { border-collapse: collapse; font-size: 11.5px; margin-top: 6px; }
+  th, td { border: 1px solid var(--border); padding: 3px 8px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+</style>
+</head>
+<body>
+<h1>Marginal-cost map over emissions intensity x annual demand</h1>
+<p class="sub">
+  Conditioned single-year solves on the current-policy chain (sweep_c0_d100:
+  $0/t, Step Change). 78 ladder cells + 9 wedge cells, Gurobi barrier
+  crossover-on 1e-8 (one cell PDLP 3e-3). Full record:
+  <code>RETURN_MEMO.md</code>; economics: <code>MAP_ANALYSIS.md</code>.
+</p>
+<div class="tiles" id="tiles"></div>
+
+<div class="panel">
+  <h2>1 &middot; The dual field, validated by an independent instrument</h2>
+  <p class="note">Lines: this map's emissions-cap duals at d&nbsp;=&nbsp;1.00
+  (implied carbon price, log scale) against realised intensity. Rings: the
+  previous sweep's carbon-price cells (price applied vs intensity realised) —
+  a different instrument on the same model. Where conditioning matches (2030),
+  the two coincide: ratio 0.999 at $550/t.</p>
+  <div class="legend" id="lg1"></div>
+  <div id="p1"></div>
+  <details><summary>table</summary><div id="t1"></div></details>
+</div>
+
+<div class="panel">
+  <h2>2 &middot; The map surface: average cost (A$/MWh)</h2>
+  <p class="note">Sequential blue = cost. Demand is cheap (rows change little);
+  intensity is expensive (columns steepen super-linearly). Blank cells were
+  not part of the pruned design; 1.5&times; caps are slack everywhere (the
+  thermal-overflow direction is empty).</p>
+  <div class="row" id="p2"></div>
+</div>
+
+<div class="panel">
+  <h2>3 &middot; What the marginal constraint buys: generation mix down the
+  intensity ladder (d&nbsp;=&nbsp;1.00, TWh)</h2>
+  <div class="legend" id="lg3"></div>
+  <div class="row" id="p3"></div>
+</div>
+
+<div class="panel">
+  <h2>4 &middot; The saturation boundary is a price ceiling, not a wall</h2>
+  <p class="note">Floor probes below the ladder (log-log). No coordinate went
+  infeasible down to 10&ndash;500&nbsp;t; the dual plateaus at a year-driven
+  ceiling (2040/2050 converge; 2030 sits an order of magnitude lower &mdash;
+  its fleet still holds retirable coal). Solid: d&nbsp;=&nbsp;1.00; dashed:
+  d&nbsp;=&nbsp;1.50.</p>
+  <div class="legend" id="lg4"></div>
+  <div id="p4"></div>
+</div>
+
+<div class="panel">
+  <h2>5 &middot; The CCS wedge: intensity cap vs matched renewable share
+  (d&nbsp;=&nbsp;1.00)</h2>
+  <p class="note">Paired bars: average cost under the intensity cap (solid)
+  and under a minimum-share constraint matched to that cell's realised
+  r_total (textured). The share solve is cheaper &mdash; and realises up to
+  6.8&times; the emissions, because it never builds CCS-gas.</p>
+  <div class="legend" id="lg5"></div>
+  <div id="p5"></div>
+  <details><summary>table</summary><div id="t5"></div></details>
+</div>
+
+<div id="tip"></div>
+<script>
+const DATA = /*__MAP_DATA__*/null;
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const YEARC = {2030: css('--s1'), 2040: css('--s2'), 2050: css('--s3')};
+// Black + brown coal merged into one reporting group: both exit the fleet on
+// the same economics and splitting them would put two series on one hue.
+DATA.tech_mix_d100 && Object.values(DATA.tech_mix_d100).forEach(rows =>
+  rows.forEach(r => {
+    r.coal = (r.black_coal || 0) + (r.brown_coal || 0);
+  }));
+const TECHS = [
+  ['wind', 'Wind'], ['solar', 'Solar'], ['water', 'Hydro'],
+  ['biomass', 'Biomass'], ['gas_ccs', 'Gas CCS'], ['gas_unabated', 'Gas unabated'],
+  ['coal', 'Coal'],
+];
+const TECHC = {};
+TECHS.forEach(([k], i) => TECHC[k] = css('--s' + (i + 1)));
+const tip = document.getElementById('tip');
+function showTip(evt, html) {
+  tip.innerHTML = html; tip.style.display = 'block';
+  tip.style.left = (evt.clientX + 14) + 'px';
+  tip.style.top = (evt.clientY + 10) + 'px';
+}
+function hideTip() { tip.style.display = 'none'; }
+const S = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent) {
+  const n = document.createElementNS(S, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function fmt(x, d = 1) { return (+x).toLocaleString('en-AU',
+  {maximumFractionDigits: d, minimumFractionDigits: 0}); }
+
+// ---- tiles -----------------------------------------------------------------
+const tiles = [
+  ['89', 'cells solved (78 ladder + 9 wedge + 2 diagnostics)'],
+  ['0.999', 'dual / price ratio vs the $550/t sweep cell, matched conditioning (2030)'],
+  ['56/60 &middot; 59/60', 'adjacent pairs passing the dual-vs-chordal check (intensity &middot; demand axes)'],
+  ['0', 'binding cells missing the cap by >1% (worst: 8 significant figures)'],
+  ['dual = 0', 'every 1.5&times; overflow cap, at every demand level — the gas-overflow direction is empty'],
+];
+document.getElementById('tiles').innerHTML = tiles.map(t =>
+  `<div class="tile"><div class="v">${t[0]}</div><div class="k">${t[1]}</div></div>`).join('');
+
+// ---- panel 1: dual curves + sweep rings (log y) ----------------------------
+(function () {
+  const cells = DATA.cells.filter(c => c.demand_level === 'd100'
+    && c.implied_carbon_price_aud_per_t > 0);
+  const sweep = DATA.duality;
+  const W = 720, H = 340, m = {l: 64, r: 130, t: 12, b: 40};
+  const xs = cells.map(c => c.intensity_delivered_t_per_mwh)
+    .concat(sweep.map(s => s.sweep_realised_intensity));
+  const ys = cells.map(c => c.implied_carbon_price_aud_per_t)
+    .concat(sweep.map(s => s.sweep_price_aud_per_t));
+  const xmax = Math.max(...xs) * 1.06, ymin = 50, ymax = Math.max(...ys) * 1.3;
+  const X = v => m.l + v / xmax * (W - m.l - m.r);
+  const Y = v => H - m.b - (Math.log10(v) - Math.log10(ymin)) /
+    (Math.log10(ymax) - Math.log10(ymin)) * (H - m.t - m.b);
+  const svg = el('svg', {width: W, height: H, viewBox: `0 0 ${W} ${H}`},
+    document.getElementById('p1'));
+  const ax = el('g', {class: 'axis'}, svg);
+  [100, 300, 1000, 3000].filter(v => v < ymax).forEach(v => {
+    el('line', {x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v)}, ax);
+    el('text', {x: m.l - 8, y: Y(v) + 4, 'text-anchor': 'end'}, ax)
+      .textContent = fmt(v, 0);
+  });
+  [0.05, 0.1, 0.15, 0.2].filter(v => v < xmax).forEach(v => {
+    el('text', {x: X(v), y: H - m.b + 16, 'text-anchor': 'middle'}, ax)
+      .textContent = v;
+  });
+  el('text', {x: m.l - 46, y: m.t + 8}, svg).textContent = 'A$/t';
+  el('text', {x: (m.l + W - m.r) / 2, y: H - 6, 'text-anchor': 'middle'}, svg)
+    .textContent = 'realised intensity (t CO2e / MWh delivered)';
+  for (const year of [2030, 2040, 2050]) {
+    const pts = cells.filter(c => c.year === year)
+      .sort((a, b) => a.intensity_delivered_t_per_mwh - b.intensity_delivered_t_per_mwh);
+    el('path', {
+      d: 'M' + pts.map(p =>
+        `${X(p.intensity_delivered_t_per_mwh)},${Y(p.implied_carbon_price_aud_per_t)}`
+      ).join('L'),
+      fill: 'none', stroke: YEARC[year], 'stroke-width': 2,
+    }, svg);
+    pts.forEach(p => {
+      const c = el('circle', {
+        cx: X(p.intensity_delivered_t_per_mwh),
+        cy: Y(p.implied_carbon_price_aud_per_t), r: 4.5,
+        fill: YEARC[year], stroke: css('--surface'), 'stroke-width': 2,
+      }, svg);
+      c.addEventListener('mousemove', e => showTip(e,
+        `<b>${p.run_id}</b><br>${year} &middot; cap ${p.cap_key} &middot; ` +
+        `ι ${p.intensity_delivered_t_per_mwh.toFixed(4)}<br>` +
+        `dual ${fmt(p.implied_carbon_price_aud_per_t)} A$/t &middot; ` +
+        `avg cost ${fmt(p.avg_cost_aud_per_mwh)} A$/MWh`));
+      c.addEventListener('mouseleave', hideTip);
+    });
+    const last = pts[pts.length - 1];
+    el('text', {x: X(last.intensity_delivered_t_per_mwh) + 8,
+                y: Y(last.implied_carbon_price_aud_per_t) + 4, class: 'lbl',
+                fill: YEARC[year]}, svg).textContent = year;
+    sweep.filter(s => s.year === year).forEach(s => {
+      const c = el('circle', {
+        cx: X(s.sweep_realised_intensity), cy: Y(s.sweep_price_aud_per_t),
+        r: 5.5, fill: 'none', stroke: YEARC[year], 'stroke-width': 2.5,
+      }, svg);
+      c.addEventListener('mousemove', e => showTip(e,
+        `<b>previous sweep</b> $${s.sweep_price_aud_per_t}/t (${year})<br>` +
+        `realised ι ${s.sweep_realised_intensity.toFixed(4)}<br>` +
+        `map dual at that ι: ${fmt(s.map_dual_at_that_intensity)} ` +
+        `(ratio ${s.ratio_dual_over_price.toFixed(3)})` +
+        (s.conditioning_matched ? '' : '<br><i>conditioning differs</i>')));
+      c.addEventListener('mouseleave', hideTip);
+    });
+  }
+  document.getElementById('lg1').innerHTML =
+    [2030, 2040, 2050].map(y =>
+      `<span><span class="sw" style="background:${YEARC[y]}"></span>${y} map dual</span>`
+    ).join('') +
+    `<span><span class="sw ring" style="border-color:${css('--ink2')}"></span>previous sweep price point</span>`;
+  document.getElementById('t1').innerHTML = '<table><tr><th>year</th>' +
+    '<th>sweep $/t</th><th>realised ι</th><th>map dual</th><th>ratio</th></tr>' +
+    sweep.map(s => `<tr><td>${s.year}${s.conditioning_matched ? '' : ' *'}</td>` +
+      `<td>${s.sweep_price_aud_per_t}</td><td>${s.sweep_realised_intensity}</td>` +
+      `<td>${fmt(s.map_dual_at_that_intensity)}</td>` +
+      `<td>${s.ratio_dual_over_price.toFixed(3)}</td></tr>`).join('') +
+    '</table><p class="note">* conditioning differs (sweep chain carries a price-conditioned fleet)</p>';
+})();
+
+// ---- panel 2: cost surface heatmaps ----------------------------------------
+(function () {
+  const MULTS = [1.5, 1.0, 0.5, 0.25, 0.10, 0.05];
+  const DEMANDS = ['d100', 'd105', 'd110', 'd120', 'd135', 'd150'];
+  const ramp = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf',
+                '#1c5cab', '#104281', '#0d366b'];
+  const all = DATA.cells.map(c => c.avg_cost_aud_per_mwh);
+  const lo = Math.min(...all), hi = Math.max(...all);
+  const color = v => ramp[Math.min(ramp.length - 1,
+    Math.floor((v - lo) / (hi - lo) * ramp.length))];
+  const cw = 52, ch = 30, ml = 46, mt = 26;
+  for (const year of [2030, 2040, 2050]) {
+    const wrap = document.createElement('div');
+    document.getElementById('p2').appendChild(wrap);
+    const W = ml + MULTS.length * (cw + 2) + 6, H = mt + DEMANDS.length * (ch + 2) + 22;
+    const svg = el('svg', {width: W, height: H, viewBox: `0 0 ${W} ${H}`}, wrap);
+    el('text', {x: ml, y: 13, class: 'lbl'}, svg).textContent = year;
+    MULTS.forEach((mm, i) => el('text', {
+      x: ml + i * (cw + 2) + cw / 2, y: mt - 5, 'text-anchor': 'middle'}, svg)
+      .textContent = mm + 'x');
+    DEMANDS.forEach((d, j) => {
+      el('text', {x: ml - 6, y: mt + j * (ch + 2) + ch / 2 + 4,
+                  'text-anchor': 'end'}, svg)
+        .textContent = 'x' + (DATA.cells.find(c => c.demand_level === d) || {demand_scalar: d}).demand_scalar;
+      MULTS.forEach((mm, i) => {
+        const cell = DATA.cells.find(c => c.year === year
+          && c.demand_level === d && Math.abs((c.cap_mult ?? -1) - mm) < 1e-9);
+        if (!cell) return;
+        const v = cell.avg_cost_aud_per_mwh;
+        const r = el('rect', {x: ml + i * (cw + 2), y: mt + j * (ch + 2),
+          width: cw, height: ch, rx: 4, fill: color(v)}, svg);
+        const dark = (v - lo) / (hi - lo) > 0.45;
+        el('text', {x: ml + i * (cw + 2) + cw / 2, y: mt + j * (ch + 2) + ch / 2 + 4,
+          'text-anchor': 'middle',
+          style: `fill:${dark ? '#fcfcfb' : '#0b0b0b'};font-size:11px`}, svg)
+          .textContent = fmt(v, 0);
+        r.addEventListener('mousemove', e => showTip(e,
+          `<b>${cell.run_id}</b><br>avg cost ${fmt(v)} A$/MWh<br>` +
+          `dual ${fmt(cell.implied_carbon_price_aud_per_t)} A$/t &middot; ` +
+          `r_total ${cell.r_total_pct.toFixed(1)}%`));
+        r.addEventListener('mouseleave', hideTip);
+      });
+    });
+    el('text', {x: ml + (MULTS.length * (cw + 2)) / 2, y: H - 4,
+                'text-anchor': 'middle'}, svg)
+      .textContent = 'cap (x ι_planned) →   rows: demand scalar';
+  }
+})();
+
+// ---- panel 3: tech mix stacked bars ----------------------------------------
+(function () {
+  document.getElementById('lg3').innerHTML = TECHS.map(([k, name]) =>
+    `<span><span class="sw" style="background:${TECHC[k]}"></span>${name}</span>`
+  ).join('');
+  for (const year of [2030, 2040, 2050]) {
+    const mix = DATA.tech_mix_d100[String(year)];
+    const wrap = document.createElement('div');
+    document.getElementById('p3').appendChild(wrap);
+    const W = 260, H = 260, ml = 40, mb = 34, mt = 22;
+    const total = Math.max(...mix.map(r =>
+      TECHS.reduce((s, [k]) => s + (r[k] || 0), 0)));
+    const bw = (W - ml - 10) / mix.length - 4;
+    const svg = el('svg', {width: W, height: H, viewBox: `0 0 ${W} ${H}`}, wrap);
+    el('text', {x: ml, y: 13, class: 'lbl'}, svg).textContent = year;
+    mix.forEach((r, i) => {
+      let y0 = H - mb;
+      const x = ml + i * (bw + 4);
+      TECHS.forEach(([k, name]) => {
+        const v = r[k] || 0;
+        if (v <= 0) return;
+        const h = v / total * (H - mt - mb);
+        const rect = el('rect', {x, y: y0 - h, width: bw, height: Math.max(h - 1, 0.5),
+          fill: TECHC[k], stroke: css('--surface'), 'stroke-width': 1}, svg);
+        rect.addEventListener('mousemove', e => showTip(e,
+          `<b>${name}</b> ${fmt(v)} TWh<br>${year} &middot; cap ${r.cap_key}`));
+        rect.addEventListener('mouseleave', hideTip);
+        y0 -= h;
+      });
+      el('text', {x: x + bw / 2, y: H - mb + 14, 'text-anchor': 'middle'}, svg)
+        .textContent = r.cap_mult + 'x';
+    });
+    el('text', {x: ml - 30, y: mt}, svg).textContent = 'TWh';
+    el('text', {x: (ml + W) / 2, y: H - 4, 'text-anchor': 'middle'}, svg)
+      .textContent = 'cap (x ι_planned)';
+  }
+})();
+
+// ---- panel 4: floor curves (log-log) ---------------------------------------
+(function () {
+  const F = DATA.floors.filter(f => f.dual > 0);
+  const W = 720, H = 320, m = {l: 70, r: 150, t: 14, b: 42};
+  const xmin = 5, xmax = Math.max(...F.map(f => f.cap_t)) * 2;
+  const ymin = 500, ymax = Math.max(...F.map(f => f.dual)) * 1.4;
+  const X = v => m.l + (Math.log10(v) - Math.log10(xmin)) /
+    (Math.log10(xmax) - Math.log10(xmin)) * (W - m.l - m.r);
+  const Y = v => H - m.b - (Math.log10(v) - Math.log10(ymin)) /
+    (Math.log10(ymax) - Math.log10(ymin)) * (H - m.t - m.b);
+  const svg = el('svg', {width: W, height: H, viewBox: `0 0 ${W} ${H}`},
+    document.getElementById('p4'));
+  const ax = el('g', {class: 'axis'}, svg);
+  [1e3, 1e4, 1e5].filter(v => v < ymax).forEach(v => {
+    el('line', {x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v)}, ax);
+    el('text', {x: m.l - 8, y: Y(v) + 4, 'text-anchor': 'end'}, ax)
+      .textContent = fmt(v, 0);
+  });
+  [10, 1e3, 1e5, 1e6].forEach(v => {
+    el('text', {x: X(v), y: H - m.b + 16, 'text-anchor': 'middle'}, ax)
+      .textContent = v >= 1e6 ? v / 1e6 + 'M' : v >= 1e3 ? v / 1e3 + 'k' : v;
+  });
+  el('text', {x: m.l - 52, y: m.t + 6}, svg).textContent = 'A$/t';
+  el('text', {x: (m.l + W - m.r) / 2, y: H - 6, 'text-anchor': 'middle'}, svg)
+    .textContent = 'cap (t CO2e / yr, log)';
+  for (const year of [2030, 2040, 2050]) {
+    for (const level of ['d100', 'd150']) {
+      const pts = F.filter(f => f.year === year && f.demand_level === level)
+        .sort((a, b) => a.cap_t - b.cap_t);
+      if (!pts.length) continue;
+      el('path', {
+        d: 'M' + pts.map(p => `${X(p.cap_t)},${Y(p.dual)}`).join('L'),
+        fill: 'none', stroke: YEARC[year], 'stroke-width': 2,
+        'stroke-dasharray': level === 'd150' ? '5 4' : 'none',
+      }, svg);
+      pts.forEach(p => {
+        const c = el('circle', {cx: X(p.cap_t), cy: Y(p.dual), r: 4,
+          fill: YEARC[year], stroke: css('--surface'), 'stroke-width': 2}, svg);
+        c.addEventListener('mousemove', e => showTip(e,
+          `<b>${year} ${level}</b> probe ${p.probe}<br>` +
+          `cap ${fmt(p.cap_t, 0)} t &middot; dual ${fmt(p.dual, 0)} A$/t<br>` +
+          `feasible (Optimal)`));
+        c.addEventListener('mouseleave', hideTip);
+      });
+      if (level === 'd100') {
+        const p0 = pts[0];
+        el('text', {x: X(p0.cap_t) - 8, y: Y(p0.dual) - 8, class: 'lbl',
+                    fill: YEARC[year], 'text-anchor': 'start'}, svg)
+          .textContent = year;
+      }
+    }
+  }
+  document.getElementById('lg4').innerHTML =
+    [2030, 2040, 2050].map(y =>
+      `<span><span class="sw" style="background:${YEARC[y]}"></span>${y}</span>`
+    ).join('') +
+    '<span style="border-bottom:2px solid var(--ink2);padding-bottom:1px">d=1.00 solid</span>' +
+    '<span style="border-bottom:2px dashed var(--ink2);padding-bottom:1px">d=1.50 dashed</span>';
+})();
+
+// ---- panel 5: wedge paired bars --------------------------------------------
+(function () {
+  const wedge = DATA.wedge.filter(w => w.cap_key !== 'i100');
+  const W = 640, H = 300, ml = 56, mb = 56, mt = 16;
+  const ymax = Math.max(...wedge.map(w => Math.max(w.i_cost, w.s_cost))) * 1.15;
+  const Y = v => H - mb - v / ymax * (H - mt - mb);
+  const svg = el('svg', {width: W, height: H, viewBox: `0 0 ${W} ${H}`},
+    document.getElementById('p5'));
+  const defs = el('defs', {}, svg);
+  defs.innerHTML = `<pattern id="hatch" width="6" height="6"
+    patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+    <rect width="6" height="6" fill="${css('--s2')}"></rect>
+    <line x1="0" y1="0" x2="0" y2="6" stroke="${css('--surface')}" stroke-width="2.5"/></pattern>`;
+  const ax = el('g', {class: 'axis'}, svg);
+  [0, 30, 60, 90, 120].filter(v => v < ymax).forEach(v => {
+    el('line', {x1: ml, x2: W - 14, y1: Y(v), y2: Y(v)}, ax);
+    el('text', {x: ml - 8, y: Y(v) + 4, 'text-anchor': 'end'}, ax).textContent = v;
+  });
+  el('text', {x: ml - 44, y: mt}, svg).textContent = 'A$/MWh';
+  const gw = (W - ml - 20) / wedge.length;
+  wedge.forEach((w, i) => {
+    const x = ml + i * gw + gw * 0.18, bw = gw * 0.26;
+    function bar(px, v, fill, label, extra) {
+      const h = v / ymax * (H - mt - mb);
+      const p = el('path', {d:
+        `M${px},${H - mb} v${-(h - 4)} q0,-4 4,-4 h${bw - 8} q4,0 4,4 v${h - 4} z`,
+        fill}, svg);
+      p.addEventListener('mousemove', e => showTip(e,
+        `<b>${label}</b> ${fmt(v)} A$/MWh<br>${w.year} &middot; matched r_total ` +
+        `${w.r_total}%<br>${extra}`));
+      p.addEventListener('mouseleave', hideTip);
+    }
+    bar(x, w.i_cost, css('--s1'), 'intensity cap',
+      `realised ι ${w.i_intensity} &middot; gas-CCS ${w.i_gas_ccs_twh} TWh`);
+    bar(x + bw + 4, w.s_cost, 'url(#hatch)', 'share-matched',
+      `realised ι ${w.s_intensity} (${(w.s_intensity / w.i_intensity).toFixed(1)}x) ` +
+      `&middot; gas-CCS ${w.s_gas_ccs_twh} TWh`);
+    el('text', {x: x + bw + 2, y: H - mb + 15, 'text-anchor': 'middle'}, svg)
+      .textContent = `${w.year} ${w.cap_key}`;
+    el('text', {x: x + bw + 2, y: H - mb + 29, 'text-anchor': 'middle'}, svg)
+      .textContent = `ι slip ${(w.s_intensity / w.i_intensity).toFixed(1)}x`;
+  });
+  document.getElementById('lg5').innerHTML =
+    `<span><span class="sw" style="background:${css('--s1')}"></span>intensity cap</span>` +
+    `<span><span class="sw" style="background:${css('--s2')}"></span>share-matched (textured)</span>`;
+  document.getElementById('t5').innerHTML = '<table><tr><th>cell</th>' +
+    '<th>r_total %</th><th>ι-cap cost</th><th>share cost</th><th>ι-cap ι</th>' +
+    '<th>share ι</th><th>ι-cap CCS TWh</th><th>share CCS TWh</th></tr>' +
+    DATA.wedge.map(w => `<tr><td>${w.year} ${w.cap_key}</td><td>${w.r_total}</td>` +
+      `<td>${w.i_cost}</td><td>${w.s_cost}</td><td>${w.i_intensity}</td>` +
+      `<td>${w.s_intensity}</td><td>${w.i_gas_ccs_twh}</td><td>${w.s_gas_ccs_twh}</td></tr>`
+    ).join('') + '</table>';
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,2319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intensity x demand map — current-policy conditioning</title>
+<style>
+  :root {
+    --surface: #fcfcfb; --page: #f9f9f7;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e8e7e3; --border: #e0dfda;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #1a1a19; --page: #0d0d0d;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #32312e; --border: #3a3936;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+      --s5: #d55181; --s6: #008300; --s7: #9085e9;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: var(--page); color: var(--ink);
+    font: 14px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 2px; }
+  .sub { color: var(--ink2); font-size: 12.5px; margin: 0 0 18px; }
+  .note { color: var(--ink2); font-size: 12px; margin: 6px 0 0; max-width: 72em; }
+  .tiles { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .tile {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px; min-width: 170px;
+  }
+  .tile .v { font-size: 22px; font-weight: 650; }
+  .tile .k { font-size: 11.5px; color: var(--ink2); margin-top: 2px; }
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 18px 10px; margin-bottom: 18px;
+    overflow-x: auto;
+  }
+  .row { display: flex; gap: 18px; flex-wrap: wrap; }
+  svg text { fill: var(--ink2); font-size: 11px; }
+  svg .axis line, svg .axis path { stroke: var(--grid); }
+  svg .lbl { fill: var(--ink); font-size: 11.5px; font-weight: 600; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px;
+            color: var(--ink2); margin: 4px 0 8px; }
+  .legend .sw { display: inline-block; width: 10px; height: 10px;
+                border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .legend .ring { background: transparent !important; border: 2px solid; }
+  #tip {
+    position: fixed; display: none; pointer-events: none; z-index: 10;
+    background: var(--ink); color: var(--surface); padding: 6px 9px;
+    border-radius: 6px; font-size: 12px; max-width: 300px;
+  }
+  details { margin: 8px 0 4px; }
+  summary { color: var(--ink2); font-size: 12px; cursor: pointer; }
+  table { border-collapse: collapse; font-size: 11.5px; margin-top: 6px; }
+  th, td { border: 1px solid var(--border); padding: 3px 8px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+</style>
+</head>
+<body>
+<h1>Marginal-cost map over emissions intensity x annual demand</h1>
+<p class="sub">
+  Conditioned single-year solves on the current-policy chain (sweep_c0_d100:
+  $0/t, Step Change). 78 ladder cells + 9 wedge cells, Gurobi barrier
+  crossover-on 1e-8 (one cell PDLP 3e-3). Full record:
+  <code>RETURN_MEMO.md</code>; economics: <code>MAP_ANALYSIS.md</code>.
+</p>
+<div class="tiles" id="tiles"></div>
+
+<div class="panel">
+  <h2>1 &middot; The dual field, validated by an independent instrument</h2>
+  <p class="note">Lines: this map's emissions-cap duals at d&nbsp;=&nbsp;1.00
+  (implied carbon price, log scale) against realised intensity. Rings: the
+  previous sweep's carbon-price cells (price applied vs intensity realised) —
+  a different instrument on the same model. Where conditioning matches (2030),
+  the two coincide: ratio 0.999 at $550/t.</p>
+  <div class="legend" id="lg1"></div>
+  <div id="p1"></div>
+  <details><summary>table</summary><div id="t1"></div></details>
+</div>
+
+<div class="panel">
+  <h2>2 &middot; The map surface: average cost (A$/MWh)</h2>
+  <p class="note">Sequential blue = cost. Demand is cheap (rows change little);
+  intensity is expensive (columns steepen super-linearly). Blank cells were
+  not part of the pruned design; 1.5&times; caps are slack everywhere (the
+  thermal-overflow direction is empty).</p>
+  <div class="row" id="p2"></div>
+</div>
+
+<div class="panel">
+  <h2>3 &middot; What the marginal constraint buys: generation mix down the
+  intensity ladder (d&nbsp;=&nbsp;1.00, TWh)</h2>
+  <div class="legend" id="lg3"></div>
+  <div class="row" id="p3"></div>
+</div>
+
+<div class="panel">
+  <h2>4 &middot; The saturation boundary is a price ceiling, not a wall</h2>
+  <p class="note">Floor probes below the ladder (log-log). No coordinate went
+  infeasible down to 10&ndash;500&nbsp;t; the dual plateaus at a year-driven
+  ceiling (2040/2050 converge; 2030 sits an order of magnitude lower &mdash;
+  its fleet still holds retirable coal). Solid: d&nbsp;=&nbsp;1.00; dashed:
+  d&nbsp;=&nbsp;1.50.</p>
+  <div class="legend" id="lg4"></div>
+  <div id="p4"></div>
+</div>
+
+<div class="panel">
+  <h2>5 &middot; The CCS wedge: intensity cap vs matched renewable share
+  (d&nbsp;=&nbsp;1.00)</h2>
+  <p class="note">Paired bars: average cost under the intensity cap (solid)
+  and under a minimum-share constraint matched to that cell's realised
+  r_total (textured). The share solve is cheaper &mdash; and realises up to
+  6.8&times; the emissions, because it never builds CCS-gas.</p>
+  <div class="legend" id="lg5"></div>
+  <div id="p5"></div>
+  <details><summary>table</summary><div id="t5"></div></details>
+</div>
+
+<div id="tip"></div>
+<script>
+const DATA = {
+ "meta": {
+  "conditioning": "sweep_c0_d100 ($0/t, Step Change)",
+  "iota_planned": {
+   "2030": 0.395398,
+   "2040": 0.181717,
+   "2050": 0.095404
+  },
+  "solver": "Gurobi barrier crossover-on 1e-8 (1 cell PDLP 3e-3)"
+ },
+ "cells": [
+  {
+   "run_id": "idm_d100_i005_2030",
+   "year": 2030,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.01977,
+   "implied_carbon_price_aud_per_t": 596.909234,
+   "demand_marginal_aud_per_mwh": 166.903969,
+   "avg_cost_aud_per_mwh": 86.10695,
+   "total_cost_aud_per_yr": 16269124055.364716,
+   "delivered_twh": 188.940893,
+   "r_total_pct": 93.943558,
+   "r_vre_pct": 86.593961,
+   "residual_co2e_t": 3735338.895337
+  },
+  {
+   "run_id": "idm_d100_i005_2040",
+   "year": 2040,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.009086,
+   "implied_carbon_price_aud_per_t": 844.742047,
+   "demand_marginal_aud_per_mwh": 188.354051,
+   "avg_cost_aud_per_mwh": 105.980472,
+   "total_cost_aud_per_yr": 25190841032.153893,
+   "delivered_twh": 237.693234,
+   "r_total_pct": 92.740051,
+   "r_vre_pct": 87.071555,
+   "residual_co2e_t": 2159640.758174
+  },
+  {
+   "run_id": "idm_d100_i005_2050",
+   "year": 2050,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.00477,
+   "implied_carbon_price_aud_per_t": 2284.03803,
+   "demand_marginal_aud_per_mwh": 196.502582,
+   "avg_cost_aud_per_mwh": 115.104984,
+   "total_cost_aud_per_yr": 28999352701.51339,
+   "delivered_twh": 251.938288,
+   "r_total_pct": 95.41168,
+   "r_vre_pct": 91.130249,
+   "residual_co2e_t": 1201796.414962
+  },
+  {
+   "run_id": "idm_d100_i010_2030",
+   "year": 2030,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i010",
+   "cap_mult": 0.1,
+   "intensity_delivered_t_per_mwh": 0.03954,
+   "implied_carbon_price_aud_per_t": 320.499469,
+   "demand_marginal_aud_per_mwh": 153.070504,
+   "avg_cost_aud_per_mwh": 77.465952,
+   "total_cost_aud_per_yr": 14636486144.990128,
+   "delivered_twh": 188.940893,
+   "r_total_pct": 91.765012,
+   "r_vre_pct": 84.31401,
+   "residual_co2e_t": 7470677.790676
+  },
+  {
+   "run_id": "idm_d100_i010_2040",
+   "year": 2040,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i010",
+   "cap_mult": 0.1,
+   "intensity_delivered_t_per_mwh": 0.018172,
+   "implied_carbon_price_aud_per_t": 532.436464,
+   "demand_marginal_aud_per_mwh": 183.591925,
+   "avg_cost_aud_per_mwh": 100.639461,
+   "total_cost_aud_per_yr": 23921318849.22008,
+   "delivered_twh": 237.693234,
+   "r_total_pct": 92.014532,
+   "r_vre_pct": 86.327674,
+   "residual_co2e_t": 4319281.516348
+  },
+  {
+   "run_id": "idm_d100_i010_2050",
+   "year": 2050,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i010",
+   "cap_mult": 0.1,
+   "intensity_delivered_t_per_mwh": 0.00954,
+   "implied_carbon_price_aud_per_t": 957.68489,
+   "demand_marginal_aud_per_mwh": 180.688143,
+   "avg_cost_aud_per_mwh": 107.960829,
+   "total_cost_aud_per_yr": 27199466433.179733,
+   "delivered_twh": 251.938288,
+   "r_total_pct": 93.948144,
+   "r_vre_pct": 89.634055,
+   "residual_co2e_t": 2403592.829924
+  },
+  {
+   "run_id": "idm_d100_i025_2030",
+   "year": 2030,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.098849,
+   "implied_carbon_price_aud_per_t": 135.157737,
+   "demand_marginal_aud_per_mwh": 127.381239,
+   "avg_cost_aud_per_mwh": 67.26439,
+   "total_cost_aud_per_yr": 12708993983.900623,
+   "delivered_twh": 188.940893,
+   "r_total_pct": 87.863818,
+   "r_vre_pct": 81.129035,
+   "residual_co2e_t": 18676694.47668
+  },
+  {
+   "run_id": "idm_d100_i025_2040",
+   "year": 2040,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.045429,
+   "implied_carbon_price_aud_per_t": 290.783668,
+   "demand_marginal_aud_per_mwh": 169.094052,
+   "avg_cost_aud_per_mwh": 90.31719,
+   "total_cost_aud_per_yr": 21467784846.78861,
+   "delivered_twh": 237.693234,
+   "r_total_pct": 89.921879,
+   "r_vre_pct": 84.19121,
+   "residual_co2e_t": 10798203.790001
+  },
+  {
+   "run_id": "idm_d100_i025_2050",
+   "year": 2050,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.023851,
+   "implied_carbon_price_aud_per_t": 512.696723,
+   "demand_marginal_aud_per_mwh": 173.244679,
+   "avg_cost_aud_per_mwh": 98.984941,
+   "total_cost_aud_per_yr": 24938096679.41247,
+   "delivered_twh": 251.938288,
+   "r_total_pct": 93.093563,
+   "r_vre_pct": 88.756264,
+   "residual_co2e_t": 6008982.07481
+  },
+  {
+   "run_id": "idm_d100_i045_2040",
+   "year": 2040,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i045",
+   "cap_mult": NaN,
+   "intensity_delivered_t_per_mwh": 0.081772,
+   "implied_carbon_price_aud_per_t": 130.495338,
+   "demand_marginal_aud_per_mwh": 147.157258,
+   "avg_cost_aud_per_mwh": 83.826538,
+   "total_cost_aud_per_yr": 19925000959.043163,
+   "delivered_twh": 237.693234,
+   "r_total_pct": 85.877728,
+   "r_vre_pct": 80.070189,
+   "residual_co2e_t": 19436766.819995
+  },
+  {
+   "run_id": "idm_d100_i050_2030",
+   "year": 2030,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i050",
+   "cap_mult": 0.5,
+   "intensity_delivered_t_per_mwh": 0.197699,
+   "implied_carbon_price_aud_per_t": 72.865038,
+   "demand_marginal_aud_per_mwh": 104.747244,
+   "avg_cost_aud_per_mwh": 57.434386,
+   "total_cost_aud_per_yr": 10851704175.809256,
+   "delivered_twh": 188.940893,
+   "r_total_pct": 80.321729,
+   "r_vre_pct": 73.530906,
+   "residual_co2e_t": 37353388.953361
+  },
+  {
+   "run_id": "idm_d100_i050_2040",
+   "year": 2040,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i050",
+   "cap_mult": 0.5,
+   "intensity_delivered_t_per_mwh": 0.090858,
+   "implied_carbon_price_aud_per_t": 111.784538,
+   "demand_marginal_aud_per_mwh": 144.164685,
+   "avg_cost_aud_per_mwh": 82.809223,
+   "total_cost_aud_per_yr": 19683192005.420868,
+   "delivered_twh": 237.693234,
+   "r_total_pct": 85.003031,
+   "r_vre_pct": 79.193785,
+   "residual_co2e_t": 21596407.581736
+  },
+  {
+   "run_id": "idm_d100_i050_2050",
+   "year": 2050,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i050",
+   "cap_mult": 0.5,
+   "intensity_delivered_t_per_mwh": 0.047702,
+   "implied_carbon_price_aud_per_t": 174.18721,
+   "demand_marginal_aud_per_mwh": 154.2138,
+   "avg_cost_aud_per_mwh": 91.356679,
+   "total_cost_aud_per_yr": 23016245341.211708,
+   "delivered_twh": 251.938288,
+   "r_total_pct": 89.601115,
+   "r_vre_pct": 85.240101,
+   "residual_co2e_t": 12017964.14962
+  },
+  {
+   "run_id": "idm_d100_i100_2030",
+   "year": 2030,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.390881,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 57.208315,
+   "avg_cost_aud_per_mwh": 48.645099,
+   "total_cost_aud_per_yr": 9191048468.81188,
+   "delivered_twh": 188.940893,
+   "r_total_pct": 61.056839,
+   "r_vre_pct": 54.208399,
+   "residual_co2e_t": 73853454.883452
+  },
+  {
+   "run_id": "idm_d100_i100_2040",
+   "year": 2040,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.179124,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 129.303557,
+   "avg_cost_aud_per_mwh": 76.706197,
+   "total_cost_aud_per_yr": 18232544121.941616,
+   "delivered_twh": 237.693234,
+   "r_total_pct": 75.075383,
+   "r_vre_pct": 69.836281,
+   "residual_co2e_t": 42576599.580968
+  },
+  {
+   "run_id": "idm_d100_i100_2050",
+   "year": 2050,
+   "demand_level": "d100",
+   "demand_scalar": 1.0,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.094646,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 132.967653,
+   "avg_cost_aud_per_mwh": 86.173453,
+   "total_cost_aud_per_yr": 21710392200.92626,
+   "delivered_twh": 251.938288,
+   "r_total_pct": 81.678674,
+   "r_vre_pct": 77.62347,
+   "residual_co2e_t": 23844862.843587
+  },
+  {
+   "run_id": "idm_d105_i005_2030",
+   "year": 2030,
+   "demand_level": "d105",
+   "demand_scalar": 1.05,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.01977,
+   "implied_carbon_price_aud_per_t": 587.702155,
+   "demand_marginal_aud_per_mwh": 173.299488,
+   "avg_cost_aud_per_mwh": 89.44752,
+   "total_cost_aud_per_yr": 17745309020.404827,
+   "delivered_twh": 198.387938,
+   "r_total_pct": 93.910299,
+   "r_vre_pct": 86.914062,
+   "residual_co2e_t": 3922105.840104
+  },
+  {
+   "run_id": "idm_d105_i005_2040",
+   "year": 2040,
+   "demand_level": "d105",
+   "demand_scalar": 1.05,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.009086,
+   "implied_carbon_price_aud_per_t": 866.342152,
+   "demand_marginal_aud_per_mwh": 192.705761,
+   "avg_cost_aud_per_mwh": 109.31045,
+   "total_cost_aud_per_yr": 27281472075.3902,
+   "delivered_twh": 249.577896,
+   "r_total_pct": 91.929864,
+   "r_vre_pct": 86.520625,
+   "residual_co2e_t": 2267622.796083
+  },
+  {
+   "run_id": "idm_d105_i005_2050",
+   "year": 2050,
+   "demand_level": "d105",
+   "demand_scalar": 1.05,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.00477,
+   "implied_carbon_price_aud_per_t": 2359.767661,
+   "demand_marginal_aud_per_mwh": 202.193232,
+   "avg_cost_aud_per_mwh": 118.334243,
+   "total_cost_aud_per_yr": 31303572830.943157,
+   "delivered_twh": 264.535203,
+   "r_total_pct": 94.812334,
+   "r_vre_pct": 90.71677,
+   "residual_co2e_t": 1261886.23571
+  },
+  {
+   "run_id": "idm_d105_i025_2030",
+   "year": 2030,
+   "demand_level": "d105",
+   "demand_scalar": 1.05,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.098849,
+   "implied_carbon_price_aud_per_t": 136.979355,
+   "demand_marginal_aud_per_mwh": 130.822044,
+   "avg_cost_aud_per_mwh": 69.743353,
+   "total_cost_aud_per_yr": 13836240016.768627,
+   "delivered_twh": 198.387938,
+   "r_total_pct": 86.908231,
+   "r_vre_pct": 80.490758,
+   "residual_co2e_t": 19610529.200514
+  },
+  {
+   "run_id": "idm_d105_i025_2040",
+   "year": 2040,
+   "demand_level": "d105",
+   "demand_scalar": 1.05,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.045429,
+   "implied_carbon_price_aud_per_t": 324.605619,
+   "demand_marginal_aud_per_mwh": 175.487708,
+   "avg_cost_aud_per_mwh": 93.157807,
+   "total_cost_aud_per_yr": 23250129481.35424,
+   "delivered_twh": 249.577896,
+   "r_total_pct": 89.717481,
+   "r_vre_pct": 84.252038,
+   "residual_co2e_t": 11338113.980415
+  },
+  {
+   "run_id": "idm_d105_i025_2050",
+   "year": 2050,
+   "demand_level": "d105",
+   "demand_scalar": 1.05,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.023851,
+   "implied_carbon_price_aud_per_t": 517.832142,
+   "demand_marginal_aud_per_mwh": 179.095629,
+   "avg_cost_aud_per_mwh": 101.817881,
+   "total_cost_aud_per_yr": 26934413811.6296,
+   "delivered_twh": 264.535203,
+   "r_total_pct": 92.333486,
+   "r_vre_pct": 88.192171,
+   "residual_co2e_t": 6309431.17855
+  },
+  {
+   "run_id": "idm_d105_i100_2030",
+   "year": 2030,
+   "demand_level": "d105",
+   "demand_scalar": 1.05,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.395398,
+   "implied_carbon_price_aud_per_t": 16.75555,
+   "demand_marginal_aud_per_mwh": 76.084601,
+   "avg_cost_aud_per_mwh": 49.621104,
+   "total_cost_aud_per_yr": 9844228561.097574,
+   "delivered_twh": 198.387938,
+   "r_total_pct": 59.856742,
+   "r_vre_pct": 53.327299,
+   "residual_co2e_t": 78442116.80207
+  },
+  {
+   "run_id": "idm_d105_i100_2040",
+   "year": 2040,
+   "demand_level": "d105",
+   "demand_scalar": 1.05,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.180267,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 130.936351,
+   "avg_cost_aud_per_mwh": 78.516732,
+   "total_cost_aud_per_yr": 19596040672.92824,
+   "delivered_twh": 249.577896,
+   "r_total_pct": 73.846801,
+   "r_vre_pct": 68.8433,
+   "residual_co2e_t": 44990730.350261
+  },
+  {
+   "run_id": "idm_d105_i100_2050",
+   "year": 2050,
+   "demand_level": "d105",
+   "demand_scalar": 1.05,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.095404,
+   "implied_carbon_price_aud_per_t": 10.390714,
+   "demand_marginal_aud_per_mwh": 137.571324,
+   "avg_cost_aud_per_mwh": 87.958537,
+   "total_cost_aud_per_yr": 23268129320.95835,
+   "delivered_twh": 264.535203,
+   "r_total_pct": 81.08772,
+   "r_vre_pct": 76.90221,
+   "residual_co2e_t": 25237724.714203
+  },
+  {
+   "run_id": "idm_d110_i005_2030",
+   "year": 2030,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.01977,
+   "implied_carbon_price_aud_per_t": 586.55107,
+   "demand_marginal_aud_per_mwh": 178.92137,
+   "avg_cost_aud_per_mwh": 92.664815,
+   "total_cost_aud_per_yr": 19258990147.521107,
+   "delivered_twh": 207.834983,
+   "r_total_pct": 93.369466,
+   "r_vre_pct": 86.681828,
+   "residual_co2e_t": 4108872.784871
+  },
+  {
+   "run_id": "idm_d110_i005_2040",
+   "year": 2040,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.009086,
+   "implied_carbon_price_aud_per_t": 871.557834,
+   "demand_marginal_aud_per_mwh": 198.977538,
+   "avg_cost_aud_per_mwh": 112.244297,
+   "total_cost_aud_per_yr": 29347681047.013817,
+   "delivered_twh": 261.462557,
+   "r_total_pct": 91.987616,
+   "r_vre_pct": 86.44394,
+   "residual_co2e_t": 2375604.833991
+  },
+  {
+   "run_id": "idm_d110_i005_2050",
+   "year": 2050,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.00477,
+   "implied_carbon_price_aud_per_t": 2410.270975,
+   "demand_marginal_aud_per_mwh": 205.759634,
+   "avg_cost_aud_per_mwh": 121.10138,
+   "total_cost_aud_per_yr": 33561081872.870964,
+   "delivered_twh": 277.132117,
+   "r_total_pct": 94.511893,
+   "r_vre_pct": 90.1857,
+   "residual_co2e_t": 1321976.056458
+  },
+  {
+   "run_id": "idm_d110_i010_2030",
+   "year": 2030,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i010",
+   "cap_mult": 0.1,
+   "intensity_delivered_t_per_mwh": 0.03954,
+   "implied_carbon_price_aud_per_t": 365.639297,
+   "demand_marginal_aud_per_mwh": 167.118488,
+   "avg_cost_aud_per_mwh": 83.302983,
+   "total_cost_aud_per_yr": 17313274020.57947,
+   "delivered_twh": 207.834983,
+   "r_total_pct": 91.289205,
+   "r_vre_pct": 84.532529,
+   "residual_co2e_t": 8217745.569742
+  },
+  {
+   "run_id": "idm_d110_i010_2040",
+   "year": 2040,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i010",
+   "cap_mult": 0.1,
+   "intensity_delivered_t_per_mwh": 0.018172,
+   "implied_carbon_price_aud_per_t": 540.161004,
+   "demand_marginal_aud_per_mwh": 193.464529,
+   "avg_cost_aud_per_mwh": 106.447463,
+   "total_cost_aud_per_yr": 27832025831.07928,
+   "delivered_twh": 261.462557,
+   "r_total_pct": 91.360636,
+   "r_vre_pct": 85.441574,
+   "residual_co2e_t": 4751209.667983
+  },
+  {
+   "run_id": "idm_d110_i010_2050",
+   "year": 2050,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i010",
+   "cap_mult": 0.1,
+   "intensity_delivered_t_per_mwh": 0.00954,
+   "implied_carbon_price_aud_per_t": 1014.563316,
+   "demand_marginal_aud_per_mwh": 190.123883,
+   "avg_cost_aud_per_mwh": 113.600314,
+   "total_cost_aud_per_yr": 31482295421.29972,
+   "delivered_twh": 277.132117,
+   "r_total_pct": 92.683515,
+   "r_vre_pct": 88.747241,
+   "residual_co2e_t": 2643952.112917
+  },
+  {
+   "run_id": "idm_d110_i025_2030",
+   "year": 2030,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.098849,
+   "implied_carbon_price_aud_per_t": 142.772897,
+   "demand_marginal_aud_per_mwh": 134.525331,
+   "avg_cost_aud_per_mwh": 72.056711,
+   "total_cost_aud_per_yr": 14975905329.269922,
+   "delivered_twh": 207.834983,
+   "r_total_pct": 86.39829,
+   "r_vre_pct": 79.573763,
+   "residual_co2e_t": 20544363.924348
+  },
+  {
+   "run_id": "idm_d110_i025_2040",
+   "year": 2040,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.045429,
+   "implied_carbon_price_aud_per_t": 354.830258,
+   "demand_marginal_aud_per_mwh": 183.517347,
+   "avg_cost_aud_per_mwh": 96.014358,
+   "total_cost_aud_per_yr": 25104159478.266968,
+   "delivered_twh": 261.462557,
+   "r_total_pct": 89.602147,
+   "r_vre_pct": 84.383061,
+   "residual_co2e_t": 11878024.169958
+  },
+  {
+   "run_id": "idm_d110_i025_2050",
+   "year": 2050,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.023851,
+   "implied_carbon_price_aud_per_t": 516.820022,
+   "demand_marginal_aud_per_mwh": 183.174748,
+   "avg_cost_aud_per_mwh": 104.662275,
+   "total_cost_aud_per_yr": 29005277749.2638,
+   "delivered_twh": 277.132117,
+   "r_total_pct": 91.743965,
+   "r_vre_pct": 87.794724,
+   "residual_co2e_t": 6609880.282291
+  },
+  {
+   "run_id": "idm_d110_i050_2030",
+   "year": 2030,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i050",
+   "cap_mult": 0.5,
+   "intensity_delivered_t_per_mwh": 0.197699,
+   "implied_carbon_price_aud_per_t": 82.225634,
+   "demand_marginal_aud_per_mwh": 113.473587,
+   "avg_cost_aud_per_mwh": 61.234231,
+   "total_cost_aud_per_yr": 12726615356.873447,
+   "delivered_twh": 207.834983,
+   "r_total_pct": 80.080197,
+   "r_vre_pct": 73.906001,
+   "residual_co2e_t": 41088727.848699
+  },
+  {
+   "run_id": "idm_d110_i050_2040",
+   "year": 2040,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i050",
+   "cap_mult": 0.5,
+   "intensity_delivered_t_per_mwh": 0.090858,
+   "implied_carbon_price_aud_per_t": 125.864685,
+   "demand_marginal_aud_per_mwh": 155.724068,
+   "avg_cost_aud_per_mwh": 87.0913,
+   "total_cost_aud_per_yr": 22771114063.16589,
+   "delivered_twh": 261.462557,
+   "r_total_pct": 84.014377,
+   "r_vre_pct": 78.739973,
+   "residual_co2e_t": 23756048.339906
+  },
+  {
+   "run_id": "idm_d110_i050_2050",
+   "year": 2050,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i050",
+   "cap_mult": 0.5,
+   "intensity_delivered_t_per_mwh": 0.047702,
+   "implied_carbon_price_aud_per_t": 184.619745,
+   "demand_marginal_aud_per_mwh": 163.873412,
+   "avg_cost_aud_per_mwh": 96.313817,
+   "total_cost_aud_per_yr": 26691651988.96654,
+   "delivered_twh": 277.132117,
+   "r_total_pct": 89.409364,
+   "r_vre_pct": 85.444152,
+   "residual_co2e_t": 13219760.564582
+  },
+  {
+   "run_id": "idm_d110_i100_2030",
+   "year": 2030,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.395398,
+   "implied_carbon_price_aud_per_t": 22.7367,
+   "demand_marginal_aud_per_mwh": 84.052356,
+   "avg_cost_aud_per_mwh": 51.011633,
+   "total_cost_aud_per_yr": 10602001773.02402,
+   "delivered_twh": 207.834983,
+   "r_total_pct": 59.675558,
+   "r_vre_pct": 53.444879,
+   "residual_co2e_t": 82177455.697408
+  },
+  {
+   "run_id": "idm_d110_i100_2040",
+   "year": 2040,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.181359,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 132.263416,
+   "avg_cost_aud_per_mwh": 80.195889,
+   "total_cost_aud_per_yr": 20968222175.2822,
+   "delivered_twh": 261.462557,
+   "r_total_pct": 72.746431,
+   "r_vre_pct": 67.89345,
+   "residual_co2e_t": 47418682.371428
+  },
+  {
+   "run_id": "idm_d110_i100_2050",
+   "year": 2050,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.095404,
+   "implied_carbon_price_aud_per_t": 13.063815,
+   "demand_marginal_aud_per_mwh": 146.942669,
+   "avg_cost_aud_per_mwh": 89.732621,
+   "total_cost_aud_per_yr": 24867791132.840195,
+   "delivered_twh": 277.132117,
+   "r_total_pct": 80.568088,
+   "r_vre_pct": 76.5701,
+   "residual_co2e_t": 26439521.129164
+  },
+  {
+   "run_id": "idm_d110_i150_2030",
+   "year": 2030,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i150",
+   "cap_mult": 1.5,
+   "intensity_delivered_t_per_mwh": 0.431719,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 67.599962,
+   "avg_cost_aud_per_mwh": 50.884273,
+   "total_cost_aud_per_yr": 10575531965.686878,
+   "delivered_twh": 207.834983,
+   "r_total_pct": 56.392494,
+   "r_vre_pct": 50.153655,
+   "residual_co2e_t": 89726342.361289
+  },
+  {
+   "run_id": "idm_d110_i150_2040",
+   "year": 2040,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i150",
+   "cap_mult": 1.5,
+   "intensity_delivered_t_per_mwh": 0.181359,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 132.263416,
+   "avg_cost_aud_per_mwh": 80.195889,
+   "total_cost_aud_per_yr": 20968222175.2822,
+   "delivered_twh": 261.462557,
+   "r_total_pct": 72.728476,
+   "r_vre_pct": 67.872297,
+   "residual_co2e_t": 47418682.371428
+  },
+  {
+   "run_id": "idm_d110_i150_2050",
+   "year": 2050,
+   "demand_level": "d110",
+   "demand_scalar": 1.1,
+   "cap_key": "i150",
+   "cap_mult": 1.5,
+   "intensity_delivered_t_per_mwh": 0.09836,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 144.395092,
+   "avg_cost_aud_per_mwh": 89.545965,
+   "total_cost_aud_per_yr": 24816062925.874,
+   "delivered_twh": 277.132117,
+   "r_total_pct": 79.987873,
+   "r_vre_pct": 75.985984,
+   "residual_co2e_t": 27258593.918587
+  },
+  {
+   "run_id": "idm_d120_i005_2030",
+   "year": 2030,
+   "demand_level": "d120",
+   "demand_scalar": 1.2,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.01977,
+   "implied_carbon_price_aud_per_t": 601.027859,
+   "demand_marginal_aud_per_mwh": 188.537918,
+   "avg_cost_aud_per_mwh": 98.816429,
+   "total_cost_aud_per_yr": 22404557144.93683,
+   "delivered_twh": 226.729072,
+   "r_total_pct": 92.011124,
+   "r_vre_pct": 85.834542,
+   "residual_co2e_t": 4482406.674405
+  },
+  {
+   "run_id": "idm_d120_i005_2040",
+   "year": 2040,
+   "demand_level": "d120",
+   "demand_scalar": 1.2,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.009086,
+   "implied_carbon_price_aud_per_t": 935.5283,
+   "demand_marginal_aud_per_mwh": 210.618512,
+   "avg_cost_aud_per_mwh": 117.673422,
+   "total_cost_aud_per_yr": 33564211556.02248,
+   "delivered_twh": 285.231881,
+   "r_total_pct": 91.457968,
+   "r_vre_pct": 85.583827,
+   "residual_co2e_t": 2591568.909809
+  },
+  {
+   "run_id": "idm_d120_i005_2050",
+   "year": 2050,
+   "demand_level": "d120",
+   "demand_scalar": 1.2,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.00477,
+   "implied_carbon_price_aud_per_t": 2510.723409,
+   "demand_marginal_aud_per_mwh": 215.693585,
+   "avg_cost_aud_per_mwh": 126.239703,
+   "total_cost_aud_per_yr": 38165537573.30472,
+   "delivered_twh": 302.325946,
+   "r_total_pct": 94.377006,
+   "r_vre_pct": 89.361408,
+   "residual_co2e_t": 1442155.697954
+  },
+  {
+   "run_id": "idm_d120_i025_2030",
+   "year": 2030,
+   "demand_level": "d120",
+   "demand_scalar": 1.2,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.098849,
+   "implied_carbon_price_aud_per_t": 171.870089,
+   "demand_marginal_aud_per_mwh": 152.207773,
+   "avg_cost_aud_per_mwh": 76.568582,
+   "total_cost_aud_per_yr": 17360323620.515728,
+   "delivered_twh": 226.729072,
+   "r_total_pct": 85.735773,
+   "r_vre_pct": 79.459991,
+   "residual_co2e_t": 22412033.372016
+  },
+  {
+   "run_id": "idm_d120_i025_2040",
+   "year": 2040,
+   "demand_level": "d120",
+   "demand_scalar": 1.2,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.045429,
+   "implied_carbon_price_aud_per_t": 373.325036,
+   "demand_marginal_aud_per_mwh": 196.495626,
+   "avg_cost_aud_per_mwh": 100.818436,
+   "total_cost_aud_per_yr": 28756632182.955902,
+   "delivered_twh": 285.231881,
+   "r_total_pct": 89.596012,
+   "r_vre_pct": 83.763159,
+   "residual_co2e_t": 12957844.549041
+  },
+  {
+   "run_id": "idm_d120_i025_2050",
+   "year": 2050,
+   "demand_level": "d120",
+   "demand_scalar": 1.2,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.023851,
+   "implied_carbon_price_aud_per_t": 509.276429,
+   "demand_marginal_aud_per_mwh": 192.734641,
+   "avg_cost_aud_per_mwh": 109.109024,
+   "total_cost_aud_per_yr": 32986488911.777256,
+   "delivered_twh": 302.325946,
+   "r_total_pct": 92.348506,
+   "r_vre_pct": 87.383577,
+   "residual_co2e_t": 7210778.489772
+  },
+  {
+   "run_id": "idm_d120_i100_2030",
+   "year": 2030,
+   "demand_level": "d120",
+   "demand_scalar": 1.2,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.395398,
+   "implied_carbon_price_aud_per_t": 27.158279,
+   "demand_marginal_aud_per_mwh": 96.307022,
+   "avg_cost_aud_per_mwh": 53.895484,
+   "total_cost_aud_per_yr": 12219673059.978882,
+   "delivered_twh": 226.729072,
+   "r_total_pct": 59.056427,
+   "r_vre_pct": 53.35188,
+   "residual_co2e_t": 89648133.488088
+  },
+  {
+   "run_id": "idm_d120_i100_2040",
+   "year": 2040,
+   "demand_level": "d120",
+   "demand_scalar": 1.2,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.172991,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 141.652559,
+   "avg_cost_aud_per_mwh": 83.929971,
+   "total_cost_aud_per_yr": 23939503591.15895,
+   "delivered_twh": 285.231881,
+   "r_total_pct": 72.946734,
+   "r_vre_pct": 68.064878,
+   "residual_co2e_t": 49342687.905706
+  },
+  {
+   "run_id": "idm_d120_i100_2050",
+   "year": 2050,
+   "demand_level": "d120",
+   "demand_scalar": 1.2,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.095404,
+   "implied_carbon_price_aud_per_t": 30.561776,
+   "demand_marginal_aud_per_mwh": 154.786965,
+   "avg_cost_aud_per_mwh": 93.345479,
+   "total_cost_aud_per_yr": 28220760210.006004,
+   "delivered_twh": 302.325946,
+   "r_total_pct": 79.910502,
+   "r_vre_pct": 76.245339,
+   "residual_co2e_t": 28843113.959092
+  },
+  {
+   "run_id": "idm_d135_i005_2030",
+   "year": 2030,
+   "demand_level": "d135",
+   "demand_scalar": 1.35,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.01977,
+   "implied_carbon_price_aud_per_t": 613.365078,
+   "demand_marginal_aud_per_mwh": 197.906624,
+   "avg_cost_aud_per_mwh": 107.030004,
+   "total_cost_aud_per_yr": 27300165216.87142,
+   "delivered_twh": 255.070206,
+   "r_total_pct": 91.287927,
+   "r_vre_pct": 85.260625,
+   "residual_co2e_t": 5042707.508706
+  },
+  {
+   "run_id": "idm_d135_i005_2040",
+   "year": 2040,
+   "demand_level": "d135",
+   "demand_scalar": 1.35,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.009086,
+   "implied_carbon_price_aud_per_t": 981.692203,
+   "demand_marginal_aud_per_mwh": 222.941184,
+   "avg_cost_aud_per_mwh": 126.264963,
+   "total_cost_aud_per_yr": 40516641866.93372,
+   "delivered_twh": 320.885866,
+   "r_total_pct": 89.241593,
+   "r_vre_pct": 84.176262,
+   "residual_co2e_t": 2915515.023535
+  },
+  {
+   "run_id": "idm_d135_i005_2050",
+   "year": 2050,
+   "demand_level": "d135",
+   "demand_scalar": 1.35,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.00477,
+   "implied_carbon_price_aud_per_t": 3333.596743,
+   "demand_marginal_aud_per_mwh": 256.431605,
+   "avg_cost_aud_per_mwh": 135.555168,
+   "total_cost_aud_per_yr": 46104574959.5339,
+   "delivered_twh": 340.116689,
+   "r_total_pct": 92.901571,
+   "r_vre_pct": 88.279135,
+   "residual_co2e_t": 1622425.160199
+  },
+  {
+   "run_id": "idm_d135_i025_2030",
+   "year": 2030,
+   "demand_level": "d135",
+   "demand_scalar": 1.35,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.098849,
+   "implied_carbon_price_aud_per_t": 187.821966,
+   "demand_marginal_aud_per_mwh": 163.133008,
+   "avg_cost_aud_per_mwh": 82.932681,
+   "total_cost_aud_per_yr": 21153656056.338173,
+   "delivered_twh": 255.070206,
+   "r_total_pct": 83.629765,
+   "r_vre_pct": 78.04284,
+   "residual_co2e_t": 25213537.543519
+  },
+  {
+   "run_id": "idm_d135_i025_2040",
+   "year": 2040,
+   "demand_level": "d135",
+   "demand_scalar": 1.35,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.045429,
+   "implied_carbon_price_aud_per_t": 383.168613,
+   "demand_marginal_aud_per_mwh": 205.989245,
+   "avg_cost_aud_per_mwh": 108.413173,
+   "total_cost_aud_per_yr": 34788254851.71481,
+   "delivered_twh": 320.885866,
+   "r_total_pct": 86.895576,
+   "r_vre_pct": 81.601119,
+   "residual_co2e_t": 14577575.117674
+  },
+  {
+   "run_id": "idm_d135_i025_2050",
+   "year": 2050,
+   "demand_level": "d135",
+   "demand_scalar": 1.35,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.023851,
+   "implied_carbon_price_aud_per_t": 511.071895,
+   "demand_marginal_aud_per_mwh": 207.61692,
+   "avg_cost_aud_per_mwh": 116.195236,
+   "total_cost_aud_per_yr": 39519939038.81419,
+   "delivered_twh": 340.116689,
+   "r_total_pct": 90.353584,
+   "r_vre_pct": 85.698608,
+   "residual_co2e_t": 8112125.800993
+  },
+  {
+   "run_id": "idm_d135_i100_2030",
+   "year": 2030,
+   "demand_level": "d135",
+   "demand_scalar": 1.35,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.395398,
+   "implied_carbon_price_aud_per_t": 27.852387,
+   "demand_marginal_aud_per_mwh": 113.250794,
+   "avg_cost_aud_per_mwh": 59.362379,
+   "total_cost_aud_per_yr": 15141574225.492132,
+   "delivered_twh": 255.070206,
+   "r_total_pct": 58.180243,
+   "r_vre_pct": 53.107368,
+   "residual_co2e_t": 100854150.174099
+  },
+  {
+   "run_id": "idm_d135_i100_2040",
+   "year": 2040,
+   "demand_level": "d135",
+   "demand_scalar": 1.35,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.171102,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 144.312781,
+   "avg_cost_aud_per_mwh": 88.147297,
+   "total_cost_aud_per_yr": 28285221602.51308,
+   "delivered_twh": 320.885866,
+   "r_total_pct": 71.30757,
+   "r_vre_pct": 66.951028,
+   "residual_co2e_t": 54904292.67438
+  },
+  {
+   "run_id": "idm_d135_i100_2050",
+   "year": 2050,
+   "demand_level": "d135",
+   "demand_scalar": 1.35,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.095404,
+   "implied_carbon_price_aud_per_t": 46.941266,
+   "demand_marginal_aud_per_mwh": 161.645396,
+   "avg_cost_aud_per_mwh": 98.487088,
+   "total_cost_aud_per_yr": 33497102317.497547,
+   "delivered_twh": 340.116689,
+   "r_total_pct": 79.338215,
+   "r_vre_pct": 76.079216,
+   "residual_co2e_t": 32448503.203968
+  },
+  {
+   "run_id": "idm_d150_i005_2030",
+   "year": 2030,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.01977,
+   "implied_carbon_price_aud_per_t": 639.658106,
+   "demand_marginal_aud_per_mwh": 218.234418,
+   "avg_cost_aud_per_mwh": 115.209926,
+   "total_cost_aud_per_yr": 32651799574.24501,
+   "delivered_twh": 283.41134,
+   "r_total_pct": 91.016306,
+   "r_vre_pct": 85.67118,
+   "residual_co2e_t": 5603008.343006
+  },
+  {
+   "run_id": "idm_d150_i005_2040",
+   "year": 2040,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.009086,
+   "implied_carbon_price_aud_per_t": 1113.081651,
+   "demand_marginal_aud_per_mwh": 240.933393,
+   "avg_cost_aud_per_mwh": 134.104893,
+   "total_cost_aud_per_yr": 47813738685.64613,
+   "delivered_twh": 356.539851,
+   "r_total_pct": 87.304818,
+   "r_vre_pct": 82.753332,
+   "residual_co2e_t": 3239461.137261
+  },
+  {
+   "run_id": "idm_d150_i005_2050",
+   "year": 2050,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i005",
+   "cap_mult": 0.05,
+   "intensity_delivered_t_per_mwh": 0.00477,
+   "implied_carbon_price_aud_per_t": 5988.832237,
+   "demand_marginal_aud_per_mwh": 339.70944,
+   "avg_cost_aud_per_mwh": 145.235118,
+   "total_cost_aud_per_yr": 54885430434.34238,
+   "delivered_twh": 377.907432,
+   "r_total_pct": 92.617884,
+   "r_vre_pct": 86.83091,
+   "residual_co2e_t": 1802694.622443
+  },
+  {
+   "run_id": "idm_d150_i010_2030",
+   "year": 2030,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i010",
+   "cap_mult": 0.1,
+   "intensity_delivered_t_per_mwh": 0.03954,
+   "implied_carbon_price_aud_per_t": 449.409132,
+   "demand_marginal_aud_per_mwh": 209.80151,
+   "avg_cost_aud_per_mwh": 105.557449,
+   "total_cost_aud_per_yr": 29916177958.254856,
+   "delivered_twh": 283.41134,
+   "r_total_pct": 90.212451,
+   "r_vre_pct": 84.774369,
+   "residual_co2e_t": 11206016.686013
+  },
+  {
+   "run_id": "idm_d150_i010_2040",
+   "year": 2040,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i010",
+   "cap_mult": 0.1,
+   "intensity_delivered_t_per_mwh": 0.018172,
+   "implied_carbon_price_aud_per_t": 587.884716,
+   "demand_marginal_aud_per_mwh": 227.282768,
+   "avg_cost_aud_per_mwh": 127.149712,
+   "total_cost_aud_per_yr": 45333939332.88578,
+   "delivered_twh": 356.539851,
+   "r_total_pct": 86.076092,
+   "r_vre_pct": 81.326246,
+   "residual_co2e_t": 6478922.274523
+  },
+  {
+   "run_id": "idm_d150_i010_2050",
+   "year": 2050,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i010",
+   "cap_mult": 0.1,
+   "intensity_delivered_t_per_mwh": 0.00954,
+   "implied_carbon_price_aud_per_t": 1424.728574,
+   "demand_marginal_aud_per_mwh": 258.231011,
+   "avg_cost_aud_per_mwh": 133.905106,
+   "total_cost_aud_per_yr": 50603734725.14197,
+   "delivered_twh": 377.907432,
+   "r_total_pct": 88.834387,
+   "r_vre_pct": 84.646544,
+   "residual_co2e_t": 3605389.244886
+  },
+  {
+   "run_id": "idm_d150_i025_2030",
+   "year": 2030,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.098783,
+   "implied_carbon_price_aud_per_t": 221.873037,
+   "demand_marginal_aud_per_mwh": 183.608917,
+   "avg_cost_aud_per_mwh": 90.059952,
+   "total_cost_aud_per_yr": 25524011712.59681,
+   "delivered_twh": 283.41134,
+   "r_total_pct": 84.080367,
+   "r_vre_pct": 79.023995,
+   "residual_co2e_t": 27996258.187221
+  },
+  {
+   "run_id": "idm_d150_i025_2040",
+   "year": 2040,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.045429,
+   "implied_carbon_price_aud_per_t": 398.083927,
+   "demand_marginal_aud_per_mwh": 219.662122,
+   "avg_cost_aud_per_mwh": 115.687741,
+   "total_cost_aud_per_yr": 41247289835.97579,
+   "delivered_twh": 356.539851,
+   "r_total_pct": 85.42615,
+   "r_vre_pct": 80.651173,
+   "residual_co2e_t": 16197305.686306
+  },
+  {
+   "run_id": "idm_d150_i025_2050",
+   "year": 2050,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i025",
+   "cap_mult": 0.25,
+   "intensity_delivered_t_per_mwh": 0.023851,
+   "implied_carbon_price_aud_per_t": 503.440148,
+   "demand_marginal_aud_per_mwh": 231.762333,
+   "avg_cost_aud_per_mwh": 123.341629,
+   "total_cost_aud_per_yr": 46611718127.58269,
+   "delivered_twh": 377.907432,
+   "r_total_pct": 87.553191,
+   "r_vre_pct": 83.351561,
+   "residual_co2e_t": 9013473.112215
+  },
+  {
+   "run_id": "idm_d150_i050_2030",
+   "year": 2030,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i050",
+   "cap_mult": 0.5,
+   "intensity_delivered_t_per_mwh": 0.197699,
+   "implied_carbon_price_aud_per_t": 113.43809,
+   "demand_marginal_aud_per_mwh": 152.550413,
+   "avg_cost_aud_per_mwh": 76.164298,
+   "total_cost_aud_per_yr": 21585825732.50276,
+   "delivered_twh": 283.41134,
+   "r_total_pct": 77.107504,
+   "r_vre_pct": 72.049892,
+   "residual_co2e_t": 56030083.430044
+  },
+  {
+   "run_id": "idm_d150_i050_2040",
+   "year": 2040,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i050",
+   "cap_mult": 0.5,
+   "intensity_delivered_t_per_mwh": 0.090858,
+   "implied_carbon_price_aud_per_t": 189.87784,
+   "demand_marginal_aud_per_mwh": 190.796523,
+   "avg_cost_aud_per_mwh": 102.565333,
+   "total_cost_aud_per_yr": 36568628628.71336,
+   "delivered_twh": 356.539851,
+   "r_total_pct": 80.470557,
+   "r_vre_pct": 76.573039,
+   "residual_co2e_t": 32394611.3726
+  },
+  {
+   "run_id": "idm_d150_i050_2050",
+   "year": 2050,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i050",
+   "cap_mult": 0.5,
+   "intensity_delivered_t_per_mwh": 0.047702,
+   "implied_carbon_price_aud_per_t": 379.931345,
+   "demand_marginal_aud_per_mwh": 226.726408,
+   "avg_cost_aud_per_mwh": 113.985872,
+   "total_cost_aud_per_yr": 43076108194.14867,
+   "delivered_twh": 377.907432,
+   "r_total_pct": 87.302729,
+   "r_vre_pct": 83.092292,
+   "residual_co2e_t": 18026946.224432
+  },
+  {
+   "run_id": "idm_d150_i100_2030",
+   "year": 2030,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.395398,
+   "implied_carbon_price_aud_per_t": 14.072886,
+   "demand_marginal_aud_per_mwh": 120.863607,
+   "avg_cost_aud_per_mwh": 64.470497,
+   "total_cost_aud_per_yr": 18271669904.517143,
+   "delivered_twh": 283.41134,
+   "r_total_pct": 56.154744,
+   "r_vre_pct": 51.582899,
+   "residual_co2e_t": 112060166.860113
+  },
+  {
+   "run_id": "idm_d150_i100_2040",
+   "year": 2040,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.174253,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 147.252387,
+   "avg_cost_aud_per_mwh": 91.33767,
+   "total_cost_aud_per_yr": 32565519065.76862,
+   "delivered_twh": 356.539851,
+   "r_total_pct": 69.001197,
+   "r_vre_pct": 65.075824,
+   "residual_co2e_t": 62128114.31184
+  },
+  {
+   "run_id": "idm_d150_i100_2050",
+   "year": 2050,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i100",
+   "cap_mult": 1.0,
+   "intensity_delivered_t_per_mwh": 0.095404,
+   "implied_carbon_price_aud_per_t": 66.496733,
+   "demand_marginal_aud_per_mwh": 169.891982,
+   "avg_cost_aud_per_mwh": 103.291762,
+   "total_cost_aud_per_yr": 39034724463.31136,
+   "delivered_twh": 377.907432,
+   "r_total_pct": 78.965473,
+   "r_vre_pct": 76.027282,
+   "residual_co2e_t": 36053892.448858
+  },
+  {
+   "run_id": "idm_d150_i150_2030",
+   "year": 2030,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i150",
+   "cap_mult": 1.5,
+   "intensity_delivered_t_per_mwh": 0.416283,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 117.777056,
+   "avg_cost_aud_per_mwh": 64.141655,
+   "total_cost_aud_per_yr": 18178472371.20117,
+   "delivered_twh": 283.41134,
+   "r_total_pct": 53.52369,
+   "r_vre_pct": 48.950365,
+   "residual_co2e_t": 117979242.233678
+  },
+  {
+   "run_id": "idm_d150_i150_2040",
+   "year": 2040,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i150",
+   "cap_mult": 1.5,
+   "intensity_delivered_t_per_mwh": 0.174253,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 147.252387,
+   "avg_cost_aud_per_mwh": 91.33767,
+   "total_cost_aud_per_yr": 32565519065.768616,
+   "delivered_twh": 356.539851,
+   "r_total_pct": 69.00067,
+   "r_vre_pct": 65.07523,
+   "residual_co2e_t": 62128114.31184
+  },
+  {
+   "run_id": "idm_d150_i150_2050",
+   "year": 2050,
+   "demand_level": "d150",
+   "demand_scalar": 1.5,
+   "cap_key": "i150",
+   "cap_mult": 1.5,
+   "intensity_delivered_t_per_mwh": 0.121917,
+   "implied_carbon_price_aud_per_t": 0.0,
+   "demand_marginal_aud_per_mwh": 159.785869,
+   "avg_cost_aud_per_mwh": 99.628054,
+   "total_cost_aud_per_yr": 37650182108.82644,
+   "delivered_twh": 377.907432,
+   "r_total_pct": 72.586494,
+   "r_vre_pct": 69.638937,
+   "residual_co2e_t": 46073445.715707
+  }
+ ],
+ "duality": [
+  {
+   "year": 2030,
+   "sweep_price_aud_per_t": 150,
+   "sweep_realised_intensity": 0.0812,
+   "map_dual_at_that_intensity": 174.7758,
+   "ratio_dual_over_price": 1.1652,
+   "conditioning_matched": true
+  },
+  {
+   "year": 2030,
+   "sweep_price_aud_per_t": 300,
+   "sweep_realised_intensity": 0.0403,
+   "map_dual_at_that_intensity": 316.8109,
+   "ratio_dual_over_price": 1.056,
+   "conditioning_matched": true
+  },
+  {
+   "year": 2030,
+   "sweep_price_aud_per_t": 550,
+   "sweep_realised_intensity": 0.0224,
+   "map_dual_at_that_intensity": 549.5933,
+   "ratio_dual_over_price": 0.9993,
+   "conditioning_matched": true
+  },
+  {
+   "year": 2040,
+   "sweep_price_aud_per_t": 150,
+   "sweep_realised_intensity": 0.0691,
+   "map_dual_at_that_intensity": 172.4055,
+   "ratio_dual_over_price": 1.1494,
+   "conditioning_matched": false
+  },
+  {
+   "year": 2040,
+   "sweep_price_aud_per_t": 300,
+   "sweep_realised_intensity": 0.0402,
+   "map_dual_at_that_intensity": 326.6838,
+   "ratio_dual_over_price": 1.0889,
+   "conditioning_matched": false
+  },
+  {
+   "year": 2040,
+   "sweep_price_aud_per_t": 550,
+   "sweep_realised_intensity": 0.0175,
+   "map_dual_at_that_intensity": 550.0255,
+   "ratio_dual_over_price": 1.0,
+   "conditioning_matched": false
+  },
+  {
+   "year": 2050,
+   "sweep_price_aud_per_t": 150,
+   "sweep_realised_intensity": 0.0464,
+   "map_dual_at_that_intensity": 184.4296,
+   "ratio_dual_over_price": 1.2295,
+   "conditioning_matched": false
+  },
+  {
+   "year": 2050,
+   "sweep_price_aud_per_t": 300,
+   "sweep_realised_intensity": 0.0306,
+   "map_dual_at_that_intensity": 377.7443,
+   "ratio_dual_over_price": 1.2591,
+   "conditioning_matched": false
+  },
+  {
+   "year": 2050,
+   "sweep_price_aud_per_t": 550,
+   "sweep_realised_intensity": 0.0136,
+   "map_dual_at_that_intensity": 802.0881,
+   "ratio_dual_over_price": 1.4583,
+   "conditioning_matched": false
+  }
+ ],
+ "tech_mix_d100": {
+  "2030": [
+   {
+    "cap_key": "i005",
+    "cap_mult": 0.05,
+    "wind": 113.951,
+    "solar": 59.244,
+    "water": 12.989,
+    "biomass": 1.711,
+    "gas_ccs": 3.775,
+    "gas_unabated": 8.301,
+    "black_coal": 0.037,
+    "brown_coal": 0.0,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i010",
+    "cap_mult": 0.1,
+    "wind": 111.849,
+    "solar": 54.491,
+    "water": 12.989,
+    "biomass": 1.711,
+    "gas_ccs": 0.0,
+    "gas_unabated": 14.214,
+    "black_coal": 2.032,
+    "brown_coal": 0.0,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i025",
+    "cap_mult": 0.25,
+    "wind": 110.491,
+    "solar": 48.069,
+    "water": 12.989,
+    "biomass": 0.174,
+    "gas_ccs": 0.0,
+    "gas_unabated": 8.111,
+    "black_coal": 11.24,
+    "brown_coal": 4.368,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i050",
+    "cap_mult": 0.5,
+    "wind": 95.938,
+    "solar": 46.952,
+    "water": 12.989,
+    "biomass": 0.207,
+    "gas_ccs": 0.0,
+    "gas_unabated": 1.869,
+    "black_coal": 24.28,
+    "brown_coal": 12.091,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i100",
+    "cap_mult": 1.0,
+    "wind": 60.765,
+    "solar": 43.998,
+    "water": 12.989,
+    "biomass": 0.246,
+    "gas_ccs": 0.0,
+    "gas_unabated": 2.439,
+    "black_coal": 51.265,
+    "brown_coal": 21.557,
+    "liquid_fuel": 0.0
+   }
+  ],
+  "2040": [
+   {
+    "cap_key": "i005",
+    "cap_mult": 0.05,
+    "wind": 110.37,
+    "solar": 112.057,
+    "water": 12.77,
+    "biomass": 1.711,
+    "gas_ccs": 15.051,
+    "gas_unabated": 3.438,
+    "black_coal": 0.057,
+    "brown_coal": 0.0,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i010",
+    "cap_mult": 0.1,
+    "wind": 108.847,
+    "solar": 110.968,
+    "water": 12.77,
+    "biomass": 1.711,
+    "gas_ccs": 11.763,
+    "gas_unabated": 7.817,
+    "black_coal": 0.645,
+    "brown_coal": 0.108,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i025",
+    "cap_mult": 0.25,
+    "wind": 109.164,
+    "solar": 103.017,
+    "water": 12.732,
+    "biomass": 1.711,
+    "gas_ccs": 0.0,
+    "gas_unabated": 23.214,
+    "black_coal": 1.903,
+    "brown_coal": 0.282,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i050",
+    "cap_mult": 0.5,
+    "wind": 102.717,
+    "solar": 94.685,
+    "water": 12.77,
+    "biomass": 1.711,
+    "gas_ccs": 0.0,
+    "gas_unabated": 25.127,
+    "black_coal": 9.589,
+    "brown_coal": 2.667,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i100",
+    "cap_mult": 1.0,
+    "wind": 89.194,
+    "solar": 84.024,
+    "water": 12.77,
+    "biomass": 0.225,
+    "gas_ccs": 0.0,
+    "gas_unabated": 31.446,
+    "black_coal": 21.781,
+    "brown_coal": 8.595,
+    "liquid_fuel": 0.0
+   }
+  ],
+  "2050": [
+   {
+    "cap_key": "i005",
+    "cap_mult": 0.05,
+    "wind": 145.718,
+    "solar": 100.011,
+    "water": 9.834,
+    "biomass": 1.711,
+    "gas_ccs": 10.578,
+    "gas_unabated": 1.795,
+    "black_coal": 0.0,
+    "brown_coal": 0.0,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i010",
+    "cap_mult": 0.1,
+    "wind": 142.619,
+    "solar": 97.245,
+    "water": 9.834,
+    "biomass": 1.711,
+    "gas_ccs": 11.323,
+    "gas_unabated": 4.872,
+    "black_coal": 0.0,
+    "brown_coal": 0.0,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i025",
+    "cap_mult": 0.25,
+    "wind": 139.533,
+    "solar": 96.711,
+    "water": 9.834,
+    "biomass": 1.711,
+    "gas_ccs": 4.017,
+    "gas_unabated": 13.752,
+    "black_coal": 0.614,
+    "brown_coal": 0.0,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i050",
+    "cap_mult": 0.5,
+    "wind": 131.113,
+    "solar": 94.539,
+    "water": 9.834,
+    "biomass": 1.711,
+    "gas_ccs": 0.0,
+    "gas_unabated": 24.687,
+    "black_coal": 2.842,
+    "brown_coal": 0.0,
+    "liquid_fuel": 0.0
+   },
+   {
+    "cap_key": "i100",
+    "cap_mult": 1.0,
+    "wind": 123.008,
+    "solar": 80.852,
+    "water": 9.834,
+    "biomass": 0.816,
+    "gas_ccs": 0.0,
+    "gas_unabated": 37.76,
+    "black_coal": 10.357,
+    "brown_coal": 0.0,
+    "liquid_fuel": 0.0
+   }
+  ]
+ },
+ "wedge": [
+  {
+   "year": 2030,
+   "cap_key": "i100",
+   "r_total": 61.06,
+   "i_cost": 48.65,
+   "s_cost": 48.65,
+   "i_intensity": 0.3909,
+   "s_intensity": 0.3909,
+   "i_gas_ccs_twh": 0.0,
+   "s_gas_ccs_twh": 0.0
+  },
+  {
+   "year": 2030,
+   "cap_key": "i025",
+   "r_total": 87.86,
+   "i_cost": 67.26,
+   "s_cost": 64.38,
+   "i_intensity": 0.0988,
+   "s_intensity": 0.1292,
+   "i_gas_ccs_twh": 0.0,
+   "s_gas_ccs_twh": 0.0
+  },
+  {
+   "year": 2030,
+   "cap_key": "i005",
+   "r_total": 93.94,
+   "i_cost": 86.11,
+   "s_cost": 76.33,
+   "i_intensity": 0.0198,
+   "s_intensity": 0.0671,
+   "i_gas_ccs_twh": 3.78,
+   "s_gas_ccs_twh": 0.0
+  },
+  {
+   "year": 2040,
+   "cap_key": "i100",
+   "r_total": 75.08,
+   "i_cost": 76.71,
+   "s_cost": 76.71,
+   "i_intensity": 0.1791,
+   "s_intensity": 0.1791,
+   "i_gas_ccs_twh": 0.0,
+   "s_gas_ccs_twh": 0.0
+  },
+  {
+   "year": 2040,
+   "cap_key": "i025",
+   "r_total": 89.92,
+   "i_cost": 90.32,
+   "s_cost": 86.66,
+   "i_intensity": 0.0454,
+   "s_intensity": 0.0776,
+   "i_gas_ccs_twh": 0.0,
+   "s_gas_ccs_twh": 0.0
+  },
+  {
+   "year": 2040,
+   "cap_key": "i005",
+   "r_total": 92.74,
+   "i_cost": 105.98,
+   "s_cost": 90.03,
+   "i_intensity": 0.0091,
+   "s_intensity": 0.0614,
+   "i_gas_ccs_twh": 15.05,
+   "s_gas_ccs_twh": 0.0
+  },
+  {
+   "year": 2050,
+   "cap_key": "i100",
+   "r_total": 81.68,
+   "i_cost": 86.17,
+   "s_cost": 86.17,
+   "i_intensity": 0.0946,
+   "s_intensity": 0.0946,
+   "i_gas_ccs_twh": 0.0,
+   "s_gas_ccs_twh": 0.0
+  },
+  {
+   "year": 2050,
+   "cap_key": "i025",
+   "r_total": 93.09,
+   "i_cost": 98.98,
+   "s_cost": 95.61,
+   "i_intensity": 0.0239,
+   "s_intensity": 0.0364,
+   "i_gas_ccs_twh": 4.02,
+   "s_gas_ccs_twh": 0.0
+  },
+  {
+   "year": 2050,
+   "cap_key": "i005",
+   "r_total": 95.41,
+   "i_cost": 115.1,
+   "s_cost": 99.84,
+   "i_intensity": 0.0048,
+   "s_intensity": 0.0254,
+   "i_gas_ccs_twh": 10.58,
+   "s_gas_ccs_twh": 0.0
+  }
+ ],
+ "floors": [
+  {
+   "year": 2030,
+   "demand_level": "d100",
+   "probe": "0.02",
+   "cap_t": 1494135.5581348708,
+   "dual": 1249.2
+  },
+  {
+   "year": 2030,
+   "demand_level": "d100",
+   "probe": "0.001",
+   "cap_t": 74706.77790674355,
+   "dual": 11051.0
+  },
+  {
+   "year": 2030,
+   "demand_level": "d100",
+   "probe": "500t",
+   "cap_t": 500.0,
+   "dual": 32665.7
+  },
+  {
+   "year": 2030,
+   "demand_level": "d100",
+   "probe": "10t",
+   "cap_t": 10.0,
+   "dual": 72068.1
+  },
+  {
+   "year": 2030,
+   "demand_level": "d150",
+   "probe": "0.02",
+   "cap_t": 2241203.3372023064,
+   "dual": 1527.4
+  },
+  {
+   "year": 2030,
+   "demand_level": "d150",
+   "probe": "0.001",
+   "cap_t": 112060.16686011532,
+   "dual": 61296.8
+  },
+  {
+   "year": 2040,
+   "demand_level": "d100",
+   "probe": "0.02",
+   "cap_t": 863856.3032695326,
+   "dual": 1755.0
+  },
+  {
+   "year": 2040,
+   "demand_level": "d100",
+   "probe": "0.001",
+   "cap_t": 43192.81516347663,
+   "dual": 51547.4
+  },
+  {
+   "year": 2040,
+   "demand_level": "d100",
+   "probe": "500t",
+   "cap_t": 500.0,
+   "dual": 186388.7
+  },
+  {
+   "year": 2040,
+   "demand_level": "d150",
+   "probe": "0.02",
+   "cap_t": 1295784.454904299,
+   "dual": 12976.5
+  },
+  {
+   "year": 2040,
+   "demand_level": "d150",
+   "probe": "0.001",
+   "cap_t": 64789.22274521495,
+   "dual": 308075.1
+  },
+  {
+   "year": 2050,
+   "demand_level": "d100",
+   "probe": "0.02",
+   "cap_t": 480718.57,
+   "dual": 5281.7
+  },
+  {
+   "year": 2050,
+   "demand_level": "d100",
+   "probe": "0.005",
+   "cap_t": 120179.64149620624,
+   "dual": 111638.0
+  },
+  {
+   "year": 2050,
+   "demand_level": "d100",
+   "probe": "0.001",
+   "cap_t": 24035.93,
+   "dual": 189604.6
+  },
+  {
+   "year": 2050,
+   "demand_level": "d100",
+   "probe": "500t",
+   "cap_t": 500.0,
+   "dual": 190584.7
+  },
+  {
+   "year": 2050,
+   "demand_level": "d150",
+   "probe": "0.02",
+   "cap_t": 721077.8489772375,
+   "dual": 265321.4
+  },
+  {
+   "year": 2050,
+   "demand_level": "d150",
+   "probe": "0.005",
+   "cap_t": 180269.46224430937,
+   "dual": 307639.4
+  },
+  {
+   "year": 2050,
+   "demand_level": "d150",
+   "probe": "0.001",
+   "cap_t": 36053.89244886187,
+   "dual": 310830.7
+  }
+ ]
+};
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const YEARC = {2030: css('--s1'), 2040: css('--s2'), 2050: css('--s3')};
+// Black + brown coal merged into one reporting group: both exit the fleet on
+// the same economics and splitting them would put two series on one hue.
+DATA.tech_mix_d100 && Object.values(DATA.tech_mix_d100).forEach(rows =>
+  rows.forEach(r => {
+    r.coal = (r.black_coal || 0) + (r.brown_coal || 0);
+  }));
+const TECHS = [
+  ['wind', 'Wind'], ['solar', 'Solar'], ['water', 'Hydro'],
+  ['biomass', 'Biomass'], ['gas_ccs', 'Gas CCS'], ['gas_unabated', 'Gas unabated'],
+  ['coal', 'Coal'],
+];
+const TECHC = {};
+TECHS.forEach(([k], i) => TECHC[k] = css('--s' + (i + 1)));
+const tip = document.getElementById('tip');
+function showTip(evt, html) {
+  tip.innerHTML = html; tip.style.display = 'block';
+  tip.style.left = (evt.clientX + 14) + 'px';
+  tip.style.top = (evt.clientY + 10) + 'px';
+}
+function hideTip() { tip.style.display = 'none'; }
+const S = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent) {
+  const n = document.createElementNS(S, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function fmt(x, d = 1) { return (+x).toLocaleString('en-AU',
+  {maximumFractionDigits: d, minimumFractionDigits: 0}); }
+
+// ---- tiles -----------------------------------------------------------------
+const tiles = [
+  ['89', 'cells solved (78 ladder + 9 wedge + 2 diagnostics)'],
+  ['0.999', 'dual / price ratio vs the $550/t sweep cell, matched conditioning (2030)'],
+  ['56/60 &middot; 59/60', 'adjacent pairs passing the dual-vs-chordal check (intensity &middot; demand axes)'],
+  ['0', 'binding cells missing the cap by >1% (worst: 8 significant figures)'],
+  ['dual = 0', 'every 1.5&times; overflow cap, at every demand level — the gas-overflow direction is empty'],
+];
+document.getElementById('tiles').innerHTML = tiles.map(t =>
+  `<div class="tile"><div class="v">${t[0]}</div><div class="k">${t[1]}</div></div>`).join('');
+
+// ---- panel 1: dual curves + sweep rings (log y) ----------------------------
+(function () {
+  const cells = DATA.cells.filter(c => c.demand_level === 'd100'
+    && c.implied_carbon_price_aud_per_t > 0);
+  const sweep = DATA.duality;
+  const W = 720, H = 340, m = {l: 64, r: 130, t: 12, b: 40};
+  const xs = cells.map(c => c.intensity_delivered_t_per_mwh)
+    .concat(sweep.map(s => s.sweep_realised_intensity));
+  const ys = cells.map(c => c.implied_carbon_price_aud_per_t)
+    .concat(sweep.map(s => s.sweep_price_aud_per_t));
+  const xmax = Math.max(...xs) * 1.06, ymin = 50, ymax = Math.max(...ys) * 1.3;
+  const X = v => m.l + v / xmax * (W - m.l - m.r);
+  const Y = v => H - m.b - (Math.log10(v) - Math.log10(ymin)) /
+    (Math.log10(ymax) - Math.log10(ymin)) * (H - m.t - m.b);
+  const svg = el('svg', {width: W, height: H, viewBox: `0 0 ${W} ${H}`},
+    document.getElementById('p1'));
+  const ax = el('g', {class: 'axis'}, svg);
+  [100, 300, 1000, 3000].filter(v => v < ymax).forEach(v => {
+    el('line', {x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v)}, ax);
+    el('text', {x: m.l - 8, y: Y(v) + 4, 'text-anchor': 'end'}, ax)
+      .textContent = fmt(v, 0);
+  });
+  [0.05, 0.1, 0.15, 0.2].filter(v => v < xmax).forEach(v => {
+    el('text', {x: X(v), y: H - m.b + 16, 'text-anchor': 'middle'}, ax)
+      .textContent = v;
+  });
+  el('text', {x: m.l - 46, y: m.t + 8}, svg).textContent = 'A$/t';
+  el('text', {x: (m.l + W - m.r) / 2, y: H - 6, 'text-anchor': 'middle'}, svg)
+    .textContent = 'realised intensity (t CO2e / MWh delivered)';
+  for (const year of [2030, 2040, 2050]) {
+    const pts = cells.filter(c => c.year === year)
+      .sort((a, b) => a.intensity_delivered_t_per_mwh - b.intensity_delivered_t_per_mwh);
+    el('path', {
+      d: 'M' + pts.map(p =>
+        `${X(p.intensity_delivered_t_per_mwh)},${Y(p.implied_carbon_price_aud_per_t)}`
+      ).join('L'),
+      fill: 'none', stroke: YEARC[year], 'stroke-width': 2,
+    }, svg);
+    pts.forEach(p => {
+      const c = el('circle', {
+        cx: X(p.intensity_delivered_t_per_mwh),
+        cy: Y(p.implied_carbon_price_aud_per_t), r: 4.5,
+        fill: YEARC[year], stroke: css('--surface'), 'stroke-width': 2,
+      }, svg);
+      c.addEventListener('mousemove', e => showTip(e,
+        `<b>${p.run_id}</b><br>${year} &middot; cap ${p.cap_key} &middot; ` +
+        `ι ${p.intensity_delivered_t_per_mwh.toFixed(4)}<br>` +
+        `dual ${fmt(p.implied_carbon_price_aud_per_t)} A$/t &middot; ` +
+        `avg cost ${fmt(p.avg_cost_aud_per_mwh)} A$/MWh`));
+      c.addEventListener('mouseleave', hideTip);
+    });
+    const last = pts[pts.length - 1];
+    el('text', {x: X(last.intensity_delivered_t_per_mwh) + 8,
+                y: Y(last.implied_carbon_price_aud_per_t) + 4, class: 'lbl',
+                fill: YEARC[year]}, svg).textContent = year;
+    sweep.filter(s => s.year === year).forEach(s => {
+      const c = el('circle', {
+        cx: X(s.sweep_realised_intensity), cy: Y(s.sweep_price_aud_per_t),
+        r: 5.5, fill: 'none', stroke: YEARC[year], 'stroke-width': 2.5,
+      }, svg);
+      c.addEventListener('mousemove', e => showTip(e,
+        `<b>previous sweep</b> $${s.sweep_price_aud_per_t}/t (${year})<br>` +
+        `realised ι ${s.sweep_realised_intensity.toFixed(4)}<br>` +
+        `map dual at that ι: ${fmt(s.map_dual_at_that_intensity)} ` +
+        `(ratio ${s.ratio_dual_over_price.toFixed(3)})` +
+        (s.conditioning_matched ? '' : '<br><i>conditioning differs</i>')));
+      c.addEventListener('mouseleave', hideTip);
+    });
+  }
+  document.getElementById('lg1').innerHTML =
+    [2030, 2040, 2050].map(y =>
+      `<span><span class="sw" style="background:${YEARC[y]}"></span>${y} map dual</span>`
+    ).join('') +
+    `<span><span class="sw ring" style="border-color:${css('--ink2')}"></span>previous sweep price point</span>`;
+  document.getElementById('t1').innerHTML = '<table><tr><th>year</th>' +
+    '<th>sweep $/t</th><th>realised ι</th><th>map dual</th><th>ratio</th></tr>' +
+    sweep.map(s => `<tr><td>${s.year}${s.conditioning_matched ? '' : ' *'}</td>` +
+      `<td>${s.sweep_price_aud_per_t}</td><td>${s.sweep_realised_intensity}</td>` +
+      `<td>${fmt(s.map_dual_at_that_intensity)}</td>` +
+      `<td>${s.ratio_dual_over_price.toFixed(3)}</td></tr>`).join('') +
+    '</table><p class="note">* conditioning differs (sweep chain carries a price-conditioned fleet)</p>';
+})();
+
+// ---- panel 2: cost surface heatmaps ----------------------------------------
+(function () {
+  const MULTS = [1.5, 1.0, 0.5, 0.25, 0.10, 0.05];
+  const DEMANDS = ['d100', 'd105', 'd110', 'd120', 'd135', 'd150'];
+  const ramp = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf',
+                '#1c5cab', '#104281', '#0d366b'];
+  const all = DATA.cells.map(c => c.avg_cost_aud_per_mwh);
+  const lo = Math.min(...all), hi = Math.max(...all);
+  const color = v => ramp[Math.min(ramp.length - 1,
+    Math.floor((v - lo) / (hi - lo) * ramp.length))];
+  const cw = 52, ch = 30, ml = 46, mt = 26;
+  for (const year of [2030, 2040, 2050]) {
+    const wrap = document.createElement('div');
+    document.getElementById('p2').appendChild(wrap);
+    const W = ml + MULTS.length * (cw + 2) + 6, H = mt + DEMANDS.length * (ch + 2) + 22;
+    const svg = el('svg', {width: W, height: H, viewBox: `0 0 ${W} ${H}`}, wrap);
+    el('text', {x: ml, y: 13, class: 'lbl'}, svg).textContent = year;
+    MULTS.forEach((mm, i) => el('text', {
+      x: ml + i * (cw + 2) + cw / 2, y: mt - 5, 'text-anchor': 'middle'}, svg)
+      .textContent = mm + 'x');
+    DEMANDS.forEach((d, j) => {
+      el('text', {x: ml - 6, y: mt + j * (ch + 2) + ch / 2 + 4,
+                  'text-anchor': 'end'}, svg)
+        .textContent = 'x' + (DATA.cells.find(c => c.demand_level === d) || {demand_scalar: d}).demand_scalar;
+      MULTS.forEach((mm, i) => {
+        const cell = DATA.cells.find(c => c.year === year
+          && c.demand_level === d && Math.abs((c.cap_mult ?? -1) - mm) < 1e-9);
+        if (!cell) return;
+        const v = cell.avg_cost_aud_per_mwh;
+        const r = el('rect', {x: ml + i * (cw + 2), y: mt + j * (ch + 2),
+          width: cw, height: ch, rx: 4, fill: color(v)}, svg);
+        const dark = (v - lo) / (hi - lo) > 0.45;
+        el('text', {x: ml + i * (cw + 2) + cw / 2, y: mt + j * (ch + 2) + ch / 2 + 4,
+          'text-anchor': 'middle',
+          style: `fill:${dark ? '#fcfcfb' : '#0b0b0b'};font-size:11px`}, svg)
+          .textContent = fmt(v, 0);
+        r.addEventListener('mousemove', e => showTip(e,
+          `<b>${cell.run_id}</b><br>avg cost ${fmt(v)} A$/MWh<br>` +
+          `dual ${fmt(cell.implied_carbon_price_aud_per_t)} A$/t &middot; ` +
+          `r_total ${cell.r_total_pct.toFixed(1)}%`));
+        r.addEventListener('mouseleave', hideTip);
+      });
+    });
+    el('text', {x: ml + (MULTS.length * (cw + 2)) / 2, y: H - 4,
+                'text-anchor': 'middle'}, svg)
+      .textContent = 'cap (x ι_planned) →   rows: demand scalar';
+  }
+})();
+
+// ---- panel 3: tech mix stacked bars ----------------------------------------
+(function () {
+  document.getElementById('lg3').innerHTML = TECHS.map(([k, name]) =>
+    `<span><span class="sw" style="background:${TECHC[k]}"></span>${name}</span>`
+  ).join('');
+  for (const year of [2030, 2040, 2050]) {
+    const mix = DATA.tech_mix_d100[String(year)];
+    const wrap = document.createElement('div');
+    document.getElementById('p3').appendChild(wrap);
+    const W = 260, H = 260, ml = 40, mb = 34, mt = 22;
+    const total = Math.max(...mix.map(r =>
+      TECHS.reduce((s, [k]) => s + (r[k] || 0), 0)));
+    const bw = (W - ml - 10) / mix.length - 4;
+    const svg = el('svg', {width: W, height: H, viewBox: `0 0 ${W} ${H}`}, wrap);
+    el('text', {x: ml, y: 13, class: 'lbl'}, svg).textContent = year;
+    mix.forEach((r, i) => {
+      let y0 = H - mb;
+      const x = ml + i * (bw + 4);
+      TECHS.forEach(([k, name]) => {
+        const v = r[k] || 0;
+        if (v <= 0) return;
+        const h = v / total * (H - mt - mb);
+        const rect = el('rect', {x, y: y0 - h, width: bw, height: Math.max(h - 1, 0.5),
+          fill: TECHC[k], stroke: css('--surface'), 'stroke-width': 1}, svg);
+        rect.addEventListener('mousemove', e => showTip(e,
+          `<b>${name}</b> ${fmt(v)} TWh<br>${year} &middot; cap ${r.cap_key}`));
+        rect.addEventListener('mouseleave', hideTip);
+        y0 -= h;
+      });
+      el('text', {x: x + bw / 2, y: H - mb + 14, 'text-anchor': 'middle'}, svg)
+        .textContent = r.cap_mult + 'x';
+    });
+    el('text', {x: ml - 30, y: mt}, svg).textContent = 'TWh';
+    el('text', {x: (ml + W) / 2, y: H - 4, 'text-anchor': 'middle'}, svg)
+      .textContent = 'cap (x ι_planned)';
+  }
+})();
+
+// ---- panel 4: floor curves (log-log) ---------------------------------------
+(function () {
+  const F = DATA.floors.filter(f => f.dual > 0);
+  const W = 720, H = 320, m = {l: 70, r: 150, t: 14, b: 42};
+  const xmin = 5, xmax = Math.max(...F.map(f => f.cap_t)) * 2;
+  const ymin = 500, ymax = Math.max(...F.map(f => f.dual)) * 1.4;
+  const X = v => m.l + (Math.log10(v) - Math.log10(xmin)) /
+    (Math.log10(xmax) - Math.log10(xmin)) * (W - m.l - m.r);
+  const Y = v => H - m.b - (Math.log10(v) - Math.log10(ymin)) /
+    (Math.log10(ymax) - Math.log10(ymin)) * (H - m.t - m.b);
+  const svg = el('svg', {width: W, height: H, viewBox: `0 0 ${W} ${H}`},
+    document.getElementById('p4'));
+  const ax = el('g', {class: 'axis'}, svg);
+  [1e3, 1e4, 1e5].filter(v => v < ymax).forEach(v => {
+    el('line', {x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v)}, ax);
+    el('text', {x: m.l - 8, y: Y(v) + 4, 'text-anchor': 'end'}, ax)
+      .textContent = fmt(v, 0);
+  });
+  [10, 1e3, 1e5, 1e6].forEach(v => {
+    el('text', {x: X(v), y: H - m.b + 16, 'text-anchor': 'middle'}, ax)
+      .textContent = v >= 1e6 ? v / 1e6 + 'M' : v >= 1e3 ? v / 1e3 + 'k' : v;
+  });
+  el('text', {x: m.l - 52, y: m.t + 6}, svg).textContent = 'A$/t';
+  el('text', {x: (m.l + W - m.r) / 2, y: H - 6, 'text-anchor': 'middle'}, svg)
+    .textContent = 'cap (t CO2e / yr, log)';
+  for (const year of [2030, 2040, 2050]) {
+    for (const level of ['d100', 'd150']) {
+      const pts = F.filter(f => f.year === year && f.demand_level === level)
+        .sort((a, b) => a.cap_t - b.cap_t);
+      if (!pts.length) continue;
+      el('path', {
+        d: 'M' + pts.map(p => `${X(p.cap_t)},${Y(p.dual)}`).join('L'),
+        fill: 'none', stroke: YEARC[year], 'stroke-width': 2,
+        'stroke-dasharray': level === 'd150' ? '5 4' : 'none',
+      }, svg);
+      pts.forEach(p => {
+        const c = el('circle', {cx: X(p.cap_t), cy: Y(p.dual), r: 4,
+          fill: YEARC[year], stroke: css('--surface'), 'stroke-width': 2}, svg);
+        c.addEventListener('mousemove', e => showTip(e,
+          `<b>${year} ${level}</b> probe ${p.probe}<br>` +
+          `cap ${fmt(p.cap_t, 0)} t &middot; dual ${fmt(p.dual, 0)} A$/t<br>` +
+          `feasible (Optimal)`));
+        c.addEventListener('mouseleave', hideTip);
+      });
+      if (level === 'd100') {
+        const p0 = pts[0];
+        el('text', {x: X(p0.cap_t) - 8, y: Y(p0.dual) - 8, class: 'lbl',
+                    fill: YEARC[year], 'text-anchor': 'start'}, svg)
+          .textContent = year;
+      }
+    }
+  }
+  document.getElementById('lg4').innerHTML =
+    [2030, 2040, 2050].map(y =>
+      `<span><span class="sw" style="background:${YEARC[y]}"></span>${y}</span>`
+    ).join('') +
+    '<span style="border-bottom:2px solid var(--ink2);padding-bottom:1px">d=1.00 solid</span>' +
+    '<span style="border-bottom:2px dashed var(--ink2);padding-bottom:1px">d=1.50 dashed</span>';
+})();
+
+// ---- panel 5: wedge paired bars --------------------------------------------
+(function () {
+  const wedge = DATA.wedge.filter(w => w.cap_key !== 'i100');
+  const W = 640, H = 300, ml = 56, mb = 56, mt = 16;
+  const ymax = Math.max(...wedge.map(w => Math.max(w.i_cost, w.s_cost))) * 1.15;
+  const Y = v => H - mb - v / ymax * (H - mt - mb);
+  const svg = el('svg', {width: W, height: H, viewBox: `0 0 ${W} ${H}`},
+    document.getElementById('p5'));
+  const defs = el('defs', {}, svg);
+  defs.innerHTML = `<pattern id="hatch" width="6" height="6"
+    patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+    <rect width="6" height="6" fill="${css('--s2')}"></rect>
+    <line x1="0" y1="0" x2="0" y2="6" stroke="${css('--surface')}" stroke-width="2.5"/></pattern>`;
+  const ax = el('g', {class: 'axis'}, svg);
+  [0, 30, 60, 90, 120].filter(v => v < ymax).forEach(v => {
+    el('line', {x1: ml, x2: W - 14, y1: Y(v), y2: Y(v)}, ax);
+    el('text', {x: ml - 8, y: Y(v) + 4, 'text-anchor': 'end'}, ax).textContent = v;
+  });
+  el('text', {x: ml - 44, y: mt}, svg).textContent = 'A$/MWh';
+  const gw = (W - ml - 20) / wedge.length;
+  wedge.forEach((w, i) => {
+    const x = ml + i * gw + gw * 0.18, bw = gw * 0.26;
+    function bar(px, v, fill, label, extra) {
+      const h = v / ymax * (H - mt - mb);
+      const p = el('path', {d:
+        `M${px},${H - mb} v${-(h - 4)} q0,-4 4,-4 h${bw - 8} q4,0 4,4 v${h - 4} z`,
+        fill}, svg);
+      p.addEventListener('mousemove', e => showTip(e,
+        `<b>${label}</b> ${fmt(v)} A$/MWh<br>${w.year} &middot; matched r_total ` +
+        `${w.r_total}%<br>${extra}`));
+      p.addEventListener('mouseleave', hideTip);
+    }
+    bar(x, w.i_cost, css('--s1'), 'intensity cap',
+      `realised ι ${w.i_intensity} &middot; gas-CCS ${w.i_gas_ccs_twh} TWh`);
+    bar(x + bw + 4, w.s_cost, 'url(#hatch)', 'share-matched',
+      `realised ι ${w.s_intensity} (${(w.s_intensity / w.i_intensity).toFixed(1)}x) ` +
+      `&middot; gas-CCS ${w.s_gas_ccs_twh} TWh`);
+    el('text', {x: x + bw + 2, y: H - mb + 15, 'text-anchor': 'middle'}, svg)
+      .textContent = `${w.year} ${w.cap_key}`;
+    el('text', {x: x + bw + 2, y: H - mb + 29, 'text-anchor': 'middle'}, svg)
+      .textContent = `ι slip ${(w.s_intensity / w.i_intensity).toFixed(1)}x`;
+  });
+  document.getElementById('lg5').innerHTML =
+    `<span><span class="sw" style="background:${css('--s1')}"></span>intensity cap</span>` +
+    `<span><span class="sw" style="background:${css('--s2')}"></span>share-matched (textured)</span>`;
+  document.getElementById('t5').innerHTML = '<table><tr><th>cell</th>' +
+    '<th>r_total %</th><th>ι-cap cost</th><th>share cost</th><th>ι-cap ι</th>' +
+    '<th>share ι</th><th>ι-cap CCS TWh</th><th>share CCS TWh</th></tr>' +
+    DATA.wedge.map(w => `<tr><td>${w.year} ${w.cap_key}</td><td>${w.r_total}</td>` +
+      `<td>${w.i_cost}</td><td>${w.s_cost}</td><td>${w.i_intensity}</td>` +
+      `<td>${w.s_intensity}</td><td>${w.i_gas_ccs_twh}</td><td>${w.s_gas_ccs_twh}</td></tr>`
+    ).join('') + '</table>';
+})();
+</script>
+</body>
+</html>
