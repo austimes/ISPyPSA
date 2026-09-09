@@ -1,0 +1,1310 @@
+<title>Cost of supply — carbon price × demand, NEM 2030–2050</title>
+<style>
+  /* ---- tokens -------------------------------------------------------------
+     Inherited verbatim from dashboard_template.html so the two sweep pages
+     read as one system. One addition: --dem-1..4, a warm one-hue ramp for the
+     demand axis, so the two ordered axes (carbon = cool blue, demand = warm
+     orange) are never confusable across panels. Both ramps validated with the
+     dataviz palette checks in both themes.                                   */
+  .sw {
+    color-scheme: light;
+    --bg:        #f4f6f9;
+    --surface:   #ffffff;
+    --surface-2: #edf1f6;
+    --line:      #d9e0e9;
+    --line-soft: #e8edf3;
+    --ink:       #111620;
+    --ink-2:     #4c586a;
+    --ink-3:     #7b8899;
+    --accent:    #1f6fd0;
+    --accent-sf: #e8f1fc;
+
+    --good:     #167c4a;
+    --warn:     #9a6400;
+    --critical: #b4322e;
+    --good-sf:     #e4f4ec;
+    --warn-sf:     #fbf1de;
+    --critical-sf: #fbe9e8;
+
+    --c-wind:    #2a78d6;
+    --c-gas:     #eb6834;
+    --c-water:   #1baf7a;
+
+    --seq-1: #8fb8e3;
+    --seq-2: #5b93d2;
+    --seq-3: #2c6fb5;
+    --seq-4: #124063;
+
+    --dem-1: #ec9c63;
+    --dem-2: #dd7a35;
+    --dem-3: #b8571d;
+    --dem-4: #6e340f;
+
+    --grid:  #eceff4;
+    --shadow: 0 1px 2px rgba(17,22,32,.06), 0 8px 24px -12px rgba(17,22,32,.14);
+
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .sw {
+      color-scheme: dark;
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface-2: #1c2430;
+      --line:      #28313d;
+      --line-soft: #1f2731;
+      --ink:       #eef3f9;
+      --ink-2:     #a9b6c6;
+      --ink-3:     #788596;
+      --accent:    #4f96e8;
+      --accent-sf: #17293f;
+      --good:     #43b57c;
+      --warn:     #d9a344;
+      --critical: #e8706c;
+      --good-sf:     #142a20;
+      --warn-sf:     #2c2313;
+      --critical-sf: #2e1a1a;
+      --c-wind:    #3987e5;
+      --c-gas:     #d95926;
+      --c-water:   #199e70;
+      --seq-1: #2f5273;
+      --seq-2: #3f78a8;
+      --seq-3: #5f9bd6;
+      --seq-4: #a3caf1;
+      --dem-1: #7d3e1b;
+      --dem-2: #ab5423;
+      --dem-3: #d67939;
+      --dem-4: #f2a878;
+      --grid:  #1f2731;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] .sw {
+    color-scheme: dark;
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --surface-2: #1c2430;
+    --line:      #28313d;
+    --line-soft: #1f2731;
+    --ink:       #eef3f9;
+    --ink-2:     #a9b6c6;
+    --ink-3:     #788596;
+    --accent:    #4f96e8;
+    --accent-sf: #17293f;
+    --good:     #43b57c;
+    --warn:     #d9a344;
+    --critical: #e8706c;
+    --good-sf:     #142a20;
+    --warn-sf:     #2c2313;
+    --critical-sf: #2e1a1a;
+    --c-wind:    #3987e5;
+    --c-gas:     #d95926;
+    --c-water:   #199e70;
+    --seq-1: #2f5273;
+    --seq-2: #3f78a8;
+    --seq-3: #5f9bd6;
+    --seq-4: #a3caf1;
+    --dem-1: #7d3e1b;
+    --dem-2: #ab5423;
+    --dem-3: #d67939;
+    --dem-4: #f2a878;
+    --grid:  #1f2731;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.6);
+  }
+
+  /* ---- frame ------------------------------------------------------------- */
+  .sw { background: var(--bg); color: var(--ink); font-family: var(--sans);
+        font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+        padding: 0 0 72px; }
+  .sw *, .sw *::before, .sw *::after { box-sizing: border-box; }
+  .sw-wrap { max-width: 1360px; margin: 0 auto; padding: 0 24px;
+             display: flex; flex-direction: column; gap: 28px; }
+
+  .sw-head { padding: 40px 0 4px; border-bottom: 1px solid var(--line);
+             display: flex; flex-direction: column; gap: 10px; }
+  .sw-eyebrow { font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em;
+                text-transform: uppercase; color: var(--ink-3); }
+  .sw-h1 { font-size: clamp(28px, 3.4vw, 40px); line-height: 1.08; margin: 0;
+           font-weight: 640; letter-spacing: -.022em; text-wrap: balance; }
+  .sw-lede { max-width: 68ch; color: var(--ink-2); margin: 0 0 16px; font-size: 16px; }
+  .sw-prov { font-family: var(--mono); font-size: 12px; color: var(--ink-3);
+             display: flex; flex-wrap: wrap; gap: 6px 18px; padding-bottom: 20px; }
+  .sw-prov b { color: var(--ink-2); font-weight: 500; }
+
+  /* ---- tiles ------------------------------------------------------------- */
+  .sw-tiles { display: grid; gap: 12px;
+              grid-template-columns: repeat(auto-fit, minmax(184px, 1fr)); }
+  .tile { background: var(--surface); border: 1px solid var(--line);
+          border-radius: 10px; padding: 14px 16px 15px;
+          display: flex; flex-direction: column; gap: 7px; box-shadow: var(--shadow); }
+  .tile-k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .085em;
+            text-transform: uppercase; color: var(--ink-3); }
+  .tile-v { font-family: var(--mono); font-size: 26px; font-weight: 620;
+            letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+            line-height: 1; color: var(--ink); }
+  .tile-v small { font-size: 13px; font-weight: 500; color: var(--ink-3); margin-left: 3px; }
+  .tile-s { font-size: 12.5px; color: var(--ink-2); }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+          font-family: var(--mono); font-size: 11px; font-weight: 600;
+          letter-spacing: .04em; padding: 2.5px 8px; border-radius: 999px;
+          border: 1px solid transparent; }
+  .pill-good { color: var(--good); background: var(--good-sf); border-color: color-mix(in srgb, var(--good) 26%, transparent); }
+  .pill-warn { color: var(--warn); background: var(--warn-sf); border-color: color-mix(in srgb, var(--warn) 26%, transparent); }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%;
+                  background: currentColor; }
+
+  /* ---- controls ---------------------------------------------------------- */
+  .sw-controls { display: flex; flex-wrap: wrap; gap: 18px 26px; align-items: flex-end;
+                 background: var(--surface); border: 1px solid var(--line);
+                 border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow);
+                 position: sticky; top: 0; z-index: 20; }
+  .ctl { display: flex; flex-direction: column; gap: 7px; }
+  .ctl-k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .085em;
+           text-transform: uppercase; color: var(--ink-3); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px;
+         overflow: hidden; background: var(--surface-2); }
+  .seg button { appearance: none; border: 0; background: transparent; cursor: pointer;
+                font-family: var(--mono); font-size: 12.5px; font-weight: 550;
+                color: var(--ink-2); padding: 6px 13px; letter-spacing: .01em;
+                border-right: 1px solid var(--line); }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .seg button { transition: background-color .13s ease, color .13s ease; }
+  }
+
+  /* ---- panels ------------------------------------------------------------ */
+  .grid2 { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); }
+  .panel { background: var(--surface); border: 1px solid var(--line);
+           border-radius: 12px; padding: 18px 20px 16px; box-shadow: var(--shadow);
+           display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .panel-h { display: flex; justify-content: space-between; align-items: baseline;
+             gap: 16px; flex-wrap: wrap; }
+  .panel-t { font-size: 15.5px; font-weight: 620; letter-spacing: -.012em; margin: 0; }
+  .panel-sub { font-size: 12.5px; color: var(--ink-2); margin: 2px 0 10px;
+               max-width: 92ch; }
+  .panel-unit { font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em;
+                text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+  .plot { width: 100%; overflow: visible; display: block; }
+  .scroll { overflow-x: auto; }
+  .scroll .plot { min-width: 1160px; }
+  .foot { font-size: 12px; color: var(--ink-3); margin: 10px 0 0; max-width: 92ch; }
+  .reading { font-size: 13px; color: var(--ink-2); margin: 8px 4px 0;
+             padding: 9px 12px; background: var(--surface-2); border-radius: 8px;
+             font-variant-numeric: tabular-nums; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 5px 15px; margin-top: 11px;
+            font-size: 12px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none;
+            outline: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+            outline-offset: -1px; }
+
+  /* svg text roles: text wears ink tokens, never a series colour */
+  .plot text { font-family: var(--mono); fill: var(--ink-3); font-size: 10.5px; }
+  .plot .lab { fill: var(--ink-2); }
+  .plot .val { fill: var(--ink); font-weight: 600; }
+  .plot .fct { fill: var(--ink); font-weight: 620; font-size: 12px; }
+  .plot .ax  { stroke: var(--line); stroke-width: 1; }
+  .plot .gl  { stroke: var(--grid); stroke-width: 1; }
+
+  /* ---- table ------------------------------------------------------------- */
+  table.dt { border-collapse: collapse; width: 100%; font-size: 12.5px;
+             font-variant-numeric: tabular-nums; }
+  table.dt th, table.dt td { text-align: right; padding: 6px 10px;
+                             border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+  table.dt th { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+                text-transform: uppercase; color: var(--ink-3); font-weight: 600;
+                border-bottom: 1px solid var(--line); position: sticky; top: 0;
+                background: var(--surface); }
+  table.dt td:first-child, table.dt th:first-child,
+  table.dt td:nth-child(2), table.dt th:nth-child(2) { text-align: left; font-family: var(--mono); }
+  table.dt tbody tr:hover { background: var(--surface-2); }
+  table.dt td.num { font-family: var(--mono); }
+  table.mini { border-collapse: collapse; font-size: 12px; margin-top: 10px;
+               font-variant-numeric: tabular-nums; }
+  table.mini th, table.mini td { padding: 4px 12px 4px 0; text-align: right;
+                                 border-bottom: 1px solid var(--line-soft); }
+  table.mini th { font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+                  text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+  table.mini td:first-child, table.mini th:first-child { text-align: left; }
+  table.mini td { font-family: var(--mono); color: var(--ink-2); }
+
+  /* ---- prose blocks ------------------------------------------------------ */
+  .note { background: var(--surface); border: 1px solid var(--line);
+          border-left: 3px solid var(--accent); border-radius: 10px;
+          padding: 16px 20px; box-shadow: var(--shadow); }
+  .note h3 { margin: 0 0 8px; font-size: 14.5px; font-weight: 620; letter-spacing: -.01em; }
+  .note p { margin: 0 0 8px; font-size: 13.5px; color: var(--ink-2); max-width: 78ch; }
+  .note p:last-child { margin-bottom: 0; }
+  .caveats { list-style: none; padding: 0; margin: 0;
+             display: flex; flex-direction: column; gap: 8px; }
+  .caveats li { position: relative; padding-left: 20px; font-size: 13.5px;
+                color: var(--ink-2); max-width: 82ch; }
+  .caveats li::before { content: ""; position: absolute; left: 3px; top: .62em;
+                        width: 6px; height: 1.5px; background: var(--ink-3); }
+
+  .sec-h { font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+           text-transform: uppercase; color: var(--ink-3);
+           display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+  .sec-h::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  /* ---- tooltip ----------------------------------------------------------- */
+  #tt { position: fixed; pointer-events: none; opacity: 0; z-index: 90;
+        background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+        border-radius: 8px; padding: 8px 11px; font-size: 12.5px;
+        box-shadow: 0 6px 24px -8px rgba(0,0,0,.4); max-width: 280px;
+        font-variant-numeric: tabular-nums; }
+  #tt b { font-family: var(--mono); font-size: 11px; letter-spacing: .05em;
+          text-transform: uppercase; color: var(--ink-3); font-weight: 600;
+          display: block; margin-bottom: 4px; }
+  #tt .r { display: flex; justify-content: space-between; gap: 14px; }
+  #tt .r span:last-child { font-family: var(--mono); font-weight: 600; }
+
+  .hit { cursor: crosshair; }
+  @media (max-width: 640px) {
+    .sw-wrap { padding: 0 14px; }
+    .grid2 { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="sw">
+<div id="tt" role="status" aria-live="polite"></div>
+<div class="sw-wrap">
+
+  <header class="sw-head">
+    <div class="sw-eyebrow">ISPyPSA · demand &times; carbon sweep · cost of supply</div>
+    <h1 class="sw-h1">The cost of supplying the NEM under carbon price and demand</h1>
+    <p class="sw-lede">Sixteen scenario worlds &mdash; four carbon prices crossed with four demand
+      levels &mdash; solved as myopic pathways over 2030, 2040 and 2050 on the full National
+      Electricity Market. This page reads one thing off that grid: what electricity costs to
+      supply, on average and at the margin, as the two axes move. Carbon price is the dominant
+      axis early and demand growth the steadier one; by 2050 their per-unit effects converge.</p>
+    <div class="sw-prov" id="prov"></div>
+  </header>
+
+  <section class="sw-tiles" id="tiles"></section>
+
+  <div class="sw-controls">
+    <div class="ctl">
+      <span class="ctl-k" id="lk-dem">Demand level (&times; Step Change)</span>
+      <div class="seg" role="group" aria-labelledby="lk-dem" id="seg-dem"></div>
+    </div>
+    <div class="ctl">
+      <span class="ctl-k" id="lk-unit">Cost unit</span>
+      <div class="seg" role="group" aria-labelledby="lk-unit" id="seg-unit"></div>
+    </div>
+  </div>
+
+  <div class="sec-h">What it costs</div>
+  <section class="panel">
+    <div class="panel-h">
+      <h2 class="panel-t">The cost surface</h2>
+      <span class="panel-unit" id="cs-unit"></span>
+    </div>
+    <p class="panel-sub">Average cost of supply for all 48 solved scenario-years. Each panel is a
+      milestone year; each line is a demand level. Cost rises monotonically along both axes
+      everywhere in the grid. The carbon price moves it most in 2030, where the fleet is
+      cheapest to start with &mdash; $0 to $550/t roughly doubles the 2030 cost (+98% at Step
+      Change demand) but adds only about a third by 2050 (+34%), because the higher-price worlds
+      have already rebuilt the fleet.</p>
+    <div class="scroll"><svg class="plot" id="cs" role="img"></svg></div>
+    <div class="legend" id="cs-leg"></div>
+  </section>
+
+  <div class="sec-h">What the money buys</div>
+  <section class="panel">
+    <div class="panel-h">
+      <h2 class="panel-t">Cost decomposition at the selected demand level</h2>
+      <span class="panel-unit">AUD/MWh</span>
+    </div>
+    <p class="panel-sub">The three components sum exactly to the average cost. The carbon payment
+      itself stays a thin, roughly constant slice once a price exists &mdash; at Step Change
+      demand in 2030 it is 12.2 AUD/MWh at $150/t and still 12.3 at $550/t, because emissions
+      collapse before the cheque can grow. Nearly all of the cost increase is structural: the
+      capital and fixed costs of the rebuilt, renewable-heavy fleet.</p>
+    <div class="scroll"><svg class="plot" id="dc" role="img"></svg></div>
+    <div class="legend" id="dc-leg"></div>
+  </section>
+
+  <div class="sec-h">Over time and at the margin</div>
+  <div class="grid2">
+    <section class="panel">
+      <div class="panel-h">
+        <h2 class="panel-t">The cost pathway over time</h2>
+        <span class="panel-unit">AUD/MWh</span>
+      </div>
+      <p class="panel-sub">Average cost against milestone year at the selected demand level, one
+        line per carbon price. At $550/t the pathway flattens after 2040: at &times;1.23 demand
+        the 2040 and 2050 costs are indistinguishable at draft tolerance (130.6 against 130.5
+        AUD/MWh), consistent with myopic vintaging.</p>
+      <svg class="plot" id="pw" role="img"></svg>
+      <div class="legend" id="pw-leg"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h">
+        <h2 class="panel-t">Marginal cost of demand</h2>
+        <span class="panel-unit">AUD/MWh</span>
+      </div>
+      <p class="panel-sub">What the next increment of demand costs: each bar is the mean of the
+        three measured demand-step arcs at that year and price, and the ink ticks are the three
+        arcs themselves &mdash; their spread is the measured step-to-step variation. Every arc
+        is a difference of two solved scenarios, both carried in
+        <code style="font-family:var(--mono);font-size:11.5px">marginals.csv</code>.</p>
+      <svg class="plot" id="mc" role="img"></svg>
+      <div class="legend" id="mc-leg"></div>
+    </section>
+  </div>
+
+  <div class="grid2">
+    <section class="panel">
+      <div class="panel-h">
+        <h2 class="panel-t">What the marginal MWh is made of</h2>
+        <span class="panel-unit">% of marginal generation</span>
+      </div>
+      <p class="panel-sub">Thermal against renewable share of the marginal generation, averaged
+        over the three demand steps. The composition is fairly stable <em>across years at a given
+        carbon price</em> (16&ndash;20% thermal at $550/t) but swings hard <em>across prices</em>:
+        at 2030 the marginal megawatt-hour is 87% thermal with no carbon price and 16% thermal at
+        $550/t. A supply block needs its own composition per price point.</p>
+      <svg class="plot" id="ms" role="img"></svg>
+      <div class="legend" id="ms-leg"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h">
+        <h2 class="panel-t">The measured supply curve</h2>
+        <span class="panel-unit">AUD/MWh vs TWh</span>
+      </div>
+      <p class="panel-sub">The measured cost of successive demand increments, for one year and
+        carbon price at a time. Dots are the average cost of the whole supply at each demand
+        level; steps are the marginal cost of moving between them &mdash; the measured
+        counterpart of a piecewise supply-block representation.</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin:2px 0 10px">
+        <div class="ctl"><span class="ctl-k" id="lk-scy">Year</span>
+          <div class="seg" role="group" aria-labelledby="lk-scy" id="seg-scy"></div></div>
+        <div class="ctl"><span class="ctl-k" id="lk-scc">Carbon price</span>
+          <div class="seg" role="group" aria-labelledby="lk-scc" id="seg-scc"></div></div>
+      </div>
+      <svg class="plot" id="sc" role="img"></svg>
+      <div class="reading" id="sc-note"></div>
+      <div class="legend" id="sc-leg"></div>
+      <p class="foot">Authored sector-pathway anchors are deliberately not overlaid here: their
+        demand conventions are not yet reconciled with this sweep's delivered-energy basis, so a
+        shared TWh axis would be quietly wrong.</p>
+    </section>
+  </div>
+
+  <div class="sec-h">The projection &mdash; (demand, renewable fraction) coordinates</div>
+  <div class="note">
+    <h3>An interim projection into a companion representation's coordinates</h3>
+    <p>A companion representation is parameterised in (demand, renewable fraction) coordinates
+      rather than (demand, carbon price). The panels below re-plot the same 48 solved cells in
+      those coordinates, so the team can see where these solutions land in that space ahead of a
+      fraction-controlled sweep.</p>
+    <p><b>This is a projection of price-driven solutions, not a mapping of the fraction
+      space.</b> Coverage is four price-traced curves per year, not a grid, and each plotted
+      fraction is where the carbon price put it, not a target that was hit.</p>
+  </div>
+
+  <section class="panel">
+    <div class="panel-h">
+      <h2 class="panel-t">Coverage map &mdash; where the solutions sit in fraction space</h2>
+      <span class="panel-unit">% of generation</span>
+    </div>
+    <p class="panel-sub">Every solved cell, positioned by demand level and realised renewable
+      fraction, coloured by the carbon price that produced it. Two things to read. The slope
+      contrast: with no carbon price in 2030 the fraction slides 16 percentage points across the
+      demand span, because extra demand is met largely thermally; at $150/t and above the slide
+      shrinks to 3&ndash;9 points, because most of each demand increment is met by new renewable
+      build instead. And the empty regions: no solved cell lies between the $0/t and $150/t
+      families &mdash; a band spanning roughly 69&ndash;84% fraction in 2030, narrowing to
+      84&ndash;86% by 2050 &mdash; and nothing reaches below 53% or above 95% anywhere. The
+      blanks bound what this projection can say.</p>
+    <div class="scroll"><svg class="plot" id="cov" role="img"></svg></div>
+    <div class="legend" id="cov-leg"></div>
+    <p class="foot">Fraction = renewable share of grid generation in this model's topology,
+      which excludes rooftop PV. It is not on the same denominator as externally quoted shares,
+      so no numerical comparison against authored anchors until the convention is agreed &mdash;
+      which is also why none are overlaid on any panel in this group.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-h">
+      <h2 class="panel-t">Resource cost against realised fraction</h2>
+      <span class="panel-unit" id="fb-unit"></span>
+    </div>
+    <p class="panel-sub">The projection of the cost surface onto the companion representation's
+      cost-of-fraction axis: one curve per demand level, points at the four carbon prices.
+      Resource cost is average cost minus the carbon payment. The payment is the instrument that
+      <em>induced</em> the fraction and would not exist under a fraction target, so including it
+      would overstate the cost of achieving a given fraction by the size of the cheque &mdash;
+      about 12 AUD/MWh at 2030 Step Change demand, 7&ndash;9 by 2050.</p>
+    <div class="ctl" style="margin:2px 0 10px"><span class="ctl-k" id="lk-basis">Cost basis</span>
+      <div class="seg" role="group" aria-labelledby="lk-basis" id="seg-basis"></div></div>
+    <div class="scroll"><svg class="plot" id="fb" role="img"></svg></div>
+    <div class="reading">Each point is the cheapest system the model found <b>under a carbon
+      price</b>, not the cheapest way to reach that renewable fraction &mdash; a fraction-targeted
+      solve could reach the same fraction at equal or lower resource cost, so these points sit on
+      or above the true cost-of-fraction curve.</div>
+    <div class="legend" id="fb-leg"></div>
+    <div class="scroll"><table class="mini" id="fc-mini"></table></div>
+    <p class="foot">Implied fraction-cost slope: &Delta; cost &divide; &Delta; realised fraction
+      between adjacent carbon prices at fixed (year, demand). These are arcs along the
+      price-traced manifold, not a cost-of-fraction curve, and the denominator is small at the
+      top of the range. &mdash; marks a suppressed arc: &Delta; fraction under 2 percentage
+      points, or a cost delta inside the &plusmn;0.5 AUD/MWh noise floor; a suppressed cell is
+      more honest than a wild ratio. Fraction convention and on-manifold bias as per the coverage
+      map's footnote and the caveats.</p>
+  </section>
+
+  <div class="sec-h">Which axis matters, and how to read it</div>
+  <div class="grid2">
+    <section class="panel">
+      <div class="panel-h">
+        <h2 class="panel-t">Which axis moves cost more</h2>
+        <span class="panel-unit">AUD/MWh per unit</span>
+      </div>
+      <p class="panel-sub"><b>Per-unit effects (the comparison that survives scrutiny):</b> cost
+        moved per $100/t of carbon price against cost moved per +10% of demand, each averaged
+        over the other axis. Carbon dominates in 2030; by 2050 the two are equal. The full-span
+        deltas below answer a different question &mdash; they compare the whole $550 sweep to the
+        whole &plusmn;18% demand band, so their ratio is baked in by the choice of spans.</p>
+      <svg class="plot" id="ax" role="img"></svg>
+      <div class="legend" id="ax-leg"></div>
+      <div class="scroll"><table class="mini" id="ax-mini"></table></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h"><h2 class="panel-t">How to read these numbers</h2></div>
+      <p class="panel-sub">The acceptance record behind every figure on this page, and the
+        resolution limit that applies to all of them (stated in full in the caveats).</p>
+      <div id="acc" style="display:flex;flex-direction:column;gap:9px;margin-top:2px"></div>
+      <p class="foot">Differences below the noise floor &mdash; about &plusmn;0.5 AUD/MWh on
+        average costs, of order &plusmn;10 AUD/MWh on an arc marginal &mdash; are within solver
+        tolerance and are not read as signal anywhere on this page.</p>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-h">
+      <h2 class="panel-t">The cost surface, as numbers</h2>
+      <span class="panel-unit" id="dt-unit"></span>
+    </div>
+    <p class="panel-sub">Every scenario-year, shaded by value. The table view is also the
+      fallback for forced-colours and print readers.</p>
+    <div class="scroll" style="max-height:520px"><table class="dt" id="dt"></table></div>
+  </section>
+
+  <div class="note">
+    <h3>Caveats — carry these with any figure taken from this page</h3>
+    <ul class="caveats" id="cav"></ul>
+  </div>
+
+</div>
+</div>
+
+<script>
+"use strict";
+const DATA = /*__SWEEP_DATA__*/null;
+const M = DATA.meta;
+
+/* ---------- small helpers ------------------------------------------------ */
+const $ = (id) => document.getElementById(id);
+const SVGNS = "http://www.w3.org/2000/svg";
+const fmt = (v, d = 1) => v === null || v === undefined || Number.isNaN(v)
+  ? "–" : v.toLocaleString("en-AU", { minimumFractionDigits: d, maximumFractionDigits: d });
+const CARBON_LAB = (c) => c === 0 ? "$0" : "$" + c;
+
+/* demand scalars (from demand_scalars.csv) — the JSON carries only labels */
+const SCALARS = { d087: 0.869546, d100: 1.0, d110: 1.1, d123: 1.234752 };
+
+const SEQ = ["var(--seq-1)", "var(--seq-2)", "var(--seq-3)", "var(--seq-4)"];
+const seqFor = (carbon) => SEQ[M.carbons.indexOf(carbon)];
+const DEM = ["var(--dem-1)", "var(--dem-2)", "var(--dem-3)", "var(--dem-4)"];
+const demFor = (demand) => DEM[M.demands.indexOf(demand)];
+const DEM_LAB = (d) => "×" + M.demand_label[d];
+
+const _lum = (hex) => {
+  const h = hex.replace("#", "").trim();
+  if (h.length < 6) return 1;
+  const ch = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+};
+function labelInk(cssVar) {
+  const resolved = getComputedStyle(document.querySelector(".sw"))
+    .getPropertyValue(cssVar.replace(/^var\(|\)$/g, "")).trim();
+  return _lum(resolved) > 0.32 ? "#10151d" : "#ffffff";
+}
+
+const state = { demand: "d100", unit: "mwh", scYear: 2030, scCarbon: 150, basis: "res" };
+const UNITS = {
+  mwh: { label: "AUD/MWh", get: (c) => c.avg_cost, d: 1 },
+  bn:  { label: "bn AUD/yr", get: (c) => c.total_cost_bn, d: 1 },
+};
+
+/* ---------- tooltip ------------------------------------------------------ */
+const tt = $("tt");
+function ttShow(evt, title, rows) {
+  tt.innerHTML = "<b>" + title + "</b>" +
+    rows.map((r) => '<div class="r"><span>' + r[0] + "</span><span>" + r[1] + "</span></div>").join("");
+  tt.style.opacity = "1";
+  const pad = 14, w = tt.offsetWidth, h = tt.offsetHeight;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  if (x + w > window.innerWidth - 8) x = evt.clientX - w - pad;
+  if (y + h > window.innerHeight - 8) y = evt.clientY - h - pad;
+  tt.style.left = x + "px"; tt.style.top = y + "px";
+}
+const ttHide = () => { tt.style.opacity = "0"; };
+function hit(el, title, rows) {
+  el.classList.add("hit");
+  el.addEventListener("mousemove", (e) => ttShow(e, title, rows));
+  el.addEventListener("mouseleave", ttHide);
+}
+
+/* ---------- svg builders -------------------------------------------------- */
+function svg(tag, attrs, parent) {
+  const el = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) el.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(el);
+  return el;
+}
+function frame(id, w, h) {
+  const el = $(id);
+  el.innerHTML = "";
+  el.setAttribute("viewBox", "0 0 " + w + " " + h);
+  el.setAttribute("width", "100%");
+  el.style.height = h + "px";
+  return el;
+}
+function vbar(p, x, yTop, w, hgt, fill) {
+  const r = Math.min(4, w / 2, Math.max(0, hgt));
+  if (hgt <= 0.4) return null;
+  const y2 = yTop + hgt;
+  const d = "M" + x + " " + y2 + " L" + x + " " + (yTop + r) +
+            " Q" + x + " " + yTop + " " + (x + r) + " " + yTop +
+            " L" + (x + w - r) + " " + yTop +
+            " Q" + (x + w) + " " + yTop + " " + (x + w) + " " + (yTop + r) +
+            " L" + (x + w) + " " + y2 + " Z";
+  return svg("path", { d: d, fill: fill }, p);
+}
+function legend(id, items) {
+  $(id).innerHTML = items.map((i) => i.c === null
+    ? '<span style="color:var(--ink-3)">' + i.k + "</span>"
+    : '<span><i class="swatch" style="background:' + i.c + '"></i>' + i.k + "</span>").join("");
+}
+/* push labels apart vertically so endpoint labels never collide */
+function spreadLabels(items, minGap) {
+  items.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < items.length; i++) {
+    if (items[i].y - items[i - 1].y < minGap) items[i].y = items[i - 1].y + minGap;
+  }
+  return items;
+}
+
+const cellAt = (carbon, demand, year) =>
+  DATA.cells.find((c) => c.carbon === carbon && c.demand === demand && c.year === year);
+const margAt = (carbon, year) =>
+  DATA.marginals.filter((m) => m.carbon === carbon && m.year === year)
+    .sort((a, b) => a.from_twh - b.from_twh);
+const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+
+/* facet geometry shared by the three full-width small-multiple panels */
+function facetGeom(w, padL, gapF, labR) {
+  const fw = (w - padL - 2 * gapF - 10) / 3;
+  return M.years.map((y, i) => {
+    const x0 = padL + i * (fw + gapF);
+    return { year: y, x0: x0, x1: x0 + fw - labR };
+  });
+}
+function yGrid(el, geoms, Y, dom, padL, dec) {
+  for (let i = 0; i <= 4; i++) {
+    const gv = dom[0] + (dom[1] - dom[0]) * i / 4;
+    const gy = Y(gv);
+    geoms.forEach((g) => svg("line", { x1: g.x0, x2: g.x1, y1: gy, y2: gy, class: "gl" }, el));
+    const tx = svg("text", { x: padL - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = fmt(gv, dec);
+  }
+}
+
+/* ---------- 1. cost surface (facets by year, lines by demand) ------------ */
+function drawSurface() {
+  const U = UNITS[state.unit];
+  $("cs-unit").textContent = U.label;
+  const w = 1160, h = 330, padL = 52, padT = 30, padB = 38;
+  const el = frame("cs", w, h);
+  const geoms = facetGeom(w, padL, 30, 46);
+  const vals = DATA.cells.map(U.get);
+  const dom = [Math.min(...vals) * 0.93, Math.max(...vals) * 1.04];
+  const Y = (v) => h - padB - (v - dom[0]) / (dom[1] - dom[0]) * (h - padT - padB);
+  yGrid(el, geoms, Y, dom, padL, 0);
+
+  geoms.forEach((g) => {
+    const ft = svg("text", { x: (g.x0 + g.x1) / 2, y: padT - 13, "text-anchor": "middle", class: "fct" }, el);
+    ft.textContent = g.year;
+    const X = (cp) => g.x0 + 8 + cp / 550 * (g.x1 - g.x0 - 14);
+    svg("line", { x1: g.x0, x2: g.x1, y1: h - padB, y2: h - padB, class: "ax" }, el);
+    M.carbons.forEach((cp) => {
+      const tx = svg("text", { x: X(cp), y: h - padB + 16, "text-anchor": "middle" }, el);
+      tx.textContent = CARBON_LAB(cp);
+    });
+
+    const labels = [];
+    M.demands.forEach((dm) => {
+      const pts = M.carbons.map((cp) => {
+        const c = cellAt(cp, dm, g.year);
+        return { cp: cp, v: U.get(c), c: c };
+      });
+      const d = pts.map((p, i) => (i ? "L" : "M") + X(p.cp) + " " + Y(p.v)).join(" ");
+      svg("path", { d: d, fill: "none", stroke: demFor(dm), "stroke-width": 2,
+                    "stroke-linejoin": "round", "stroke-linecap": "round" }, el);
+      pts.forEach((p) => {
+        const gp = svg("g", {}, el);
+        svg("circle", { cx: X(p.cp), cy: Y(p.v), r: 5.5, fill: "var(--surface)" }, gp);
+        svg("circle", { cx: X(p.cp), cy: Y(p.v), r: 3.5, fill: demFor(dm) }, gp);
+        hit(gp, CARBON_LAB(p.cp) + "/t · " + DEM_LAB(dm) + " · " + g.year, [
+          ["Avg cost", fmt(p.c.avg_cost, 1) + " AUD/MWh"],
+          ["Total cost", fmt(p.c.total_cost_bn, 2) + " bn AUD/yr"],
+          ["Delivered", fmt(p.c.delivered_twh, 1) + " TWh"],
+          ["Renewable", fmt(p.c.renewable_pct, 1) + " %"],
+          ["Emissions", fmt(p.c.co2e_intensity, 3) + " t/MWh"],
+        ]);
+      });
+      labels.push({ y: Y(pts[pts.length - 1].v) + 3.5, k: DEM_LAB(dm) });
+    });
+    spreadLabels(labels, 13).forEach((lb) => {
+      const tx = svg("text", { x: g.x1 + 7, y: lb.y, class: "val" }, el);
+      tx.textContent = lb.k;
+    });
+  });
+  legend("cs-leg", M.demands.map((d) => ({
+    k: DEM_LAB(d) + " (" + M.demand_scenario[d] + ")", c: demFor(d) })));
+}
+
+/* ---------- 2. decomposition (facets by year, stacks by carbon) ---------- */
+const COMPS = [
+  { key: "cost_excl",   v: "--c-wind",  label: "Capital & fixed (incl. CCS T&S)" },
+  { key: "cost_fuel",   v: "--c-gas",   label: "Fuel" },
+  { key: "cost_carbon", v: "--c-water", label: "Carbon payment" },
+];
+function drawDecomp() {
+  const w = 1160, h = 350, padL = 52, padT = 30, padB = 38;
+  const el = frame("dc", w, h);
+  const geoms = facetGeom(w, padL, 30, 10);
+  const hi = Math.max(...DATA.cells.filter((c) => c.demand === state.demand)
+    .map((c) => c.avg_cost)) * 1.14;
+  const dom = [0, hi];
+  const Y = (v) => h - padB - v / hi * (h - padT - padB);
+  yGrid(el, geoms, Y, dom, padL, 0);
+
+  geoms.forEach((g) => {
+    const ft = svg("text", { x: (g.x0 + g.x1) / 2, y: padT - 13, "text-anchor": "middle", class: "fct" }, el);
+    ft.textContent = g.year;
+    svg("line", { x1: g.x0, x2: g.x1, y1: h - padB, y2: h - padB, class: "ax" }, el);
+    const slot = (g.x1 - g.x0) / M.carbons.length;
+    const barW = Math.min(52, slot - 22);
+    M.carbons.forEach((cp, i) => {
+      const cell = cellAt(cp, state.demand, g.year);
+      const bx = g.x0 + i * slot + (slot - barW) / 2;
+      const lab = svg("text", { x: bx + barW / 2, y: h - padB + 16, "text-anchor": "middle" }, el);
+      lab.textContent = CARBON_LAB(cp);
+      let acc = 0;
+      COMPS.forEach((cm) => {
+        const v = cell[cm.key];
+        if (v <= 0.01) { acc += v; return; }
+        const segH = v / hi * (h - padT - padB) - 2; /* 2px surface gap between fills */
+        if (segH <= 0.4) { acc += v; return; }
+        const yTop = Y(acc + v);
+        const rect = svg("rect", { x: bx, y: yTop, width: barW, height: segH, rx: 2,
+                                   fill: "var(" + cm.v + ")" }, el);
+        hit(rect, cm.label + " · " + CARBON_LAB(cp) + "/t · " + g.year, [
+          ["Component", fmt(v, 1) + " AUD/MWh"],
+          ["Share of cost", fmt(100 * v / cell.avg_cost, 0) + " %"],
+          ["Average cost", fmt(cell.avg_cost, 1) + " AUD/MWh"],
+        ]);
+        if (segH >= 15) {
+          const tx = svg("text", { x: bx + barW / 2, y: yTop + segH / 2 + 3.5,
+                                   "text-anchor": "middle", class: "val",
+                                   style: "fill:" + labelInk("var(" + cm.v + ")"),
+                                   "pointer-events": "none" }, el);
+          tx.textContent = fmt(v, 0);
+        }
+        acc += v;
+      });
+      const tot = svg("text", { x: bx + barW / 2, y: Y(cell.avg_cost) - 7,
+                                "text-anchor": "middle", class: "val" }, el);
+      tot.textContent = fmt(cell.avg_cost, 0);
+    });
+  });
+  legend("dc-leg", COMPS.map((cm) => ({ k: cm.label, c: "var(" + cm.v + ")" }))
+    .concat([{ k: "bars ordered by carbon price · " + DEM_LAB(state.demand) + " demand", c: null }]));
+}
+
+/* ---------- 3. fraction-space projection (Amendment 2) -------------------
+   Cost basis: resource cost = avg_cost − cost_carbon (≡ cost_excl + cost_fuel;
+   the identity is asserted in the cross-check, not assumed). The carbon payment
+   induced the fraction and would not exist under a fraction target.           */
+const RES = (c) => c.avg_cost - c.cost_carbon;
+const BASIS = {
+  res:  { label: "resource cost, excl. carbon payments", get: RES },
+  full: { label: "full cost, incl. carbon payments", get: (c) => c.avg_cost },
+};
+
+function drawCoverage() {
+  const w = 1160, h = 330, padL = 52, padT = 30, padB = 38;
+  const el = frame("cov", w, h);
+  const geoms = facetGeom(w, padL, 30, 44);
+  const dom = [45, 100];
+  const Y = (v) => h - padB - (v - dom[0]) / (dom[1] - dom[0]) * (h - padT - padB);
+  yGrid(el, geoms, Y, dom, padL, 0);
+  const s0 = SCALARS.d087, s1 = SCALARS.d123;
+
+  geoms.forEach((g) => {
+    const ft = svg("text", { x: (g.x0 + g.x1) / 2, y: padT - 13, "text-anchor": "middle", class: "fct" }, el);
+    ft.textContent = g.year;
+    const X = (d) => g.x0 + 10 + (SCALARS[d] - s0) / (s1 - s0) * (g.x1 - g.x0 - 18);
+    svg("line", { x1: g.x0, x2: g.x1, y1: h - padB, y2: h - padB, class: "ax" }, el);
+    M.demands.forEach((d) => {
+      const tx = svg("text", { x: X(d), y: h - padB + 16, "text-anchor": "middle" }, el);
+      tx.textContent = DEM_LAB(d);
+    });
+
+    /* the unreached band between the $0/t family and every priced family */
+    const loBand = Math.max(...M.demands.map((d) => cellAt(0, d, g.year).renewable_pct));
+    const hiBand = Math.min(...M.demands.flatMap((d) => M.carbons.filter((c) => c > 0)
+      .map((c) => cellAt(c, d, g.year).renewable_pct)));
+    if (hiBand - loBand >= 6) {
+      const tx = svg("text", { x: (g.x0 + g.x1) / 2, y: Y((loBand + hiBand) / 2) + 3.5,
+                               "text-anchor": "middle" }, el);
+      tx.textContent = "no solved cells in this band";
+    }
+
+    const labels = [];
+    M.carbons.forEach((cp) => {
+      const pts = M.demands.map((dm) => ({ dm: dm, c: cellAt(cp, dm, g.year) }));
+      const d = pts.map((p, i) => (i ? "L" : "M") + X(p.dm) + " " + Y(p.c.renewable_pct)).join(" ");
+      svg("path", { d: d, fill: "none", stroke: seqFor(cp), "stroke-width": 1.5,
+                    "stroke-linejoin": "round", "stroke-linecap": "round" }, el);
+      pts.forEach((p) => {
+        const gp = svg("g", {}, el);
+        svg("circle", { cx: X(p.dm), cy: Y(p.c.renewable_pct), r: 6.5, fill: "var(--surface)" }, gp);
+        svg("circle", { cx: X(p.dm), cy: Y(p.c.renewable_pct), r: 4.5, fill: seqFor(cp) }, gp);
+        hit(gp, CARBON_LAB(cp) + "/t · " + DEM_LAB(p.dm) + " · " + g.year, [
+          ["Realised fraction", fmt(p.c.renewable_pct, 1) + " %"],
+          ["Thermal", fmt(p.c.thermal_pct, 1) + " %"],
+          ["Resource cost", fmt(RES(p.c), 1) + " AUD/MWh"],
+          ["Full cost", fmt(p.c.avg_cost, 1) + " AUD/MWh"],
+        ]);
+      });
+      labels.push({ y: Y(pts[pts.length - 1].c.renewable_pct) + 3.5, k: CARBON_LAB(cp) });
+    });
+    spreadLabels(labels, 13).forEach((lb) => {
+      const tx = svg("text", { x: g.x1 + 7, y: lb.y, class: "val" }, el);
+      tx.textContent = lb.k;
+    });
+  });
+  legend("cov-leg", M.carbons.map((c) => ({ k: CARBON_LAB(c) + "/t", c: seqFor(c) }))
+    .concat([{ k: "lines connect a fixed carbon price across demand levels", c: null }]));
+}
+
+function drawFracCost() {
+  const B = BASIS[state.basis];
+  $("fb-unit").textContent = "AUD/MWh · " + B.label;
+  const w = 1160, h = 350, padL = 52, padT = 30, padB = 46;
+  const el = frame("fb", w, h);
+  const geoms = facetGeom(w, padL, 30, 46);
+  const vals = DATA.cells.map(B.get);
+  const dom = [Math.min(...vals) * 0.93, Math.max(...vals) * 1.05];
+  const Y = (v) => h - padB - (v - dom[0]) / (dom[1] - dom[0]) * (h - padT - padB);
+  yGrid(el, geoms, Y, dom, padL, 0);
+  const f0 = 50, f1 = 100;
+
+  geoms.forEach((g) => {
+    const ft = svg("text", { x: (g.x0 + g.x1) / 2, y: padT - 13, "text-anchor": "middle", class: "fct" }, el);
+    ft.textContent = g.year;
+    const X = (v) => g.x0 + 6 + (v - f0) / (f1 - f0) * (g.x1 - g.x0 - 12);
+    svg("line", { x1: g.x0, x2: g.x1, y1: h - padB, y2: h - padB, class: "ax" }, el);
+    for (let fv = f0; fv <= f1; fv += 10) {
+      const tx = svg("text", { x: X(fv), y: h - padB + 16, "text-anchor": "middle" }, el);
+      tx.textContent = fv;
+    }
+
+    const labels = [];
+    M.demands.forEach((dm) => {
+      const pts = M.carbons.map((cp) => ({ cp: cp, c: cellAt(cp, dm, g.year) }));
+      const d = pts.map((p, i) => (i ? "L" : "M") + X(p.c.renewable_pct) + " " + Y(B.get(p.c))).join(" ");
+      svg("path", { d: d, fill: "none", stroke: demFor(dm), "stroke-width": 2,
+                    "stroke-linejoin": "round", "stroke-linecap": "round" }, el);
+      pts.forEach((p) => {
+        const gp = svg("g", {}, el);
+        svg("circle", { cx: X(p.c.renewable_pct), cy: Y(B.get(p.c)), r: 6, fill: "var(--surface)" }, gp);
+        svg("circle", { cx: X(p.c.renewable_pct), cy: Y(B.get(p.c)), r: 4, fill: seqFor(p.cp) }, gp);
+        hit(gp, DEM_LAB(dm) + " · " + CARBON_LAB(p.cp) + "/t · " + g.year, [
+          ["Realised fraction", fmt(p.c.renewable_pct, 1) + " %"],
+          ["Resource cost", fmt(RES(p.c), 1) + " AUD/MWh"],
+          ["Full cost", fmt(p.c.avg_cost, 1) + " AUD/MWh"],
+          ["Carbon payment", fmt(p.c.cost_carbon, 1) + " AUD/MWh"],
+        ]);
+      });
+      labels.push({ y: Y(B.get(pts[pts.length - 1].c)) + 3.5, k: DEM_LAB(dm) });
+    });
+    spreadLabels(labels, 13).forEach((lb) => {
+      const tx = svg("text", { x: g.x1 + 7, y: lb.y, class: "val" }, el);
+      tx.textContent = lb.k;
+    });
+  });
+  const mid = geoms[1];
+  const xc = svg("text", { x: (mid.x0 + mid.x1) / 2, y: h - 5, "text-anchor": "middle", class: "lab" }, el);
+  xc.textContent = "realised renewable fraction (% of generation)";
+
+  legend("fb-leg", M.demands.map((d) => ({
+    k: DEM_LAB(d) + " (" + M.demand_scenario[d] + ")", c: demFor(d) }))
+    .concat([{ k: "point colour = carbon price, $0 light → $550 dark", c: null }]));
+  fracSlopeTable(B);
+}
+
+/* implied fraction-cost slope arcs; suppressed where Δρ < 2 pp or |Δcost| is
+   inside the ±0.5 AUD/MWh noise floor */
+function fracSlopeTable(B) {
+  const steps = [[0, 150], [150, 300], [300, 550]];
+  const rows = [];
+  M.demands.forEach((dm) => {
+    steps.forEach((st, si) => {
+      const vals = M.years.map((y) => {
+        const c1 = cellAt(st[0], dm, y), c2 = cellAt(st[1], dm, y);
+        const dr = c2.renewable_pct - c1.renewable_pct;
+        const dc = B.get(c2) - B.get(c1);
+        return (dr < 2 || Math.abs(dc) < 0.5) ? "—" : fmt(dc / dr, 1);
+      });
+      rows.push("<tr><td>" + (si === 0 ? DEM_LAB(dm) : "") + "</td><td>$" + st[0] +
+        "→$" + st[1] + "</td>" + vals.map((v) => "<td>" + v + "</td>").join("") + "</tr>");
+    });
+  });
+  $("fc-mini").innerHTML =
+    "<thead><tr><th>Implied slope, AUD/MWh per pp of fraction</th><th>Carbon step</th>" +
+    M.years.map((y) => "<th>" + y + "</th>").join("") + "</tr></thead><tbody>" +
+    rows.join("") + "</tbody>";
+}
+
+/* ---------- 4. pathway over time ----------------------------------------- */
+function drawPathway() {
+  const w = 560, h = 300, l = 52, r = 52, t = 16, b = 42;
+  const el = frame("pw", w, h);
+  const vals = DATA.cells.map((c) => c.avg_cost);
+  const dom = [Math.min(...vals) * 0.93, Math.max(...vals) * 1.04];
+  const X = (y) => l + M.years.indexOf(y) / (M.years.length - 1) * (w - l - r);
+  const Y = (v) => h - b - (v - dom[0]) / (dom[1] - dom[0]) * (h - t - b);
+  for (let i = 0; i <= 4; i++) {
+    const gv = dom[0] + (dom[1] - dom[0]) * i / 4, gy = Y(gv);
+    svg("line", { x1: l, x2: w - r, y1: gy, y2: gy, class: "gl" }, el);
+    const tx = svg("text", { x: l - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = fmt(gv, 0);
+  }
+  svg("line", { x1: l, x2: w - r, y1: h - b, y2: h - b, class: "ax" }, el);
+  M.years.forEach((y) => {
+    const tx = svg("text", { x: X(y), y: h - b + 17, "text-anchor": "middle", class: "lab" }, el);
+    tx.textContent = y;
+  });
+  const labels = [];
+  M.carbons.forEach((cp) => {
+    const pts = M.years.map((y) => ({ y: y, c: cellAt(cp, state.demand, y) }));
+    const d = pts.map((p, i) => (i ? "L" : "M") + X(p.y) + " " + Y(p.c.avg_cost)).join(" ");
+    svg("path", { d: d, fill: "none", stroke: seqFor(cp), "stroke-width": 2,
+                  "stroke-linejoin": "round", "stroke-linecap": "round" }, el);
+    pts.forEach((p) => {
+      const gp = svg("g", {}, el);
+      svg("circle", { cx: X(p.y), cy: Y(p.c.avg_cost), r: 5.5, fill: "var(--surface)" }, gp);
+      svg("circle", { cx: X(p.y), cy: Y(p.c.avg_cost), r: 3.5, fill: seqFor(cp) }, gp);
+      hit(gp, CARBON_LAB(cp) + "/t · " + p.y + " · " + DEM_LAB(state.demand), [
+        ["Avg cost", fmt(p.c.avg_cost, 1) + " AUD/MWh"],
+        ["Total cost", fmt(p.c.total_cost_bn, 2) + " bn AUD/yr"],
+        ["Renewable", fmt(p.c.renewable_pct, 1) + " %"],
+      ]);
+    });
+    labels.push({ y: Y(pts[pts.length - 1].c.avg_cost) + 3.5, k: CARBON_LAB(cp) });
+  });
+  spreadLabels(labels, 13).forEach((lb) => {
+    const tx = svg("text", { x: w - r + 9, y: lb.y, class: "val" }, el);
+    tx.textContent = lb.k;
+  });
+  const yl = svg("text", { x: l + 4, y: t + 4, class: "lab" }, el);
+  yl.textContent = "AUD/MWh";
+  legend("pw-leg", M.carbons.map((c) => ({ k: CARBON_LAB(c) + "/t", c: seqFor(c) })));
+}
+
+/* ---------- 5. marginal cost of demand (mean bar + arc ticks) ------------ */
+function drawMarginal() {
+  const w = 560, h = 320, l = 56, r = 14, t = 16, b = 58;
+  const el = frame("mc", w, h);
+  const hi = Math.max(...DATA.marginals.map((m) => m.mc)) * 1.1;
+  const Y = (v) => h - b - v / hi * (h - t - b);
+  for (let i = 0; i <= 4; i++) {
+    const gv = hi * i / 4, gy = Y(gv);
+    svg("line", { x1: l, x2: w - r, y1: gy, y2: gy, class: "gl" }, el);
+    const tx = svg("text", { x: l - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = fmt(gv, 0);
+  }
+  svg("line", { x1: l, x2: w - r, y1: Y(0), y2: Y(0), class: "ax" }, el);
+  const groupW = (w - l - r) / M.years.length;
+  const barW = Math.min(24, (groupW - 24) / M.carbons.length - 3);
+  M.years.forEach((yr, gi) => {
+    const gx = l + gi * groupW;
+    const lab = svg("text", { x: gx + groupW / 2, y: h - b + 18, "text-anchor": "middle", class: "lab" }, el);
+    lab.textContent = yr;
+    M.carbons.forEach((cp, bi) => {
+      const arcs = margAt(cp, yr);
+      const mn = mean(arcs.map((a) => a.mc));
+      const bx = gx + (groupW - (barW + 3) * M.carbons.length) / 2 + bi * (barW + 3);
+      const bar = vbar(el, bx, Y(mn), barW, Y(0) - Y(mn), seqFor(cp));
+      arcs.forEach((a) => {
+        svg("line", { x1: bx - 3, x2: bx + barW + 3, y1: Y(a.mc), y2: Y(a.mc),
+                      stroke: "var(--ink-2)", "stroke-width": 1.5 }, el);
+      });
+      const zone = svg("rect", { x: bx - 3, y: t, width: barW + 6, height: h - b - t,
+                                 fill: "transparent" }, el);
+      hit(zone, CARBON_LAB(cp) + "/t · " + yr, [
+        ["Mean of 3 arcs", fmt(mn, 1) + " AUD/MWh"],
+        ["×0.87→×1.00", fmt(arcs[0].mc, 1)],
+        ["×1.00→×1.10", fmt(arcs[1].mc, 1)],
+        ["×1.10→×1.23", fmt(arcs[2].mc, 1)],
+        ["Marginal thermal", fmt(mean(arcs.map((a) => a.thermal_pct)), 1) + " %"],
+      ]);
+      if (bar === null) return;
+    });
+  });
+  const yl = svg("text", { x: l + 4, y: t + 4, class: "lab" }, el);
+  yl.textContent = "AUD/MWh";
+  legend("mc-leg", M.carbons.map((c) => ({ k: CARBON_LAB(c) + "/t", c: seqFor(c) }))
+    .concat([{ k: "ink ticks = the three demand-step arcs", c: null }]));
+}
+
+/* ---------- 6. marginal composition (normalised, mean over steps) -------- */
+function drawSplit() {
+  const w = 560, h = 320, l = 56, r = 14, t = 16, b = 58;
+  const el = frame("ms", w, h);
+  const Y = (v) => h - b - v / 100 * (h - t - b);
+  [0, 25, 50, 75, 100].forEach((gv) => {
+    const gy = Y(gv);
+    svg("line", { x1: l, x2: w - r, y1: gy, y2: gy, class: "gl" }, el);
+    const tx = svg("text", { x: l - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = gv;
+  });
+  svg("line", { x1: l, x2: w - r, y1: Y(0), y2: Y(0), class: "ax" }, el);
+  const groupW = (w - l - r) / M.years.length;
+  const barW = Math.min(24, (groupW - 24) / M.carbons.length - 3);
+  M.years.forEach((yr, gi) => {
+    const gx = l + gi * groupW;
+    const lab = svg("text", { x: gx + groupW / 2, y: h - b + 18, "text-anchor": "middle", class: "lab" }, el);
+    lab.textContent = yr;
+    M.carbons.forEach((cp, bi) => {
+      const arcs = margAt(cp, yr);
+      const th = mean(arcs.map((a) => a.thermal_pct));
+      const re = mean(arcs.map((a) => a.renewable_pct));
+      const norm = th + re > 0 ? 100 / (th + re) : 0;
+      const thN = th * norm, reN = re * norm;
+      const bx = gx + (groupW - (barW + 3) * M.carbons.length) / 2 + bi * (barW + 3);
+      svg("rect", { x: bx, y: Y(reN), width: barW, height: reN / 100 * (h - t - b),
+                    fill: "var(--c-water)" }, el);
+      const thH = thN / 100 * (h - t - b) - 2; /* 2px surface gap */
+      if (thH > 0.4) svg("rect", { x: bx, y: Y(100), width: barW, height: thH, rx: 2,
+                                   fill: "var(--c-gas)" }, el);
+      const zone = svg("rect", { x: bx, y: t, width: barW, height: h - b - t,
+                                 fill: "transparent" }, el);
+      hit(zone, CARBON_LAB(cp) + "/t · " + yr + " · mean of 3 demand steps", [
+        ["Thermal", fmt(thN, 1) + " %"],
+        ["Renewable", fmt(reN, 1) + " %"],
+        ["Marginal cost", fmt(mean(arcs.map((a) => a.mc)), 1) + " AUD/MWh"],
+        ["Marginal emissions", fmt(mean(arcs.map((a) => a.mco2e)), 3) + " t/MWh"],
+      ]);
+      if (thN >= 8) {
+        const tx = svg("text", { x: bx + barW / 2, y: Y(100 - thN / 2) + 3.5,
+                                 "text-anchor": "middle", class: "val",
+                                 style: "fill:" + labelInk("var(--c-gas)"),
+                                 "pointer-events": "none" }, el);
+        tx.textContent = fmt(thN, 0);
+      }
+    });
+  });
+  const yl = svg("text", { x: 8, y: t + 4, class: "lab" }, el);
+  yl.textContent = "%";
+  legend("ms-leg", [{ k: "Thermal", c: "var(--c-gas)" }, { k: "Renewable", c: "var(--c-water)" },
+                    { k: "bars ordered by carbon price within each year", c: null }]);
+}
+
+/* ---------- 7. measured supply curve ------------------------------------- */
+function drawSupply() {
+  const w = 560, h = 330, l = 56, r = 18, t = 18, b = 46;
+  const el = frame("sc", w, h);
+  const cp = state.scCarbon, yr = state.scYear;
+  const cells = M.demands.map((d) => cellAt(cp, d, yr));
+  const arcs = margAt(cp, yr);
+  const stroke = seqFor(cp);
+
+  const xs = cells.map((c) => c.delivered_twh);
+  const x0 = Math.min(...xs) * 0.985, x1 = Math.max(...xs) * 1.015;
+  const ysAll = cells.map((c) => c.avg_cost).concat(arcs.map((a) => a.mc));
+  const y0 = Math.min(...ysAll) * 0.88, y1 = Math.max(...ysAll) * 1.1;
+  const X = (v) => l + (v - x0) / (x1 - x0) * (w - l - r);
+  const Y = (v) => h - b - (v - y0) / (y1 - y0) * (h - t - b);
+
+  for (let i = 0; i <= 4; i++) {
+    const gv = y0 + (y1 - y0) * i / 4, gy = Y(gv);
+    svg("line", { x1: l, x2: w - r, y1: gy, y2: gy, class: "gl" }, el);
+    const tx = svg("text", { x: l - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = fmt(gv, 0);
+  }
+  svg("line", { x1: l, x2: w - r, y1: h - b, y2: h - b, class: "ax" }, el);
+  for (let i = 0; i <= 3; i++) {
+    const gv = x0 + (x1 - x0) * i / 3;
+    const tx = svg("text", { x: X(gv), y: h - b + 17, "text-anchor": "middle" }, el);
+    tx.textContent = fmt(gv, 0);
+  }
+  const xl = svg("text", { x: (l + w - r) / 2, y: h - 6, "text-anchor": "middle", class: "lab" }, el);
+  xl.textContent = "delivered energy (TWh/yr)";
+  const yl = svg("text", { x: l + 4, y: t + 4, class: "lab" }, el);
+  yl.textContent = "AUD/MWh";
+
+  /* the three arc marginals as horizontal steps spanning their demand interval */
+  arcs.forEach((a, i) => {
+    const seg = svg("line", { x1: X(a.from_twh), x2: X(a.to_twh), y1: Y(a.mc), y2: Y(a.mc),
+                              stroke: stroke, "stroke-width": 3.5, "stroke-linecap": "round" }, el);
+    if (i > 0) svg("line", { x1: X(a.from_twh), x2: X(a.from_twh),
+                             y1: Y(arcs[i - 1].mc), y2: Y(a.mc),
+                             stroke: "var(--ink-3)", "stroke-width": 1,
+                             "stroke-dasharray": "3 3" }, el);
+    const lb = svg("text", { x: (X(a.from_twh) + X(a.to_twh)) / 2, y: Y(a.mc) - 7,
+                             "text-anchor": "middle", class: "val" }, el);
+    lb.textContent = fmt(a.mc, 0);
+    hit(seg, "Increment " + DEM_LAB(a.from) + " → " + DEM_LAB(a.to) + " · " +
+             CARBON_LAB(cp) + "/t · " + yr, [
+      ["Marginal cost", fmt(a.mc, 1) + " AUD/MWh"],
+      ["Δ delivered", fmt(a.d_twh, 2) + " TWh"],
+      ["From", fmt(a.from_twh, 1) + " TWh · " + fmt(a.from_cost_bn, 2) + " bn"],
+      ["To", fmt(a.to_twh, 1) + " TWh · " + fmt(a.to_cost_bn, 2) + " bn"],
+      ["Marginal thermal", fmt(a.thermal_pct, 1) + " %"],
+    ]);
+  });
+
+  /* the four average-cost points */
+  cells.forEach((c) => {
+    const gp = svg("g", {}, el);
+    svg("circle", { cx: X(c.delivered_twh), cy: Y(c.avg_cost), r: 7.5, fill: "var(--surface)" }, gp);
+    svg("circle", { cx: X(c.delivered_twh), cy: Y(c.avg_cost), r: 5.5, fill: stroke }, gp);
+    const lb = svg("text", { x: X(c.delivered_twh), y: Y(c.avg_cost) + 20,
+                             "text-anchor": "middle" }, el);
+    lb.textContent = DEM_LAB(c.demand);
+    hit(gp, DEM_LAB(c.demand) + " · " + CARBON_LAB(cp) + "/t · " + yr, [
+      ["Avg cost of supply", fmt(c.avg_cost, 1) + " AUD/MWh"],
+      ["Delivered", fmt(c.delivered_twh, 1) + " TWh"],
+      ["Total cost", fmt(c.total_cost_bn, 2) + " bn AUD/yr"],
+    ]);
+  });
+
+  /* convexity read against the noise floor (caveats: ±0.5 AUD/MWh on each
+     endpoint's average cost, propagated through the two upper arcs) */
+  const floorOf = (a) => 0.5 * Math.hypot(a.from_twh, a.to_twh) / a.d_twh;
+  const fl = Math.hypot(floorOf(arcs[1]), floorOf(arcs[2]));
+  const diff = arcs[2].mc - arcs[1].mc;
+  $("sc-note").textContent = Math.abs(diff) > fl
+    ? "Convexity read: the ×1.10→×1.23 increment is " +
+      (diff > 0 ? "steeper" : "flatter") + " than ×1.00→×1.10 by " + fmt(Math.abs(diff), 1) +
+      " AUD/MWh, outside the ±" + fmt(fl, 1) + " noise floor — the supply curve " +
+      (diff > 0 ? "steepens" : "flattens") + " with demand here."
+    : "Convexity read: the two upper increments differ by " + fmt(diff, 1) +
+      " AUD/MWh against a ±" + fmt(fl, 1) + " noise floor — no resolvable convexity at draft tolerance.";
+
+  legend("sc-leg", [
+    { k: "average cost of the whole supply", c: stroke },
+    { k: "cost of the increment (arc marginal)", c: null },
+  ]);
+}
+
+/* ---------- 8. which axis moves cost more (per-unit, normalised) --------- */
+function drawAxis() {
+  const w = 560, h = 280, l = 50, r = 14, t = 20, b = 46;
+  const el = frame("ax", w, h);
+  const dspan = (SCALARS.d123 - SCALARS.d087) / 0.1; /* demand span in +10% units */
+  const rows = M.years.map((yr) => {
+    const puC = mean(M.demands.map((d) =>
+      (cellAt(550, d, yr).avg_cost - cellAt(0, d, yr).avg_cost) / 5.5));
+    const puD = mean(M.carbons.map((c) =>
+      (cellAt(c, "d123", yr).avg_cost - cellAt(c, "d087", yr).avg_cost) / dspan));
+    const fsC = mean(M.demands.map((d) =>
+      cellAt(550, d, yr).avg_cost - cellAt(0, d, yr).avg_cost));
+    const fsD = mean(M.carbons.map((c) =>
+      cellAt(c, "d123", yr).avg_cost - cellAt(c, "d087", yr).avg_cost));
+    return { yr: yr, puC: puC, puD: puD, fsC: fsC, fsD: fsD };
+  });
+  const hi = Math.max(...rows.flatMap((x) => [x.puC, x.puD])) * 1.2;
+  const Y = (v) => h - b - v / hi * (h - t - b);
+  for (let i = 0; i <= 4; i++) {
+    const gv = hi * i / 4, gy = Y(gv);
+    svg("line", { x1: l, x2: w - r, y1: gy, y2: gy, class: "gl" }, el);
+    const tx = svg("text", { x: l - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = fmt(gv, 0);
+  }
+  svg("line", { x1: l, x2: w - r, y1: Y(0), y2: Y(0), class: "ax" }, el);
+  const groupW = (w - l - r) / rows.length;
+  const barW = Math.min(44, groupW / 2 - 22);
+  rows.forEach((x, gi) => {
+    const gx = l + gi * groupW;
+    const lab = svg("text", { x: gx + groupW / 2, y: h - b + 18, "text-anchor": "middle", class: "lab" }, el);
+    lab.textContent = x.yr;
+    const pairs = [
+      { v: x.puC, c: "var(--seq-3)", k: "Carbon price, per $100/t",
+        rows: [["Per $100/t", fmt(x.puC, 1) + " AUD/MWh"],
+               ["Full span $0→$550", "+" + fmt(x.fsC, 1) + " AUD/MWh"],
+               ["Basis", "mean over 4 demand levels"]] },
+      { v: x.puD, c: "var(--dem-3)", k: "Demand, per +10%",
+        rows: [["Per +10% demand", fmt(x.puD, 1) + " AUD/MWh"],
+               ["Full span ×0.87→×1.23", "+" + fmt(x.fsD, 1) + " AUD/MWh"],
+               ["Basis", "mean over 4 carbon prices"]] },
+    ];
+    pairs.forEach((p, pi) => {
+      const bx = gx + groupW / 2 + (pi === 0 ? -barW - 4 : 4);
+      const bar = vbar(el, bx, Y(p.v), barW, Y(0) - Y(p.v), p.c);
+      if (bar) hit(bar, p.k + " · " + x.yr, p.rows);
+      const tx = svg("text", { x: bx + barW / 2, y: Y(p.v) - 7,
+                               "text-anchor": "middle", class: "val" }, el);
+      tx.textContent = fmt(p.v, 1);
+    });
+  });
+  const yl = svg("text", { x: l + 4, y: t + 2, class: "lab" }, el);
+  yl.textContent = "AUD/MWh per unit";
+  legend("ax-leg", [
+    { k: "carbon price, per $100/t (mean over demand levels)", c: "var(--seq-3)" },
+    { k: "demand, per +10% (mean over carbon prices)", c: "var(--dem-3)" },
+  ]);
+  $("ax-mini").innerHTML =
+    "<thead><tr><th>Full-span delta, mean over the other axis (headline only)</th>" +
+    M.years.map((y) => "<th>" + y + "</th>").join("") + "</tr></thead><tbody>" +
+    "<tr><td>Carbon $0→$550/t</td>" + rows.map((x) => "<td>+" + fmt(x.fsC, 1) + "</td>").join("") + "</tr>" +
+    "<tr><td>Demand ×0.87→×1.23</td>" + rows.map((x) => "<td>+" + fmt(x.fsD, 1) + "</td>").join("") + "</tr>" +
+    "</tbody>";
+}
+
+/* ---------- 9. the cost surface as numbers -------------------------------- */
+function drawTable() {
+  const U = UNITS[state.unit];
+  $("dt-unit").textContent = U.label;
+  const vals = DATA.cells.map(U.get);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const shade = (v) => "background:color-mix(in srgb, var(--seq-3) " +
+    (4 + 36 * (v - lo) / (hi - lo)).toFixed(0) + "%, transparent)";
+  const rows = [];
+  M.carbons.forEach((cp) => M.demands.forEach((dm) => {
+    const cells = M.years.map((y) => cellAt(cp, dm, y));
+    rows.push("<tr><td>" + CARBON_LAB(cp) + "/t</td><td>" + DEM_LAB(dm) +
+      " (" + M.demand_scenario[dm] + ")</td>" +
+      cells.map((c) => '<td class="num" style="' + shade(U.get(c)) + '">' +
+        fmt(U.get(c), U.d) + "</td>").join("") + "</tr>");
+  }));
+  $("dt").innerHTML =
+    "<thead><tr><th>Carbon</th><th>Demand</th>" +
+    M.years.map((y) => "<th>" + y + "</th>").join("") + "</tr></thead><tbody>" +
+    rows.join("") + "</tbody>";
+}
+
+/* ---------- static blocks ------------------------------------------------ */
+function drawStatic() {
+  const d = DATA.diagnostics;
+  $("prov").innerHTML = [
+    ["Grid", M.cells + " scenarios × " + M.years.length + " periods = " + d.solves + " solves"],
+    ["Topology", "full NEM, ISP sub-regions"],
+    ["Sampling", "13 demand-matched weeks @ 30 min"],
+    ["Validated", "vs full-year anchor at ($550, ×1.00): gas share −1.8 pp, served energy +0.005%"],
+    ["Solver", "HiGHS PDLP @ 3e-3"],
+    ["CCS", "flat A$89.93/tCO₂ T&amp;S adder"],
+    ["Demand levels", "AEMO 2026 ISP scenario ratios"],
+  ].map((p) => "<span><b>" + p[0] + "</b> " + p[1] + "</span>").join("");
+
+  const costs = DATA.cells.map((c) => c.avg_cost);
+  const a0 = cellAt(0, "d100", 2030).avg_cost, a550 = cellAt(550, "d100", 2030).avg_cost;
+  const demEff = 100 * mean(M.years.flatMap((y) => M.carbons.map((c) =>
+    cellAt(c, "d123", y).avg_cost / cellAt(c, "d087", y).avg_cost - 1)));
+  const mcs = DATA.marginals.map((m) => m.mc);
+  const worstUse = Math.max(...DATA.cells.map((c) => c.use_mwh || 0));
+
+  $("tiles").innerHTML = [
+    { k: "Cost of supply, across the grid",
+      v: fmt(Math.min(...costs), 1) + "–" + fmt(Math.max(...costs), 1) + "<small>AUD/MWh</small>",
+      s: "16 scenarios × 3 years; rises monotonically along both axes" },
+    { k: "Carbon price effect, 2030", v: "×" + fmt(a550 / a0, 2),
+      s: "$0→$550/t: " + fmt(a0, 1) + "→" + fmt(a550, 1) + " AUD/MWh at Step Change demand" },
+    { k: "Demand effect", v: "+" + fmt(demEff, 0) + "<small>%</small>",
+      s: "×0.87→×1.23 demand, averaged over prices and years" },
+    { k: "Marginal cost of demand",
+      v: fmt(Math.min(...mcs), 0) + "–" + fmt(Math.max(...mcs), 0) + "<small>AUD/MWh</small>",
+      s: "measured demand-step arcs, all years and prices" },
+    { k: "Acceptance", v: d.solves + "<small>/" + d.solves + "</small>",
+      s: "solves converged; worst unserved energy " + fmt(worstUse, 2) + " MWh",
+      pill: ["good", "PASS"] },
+  ].map((t) => '<div class="tile"><span class="tile-k">' + t.k + "</span>" +
+      '<span class="tile-v">' + t.v + "</span>" +
+      (t.pill ? '<span class="pill pill-good">' + t.pill[1] + "</span>" : "") +
+      '<span class="tile-s">' + t.s + "</span></div>").join("");
+
+  const accRows = [
+    ["Zero unserved energy", "good", "PASS", "0.00 MWh in all 48 cell-periods"],
+    ["Total cost rises with demand", "good", "PASS", "0 violations at any year or carbon price"],
+    ["Termination", "good", "PASS", "48/48 certified on PDLP relative metrics (status field never used)"],
+    ["Gas share falls with carbon price", "warn", "2030 EXCEPTION",
+     "Passes at 2040 and 2050. At 2030 it fails in all four demand levels because coal exits first " +
+     "and gas backfills; the companion gates — total thermal share and emissions intensity, both " +
+     "falling with carbon price — pass at every demand level and year."],
+  ];
+  $("acc").innerHTML = accRows.map((r) =>
+    '<div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between;' +
+    'padding:9px 0;border-bottom:1px solid var(--line-soft)">' +
+    '<div style="min-width:0"><div style="font-size:13.5px;font-weight:550">' + r[0] + "</div>" +
+    '<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">' + r[3] + "</div></div>" +
+    '<span class="pill pill-' + (r[1] === "good" ? "good" : "warn") + '">' + r[2] + "</span></div>").join("");
+
+  $("cav").innerHTML = [
+    "Noise floor: cost differences below about ±0.5 AUD/MWh are within solver tolerance (PDLP 3e-3 on objectives of order A$40B) and should not be read as signal; arc marginal costs difference two reconstructed totals and carry proportionally larger uncertainty — of order ±10 AUD/MWh on an arc, which is what the supply-curve panel's convexity read is judged against. The same floor applies throughout the fraction-projection group, whose implied slope arcs carry proportionally larger uncertainty and are suppressed where unresolvable.",
+    "Fraction convention: the renewable fraction in the projection group is renewable share of grid generation in this model's topology, which excludes rooftop PV. It is not on the same denominator as externally quoted figures (grid versus combined shares differ), and must not be compared numerically against externally authored anchors until the convention is agreed — which is why no authored anchors are overlaid on any panel.",
+    "On-manifold bias: every projected point in the fraction group is the cheapest system found under a carbon price, not the cheapest way to reach that renewable fraction. Projected points are therefore upper bounds on the cost of achieving a given fraction; the size of the bias is unquantified until a fraction-controlled sweep exists.",
+    "Coverage: the projection contains no information about (demand, fraction) combinations outside the four price-traced curves; interpolation across the empty regions of the coverage map is not licensed by these results.",
+    "Temporal sampling is thirteen weeks at 30-minute resolution, chosen to match annual mean demand rather than spaced naively. It reproduces the full-year anchor's served energy to +0.005% and its gas share to −1.8 percentage points. Sampling bias at scenarios other than the validation cell is assumed comparable but was not separately measured.",
+    "Uniform demand scaling moves energy and peak together and leaves the load shape untouched, whereas real electrification reshapes it. The demand levels are ratios of AEMO's own 2026 ISP scenario traces: 0.87 is Slower Growth, 1.23 is Accelerated Transition, and 1.10 is an interpolated presentation level with no scenario behind it.",
+    "Carbon capture is represented by a single flat transport-and-storage adder of A$89.93/tCO₂, fleet-weighted from the authored supply-curve data. The spatial tranche machinery, including per-sub-region transport pricing and injectivity limits, is excluded pending its design; on that curve's own evidence the binding constraint is spatial, so a flat adder is optimistic about where CO₂ can go.",
+    "Myopic foresight: each milestone year is solved in sequence carrying the previous years' surviving build, with no perfect-foresight view of later years. Milestone steps are ten years, so the 2040 and 2050 fleets inherit coarser vintages than a five-year chain would give.",
+    "Draft-accuracy solver tolerance. All 48 period solves converged on PDLP's relative gap and feasibility metrics at 3e-3, the tolerance the full-year anchor was itself accepted at. The reported model status reads Unknown even on converged solves for this class of problem, so it is never the acceptance criterion.",
+    "Cost is reconstructed component-by-component as fleet capital and fixed costs plus fuel plus carbon, not read from the LP objective: carried capacity enters each year's problem at zero capital cost by design, so the objective understates fleet capital and is non-monotonic across the pathway.",
+    "The per-period wall-clock limit was raised from three hours to five on measured evidence, and two solves still exceeded it and were relaunched at ten hours. All reported solves completed within their budget.",
+  ].map((c) => "<li>" + c + "</li>").join("");
+}
+
+/* ---------- controls & render ------------------------------------------- */
+function seg(id, items, key, render) {
+  $(id).innerHTML = items.map((i) =>
+    '<button type="button" data-v="' + i.v + '" aria-pressed="' + (state[key] === i.v) + '">' +
+    i.k + "</button>").join("");
+  $(id).addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    state[key] = (key === "scYear" || key === "scCarbon") ? Number(b.dataset.v) : b.dataset.v;
+    $(id).querySelectorAll("button").forEach((n) =>
+      n.setAttribute("aria-pressed", String(n.dataset.v === b.dataset.v)));
+    render();
+  });
+}
+const renderDemand = () => { drawDecomp(); drawPathway(); };
+const renderUnit = () => { drawSurface(); drawTable(); };
+seg("seg-dem", M.demands.map((d) => ({ k: DEM_LAB(d), v: d })), "demand", renderDemand);
+seg("seg-unit", [{ k: "AUD/MWh", v: "mwh" }, { k: "bn AUD/yr", v: "bn" }], "unit", renderUnit);
+seg("seg-scy", M.years.map((y) => ({ k: y, v: y })), "scYear", drawSupply);
+seg("seg-scc", M.carbons.map((c) => ({ k: CARBON_LAB(c), v: c })), "scCarbon", drawSupply);
+seg("seg-basis", [{ k: "Resource (excl. carbon payments)", v: "res" },
+                  { k: "Full cost", v: "full" }], "basis", drawFracCost);
+
+drawStatic();
+drawSurface(); drawDecomp(); drawPathway();
+drawMarginal(); drawSplit(); drawSupply();
+drawCoverage(); drawFracCost(); drawAxis(); drawTable();
+window.addEventListener("resize", () => { ttHide(); });
+</script>

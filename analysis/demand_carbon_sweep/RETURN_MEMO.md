@@ -614,3 +614,26 @@ Cost is monotone in both axes across the whole grid, from 45.5 AUD/MWh at ($0, Ã
    dispatching, which is where the sample is least likely to behave like the validation cell.
 3. **Decide the CCS spatial question.** The flat adder is a placeholder and the curve's own
    analysis says the binding constraint is where the CO2 goes, not what it costs.
+
+---
+
+## 11. Amendment 2: fraction-space projection added to the cost dashboard
+
+`cost_dashboard.html` gained a projection group (2026-08-24) re-plotting the 48 cells in
+(demand, renewable fraction) coordinates: a coverage map, resource-cost-against-fraction
+curves (resource cost = `avg_cost - cost_carbon`, identity against `cost_excl + cost_fuel`
+asserted in the cross-check, toggleable to full cost), and an implied fraction-cost slope
+strip with arcs suppressed where delta-fraction < 2 pp or the cost delta is inside the
+noise floor (6 of 36 arcs suppress, all on the $300 to $550 step).
+
+Panel choice, as directed by the amendment: the coverage map **absorbed** the
+renewable-share-vs-demand panel rather than duplicating it, since the two would share axes,
+series and message; the slope-contrast finding moved into the projection group's prose. One
+panel now carries both readings: the slope contrast, and the empty regions (no solved cell
+between the $0/t and $150/t families, roughly 69-84% fraction at 2030 narrowing to 84-86%
+by 2050; nothing below 53% or above 95% anywhere).
+
+Convention caveats carried on-page: fraction is grid-generation share in this topology
+(rooftop PV excluded), no authored anchors overlaid pending convention agreement, and every
+projected point is an upper bound on the cost of achieving its fraction (price-induced, not
+fraction-targeted).

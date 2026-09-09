@@ -153,14 +153,18 @@ def main() -> None:
           f"  storage {len(payload['storage'])}")
     print(f"  diagnostics {payload['diagnostics']}")
 
-    # The dashboard is published as a single self-contained page with no network
+    # The dashboards are published as single self-contained pages with no network
     # access, so the data is inlined at the marker rather than fetched.
-    template = (OUT / "dashboard_template.html").read_text(encoding="utf-8")
     marker = "/*__SWEEP_DATA__*/null"
-    assert marker in template, "data marker missing from dashboard_template.html"
-    rendered = OUT / "dashboard.html"
-    rendered.write_text(template.replace(marker, blob), encoding="utf-8")
-    print(f"wrote {rendered}  ({rendered.stat().st_size / 1024:.1f} KiB)")
+    for template_name, rendered_name in [
+        ("dashboard_template.html", "dashboard.html"),
+        ("cost_dashboard_template.html", "cost_dashboard.html"),
+    ]:
+        template = (OUT / template_name).read_text(encoding="utf-8")
+        assert marker in template, f"data marker missing from {template_name}"
+        rendered = OUT / rendered_name
+        rendered.write_text(template.replace(marker, blob), encoding="utf-8")
+        print(f"wrote {rendered}  ({rendered.stat().st_size / 1024:.1f} KiB)")
 
 
 if __name__ == "__main__":

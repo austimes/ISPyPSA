@@ -1,0 +1,1310 @@
+<title>Cost of supply — carbon price × demand, NEM 2030–2050</title>
+<style>
+  /* ---- tokens -------------------------------------------------------------
+     Inherited verbatim from dashboard_template.html so the two sweep pages
+     read as one system. One addition: --dem-1..4, a warm one-hue ramp for the
+     demand axis, so the two ordered axes (carbon = cool blue, demand = warm
+     orange) are never confusable across panels. Both ramps validated with the
+     dataviz palette checks in both themes.                                   */
+  .sw {
+    color-scheme: light;
+    --bg:        #f4f6f9;
+    --surface:   #ffffff;
+    --surface-2: #edf1f6;
+    --line:      #d9e0e9;
+    --line-soft: #e8edf3;
+    --ink:       #111620;
+    --ink-2:     #4c586a;
+    --ink-3:     #7b8899;
+    --accent:    #1f6fd0;
+    --accent-sf: #e8f1fc;
+
+    --good:     #167c4a;
+    --warn:     #9a6400;
+    --critical: #b4322e;
+    --good-sf:     #e4f4ec;
+    --warn-sf:     #fbf1de;
+    --critical-sf: #fbe9e8;
+
+    --c-wind:    #2a78d6;
+    --c-gas:     #eb6834;
+    --c-water:   #1baf7a;
+
+    --seq-1: #8fb8e3;
+    --seq-2: #5b93d2;
+    --seq-3: #2c6fb5;
+    --seq-4: #124063;
+
+    --dem-1: #ec9c63;
+    --dem-2: #dd7a35;
+    --dem-3: #b8571d;
+    --dem-4: #6e340f;
+
+    --grid:  #eceff4;
+    --shadow: 0 1px 2px rgba(17,22,32,.06), 0 8px 24px -12px rgba(17,22,32,.14);
+
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .sw {
+      color-scheme: dark;
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface-2: #1c2430;
+      --line:      #28313d;
+      --line-soft: #1f2731;
+      --ink:       #eef3f9;
+      --ink-2:     #a9b6c6;
+      --ink-3:     #788596;
+      --accent:    #4f96e8;
+      --accent-sf: #17293f;
+      --good:     #43b57c;
+      --warn:     #d9a344;
+      --critical: #e8706c;
+      --good-sf:     #142a20;
+      --warn-sf:     #2c2313;
+      --critical-sf: #2e1a1a;
+      --c-wind:    #3987e5;
+      --c-gas:     #d95926;
+      --c-water:   #199e70;
+      --seq-1: #2f5273;
+      --seq-2: #3f78a8;
+      --seq-3: #5f9bd6;
+      --seq-4: #a3caf1;
+      --dem-1: #7d3e1b;
+      --dem-2: #ab5423;
+      --dem-3: #d67939;
+      --dem-4: #f2a878;
+      --grid:  #1f2731;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] .sw {
+    color-scheme: dark;
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --surface-2: #1c2430;
+    --line:      #28313d;
+    --line-soft: #1f2731;
+    --ink:       #eef3f9;
+    --ink-2:     #a9b6c6;
+    --ink-3:     #788596;
+    --accent:    #4f96e8;
+    --accent-sf: #17293f;
+    --good:     #43b57c;
+    --warn:     #d9a344;
+    --critical: #e8706c;
+    --good-sf:     #142a20;
+    --warn-sf:     #2c2313;
+    --critical-sf: #2e1a1a;
+    --c-wind:    #3987e5;
+    --c-gas:     #d95926;
+    --c-water:   #199e70;
+    --seq-1: #2f5273;
+    --seq-2: #3f78a8;
+    --seq-3: #5f9bd6;
+    --seq-4: #a3caf1;
+    --dem-1: #7d3e1b;
+    --dem-2: #ab5423;
+    --dem-3: #d67939;
+    --dem-4: #f2a878;
+    --grid:  #1f2731;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.6);
+  }
+
+  /* ---- frame ------------------------------------------------------------- */
+  .sw { background: var(--bg); color: var(--ink); font-family: var(--sans);
+        font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+        padding: 0 0 72px; }
+  .sw *, .sw *::before, .sw *::after { box-sizing: border-box; }
+  .sw-wrap { max-width: 1360px; margin: 0 auto; padding: 0 24px;
+             display: flex; flex-direction: column; gap: 28px; }
+
+  .sw-head { padding: 40px 0 4px; border-bottom: 1px solid var(--line);
+             display: flex; flex-direction: column; gap: 10px; }
+  .sw-eyebrow { font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em;
+                text-transform: uppercase; color: var(--ink-3); }
+  .sw-h1 { font-size: clamp(28px, 3.4vw, 40px); line-height: 1.08; margin: 0;
+           font-weight: 640; letter-spacing: -.022em; text-wrap: balance; }
+  .sw-lede { max-width: 68ch; color: var(--ink-2); margin: 0 0 16px; font-size: 16px; }
+  .sw-prov { font-family: var(--mono); font-size: 12px; color: var(--ink-3);
+             display: flex; flex-wrap: wrap; gap: 6px 18px; padding-bottom: 20px; }
+  .sw-prov b { color: var(--ink-2); font-weight: 500; }
+
+  /* ---- tiles ------------------------------------------------------------- */
+  .sw-tiles { display: grid; gap: 12px;
+              grid-template-columns: repeat(auto-fit, minmax(184px, 1fr)); }
+  .tile { background: var(--surface); border: 1px solid var(--line);
+          border-radius: 10px; padding: 14px 16px 15px;
+          display: flex; flex-direction: column; gap: 7px; box-shadow: var(--shadow); }
+  .tile-k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .085em;
+            text-transform: uppercase; color: var(--ink-3); }
+  .tile-v { font-family: var(--mono); font-size: 26px; font-weight: 620;
+            letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+            line-height: 1; color: var(--ink); }
+  .tile-v small { font-size: 13px; font-weight: 500; color: var(--ink-3); margin-left: 3px; }
+  .tile-s { font-size: 12.5px; color: var(--ink-2); }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+          font-family: var(--mono); font-size: 11px; font-weight: 600;
+          letter-spacing: .04em; padding: 2.5px 8px; border-radius: 999px;
+          border: 1px solid transparent; }
+  .pill-good { color: var(--good); background: var(--good-sf); border-color: color-mix(in srgb, var(--good) 26%, transparent); }
+  .pill-warn { color: var(--warn); background: var(--warn-sf); border-color: color-mix(in srgb, var(--warn) 26%, transparent); }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%;
+                  background: currentColor; }
+
+  /* ---- controls ---------------------------------------------------------- */
+  .sw-controls { display: flex; flex-wrap: wrap; gap: 18px 26px; align-items: flex-end;
+                 background: var(--surface); border: 1px solid var(--line);
+                 border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow);
+                 position: sticky; top: 0; z-index: 20; }
+  .ctl { display: flex; flex-direction: column; gap: 7px; }
+  .ctl-k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .085em;
+           text-transform: uppercase; color: var(--ink-3); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px;
+         overflow: hidden; background: var(--surface-2); }
+  .seg button { appearance: none; border: 0; background: transparent; cursor: pointer;
+                font-family: var(--mono); font-size: 12.5px; font-weight: 550;
+                color: var(--ink-2); padding: 6px 13px; letter-spacing: .01em;
+                border-right: 1px solid var(--line); }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .seg button { transition: background-color .13s ease, color .13s ease; }
+  }
+
+  /* ---- panels ------------------------------------------------------------ */
+  .grid2 { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); }
+  .panel { background: var(--surface); border: 1px solid var(--line);
+           border-radius: 12px; padding: 18px 20px 16px; box-shadow: var(--shadow);
+           display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .panel-h { display: flex; justify-content: space-between; align-items: baseline;
+             gap: 16px; flex-wrap: wrap; }
+  .panel-t { font-size: 15.5px; font-weight: 620; letter-spacing: -.012em; margin: 0; }
+  .panel-sub { font-size: 12.5px; color: var(--ink-2); margin: 2px 0 10px;
+               max-width: 92ch; }
+  .panel-unit { font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em;
+                text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+  .plot { width: 100%; overflow: visible; display: block; }
+  .scroll { overflow-x: auto; }
+  .scroll .plot { min-width: 1160px; }
+  .foot { font-size: 12px; color: var(--ink-3); margin: 10px 0 0; max-width: 92ch; }
+  .reading { font-size: 13px; color: var(--ink-2); margin: 8px 4px 0;
+             padding: 9px 12px; background: var(--surface-2); border-radius: 8px;
+             font-variant-numeric: tabular-nums; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 5px 15px; margin-top: 11px;
+            font-size: 12px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none;
+            outline: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+            outline-offset: -1px; }
+
+  /* svg text roles: text wears ink tokens, never a series colour */
+  .plot text { font-family: var(--mono); fill: var(--ink-3); font-size: 10.5px; }
+  .plot .lab { fill: var(--ink-2); }
+  .plot .val { fill: var(--ink); font-weight: 600; }
+  .plot .fct { fill: var(--ink); font-weight: 620; font-size: 12px; }
+  .plot .ax  { stroke: var(--line); stroke-width: 1; }
+  .plot .gl  { stroke: var(--grid); stroke-width: 1; }
+
+  /* ---- table ------------------------------------------------------------- */
+  table.dt { border-collapse: collapse; width: 100%; font-size: 12.5px;
+             font-variant-numeric: tabular-nums; }
+  table.dt th, table.dt td { text-align: right; padding: 6px 10px;
+                             border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+  table.dt th { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+                text-transform: uppercase; color: var(--ink-3); font-weight: 600;
+                border-bottom: 1px solid var(--line); position: sticky; top: 0;
+                background: var(--surface); }
+  table.dt td:first-child, table.dt th:first-child,
+  table.dt td:nth-child(2), table.dt th:nth-child(2) { text-align: left; font-family: var(--mono); }
+  table.dt tbody tr:hover { background: var(--surface-2); }
+  table.dt td.num { font-family: var(--mono); }
+  table.mini { border-collapse: collapse; font-size: 12px; margin-top: 10px;
+               font-variant-numeric: tabular-nums; }
+  table.mini th, table.mini td { padding: 4px 12px 4px 0; text-align: right;
+                                 border-bottom: 1px solid var(--line-soft); }
+  table.mini th { font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+                  text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+  table.mini td:first-child, table.mini th:first-child { text-align: left; }
+  table.mini td { font-family: var(--mono); color: var(--ink-2); }
+
+  /* ---- prose blocks ------------------------------------------------------ */
+  .note { background: var(--surface); border: 1px solid var(--line);
+          border-left: 3px solid var(--accent); border-radius: 10px;
+          padding: 16px 20px; box-shadow: var(--shadow); }
+  .note h3 { margin: 0 0 8px; font-size: 14.5px; font-weight: 620; letter-spacing: -.01em; }
+  .note p { margin: 0 0 8px; font-size: 13.5px; color: var(--ink-2); max-width: 78ch; }
+  .note p:last-child { margin-bottom: 0; }
+  .caveats { list-style: none; padding: 0; margin: 0;
+             display: flex; flex-direction: column; gap: 8px; }
+  .caveats li { position: relative; padding-left: 20px; font-size: 13.5px;
+                color: var(--ink-2); max-width: 82ch; }
+  .caveats li::before { content: ""; position: absolute; left: 3px; top: .62em;
+                        width: 6px; height: 1.5px; background: var(--ink-3); }
+
+  .sec-h { font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+           text-transform: uppercase; color: var(--ink-3);
+           display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+  .sec-h::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  /* ---- tooltip ----------------------------------------------------------- */
+  #tt { position: fixed; pointer-events: none; opacity: 0; z-index: 90;
+        background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+        border-radius: 8px; padding: 8px 11px; font-size: 12.5px;
+        box-shadow: 0 6px 24px -8px rgba(0,0,0,.4); max-width: 280px;
+        font-variant-numeric: tabular-nums; }
+  #tt b { font-family: var(--mono); font-size: 11px; letter-spacing: .05em;
+          text-transform: uppercase; color: var(--ink-3); font-weight: 600;
+          display: block; margin-bottom: 4px; }
+  #tt .r { display: flex; justify-content: space-between; gap: 14px; }
+  #tt .r span:last-child { font-family: var(--mono); font-weight: 600; }
+
+  .hit { cursor: crosshair; }
+  @media (max-width: 640px) {
+    .sw-wrap { padding: 0 14px; }
+    .grid2 { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="sw">
+<div id="tt" role="status" aria-live="polite"></div>
+<div class="sw-wrap">
+
+  <header class="sw-head">
+    <div class="sw-eyebrow">ISPyPSA · demand &times; carbon sweep · cost of supply</div>
+    <h1 class="sw-h1">The cost of supplying the NEM under carbon price and demand</h1>
+    <p class="sw-lede">Sixteen scenario worlds &mdash; four carbon prices crossed with four demand
+      levels &mdash; solved as myopic pathways over 2030, 2040 and 2050 on the full National
+      Electricity Market. This page reads one thing off that grid: what electricity costs to
+      supply, on average and at the margin, as the two axes move. Carbon price is the dominant
+      axis early and demand growth the steadier one; by 2050 their per-unit effects converge.</p>
+    <div class="sw-prov" id="prov"></div>
+  </header>
+
+  <section class="sw-tiles" id="tiles"></section>
+
+  <div class="sw-controls">
+    <div class="ctl">
+      <span class="ctl-k" id="lk-dem">Demand level (&times; Step Change)</span>
+      <div class="seg" role="group" aria-labelledby="lk-dem" id="seg-dem"></div>
+    </div>
+    <div class="ctl">
+      <span class="ctl-k" id="lk-unit">Cost unit</span>
+      <div class="seg" role="group" aria-labelledby="lk-unit" id="seg-unit"></div>
+    </div>
+  </div>
+
+  <div class="sec-h">What it costs</div>
+  <section class="panel">
+    <div class="panel-h">
+      <h2 class="panel-t">The cost surface</h2>
+      <span class="panel-unit" id="cs-unit"></span>
+    </div>
+    <p class="panel-sub">Average cost of supply for all 48 solved scenario-years. Each panel is a
+      milestone year; each line is a demand level. Cost rises monotonically along both axes
+      everywhere in the grid. The carbon price moves it most in 2030, where the fleet is
+      cheapest to start with &mdash; $0 to $550/t roughly doubles the 2030 cost (+98% at Step
+      Change demand) but adds only about a third by 2050 (+34%), because the higher-price worlds
+      have already rebuilt the fleet.</p>
+    <div class="scroll"><svg class="plot" id="cs" role="img"></svg></div>
+    <div class="legend" id="cs-leg"></div>
+  </section>
+
+  <div class="sec-h">What the money buys</div>
+  <section class="panel">
+    <div class="panel-h">
+      <h2 class="panel-t">Cost decomposition at the selected demand level</h2>
+      <span class="panel-unit">AUD/MWh</span>
+    </div>
+    <p class="panel-sub">The three components sum exactly to the average cost. The carbon payment
+      itself stays a thin, roughly constant slice once a price exists &mdash; at Step Change
+      demand in 2030 it is 12.2 AUD/MWh at $150/t and still 12.3 at $550/t, because emissions
+      collapse before the cheque can grow. Nearly all of the cost increase is structural: the
+      capital and fixed costs of the rebuilt, renewable-heavy fleet.</p>
+    <div class="scroll"><svg class="plot" id="dc" role="img"></svg></div>
+    <div class="legend" id="dc-leg"></div>
+  </section>
+
+  <div class="sec-h">Over time and at the margin</div>
+  <div class="grid2">
+    <section class="panel">
+      <div class="panel-h">
+        <h2 class="panel-t">The cost pathway over time</h2>
+        <span class="panel-unit">AUD/MWh</span>
+      </div>
+      <p class="panel-sub">Average cost against milestone year at the selected demand level, one
+        line per carbon price. At $550/t the pathway flattens after 2040: at &times;1.23 demand
+        the 2040 and 2050 costs are indistinguishable at draft tolerance (130.6 against 130.5
+        AUD/MWh), consistent with myopic vintaging.</p>
+      <svg class="plot" id="pw" role="img"></svg>
+      <div class="legend" id="pw-leg"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h">
+        <h2 class="panel-t">Marginal cost of demand</h2>
+        <span class="panel-unit">AUD/MWh</span>
+      </div>
+      <p class="panel-sub">What the next increment of demand costs: each bar is the mean of the
+        three measured demand-step arcs at that year and price, and the ink ticks are the three
+        arcs themselves &mdash; their spread is the measured step-to-step variation. Every arc
+        is a difference of two solved scenarios, both carried in
+        <code style="font-family:var(--mono);font-size:11.5px">marginals.csv</code>.</p>
+      <svg class="plot" id="mc" role="img"></svg>
+      <div class="legend" id="mc-leg"></div>
+    </section>
+  </div>
+
+  <div class="grid2">
+    <section class="panel">
+      <div class="panel-h">
+        <h2 class="panel-t">What the marginal MWh is made of</h2>
+        <span class="panel-unit">% of marginal generation</span>
+      </div>
+      <p class="panel-sub">Thermal against renewable share of the marginal generation, averaged
+        over the three demand steps. The composition is fairly stable <em>across years at a given
+        carbon price</em> (16&ndash;20% thermal at $550/t) but swings hard <em>across prices</em>:
+        at 2030 the marginal megawatt-hour is 87% thermal with no carbon price and 16% thermal at
+        $550/t. A supply block needs its own composition per price point.</p>
+      <svg class="plot" id="ms" role="img"></svg>
+      <div class="legend" id="ms-leg"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h">
+        <h2 class="panel-t">The measured supply curve</h2>
+        <span class="panel-unit">AUD/MWh vs TWh</span>
+      </div>
+      <p class="panel-sub">The measured cost of successive demand increments, for one year and
+        carbon price at a time. Dots are the average cost of the whole supply at each demand
+        level; steps are the marginal cost of moving between them &mdash; the measured
+        counterpart of a piecewise supply-block representation.</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin:2px 0 10px">
+        <div class="ctl"><span class="ctl-k" id="lk-scy">Year</span>
+          <div class="seg" role="group" aria-labelledby="lk-scy" id="seg-scy"></div></div>
+        <div class="ctl"><span class="ctl-k" id="lk-scc">Carbon price</span>
+          <div class="seg" role="group" aria-labelledby="lk-scc" id="seg-scc"></div></div>
+      </div>
+      <svg class="plot" id="sc" role="img"></svg>
+      <div class="reading" id="sc-note"></div>
+      <div class="legend" id="sc-leg"></div>
+      <p class="foot">Authored sector-pathway anchors are deliberately not overlaid here: their
+        demand conventions are not yet reconciled with this sweep's delivered-energy basis, so a
+        shared TWh axis would be quietly wrong.</p>
+    </section>
+  </div>
+
+  <div class="sec-h">The projection &mdash; (demand, renewable fraction) coordinates</div>
+  <div class="note">
+    <h3>An interim projection into a companion representation's coordinates</h3>
+    <p>A companion representation is parameterised in (demand, renewable fraction) coordinates
+      rather than (demand, carbon price). The panels below re-plot the same 48 solved cells in
+      those coordinates, so the team can see where these solutions land in that space ahead of a
+      fraction-controlled sweep.</p>
+    <p><b>This is a projection of price-driven solutions, not a mapping of the fraction
+      space.</b> Coverage is four price-traced curves per year, not a grid, and each plotted
+      fraction is where the carbon price put it, not a target that was hit.</p>
+  </div>
+
+  <section class="panel">
+    <div class="panel-h">
+      <h2 class="panel-t">Coverage map &mdash; where the solutions sit in fraction space</h2>
+      <span class="panel-unit">% of generation</span>
+    </div>
+    <p class="panel-sub">Every solved cell, positioned by demand level and realised renewable
+      fraction, coloured by the carbon price that produced it. Two things to read. The slope
+      contrast: with no carbon price in 2030 the fraction slides 16 percentage points across the
+      demand span, because extra demand is met largely thermally; at $150/t and above the slide
+      shrinks to 3&ndash;9 points, because most of each demand increment is met by new renewable
+      build instead. And the empty regions: no solved cell lies between the $0/t and $150/t
+      families &mdash; a band spanning roughly 69&ndash;84% fraction in 2030, narrowing to
+      84&ndash;86% by 2050 &mdash; and nothing reaches below 53% or above 95% anywhere. The
+      blanks bound what this projection can say.</p>
+    <div class="scroll"><svg class="plot" id="cov" role="img"></svg></div>
+    <div class="legend" id="cov-leg"></div>
+    <p class="foot">Fraction = renewable share of grid generation in this model's topology,
+      which excludes rooftop PV. It is not on the same denominator as externally quoted shares,
+      so no numerical comparison against authored anchors until the convention is agreed &mdash;
+      which is also why none are overlaid on any panel in this group.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-h">
+      <h2 class="panel-t">Resource cost against realised fraction</h2>
+      <span class="panel-unit" id="fb-unit"></span>
+    </div>
+    <p class="panel-sub">The projection of the cost surface onto the companion representation's
+      cost-of-fraction axis: one curve per demand level, points at the four carbon prices.
+      Resource cost is average cost minus the carbon payment. The payment is the instrument that
+      <em>induced</em> the fraction and would not exist under a fraction target, so including it
+      would overstate the cost of achieving a given fraction by the size of the cheque &mdash;
+      about 12 AUD/MWh at 2030 Step Change demand, 7&ndash;9 by 2050.</p>
+    <div class="ctl" style="margin:2px 0 10px"><span class="ctl-k" id="lk-basis">Cost basis</span>
+      <div class="seg" role="group" aria-labelledby="lk-basis" id="seg-basis"></div></div>
+    <div class="scroll"><svg class="plot" id="fb" role="img"></svg></div>
+    <div class="reading">Each point is the cheapest system the model found <b>under a carbon
+      price</b>, not the cheapest way to reach that renewable fraction &mdash; a fraction-targeted
+      solve could reach the same fraction at equal or lower resource cost, so these points sit on
+      or above the true cost-of-fraction curve.</div>
+    <div class="legend" id="fb-leg"></div>
+    <div class="scroll"><table class="mini" id="fc-mini"></table></div>
+    <p class="foot">Implied fraction-cost slope: &Delta; cost &divide; &Delta; realised fraction
+      between adjacent carbon prices at fixed (year, demand). These are arcs along the
+      price-traced manifold, not a cost-of-fraction curve, and the denominator is small at the
+      top of the range. &mdash; marks a suppressed arc: &Delta; fraction under 2 percentage
+      points, or a cost delta inside the &plusmn;0.5 AUD/MWh noise floor; a suppressed cell is
+      more honest than a wild ratio. Fraction convention and on-manifold bias as per the coverage
+      map's footnote and the caveats.</p>
+  </section>
+
+  <div class="sec-h">Which axis matters, and how to read it</div>
+  <div class="grid2">
+    <section class="panel">
+      <div class="panel-h">
+        <h2 class="panel-t">Which axis moves cost more</h2>
+        <span class="panel-unit">AUD/MWh per unit</span>
+      </div>
+      <p class="panel-sub"><b>Per-unit effects (the comparison that survives scrutiny):</b> cost
+        moved per $100/t of carbon price against cost moved per +10% of demand, each averaged
+        over the other axis. Carbon dominates in 2030; by 2050 the two are equal. The full-span
+        deltas below answer a different question &mdash; they compare the whole $550 sweep to the
+        whole &plusmn;18% demand band, so their ratio is baked in by the choice of spans.</p>
+      <svg class="plot" id="ax" role="img"></svg>
+      <div class="legend" id="ax-leg"></div>
+      <div class="scroll"><table class="mini" id="ax-mini"></table></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h"><h2 class="panel-t">How to read these numbers</h2></div>
+      <p class="panel-sub">The acceptance record behind every figure on this page, and the
+        resolution limit that applies to all of them (stated in full in the caveats).</p>
+      <div id="acc" style="display:flex;flex-direction:column;gap:9px;margin-top:2px"></div>
+      <p class="foot">Differences below the noise floor &mdash; about &plusmn;0.5 AUD/MWh on
+        average costs, of order &plusmn;10 AUD/MWh on an arc marginal &mdash; are within solver
+        tolerance and are not read as signal anywhere on this page.</p>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-h">
+      <h2 class="panel-t">The cost surface, as numbers</h2>
+      <span class="panel-unit" id="dt-unit"></span>
+    </div>
+    <p class="panel-sub">Every scenario-year, shaded by value. The table view is also the
+      fallback for forced-colours and print readers.</p>
+    <div class="scroll" style="max-height:520px"><table class="dt" id="dt"></table></div>
+  </section>
+
+  <div class="note">
+    <h3>Caveats — carry these with any figure taken from this page</h3>
+    <ul class="caveats" id="cav"></ul>
+  </div>
+
+</div>
+</div>
+
+<script>
+"use strict";
+const DATA = {"meta":{"carbons":[0,150,300,550],"demands":["d087","d100","d110","d123"],"demand_label":{"d087":"0.87","d100":"1.00","d110":"1.10","d123":"1.23"},"demand_scenario":{"d087":"Slower Growth","d100":"Step Change","d110":"interpolated","d123":"Accelerated Transition"},"years":[2030,2040,2050],"carriers":["Wind","Solar","Gas","Water","Biomass","Black Coal","Brown Coal","Liquid Fuel"],"cells":16},"cells":[{"carbon":0,"demand":"d087","year":2030,"delivered_twh":164.293,"avg_cost":45.52,"cost_excl":31.4,"cost_fuel":14.12,"cost_carbon":0.0,"total_cost_bn":7.479,"co2e_intensity":0.3192,"co2e_mt":52.442,"renewable_pct":68.75,"thermal_pct":31.246,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":35.416,"twh":59.547},"Solar":{"share":25.474,"twh":42.831},"Gas":{"share":0.957,"twh":1.609},"Water":{"share":7.728,"twh":12.994},"Biomass":{"share":0.137,"twh":0.23},"Black Coal":{"share":19.513,"twh":32.809},"Brown Coal":{"share":10.775,"twh":18.118}}},{"carbon":0,"demand":"d087","year":2040,"delivered_twh":206.685,"avg_cost":70.29,"cost_excl":52.78,"cost_fuel":17.5,"cost_carbon":0.0,"total_cost_bn":14.527,"co2e_intensity":0.20632,"co2e_mt":42.644,"renewable_pct":72.91,"thermal_pct":27.087,"use_mwh":0.0,"carried_gw":2.65,"mix":{"Wind":{"share":36.505,"twh":78.118},"Solar":{"share":30.327,"twh":64.897},"Gas":{"share":11.371,"twh":24.332},"Water":{"share":5.967,"twh":12.769},"Biomass":{"share":0.114,"twh":0.244},"Black Coal":{"share":12.005,"twh":25.689},"Brown Coal":{"share":3.712,"twh":7.943}}},{"carbon":0,"demand":"d087","year":2050,"delivered_twh":219.072,"avg_cost":79.89,"cost_excl":66.72,"cost_fuel":13.17,"cost_carbon":0.0,"total_cost_bn":17.502,"co2e_intensity":0.08858,"co2e_mt":19.406,"renewable_pct":84.02,"thermal_pct":15.979,"use_mwh":0.0,"carried_gw":32.81,"mix":{"Wind":{"share":48.473,"twh":110.238},"Solar":{"share":31.213,"twh":70.985},"Gas":{"share":11.438,"twh":26.012},"Water":{"share":4.333,"twh":9.855},"Biomass":{"share":0.002,"twh":0.005},"Black Coal":{"share":4.541,"twh":10.328}}},{"carbon":0,"demand":"d100","year":2030,"delivered_twh":188.941,"avg_cost":48.72,"cost_excl":31.09,"cost_fuel":17.63,"cost_carbon":0.0,"total_cost_bn":9.206,"co2e_intensity":0.3954,"co2e_mt":74.707,"renewable_pct":60.76,"thermal_pct":39.24,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":31.171,"twh":60.106},"Solar":{"share":22.725,"twh":43.82},"Gas":{"share":1.251,"twh":2.413},"Water":{"share":6.736,"twh":12.989},"Biomass":{"share":0.128,"twh":0.246},"Black Coal":{"share":26.065,"twh":50.259},"Brown Coal":{"share":11.924,"twh":22.992},"Liquid Fuel":{"share":0.0,"twh":0.0}}},{"carbon":0,"demand":"d100","year":2040,"delivered_twh":237.693,"avg_cost":76.23,"cost_excl":57.92,"cost_fuel":18.31,"cost_carbon":0.0,"total_cost_bn":18.119,"co2e_intensity":0.18172,"co2e_mt":43.193,"renewable_pct":74.16,"thermal_pct":25.845,"use_mwh":0.0,"carried_gw":2.65,"mix":{"Wind":{"share":36.977,"twh":90.932},"Solar":{"share":31.887,"twh":78.414},"Gas":{"share":13.53,"twh":33.271},"Water":{"share":5.195,"twh":12.774},"Biomass":{"share":0.097,"twh":0.238},"Black Coal":{"share":8.82,"twh":21.689},"Brown Coal":{"share":3.496,"twh":8.596}}},{"carbon":0,"demand":"d100","year":2050,"delivered_twh":251.938,"avg_cost":86.08,"cost_excl":70.04,"cost_fuel":16.04,"cost_carbon":0.0,"total_cost_bn":21.686,"co2e_intensity":0.0954,"co2e_mt":24.036,"renewable_pct":81.36,"thermal_pct":18.638,"use_mwh":0.0,"carried_gw":47.12,"mix":{"Wind":{"share":47.593,"twh":124.198},"Solar":{"share":29.825,"twh":77.832},"Gas":{"share":14.675,"twh":38.297},"Water":{"share":3.773,"twh":9.845},"Biomass":{"share":0.171,"twh":0.447},"Black Coal":{"share":3.963,"twh":10.341}}},{"carbon":0,"demand":"d110","year":2030,"delivered_twh":207.835,"avg_cost":50.85,"cost_excl":30.75,"cost_fuel":20.1,"cost_carbon":0.0,"total_cost_bn":10.569,"co2e_intensity":0.43257,"co2e_mt":89.903,"renewable_pct":56.16,"thermal_pct":43.841,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":29.0,"twh":61.389},"Solar":{"share":20.904,"twh":44.25},"Gas":{"share":2.017,"twh":4.269},"Water":{"share":6.136,"twh":12.989},"Biomass":{"share":0.118,"twh":0.251},"Black Coal":{"share":30.373,"twh":64.295},"Brown Coal":{"share":11.451,"twh":24.24},"Liquid Fuel":{"share":0.0,"twh":0.0}}},{"carbon":0,"demand":"d110","year":2040,"delivered_twh":261.463,"avg_cost":78.76,"cost_excl":57.45,"cost_fuel":21.32,"cost_carbon":0.0,"total_cost_bn":20.594,"co2e_intensity":0.19306,"co2e_mt":50.478,"renewable_pct":70.96,"thermal_pct":29.035,"use_mwh":0.0,"carried_gw":2.69,"mix":{"Wind":{"share":35.057,"twh":94.782},"Solar":{"share":31.1,"twh":84.082},"Gas":{"share":16.665,"twh":45.056},"Water":{"share":4.723,"twh":12.769},"Biomass":{"share":0.085,"twh":0.23},"Black Coal":{"share":9.174,"twh":24.804},"Brown Coal":{"share":3.196,"twh":8.641}}},{"carbon":0,"demand":"d110","year":2050,"delivered_twh":277.132,"avg_cost":89.14,"cost_excl":70.99,"cost_fuel":18.16,"cost_carbon":0.0,"total_cost_bn":24.704,"co2e_intensity":0.09946,"co2e_mt":27.562,"renewable_pct":79.6,"thermal_pct":20.397,"use_mwh":0.0,"carried_gw":52.0,"mix":{"Wind":{"share":45.798,"twh":131.506},"Solar":{"share":29.784,"twh":85.524},"Gas":{"share":16.991,"twh":48.788},"Water":{"share":3.429,"twh":9.845},"Biomass":{"share":0.592,"twh":1.7},"Black Coal":{"share":3.407,"twh":9.782}}},{"carbon":0,"demand":"d123","year":2030,"delivered_twh":233.295,"avg_cost":54.47,"cost_excl":31.14,"cost_fuel":23.33,"cost_carbon":0.0,"total_cost_bn":12.708,"co2e_intensity":0.45375,"co2e_mt":105.859,"renewable_pct":52.5,"thermal_pct":47.498,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":27.88,"twh":66.23},"Solar":{"share":19.049,"twh":45.25},"Gas":{"share":4.29,"twh":10.191},"Water":{"share":5.466,"twh":12.984},"Biomass":{"share":0.107,"twh":0.254},"Black Coal":{"share":32.428,"twh":77.033},"Brown Coal":{"share":10.778,"twh":25.603},"Liquid Fuel":{"share":0.003,"twh":0.006}}},{"carbon":0,"demand":"d123","year":2040,"delivered_twh":293.492,"avg_cost":83.82,"cost_excl":61.77,"cost_fuel":22.05,"cost_carbon":0.0,"total_cost_bn":24.6,"co2e_intensity":0.18254,"co2e_mt":53.574,"renewable_pct":71.16,"thermal_pct":28.845,"use_mwh":0.0,"carried_gw":4.2,"mix":{"Wind":{"share":35.554,"twh":107.759},"Solar":{"share":30.816,"twh":93.4},"Gas":{"share":18.01,"twh":54.587},"Water":{"share":4.215,"twh":12.776},"Biomass":{"share":0.57,"twh":1.727},"Black Coal":{"share":7.866,"twh":23.839},"Brown Coal":{"share":2.945,"twh":8.925},"Liquid Fuel":{"share":0.024,"twh":0.073}}},{"carbon":0,"demand":"d123","year":2050,"delivered_twh":311.081,"avg_cost":93.24,"cost_excl":71.75,"cost_fuel":21.5,"cost_carbon":0.0,"total_cost_bn":29.006,"co2e_intensity":0.10988,"co2e_mt":34.181,"renewable_pct":76.32,"thermal_pct":23.676,"use_mwh":0.0,"carried_gw":64.25,"mix":{"Wind":{"share":43.187,"twh":139.042},"Solar":{"share":29.549,"twh":95.133},"Gas":{"share":20.607,"twh":66.346},"Water":{"share":3.059,"twh":9.849},"Biomass":{"share":0.53,"twh":1.705},"Black Coal":{"share":3.039,"twh":9.783},"Liquid Fuel":{"share":0.03,"twh":0.095}}},{"carbon":150,"demand":"d087","year":2030,"delivered_twh":164.293,"avg_cost":74.72,"cost_excl":57.0,"cost_fuel":7.53,"cost_carbon":10.19,"total_cost_bn":12.276,"co2e_intensity":0.06795,"co2e_mt":11.163,"renewable_pct":89.99,"thermal_pct":10.005,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":55.565,"twh":93.608},"Solar":{"share":26.609,"twh":44.827},"Gas":{"share":5.411,"twh":9.116},"Water":{"share":7.715,"twh":12.997},"Biomass":{"share":0.106,"twh":0.178},"Black Coal":{"share":3.443,"twh":5.801},"Brown Coal":{"share":1.15,"twh":1.938},"Liquid Fuel":{"share":0.0,"twh":0.0}}},{"carbon":150,"demand":"d087","year":2040,"delivered_twh":206.685,"avg_cost":91.22,"cost_excl":73.84,"cost_fuel":8.6,"cost_carbon":8.78,"total_cost_bn":18.853,"co2e_intensity":0.05854,"co2e_mt":12.099,"renewable_pct":89.72,"thermal_pct":10.278,"use_mwh":0.0,"carried_gw":15.17,"mix":{"Wind":{"share":47.754,"twh":102.46},"Solar":{"share":35.182,"twh":75.486},"Gas":{"share":7.44,"twh":15.962},"Water":{"share":5.952,"twh":12.771},"Biomass":{"share":0.834,"twh":1.788},"Black Coal":{"share":2.19,"twh":4.698},"Brown Coal":{"share":0.648,"twh":1.391}}},{"carbon":150,"demand":"d087","year":2050,"delivered_twh":219.072,"avg_cost":93.99,"cost_excl":80.45,"cost_fuel":7.65,"cost_carbon":5.88,"total_cost_bn":20.591,"co2e_intensity":0.03923,"co2e_mt":8.595,"renewable_pct":91.92,"thermal_pct":8.076,"use_mwh":0.0,"carried_gw":47.61,"mix":{"Wind":{"share":53.427,"twh":121.762},"Solar":{"share":33.433,"twh":76.194},"Gas":{"share":6.971,"twh":15.888},"Water":{"share":4.315,"twh":9.834},"Biomass":{"share":0.75,"twh":1.709},"Black Coal":{"share":1.104,"twh":2.516}}},{"carbon":150,"demand":"d100","year":2030,"delivered_twh":188.941,"avg_cost":81.73,"cost_excl":60.47,"cost_fuel":9.08,"cost_carbon":12.18,"total_cost_bn":15.442,"co2e_intensity":0.08119,"co2e_mt":15.34,"renewable_pct":87.97,"thermal_pct":12.031,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":55.857,"twh":108.004},"Solar":{"share":25.311,"twh":48.94},"Gas":{"share":6.508,"twh":12.583},"Water":{"share":6.714,"twh":12.981},"Biomass":{"share":0.087,"twh":0.169},"Black Coal":{"share":4.305,"twh":8.324},"Brown Coal":{"share":1.219,"twh":2.356},"Liquid Fuel":{"share":0.0,"twh":0.0}}},{"carbon":150,"demand":"d100","year":2040,"delivered_twh":237.693,"avg_cost":98.89,"cost_excl":77.21,"cost_fuel":11.31,"cost_carbon":10.37,"total_cost_bn":23.506,"co2e_intensity":0.06914,"co2e_mt":16.434,"renewable_pct":86.91,"thermal_pct":13.087,"use_mwh":0.0,"carried_gw":22.82,"mix":{"Wind":{"share":48.739,"twh":119.84},"Solar":{"share":32.291,"twh":79.397},"Gas":{"share":10.218,"twh":25.124},"Water":{"share":5.199,"twh":12.784},"Biomass":{"share":0.684,"twh":1.683},"Black Coal":{"share":2.318,"twh":5.699},"Brown Coal":{"share":0.551,"twh":1.356}}},{"carbon":150,"demand":"d100","year":2050,"delivered_twh":251.938,"avg_cost":101.92,"cost_excl":85.28,"cost_fuel":9.68,"cost_carbon":6.97,"total_cost_bn":25.677,"co2e_intensity":0.04644,"co2e_mt":11.7,"renewable_pct":89.89,"thermal_pct":10.111,"use_mwh":0.0,"carried_gw":57.44,"mix":{"Wind":{"share":54.7,"twh":142.952},"Solar":{"share":30.78,"twh":80.439},"Gas":{"share":9.12,"twh":23.833},"Water":{"share":3.765,"twh":9.839},"Biomass":{"share":0.644,"twh":1.683},"Black Coal":{"share":0.991,"twh":2.591}}},{"carbon":150,"demand":"d110","year":2030,"delivered_twh":207.835,"avg_cost":86.71,"cost_excl":62.66,"cost_fuel":9.78,"cost_carbon":14.26,"total_cost_bn":18.021,"co2e_intensity":0.09509,"co2e_mt":19.764,"renewable_pct":86.54,"thermal_pct":13.463,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":55.161,"twh":117.115},"Solar":{"share":24.465,"twh":51.942},"Gas":{"share":6.58,"twh":13.971},"Water":{"share":6.115,"twh":12.982},"Biomass":{"share":0.797,"twh":1.693},"Black Coal":{"share":5.39,"twh":11.444},"Brown Coal":{"share":1.493,"twh":3.17},"Liquid Fuel":{"share":0.0,"twh":0.0}}},{"carbon":150,"demand":"d110","year":2040,"delivered_twh":261.463,"avg_cost":104.02,"cost_excl":78.88,"cost_fuel":12.98,"cost_carbon":12.15,"total_cost_bn":27.196,"co2e_intensity":0.08101,"co2e_mt":21.181,"renewable_pct":84.83,"thermal_pct":15.165,"use_mwh":0.0,"carried_gw":27.84,"mix":{"Wind":{"share":47.011,"twh":127.099},"Solar":{"share":32.449,"twh":87.729},"Gas":{"share":11.699,"twh":31.63},"Water":{"share":4.721,"twh":12.763},"Biomass":{"share":0.654,"twh":1.769},"Black Coal":{"share":2.769,"twh":7.487},"Brown Coal":{"share":0.697,"twh":1.883}}},{"carbon":150,"demand":"d110","year":2050,"delivered_twh":277.132,"avg_cost":107.55,"cost_excl":89.3,"cost_fuel":10.52,"cost_carbon":7.73,"total_cost_bn":29.806,"co2e_intensity":0.05156,"co2e_mt":14.288,"renewable_pct":88.84,"thermal_pct":11.165,"use_mwh":0.0,"carried_gw":67.66,"mix":{"Wind":{"share":53.227,"twh":153.086},"Solar":{"share":31.627,"twh":90.964},"Gas":{"share":9.957,"twh":28.637},"Water":{"share":3.421,"twh":9.84},"Biomass":{"share":0.56,"twh":1.609},"Black Coal":{"share":1.208,"twh":3.474}}},{"carbon":150,"demand":"d123","year":2030,"delivered_twh":233.295,"avg_cost":93.23,"cost_excl":64.15,"cost_fuel":10.38,"cost_carbon":18.7,"total_cost_bn":21.75,"co2e_intensity":0.12466,"co2e_mt":29.082,"renewable_pct":83.83,"thermal_pct":16.166,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":53.812,"twh":128.097},"Solar":{"share":23.86,"twh":56.798},"Gas":{"share":5.908,"twh":14.064},"Water":{"share":5.455,"twh":12.986},"Biomass":{"share":0.707,"twh":1.682},"Black Coal":{"share":8.193,"twh":19.502},"Brown Coal":{"share":2.065,"twh":4.915},"Liquid Fuel":{"share":0.0,"twh":0.0}}},{"carbon":150,"demand":"d123","year":2040,"delivered_twh":293.492,"avg_cost":109.69,"cost_excl":78.76,"cost_fuel":16.51,"cost_carbon":14.42,"total_cost_bn":32.192,"co2e_intensity":0.09616,"co2e_mt":28.221,"renewable_pct":81.09,"thermal_pct":18.914,"use_mwh":0.0,"carried_gw":34.86,"mix":{"Wind":{"share":44.703,"twh":135.427},"Solar":{"share":31.608,"twh":95.755},"Gas":{"share":15.29,"twh":46.32},"Water":{"share":4.213,"twh":12.764},"Biomass":{"share":0.561,"twh":1.7},"Black Coal":{"share":2.934,"twh":8.887},"Brown Coal":{"share":0.691,"twh":2.093}}},{"carbon":150,"demand":"d123","year":2050,"delivered_twh":311.081,"avg_cost":113.63,"cost_excl":91.05,"cost_fuel":12.9,"cost_carbon":9.68,"total_cost_bn":35.348,"co2e_intensity":0.06451,"co2e_mt":20.066,"renewable_pct":86.03,"thermal_pct":13.967,"use_mwh":0.0,"carried_gw":77.68,"mix":{"Wind":{"share":52.012,"twh":167.533},"Solar":{"share":30.439,"twh":98.047},"Gas":{"share":12.326,"twh":39.703},"Water":{"share":3.055,"twh":9.841},"Biomass":{"share":0.526,"twh":1.695},"Black Coal":{"share":1.641,"twh":5.286}}},{"carbon":300,"demand":"d087","year":2030,"delivered_twh":164.293,"avg_cost":80.74,"cost_excl":62.72,"cost_fuel":7.59,"cost_carbon":10.43,"total_cost_bn":13.265,"co2e_intensity":0.03477,"co2e_mt":5.713,"renewable_pct":92.5,"thermal_pct":7.499,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":57.817,"twh":97.38},"Solar":{"share":26.891,"twh":45.293},"Gas":{"share":6.813,"twh":11.475},"Water":{"share":7.716,"twh":12.996},"Biomass":{"share":0.077,"twh":0.13},"Black Coal":{"share":0.686,"twh":1.156},"Brown Coal":{"share":0.0,"twh":0.0}}},{"carbon":300,"demand":"d087","year":2040,"delivered_twh":206.685,"avg_cost":97.42,"cost_excl":80.72,"cost_fuel":7.65,"cost_carbon":9.05,"total_cost_bn":20.135,"co2e_intensity":0.03016,"co2e_mt":6.234,"renewable_pct":92.8,"thermal_pct":7.204,"use_mwh":0.0,"carried_gw":19.34,"mix":{"Wind":{"share":48.839,"twh":105.329},"Solar":{"share":37.15,"twh":80.119},"Gas":{"share":7.204,"twh":15.536},"Water":{"share":5.921,"twh":12.769},"Biomass":{"share":0.886,"twh":1.91},"Black Coal":{"share":0.0,"twh":0.0}}},{"carbon":300,"demand":"d087","year":2050,"delivered_twh":219.072,"avg_cost":99.03,"cost_excl":85.85,"cost_fuel":6.0,"cost_carbon":7.18,"total_cost_bn":21.694,"co2e_intensity":0.02393,"co2e_mt":5.242,"renewable_pct":94.23,"thermal_pct":5.77,"use_mwh":0.0,"carried_gw":53.26,"mix":{"Wind":{"share":54.217,"twh":123.902},"Solar":{"share":34.959,"twh":79.892},"Gas":{"share":5.77,"twh":13.187},"Water":{"share":4.302,"twh":9.832},"Biomass":{"share":0.751,"twh":1.715},"Black Coal":{"share":0.0,"twh":0.0}}},{"carbon":300,"demand":"d100","year":2030,"delivered_twh":188.941,"avg_cost":89.26,"cost_excl":69.26,"cost_fuel":7.9,"cost_carbon":12.1,"total_cost_bn":16.865,"co2e_intensity":0.04033,"co2e_mt":7.621,"renewable_pct":91.76,"thermal_pct":8.243,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":57.313,"twh":111.206},"Solar":{"share":26.915,"twh":52.223},"Gas":{"share":6.963,"twh":13.511},"Water":{"share":6.704,"twh":13.008},"Biomass":{"share":0.826,"twh":1.602},"Black Coal":{"share":1.279,"twh":2.483},"Brown Coal":{"share":0.0,"twh":0.0}}},{"carbon":300,"demand":"d100","year":2040,"delivered_twh":237.693,"avg_cost":107.21,"cost_excl":85.44,"cost_fuel":9.71,"cost_carbon":12.05,"total_cost_bn":25.482,"co2e_intensity":0.04018,"co2e_mt":9.551,"renewable_pct":90.4,"thermal_pct":9.6,"use_mwh":0.0,"carried_gw":30.2,"mix":{"Wind":{"share":48.58,"twh":120.159},"Solar":{"share":35.963,"twh":88.953},"Gas":{"share":9.371,"twh":23.178},"Water":{"share":5.162,"twh":12.768},"Biomass":{"share":0.695,"twh":1.719},"Black Coal":{"share":0.229,"twh":0.567}}},{"carbon":300,"demand":"d100","year":2050,"delivered_twh":251.938,"avg_cost":108.45,"cost_excl":91.73,"cost_fuel":7.54,"cost_carbon":9.18,"total_cost_bn":27.324,"co2e_intensity":0.0306,"co2e_mt":7.709,"renewable_pct":92.59,"thermal_pct":7.406,"use_mwh":0.0,"carried_gw":66.1,"mix":{"Wind":{"share":54.403,"twh":142.796},"Solar":{"share":33.84,"twh":88.822},"Gas":{"share":7.345,"twh":19.279},"Water":{"share":3.744,"twh":9.828},"Biomass":{"share":0.608,"twh":1.595},"Black Coal":{"share":0.061,"twh":0.159}}},{"carbon":300,"demand":"d110","year":2030,"delivered_twh":207.835,"avg_cost":95.02,"cost_excl":72.7,"cost_fuel":8.91,"cost_carbon":13.41,"total_cost_bn":19.748,"co2e_intensity":0.0447,"co2e_mt":9.29,"renewable_pct":90.66,"thermal_pct":9.343,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":56.195,"twh":119.869},"Solar":{"share":27.577,"twh":58.824},"Gas":{"share":8.009,"twh":17.084},"Water":{"share":6.094,"twh":12.998},"Biomass":{"share":0.792,"twh":1.688},"Black Coal":{"share":1.334,"twh":2.847},"Brown Coal":{"share":0.0,"twh":0.0},"Liquid Fuel":{"share":0.0,"twh":0.0}}},{"carbon":300,"demand":"d110","year":2040,"delivered_twh":261.463,"avg_cost":113.99,"cost_excl":90.21,"cost_fuel":10.4,"cost_carbon":13.38,"total_cost_bn":29.804,"co2e_intensity":0.04461,"co2e_mt":11.664,"renewable_pct":89.47,"thermal_pct":10.529,"use_mwh":0.0,"carried_gw":39.39,"mix":{"Wind":{"share":49.027,"twh":133.204},"Solar":{"share":35.039,"twh":95.201},"Gas":{"share":10.085,"twh":27.401},"Water":{"share":4.696,"twh":12.759},"Biomass":{"share":0.708,"twh":1.924},"Black Coal":{"share":0.444,"twh":1.208}}},{"carbon":300,"demand":"d110","year":2050,"delivered_twh":277.132,"avg_cost":115.23,"cost_excl":95.88,"cost_fuel":8.64,"cost_carbon":10.71,"total_cost_bn":31.934,"co2e_intensity":0.03569,"co2e_mt":9.891,"renewable_pct":91.37,"thermal_pct":8.627,"use_mwh":0.0,"carried_gw":76.15,"mix":{"Wind":{"share":54.434,"twh":156.934},"Solar":{"share":32.934,"twh":94.949},"Gas":{"share":8.479,"twh":24.445},"Water":{"share":3.41,"twh":9.832},"Biomass":{"share":0.596,"twh":1.717},"Black Coal":{"share":0.148,"twh":0.427},"Liquid Fuel":{"share":0.0,"twh":0.0}}},{"carbon":300,"demand":"d123","year":2030,"delivered_twh":233.295,"avg_cost":102.5,"cost_excl":76.01,"cost_fuel":10.78,"cost_carbon":15.71,"total_cost_bn":23.912,"co2e_intensity":0.05236,"co2e_mt":12.215,"renewable_pct":88.68,"thermal_pct":11.315,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":55.807,"twh":133.431},"Solar":{"share":26.72,"twh":63.886},"Gas":{"share":9.933,"twh":23.749},"Water":{"share":5.442,"twh":13.012},"Biomass":{"share":0.716,"twh":1.712},"Black Coal":{"share":1.382,"twh":3.305},"Brown Coal":{"share":0.0,"twh":0.0},"Liquid Fuel":{"share":0.0,"twh":0.0}}},{"carbon":300,"demand":"d123","year":2040,"delivered_twh":293.492,"avg_cost":121.47,"cost_excl":92.76,"cost_fuel":12.59,"cost_carbon":16.12,"total_cost_bn":35.649,"co2e_intensity":0.05372,"co2e_mt":15.765,"renewable_pct":87.19,"thermal_pct":12.81,"use_mwh":0.0,"carried_gw":48.84,"mix":{"Wind":{"share":48.693,"twh":147.977},"Solar":{"share":33.432,"twh":101.599},"Gas":{"share":12.308,"twh":37.403},"Water":{"share":4.197,"twh":12.756},"Biomass":{"share":0.867,"twh":2.633},"Black Coal":{"share":0.503,"twh":1.528}}},{"carbon":300,"demand":"d123","year":2050,"delivered_twh":311.081,"avg_cost":122.87,"cost_excl":100.16,"cost_fuel":10.13,"cost_carbon":12.59,"total_cost_bn":38.223,"co2e_intensity":0.04196,"co2e_mt":13.052,"renewable_pct":89.79,"thermal_pct":10.211,"use_mwh":0.0,"carried_gw":87.46,"mix":{"Wind":{"share":54.131,"twh":175.063},"Solar":{"share":31.889,"twh":103.132},"Gas":{"share":10.022,"twh":32.411},"Water":{"share":3.041,"twh":9.833},"Biomass":{"share":0.728,"twh":2.355},"Black Coal":{"share":0.19,"twh":0.613},"Liquid Fuel":{"share":0.0,"twh":0.0}}},{"carbon":550,"demand":"d087","year":2030,"delivered_twh":164.293,"avg_cost":86.97,"cost_excl":71.31,"cost_fuel":4.98,"cost_carbon":10.68,"total_cost_bn":14.289,"co2e_intensity":0.01942,"co2e_mt":3.191,"renewable_pct":95.42,"thermal_pct":4.583,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":58.903,"twh":99.359},"Solar":{"share":27.839,"twh":46.96},"Gas":{"share":4.567,"twh":7.704},"Water":{"share":7.7,"twh":12.989},"Biomass":{"share":0.974,"twh":1.643},"Black Coal":{"share":0.016,"twh":0.026}}},{"carbon":550,"demand":"d087","year":2040,"delivered_twh":206.685,"avg_cost":104.39,"cost_excl":88.37,"cost_fuel":6.85,"cost_carbon":9.17,"total_cost_bn":21.576,"co2e_intensity":0.01667,"co2e_mt":3.446,"renewable_pct":94.1,"thermal_pct":5.905,"use_mwh":0.0,"carried_gw":24.96,"mix":{"Wind":{"share":49.46,"twh":106.825},"Solar":{"share":37.812,"twh":81.667},"Gas":{"share":5.905,"twh":12.753},"Water":{"share":5.915,"twh":12.774},"Biomass":{"share":0.908,"twh":1.961},"Black Coal":{"share":0.0,"twh":0.0}}},{"carbon":550,"demand":"d087","year":2050,"delivered_twh":219.072,"avg_cost":105.12,"cost_excl":92.95,"cost_fuel":5.28,"cost_carbon":6.88,"total_cost_bn":23.028,"co2e_intensity":0.01251,"co2e_mt":2.741,"renewable_pct":95.44,"thermal_pct":4.564,"use_mwh":0.0,"carried_gw":56.61,"mix":{"Wind":{"share":55.94,"twh":127.85},"Solar":{"share":34.408,"twh":78.639},"Gas":{"share":4.564,"twh":10.431},"Water":{"share":4.302,"twh":9.833},"Biomass":{"share":0.786,"twh":1.796}}},{"carbon":550,"demand":"d100","year":2030,"delivered_twh":188.941,"avg_cost":96.66,"cost_excl":76.86,"cost_fuel":7.49,"cost_carbon":12.32,"total_cost_bn":18.263,"co2e_intensity":0.0224,"co2e_mt":4.231,"renewable_pct":93.42,"thermal_pct":6.576,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":56.636,"twh":110.217},"Solar":{"share":29.247,"twh":56.916},"Gas":{"share":6.555,"twh":12.757},"Water":{"share":6.677,"twh":12.993},"Biomass":{"share":0.864,"twh":1.681},"Black Coal":{"share":0.021,"twh":0.04},"Brown Coal":{"share":0.0,"twh":0.0},"Liquid Fuel":{"share":0.0,"twh":0.0}}},{"carbon":550,"demand":"d100","year":2040,"delivered_twh":237.693,"avg_cost":115.03,"cost_excl":95.98,"cost_fuel":9.4,"cost_carbon":9.64,"total_cost_bn":27.341,"co2e_intensity":0.01753,"co2e_mt":4.167,"renewable_pct":92.05,"thermal_pct":7.952,"use_mwh":0.0,"carried_gw":36.46,"mix":{"Wind":{"share":49.716,"twh":123.229},"Solar":{"share":36.413,"twh":90.254},"Gas":{"share":7.952,"twh":19.711},"Water":{"share":5.153,"twh":12.772},"Biomass":{"share":0.766,"twh":1.898},"Black Coal":{"share":0.0,"twh":0.0}}},{"carbon":550,"demand":"d100","year":2050,"delivered_twh":251.938,"avg_cost":115.53,"cost_excl":100.43,"cost_fuel":7.61,"cost_carbon":7.48,"total_cost_bn":29.106,"co2e_intensity":0.0136,"co2e_mt":3.427,"renewable_pct":93.48,"thermal_pct":6.519,"use_mwh":0.0,"carried_gw":69.13,"mix":{"Wind":{"share":55.29,"twh":145.268},"Solar":{"share":33.748,"twh":88.669},"Gas":{"share":6.519,"twh":17.127},"Water":{"share":3.742,"twh":9.833},"Biomass":{"share":0.701,"twh":1.842}}},{"carbon":550,"demand":"d110","year":2030,"delivered_twh":207.835,"avg_cost":103.19,"cost_excl":83.33,"cost_fuel":7.81,"cost_carbon":12.06,"total_cost_bn":21.447,"co2e_intensity":0.02192,"co2e_mt":4.557,"renewable_pct":93.19,"thermal_pct":6.808,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":57.749,"twh":123.306},"Solar":{"share":28.554,"twh":60.969},"Gas":{"share":6.765,"twh":14.445},"Water":{"share":6.084,"twh":12.99},"Biomass":{"share":0.805,"twh":1.719},"Black Coal":{"share":0.043,"twh":0.091}}},{"carbon":550,"demand":"d110","year":2040,"delivered_twh":261.463,"avg_cost":122.02,"cost_excl":102.8,"cost_fuel":9.98,"cost_carbon":9.24,"total_cost_bn":31.904,"co2e_intensity":0.01679,"co2e_mt":4.39,"renewable_pct":91.69,"thermal_pct":8.31,"use_mwh":0.0,"carried_gw":45.97,"mix":{"Wind":{"share":50.043,"twh":136.302},"Solar":{"share":35.336,"twh":96.244},"Gas":{"share":8.31,"twh":22.635},"Water":{"share":4.69,"twh":12.775},"Biomass":{"share":1.62,"twh":4.412},"Black Coal":{"share":0.0,"twh":0.0}}},{"carbon":550,"demand":"d110","year":2050,"delivered_twh":277.132,"avg_cost":122.74,"cost_excl":106.13,"cost_fuel":8.79,"cost_carbon":7.81,"total_cost_bn":34.015,"co2e_intensity":0.01421,"co2e_mt":3.937,"renewable_pct":92.56,"thermal_pct":7.439,"use_mwh":0.0,"carried_gw":79.7,"mix":{"Wind":{"share":54.632,"twh":157.756},"Solar":{"share":33.135,"twh":95.682},"Gas":{"share":7.439,"twh":21.48},"Water":{"share":3.406,"twh":9.834},"Biomass":{"share":1.389,"twh":4.01}}},{"carbon":550,"demand":"d123","year":2030,"delivered_twh":233.295,"avg_cost":111.1,"cost_excl":89.07,"cost_fuel":9.35,"cost_carbon":12.68,"total_cost_bn":25.919,"co2e_intensity":0.02305,"co2e_mt":5.378,"renewable_pct":91.91,"thermal_pct":8.094,"use_mwh":0.0,"carried_gw":0.0,"mix":{"Wind":{"share":57.508,"twh":137.663},"Solar":{"share":27.707,"twh":66.325},"Gas":{"share":8.045,"twh":19.257},"Water":{"share":5.427,"twh":12.992},"Biomass":{"share":1.263,"twh":3.023},"Black Coal":{"share":0.05,"twh":0.119},"Brown Coal":{"share":0.0,"twh":0.0}}},{"carbon":550,"demand":"d123","year":2040,"delivered_twh":293.492,"avg_cost":130.56,"cost_excl":108.65,"cost_fuel":12.32,"cost_carbon":9.59,"total_cost_bn":38.318,"co2e_intensity":0.01745,"co2e_mt":5.12,"renewable_pct":89.76,"thermal_pct":10.243,"use_mwh":0.0,"carried_gw":56.58,"mix":{"Wind":{"share":49.694,"twh":151.608},"Solar":{"share":34.195,"twh":104.323},"Gas":{"share":10.243,"twh":31.25},"Water":{"share":4.187,"twh":12.774},"Biomass":{"share":1.681,"twh":5.128},"Black Coal":{"share":0.0,"twh":0.0}}},{"carbon":550,"demand":"d123","year":2050,"delivered_twh":311.081,"avg_cost":130.5,"cost_excl":112.96,"cost_fuel":9.72,"cost_carbon":7.82,"total_cost_bn":40.597,"co2e_intensity":0.01422,"co2e_mt":4.425,"renewable_pct":91.88,"thermal_pct":8.123,"use_mwh":0.0,"carried_gw":93.65,"mix":{"Wind":{"share":54.764,"twh":177.403},"Solar":{"share":31.962,"twh":103.538},"Gas":{"share":8.123,"twh":26.315},"Water":{"share":3.037,"twh":9.839},"Biomass":{"share":2.113,"twh":6.845}}}],"marginals":[{"carbon":0,"year":2030,"from":"d087","to":"d100","from_twh":164.293,"to_twh":188.941,"d_twh":24.648,"from_cost_bn":7.479,"to_cost_bn":9.206,"mc":70.07,"mco2e":0.90331,"thermal_pct":93.68,"renewable_pct":6.32},{"carbon":0,"year":2030,"from":"d100","to":"d110","from_twh":188.941,"to_twh":207.835,"d_twh":18.894,"from_cost_bn":9.206,"to_cost_bn":10.569,"mc":72.12,"mco2e":0.80431,"thermal_pct":90.89,"renewable_pct":9.11},{"carbon":0,"year":2030,"from":"d110","to":"d123","from_twh":207.835,"to_twh":233.295,"d_twh":25.46,"from_cost_bn":10.569,"to_cost_bn":12.708,"mc":84.03,"mco2e":0.62667,"thermal_pct":77.43,"renewable_pct":22.57},{"carbon":0,"year":2040,"from":"d087","to":"d100","from_twh":206.685,"to_twh":237.693,"d_twh":31.008,"from_cost_bn":14.527,"to_cost_bn":18.119,"mc":115.82,"mco2e":0.01771,"thermal_pct":17.52,"renewable_pct":82.48},{"carbon":0,"year":2040,"from":"d100","to":"d110","from_twh":237.693,"to_twh":261.463,"d_twh":23.769,"from_cost_bn":18.119,"to_cost_bn":20.594,"mc":104.12,"mco2e":0.30651,"thermal_pct":61.12,"renewable_pct":38.88},{"carbon":0,"year":2040,"from":"d110","to":"d123","from_twh":261.463,"to_twh":293.492,"d_twh":32.03,"from_cost_bn":20.594,"to_cost_bn":24.6,"mc":125.1,"mco2e":0.09664,"thermal_pct":27.27,"renewable_pct":72.73},{"carbon":0,"year":2050,"from":"d087","to":"d100","from_twh":219.072,"to_twh":251.938,"d_twh":32.866,"from_cost_bn":17.502,"to_cost_bn":21.686,"mc":127.32,"mco2e":0.14088,"thermal_pct":36.67,"renewable_pct":63.33},{"carbon":0,"year":2050,"from":"d100","to":"d110","from_twh":251.938,"to_twh":277.132,"d_twh":25.194,"from_cost_bn":21.686,"to_cost_bn":24.704,"mc":119.8,"mco2e":0.13997,"thermal_pct":37.93,"renewable_pct":62.07},{"carbon":0,"year":2050,"from":"d110","to":"d123","from_twh":277.132,"to_twh":311.081,"d_twh":33.949,"from_cost_bn":24.704,"to_cost_bn":29.006,"mc":126.71,"mco2e":0.19496,"thermal_pct":50.72,"renewable_pct":49.28},{"carbon":150,"year":2030,"from":"d087","to":"d100","from_twh":164.293,"to_twh":188.941,"d_twh":24.648,"from_cost_bn":12.276,"to_cost_bn":15.442,"mc":128.44,"mco2e":0.16948,"thermal_pct":25.74,"renewable_pct":74.26},{"carbon":150,"year":2030,"from":"d100","to":"d110","from_twh":188.941,"to_twh":207.835,"d_twh":18.894,"from_cost_bn":15.442,"to_cost_bn":18.021,"mc":136.48,"mco2e":0.2341,"thermal_pct":28.07,"renewable_pct":71.93},{"carbon":150,"year":2030,"from":"d110","to":"d123","from_twh":207.835,"to_twh":233.295,"d_twh":25.46,"from_cost_bn":18.021,"to_cost_bn":21.75,"mc":146.49,"mco2e":0.366,"thermal_pct":38.47,"renewable_pct":61.53},{"carbon":150,"year":2040,"from":"d087","to":"d100","from_twh":206.685,"to_twh":237.693,"d_twh":31.008,"from_cost_bn":18.853,"to_cost_bn":23.506,"mc":150.06,"mco2e":0.1398,"thermal_pct":32.33,"renewable_pct":67.67},{"carbon":150,"year":2040,"from":"d100","to":"d110","from_twh":237.693,"to_twh":261.463,"d_twh":23.769,"from_cost_bn":23.506,"to_cost_bn":27.196,"mc":155.25,"mco2e":0.19969,"thermal_pct":36.04,"renewable_pct":63.96},{"carbon":150,"year":2040,"from":"d110","to":"d123","from_twh":261.463,"to_twh":293.492,"d_twh":32.03,"from_cost_bn":27.196,"to_cost_bn":32.192,"mc":155.98,"mco2e":0.21982,"thermal_pct":50.02,"renewable_pct":49.98},{"carbon":150,"year":2050,"from":"d087","to":"d100","from_twh":219.072,"to_twh":251.938,"d_twh":32.866,"from_cost_bn":20.591,"to_cost_bn":25.677,"mc":154.74,"mco2e":0.09448,"thermal_pct":23.99,"renewable_pct":76.01},{"carbon":150,"year":2050,"from":"d100","to":"d110","from_twh":251.938,"to_twh":277.132,"d_twh":25.194,"from_cost_bn":25.677,"to_cost_bn":29.806,"mc":163.9,"mco2e":0.10273,"thermal_pct":21.65,"renewable_pct":78.35},{"carbon":150,"year":2050,"from":"d110","to":"d123","from_twh":277.132,"to_twh":311.081,"d_twh":33.949,"from_cost_bn":29.806,"to_cost_bn":35.348,"mc":163.23,"mco2e":0.17021,"thermal_pct":37.33,"renewable_pct":62.67},{"carbon":300,"year":2030,"from":"d087","to":"d100","from_twh":164.293,"to_twh":188.941,"d_twh":24.648,"from_cost_bn":13.265,"to_cost_bn":16.865,"mc":146.07,"mco2e":0.07742,"thermal_pct":13.14,"renewable_pct":86.86},{"carbon":300,"year":2030,"from":"d100","to":"d110","from_twh":188.941,"to_twh":207.835,"d_twh":18.894,"from_cost_bn":16.865,"to_cost_bn":19.748,"mc":152.59,"mco2e":0.08833,"thermal_pct":20.42,"renewable_pct":79.58},{"carbon":300,"year":2030,"from":"d110","to":"d123","from_twh":207.835,"to_twh":233.295,"d_twh":25.46,"from_cost_bn":19.748,"to_cost_bn":23.912,"mc":163.56,"mco2e":0.11489,"thermal_pct":27.63,"renewable_pct":72.37},{"carbon":300,"year":2040,"from":"d087","to":"d100","from_twh":206.685,"to_twh":237.693,"d_twh":31.008,"from_cost_bn":20.135,"to_cost_bn":25.482,"mc":172.45,"mco2e":0.10698,"thermal_pct":25.91,"renewable_pct":74.09},{"carbon":300,"year":2040,"from":"d100","to":"d110","from_twh":237.693,"to_twh":261.463,"d_twh":23.769,"from_cost_bn":25.482,"to_cost_bn":29.804,"mc":181.83,"mco2e":0.08886,"thermal_pct":19.97,"renewable_pct":80.03},{"carbon":300,"year":2040,"from":"d110","to":"d123","from_twh":261.463,"to_twh":293.492,"d_twh":32.03,"from_cost_bn":29.804,"to_cost_bn":35.649,"mc":182.49,"mco2e":0.12807,"thermal_pct":32.06,"renewable_pct":67.94},{"carbon":300,"year":2050,"from":"d087","to":"d100","from_twh":219.072,"to_twh":251.938,"d_twh":32.866,"from_cost_bn":21.694,"to_cost_bn":27.324,"mc":171.28,"mco2e":0.07508,"thermal_pct":18.41,"renewable_pct":81.59},{"carbon":300,"year":2050,"from":"d100","to":"d110","from_twh":251.938,"to_twh":277.132,"d_twh":25.194,"from_cost_bn":27.324,"to_cost_bn":31.934,"mc":183.02,"mco2e":0.08661,"thermal_pct":21.04,"renewable_pct":78.96},{"carbon":300,"year":2050,"from":"d110","to":"d123","from_twh":277.132,"to_twh":311.081,"d_twh":33.949,"from_cost_bn":31.934,"to_cost_bn":38.223,"mc":185.23,"mco2e":0.0931,"thermal_pct":23.23,"renewable_pct":76.77},{"carbon":550,"year":2030,"from":"d087","to":"d100","from_twh":164.293,"to_twh":188.941,"d_twh":24.648,"from_cost_bn":14.289,"to_cost_bn":18.263,"mc":161.23,"mco2e":0.0422,"thermal_pct":19.54,"renewable_pct":80.46},{"carbon":550,"year":2030,"from":"d100","to":"d110","from_twh":188.941,"to_twh":207.835,"d_twh":18.894,"from_cost_bn":18.263,"to_cost_bn":21.447,"mc":168.52,"mco2e":0.01722,"thermal_pct":9.2,"renewable_pct":90.8},{"carbon":550,"year":2030,"from":"d110","to":"d123","from_twh":207.835,"to_twh":233.295,"d_twh":25.46,"from_cost_bn":21.447,"to_cost_bn":25.919,"mc":175.63,"mco2e":0.03228,"thermal_pct":18.71,"renewable_pct":81.29},{"carbon":550,"year":2040,"from":"d087","to":"d100","from_twh":206.685,"to_twh":237.693,"d_twh":31.008,"from_cost_bn":21.576,"to_cost_bn":27.341,"mc":185.91,"mco2e":0.02326,"thermal_pct":21.82,"renewable_pct":78.18},{"carbon":550,"year":2040,"from":"d100","to":"d110","from_twh":237.693,"to_twh":261.463,"d_twh":23.769,"from_cost_bn":27.341,"to_cost_bn":31.904,"mc":191.97,"mco2e":0.00939,"thermal_pct":11.93,"renewable_pct":88.07},{"carbon":550,"year":2040,"from":"d110","to":"d123","from_twh":261.463,"to_twh":293.492,"d_twh":32.03,"from_cost_bn":31.904,"to_cost_bn":38.318,"mc":200.25,"mco2e":0.02278,"thermal_pct":26.33,"renewable_pct":73.67},{"carbon":550,"year":2050,"from":"d087","to":"d100","from_twh":219.072,"to_twh":251.938,"d_twh":32.866,"from_cost_bn":23.028,"to_cost_bn":29.106,"mc":184.93,"mco2e":0.02086,"thermal_pct":19.59,"renewable_pct":80.41},{"carbon":550,"year":2050,"from":"d100","to":"d110","from_twh":251.938,"to_twh":277.132,"d_twh":25.194,"from_cost_bn":29.106,"to_cost_bn":34.015,"mc":194.83,"mco2e":0.02027,"thermal_pct":16.72,"renewable_pct":83.28},{"carbon":550,"year":2050,"from":"d110","to":"d123","from_twh":277.132,"to_twh":311.081,"d_twh":33.949,"from_cost_bn":34.015,"to_cost_bn":40.597,"mc":193.89,"mco2e":0.01436,"thermal_pct":13.74,"renewable_pct":86.26}],"storage":[{"carbon":0,"demand":"d087","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.163,"gwh":7.7},{"carbon":0,"demand":"d087","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.994,"gwh":17.9},{"carbon":0,"demand":"d087","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.726,"gwh":8.1},{"carbon":0,"demand":"d087","year":2030,"carrier":"Battery","cls":"4_8h","gw":0.65,"gwh":5.2},{"carbon":0,"demand":"d087","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":0,"demand":"d087","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d087","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d087","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d087","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":0,"demand":"d087","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":4.994,"gwh":7.5},{"carbon":0,"demand":"d087","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.88,"gwh":17.7},{"carbon":0,"demand":"d087","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.74,"gwh":8.2},{"carbon":0,"demand":"d087","year":2040,"carrier":"Battery","cls":"4_8h","gw":3.74,"gwh":29.9},{"carbon":0,"demand":"d087","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d087","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d087","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d087","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":0,"demand":"d087","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.656,"gwh":4.4},{"carbon":0,"demand":"d087","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.175,"gwh":8.2},{"carbon":0,"demand":"d087","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.924,"gwh":8.9},{"carbon":0,"demand":"d087","year":2050,"carrier":"Battery","cls":"4_8h","gw":9.973,"gwh":79.8},{"carbon":0,"demand":"d087","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d087","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d087","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d087","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":0,"demand":"d100","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.163,"gwh":7.7},{"carbon":0,"demand":"d100","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.994,"gwh":17.9},{"carbon":0,"demand":"d100","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.726,"gwh":8.1},{"carbon":0,"demand":"d100","year":2030,"carrier":"Battery","cls":"4_8h","gw":0.65,"gwh":5.2},{"carbon":0,"demand":"d100","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":0,"demand":"d100","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d100","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d100","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d100","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":0,"demand":"d100","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.002,"gwh":7.5},{"carbon":0,"demand":"d100","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.891,"gwh":17.7},{"carbon":0,"demand":"d100","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.767,"gwh":8.3},{"carbon":0,"demand":"d100","year":2040,"carrier":"Battery","cls":"4_8h","gw":6.435,"gwh":51.5},{"carbon":0,"demand":"d100","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d100","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d100","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d100","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":0,"demand":"d100","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.658,"gwh":4.4},{"carbon":0,"demand":"d100","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.187,"gwh":8.2},{"carbon":0,"demand":"d100","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":2.348,"gwh":10.6},{"carbon":0,"demand":"d100","year":2050,"carrier":"Battery","cls":"4_8h","gw":11.446,"gwh":91.6},{"carbon":0,"demand":"d100","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d100","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d100","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d100","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":0,"demand":"d110","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.163,"gwh":7.7},{"carbon":0,"demand":"d110","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.994,"gwh":17.9},{"carbon":0,"demand":"d110","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.771,"gwh":8.3},{"carbon":0,"demand":"d110","year":2030,"carrier":"Battery","cls":"4_8h","gw":0.65,"gwh":5.2},{"carbon":0,"demand":"d110","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":0,"demand":"d110","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d110","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d110","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d110","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":0,"demand":"d110","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":4.995,"gwh":7.5},{"carbon":0,"demand":"d110","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.884,"gwh":17.7},{"carbon":0,"demand":"d110","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.801,"gwh":8.4},{"carbon":0,"demand":"d110","year":2040,"carrier":"Battery","cls":"4_8h","gw":7.609,"gwh":60.9},{"carbon":0,"demand":"d110","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d110","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d110","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d110","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":0,"demand":"d110","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.658,"gwh":4.4},{"carbon":0,"demand":"d110","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.144,"gwh":8.2},{"carbon":0,"demand":"d110","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.47,"gwh":7.1},{"carbon":0,"demand":"d110","year":2050,"carrier":"Battery","cls":"4_8h","gw":14.735,"gwh":117.9},{"carbon":0,"demand":"d110","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d110","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d110","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d110","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":0,"demand":"d123","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.165,"gwh":7.7},{"carbon":0,"demand":"d123","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.998,"gwh":17.9},{"carbon":0,"demand":"d123","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.738,"gwh":8.1},{"carbon":0,"demand":"d123","year":2030,"carrier":"Battery","cls":"4_8h","gw":0.65,"gwh":5.2},{"carbon":0,"demand":"d123","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":0,"demand":"d123","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d123","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d123","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d123","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":0,"demand":"d123","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.019,"gwh":7.5},{"carbon":0,"demand":"d123","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.912,"gwh":17.7},{"carbon":0,"demand":"d123","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.787,"gwh":8.3},{"carbon":0,"demand":"d123","year":2040,"carrier":"Battery","cls":"4_8h","gw":9.995,"gwh":80.0},{"carbon":0,"demand":"d123","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d123","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d123","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d123","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":0,"demand":"d123","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.697,"gwh":4.5},{"carbon":0,"demand":"d123","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.181,"gwh":8.2},{"carbon":0,"demand":"d123","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.504,"gwh":7.2},{"carbon":0,"demand":"d123","year":2050,"carrier":"Battery","cls":"4_8h","gw":17.499,"gwh":140.0},{"carbon":0,"demand":"d123","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":0,"demand":"d123","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":0,"demand":"d123","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":0,"demand":"d123","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":150,"demand":"d087","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.163,"gwh":7.7},{"carbon":150,"demand":"d087","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.994,"gwh":17.9},{"carbon":150,"demand":"d087","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.726,"gwh":8.1},{"carbon":150,"demand":"d087","year":2030,"carrier":"Battery","cls":"4_8h","gw":0.732,"gwh":5.9},{"carbon":150,"demand":"d087","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":150,"demand":"d087","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d087","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d087","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d087","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":150,"demand":"d087","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.024,"gwh":7.5},{"carbon":150,"demand":"d087","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.922,"gwh":17.8},{"carbon":150,"demand":"d087","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.817,"gwh":8.5},{"carbon":150,"demand":"d087","year":2040,"carrier":"Battery","cls":"4_8h","gw":7.227,"gwh":57.8},{"carbon":150,"demand":"d087","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d087","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d087","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d087","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":150,"demand":"d087","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.68,"gwh":4.4},{"carbon":150,"demand":"d087","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.172,"gwh":8.2},{"carbon":150,"demand":"d087","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.522,"gwh":7.3},{"carbon":150,"demand":"d087","year":2050,"carrier":"Battery","cls":"4_8h","gw":12.673,"gwh":101.4},{"carbon":150,"demand":"d087","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d087","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d087","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d087","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":150,"demand":"d100","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.164,"gwh":7.7},{"carbon":150,"demand":"d100","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.995,"gwh":17.9},{"carbon":150,"demand":"d100","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.731,"gwh":8.1},{"carbon":150,"demand":"d100","year":2030,"carrier":"Battery","cls":"4_8h","gw":1.087,"gwh":8.7},{"carbon":150,"demand":"d100","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":150,"demand":"d100","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d100","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d100","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d100","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":150,"demand":"d100","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":4.998,"gwh":7.5},{"carbon":150,"demand":"d100","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.892,"gwh":17.7},{"carbon":150,"demand":"d100","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.759,"gwh":8.2},{"carbon":150,"demand":"d100","year":2040,"carrier":"Battery","cls":"4_8h","gw":8.245,"gwh":66.0},{"carbon":150,"demand":"d100","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d100","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d100","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d100","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":150,"demand":"d100","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.66,"gwh":4.4},{"carbon":150,"demand":"d100","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.151,"gwh":8.2},{"carbon":150,"demand":"d100","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.484,"gwh":7.1},{"carbon":150,"demand":"d100","year":2050,"carrier":"Battery","cls":"4_8h","gw":14.971,"gwh":119.8},{"carbon":150,"demand":"d100","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d100","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d100","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d100","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.202,"gwh":349.9},{"carbon":150,"demand":"d110","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.164,"gwh":7.7},{"carbon":150,"demand":"d110","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.994,"gwh":17.9},{"carbon":150,"demand":"d110","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.727,"gwh":8.1},{"carbon":150,"demand":"d110","year":2030,"carrier":"Battery","cls":"4_8h","gw":1.278,"gwh":10.2},{"carbon":150,"demand":"d110","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":150,"demand":"d110","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d110","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d110","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d110","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":150,"demand":"d110","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.003,"gwh":7.5},{"carbon":150,"demand":"d110","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.895,"gwh":17.7},{"carbon":150,"demand":"d110","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.779,"gwh":8.3},{"carbon":150,"demand":"d110","year":2040,"carrier":"Battery","cls":"4_8h","gw":10.728,"gwh":85.8},{"carbon":150,"demand":"d110","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d110","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d110","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d110","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":150,"demand":"d110","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.681,"gwh":4.4},{"carbon":150,"demand":"d110","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.171,"gwh":8.2},{"carbon":150,"demand":"d110","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.516,"gwh":7.2},{"carbon":150,"demand":"d110","year":2050,"carrier":"Battery","cls":"4_8h","gw":18.471,"gwh":147.8},{"carbon":150,"demand":"d110","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d110","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d110","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d110","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.208,"gwh":350.2},{"carbon":150,"demand":"d123","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.163,"gwh":7.7},{"carbon":150,"demand":"d123","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.994,"gwh":17.9},{"carbon":150,"demand":"d123","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.727,"gwh":8.1},{"carbon":150,"demand":"d123","year":2030,"carrier":"Battery","cls":"4_8h","gw":2.438,"gwh":19.5},{"carbon":150,"demand":"d123","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":150,"demand":"d123","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d123","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d123","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d123","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":150,"demand":"d123","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.003,"gwh":7.5},{"carbon":150,"demand":"d123","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.896,"gwh":17.7},{"carbon":150,"demand":"d123","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.767,"gwh":8.3},{"carbon":150,"demand":"d123","year":2040,"carrier":"Battery","cls":"4_8h","gw":12.545,"gwh":100.4},{"carbon":150,"demand":"d123","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d123","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d123","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d123","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":150,"demand":"d123","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.677,"gwh":4.4},{"carbon":150,"demand":"d123","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.167,"gwh":8.2},{"carbon":150,"demand":"d123","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.499,"gwh":7.2},{"carbon":150,"demand":"d123","year":2050,"carrier":"Battery","cls":"4_8h","gw":20.747,"gwh":166.0},{"carbon":150,"demand":"d123","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":150,"demand":"d123","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":150,"demand":"d123","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":150,"demand":"d123","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":300,"demand":"d087","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.163,"gwh":7.7},{"carbon":300,"demand":"d087","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.994,"gwh":17.9},{"carbon":300,"demand":"d087","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.726,"gwh":8.1},{"carbon":300,"demand":"d087","year":2030,"carrier":"Battery","cls":"4_8h","gw":1.54,"gwh":12.3},{"carbon":300,"demand":"d087","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":300,"demand":"d087","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d087","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d087","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":300,"demand":"d087","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":300,"demand":"d087","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.019,"gwh":7.5},{"carbon":300,"demand":"d087","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.912,"gwh":17.7},{"carbon":300,"demand":"d087","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.776,"gwh":8.3},{"carbon":300,"demand":"d087","year":2040,"carrier":"Battery","cls":"4_8h","gw":9.412,"gwh":75.3},{"carbon":300,"demand":"d087","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d087","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d087","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":300,"demand":"d087","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.396,"gwh":359.2},{"carbon":300,"demand":"d087","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.675,"gwh":4.4},{"carbon":300,"demand":"d087","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.164,"gwh":8.2},{"carbon":300,"demand":"d087","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.484,"gwh":7.1},{"carbon":300,"demand":"d087","year":2050,"carrier":"Battery","cls":"4_8h","gw":13.886,"gwh":111.1},{"carbon":300,"demand":"d087","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d087","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d087","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":300,"demand":"d087","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.396,"gwh":359.2},{"carbon":300,"demand":"d100","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.164,"gwh":7.7},{"carbon":300,"demand":"d100","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.995,"gwh":17.9},{"carbon":300,"demand":"d100","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.73,"gwh":8.1},{"carbon":300,"demand":"d100","year":2030,"carrier":"Battery","cls":"4_8h","gw":2.943,"gwh":23.5},{"carbon":300,"demand":"d100","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":300,"demand":"d100","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d100","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d100","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":300,"demand":"d100","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":300,"demand":"d100","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.016,"gwh":7.5},{"carbon":300,"demand":"d100","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.91,"gwh":17.7},{"carbon":300,"demand":"d100","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.78,"gwh":8.3},{"carbon":300,"demand":"d100","year":2040,"carrier":"Battery","cls":"4_8h","gw":12.41,"gwh":99.3},{"carbon":300,"demand":"d100","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d100","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d100","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.38,"gwh":62.8},{"carbon":300,"demand":"d100","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.41,"gwh":359.9},{"carbon":300,"demand":"d100","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.661,"gwh":4.4},{"carbon":300,"demand":"d100","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.15,"gwh":8.2},{"carbon":300,"demand":"d100","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.478,"gwh":7.1},{"carbon":300,"demand":"d100","year":2050,"carrier":"Battery","cls":"4_8h","gw":17.546,"gwh":140.4},{"carbon":300,"demand":"d100","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d100","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d100","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.38,"gwh":62.8},{"carbon":300,"demand":"d100","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.414,"gwh":360.1},{"carbon":300,"demand":"d110","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.166,"gwh":7.7},{"carbon":300,"demand":"d110","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.995,"gwh":17.9},{"carbon":300,"demand":"d110","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.73,"gwh":8.1},{"carbon":300,"demand":"d110","year":2030,"carrier":"Battery","cls":"4_8h","gw":4.706,"gwh":37.7},{"carbon":300,"demand":"d110","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":300,"demand":"d110","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d110","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d110","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":300,"demand":"d110","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":300,"demand":"d110","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.017,"gwh":7.5},{"carbon":300,"demand":"d110","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.908,"gwh":17.7},{"carbon":300,"demand":"d110","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.778,"gwh":8.3},{"carbon":300,"demand":"d110","year":2040,"carrier":"Battery","cls":"4_8h","gw":14.798,"gwh":118.4},{"carbon":300,"demand":"d110","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d110","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d110","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.381,"gwh":62.8},{"carbon":300,"demand":"d110","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.397,"gwh":359.3},{"carbon":300,"demand":"d110","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.661,"gwh":4.4},{"carbon":300,"demand":"d110","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.147,"gwh":8.2},{"carbon":300,"demand":"d110","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.466,"gwh":7.0},{"carbon":300,"demand":"d110","year":2050,"carrier":"Battery","cls":"4_8h","gw":20.456,"gwh":163.6},{"carbon":300,"demand":"d110","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d110","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d110","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.381,"gwh":62.8},{"carbon":300,"demand":"d110","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.508,"gwh":364.6},{"carbon":300,"demand":"d123","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.166,"gwh":7.7},{"carbon":300,"demand":"d123","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.996,"gwh":17.9},{"carbon":300,"demand":"d123","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.737,"gwh":8.1},{"carbon":300,"demand":"d123","year":2030,"carrier":"Battery","cls":"4_8h","gw":5.875,"gwh":47.0},{"carbon":300,"demand":"d123","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":300,"demand":"d123","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d123","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d123","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":300,"demand":"d123","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":300,"demand":"d123","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.014,"gwh":7.5},{"carbon":300,"demand":"d123","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.904,"gwh":17.7},{"carbon":300,"demand":"d123","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.781,"gwh":8.3},{"carbon":300,"demand":"d123","year":2040,"carrier":"Battery","cls":"4_8h","gw":16.538,"gwh":132.3},{"carbon":300,"demand":"d123","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d123","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d123","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.381,"gwh":62.8},{"carbon":300,"demand":"d123","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.32,"gwh":355.6},{"carbon":300,"demand":"d123","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.667,"gwh":4.4},{"carbon":300,"demand":"d123","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.155,"gwh":8.2},{"carbon":300,"demand":"d123","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.481,"gwh":7.1},{"carbon":300,"demand":"d123","year":2050,"carrier":"Battery","cls":"4_8h","gw":23.904,"gwh":191.2},{"carbon":300,"demand":"d123","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":300,"demand":"d123","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":300,"demand":"d123","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.381,"gwh":62.8},{"carbon":300,"demand":"d123","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.904,"gwh":383.6},{"carbon":550,"demand":"d087","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.165,"gwh":7.7},{"carbon":550,"demand":"d087","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.995,"gwh":17.9},{"carbon":550,"demand":"d087","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.733,"gwh":8.1},{"carbon":550,"demand":"d087","year":2030,"carrier":"Battery","cls":"4_8h","gw":3.136,"gwh":25.1},{"carbon":550,"demand":"d087","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":550,"demand":"d087","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d087","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d087","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":550,"demand":"d087","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":550,"demand":"d087","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.004,"gwh":7.5},{"carbon":550,"demand":"d087","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.891,"gwh":17.7},{"carbon":550,"demand":"d087","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.746,"gwh":8.2},{"carbon":550,"demand":"d087","year":2040,"carrier":"Battery","cls":"4_8h","gw":10.547,"gwh":84.4},{"carbon":550,"demand":"d087","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d087","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d087","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":550,"demand":"d087","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.357,"gwh":357.3},{"carbon":550,"demand":"d087","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.649,"gwh":4.4},{"carbon":550,"demand":"d087","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.13,"gwh":8.1},{"carbon":550,"demand":"d087","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.433,"gwh":6.9},{"carbon":550,"demand":"d087","year":2050,"carrier":"Battery","cls":"4_8h","gw":14.867,"gwh":118.9},{"carbon":550,"demand":"d087","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d087","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d087","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":550,"demand":"d087","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.515,"gwh":364.9},{"carbon":550,"demand":"d100","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.166,"gwh":7.7},{"carbon":550,"demand":"d100","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.996,"gwh":17.9},{"carbon":550,"demand":"d100","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.731,"gwh":8.1},{"carbon":550,"demand":"d100","year":2030,"carrier":"Battery","cls":"4_8h","gw":5.341,"gwh":42.7},{"carbon":550,"demand":"d100","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":550,"demand":"d100","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d100","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d100","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":550,"demand":"d100","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":550,"demand":"d100","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.005,"gwh":7.5},{"carbon":550,"demand":"d100","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.894,"gwh":17.7},{"carbon":550,"demand":"d100","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.75,"gwh":8.2},{"carbon":550,"demand":"d100","year":2040,"carrier":"Battery","cls":"4_8h","gw":13.607,"gwh":108.9},{"carbon":550,"demand":"d100","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d100","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d100","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.381,"gwh":62.9},{"carbon":550,"demand":"d100","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.439,"gwh":361.3},{"carbon":550,"demand":"d100","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.649,"gwh":4.4},{"carbon":550,"demand":"d100","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.133,"gwh":8.1},{"carbon":550,"demand":"d100","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.438,"gwh":6.9},{"carbon":550,"demand":"d100","year":2050,"carrier":"Battery","cls":"4_8h","gw":18.035,"gwh":144.3},{"carbon":550,"demand":"d100","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d100","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d100","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.381,"gwh":62.9},{"carbon":550,"demand":"d100","year":2050,"carrier":"Water","cls":"6_over24h","gw":2.798,"gwh":378.5},{"carbon":550,"demand":"d110","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.167,"gwh":7.7},{"carbon":550,"demand":"d110","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.998,"gwh":17.9},{"carbon":550,"demand":"d110","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.738,"gwh":8.1},{"carbon":550,"demand":"d110","year":2030,"carrier":"Battery","cls":"4_8h","gw":6.978,"gwh":55.8},{"carbon":550,"demand":"d110","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":550,"demand":"d110","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d110","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d110","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":550,"demand":"d110","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":550,"demand":"d110","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.006,"gwh":7.5},{"carbon":550,"demand":"d110","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.897,"gwh":17.7},{"carbon":550,"demand":"d110","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.758,"gwh":8.2},{"carbon":550,"demand":"d110","year":2040,"carrier":"Battery","cls":"4_8h","gw":15.547,"gwh":124.4},{"carbon":550,"demand":"d110","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d110","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d110","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":550,"demand":"d110","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.89,"gwh":382.9},{"carbon":550,"demand":"d110","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.652,"gwh":4.4},{"carbon":550,"demand":"d110","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.136,"gwh":8.1},{"carbon":550,"demand":"d110","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.44,"gwh":6.9},{"carbon":550,"demand":"d110","year":2050,"carrier":"Battery","cls":"4_8h","gw":20.746,"gwh":166.0},{"carbon":550,"demand":"d110","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d110","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d110","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":550,"demand":"d110","year":2050,"carrier":"Water","cls":"6_over24h","gw":3.01,"gwh":388.7},{"carbon":550,"demand":"d123","year":2030,"carrier":"Battery","cls":"1_under_2h","gw":5.167,"gwh":7.7},{"carbon":550,"demand":"d123","year":2030,"carrier":"Battery","cls":"2_2to4h","gw":6.996,"gwh":17.9},{"carbon":550,"demand":"d123","year":2030,"carrier":"Battery","cls":"3_4to8h","gw":1.731,"gwh":8.1},{"carbon":550,"demand":"d123","year":2030,"carrier":"Battery","cls":"4_8h","gw":8.812,"gwh":70.5},{"carbon":550,"demand":"d123","year":2030,"carrier":"Battery","cls":"6_over24h","gw":0.061,"gwh":2.7},{"carbon":550,"demand":"d123","year":2030,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d123","year":2030,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d123","year":2030,"carrier":"Water","cls":"5_over8to24h","gw":3.378,"gwh":62.8},{"carbon":550,"demand":"d123","year":2030,"carrier":"Water","cls":"6_over24h","gw":2.2,"gwh":349.8},{"carbon":550,"demand":"d123","year":2040,"carrier":"Battery","cls":"1_under_2h","gw":5.007,"gwh":7.5},{"carbon":550,"demand":"d123","year":2040,"carrier":"Battery","cls":"2_2to4h","gw":6.892,"gwh":17.7},{"carbon":550,"demand":"d123","year":2040,"carrier":"Battery","cls":"3_4to8h","gw":1.757,"gwh":8.2},{"carbon":550,"demand":"d123","year":2040,"carrier":"Battery","cls":"4_8h","gw":18.758,"gwh":150.1},{"carbon":550,"demand":"d123","year":2040,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d123","year":2040,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d123","year":2040,"carrier":"Water","cls":"5_over8to24h","gw":3.379,"gwh":62.8},{"carbon":550,"demand":"d123","year":2040,"carrier":"Water","cls":"6_over24h","gw":2.974,"gwh":386.9},{"carbon":550,"demand":"d123","year":2050,"carrier":"Battery","cls":"1_under_2h","gw":2.665,"gwh":4.4},{"carbon":550,"demand":"d123","year":2050,"carrier":"Battery","cls":"2_2to4h","gw":3.15,"gwh":8.2},{"carbon":550,"demand":"d123","year":2050,"carrier":"Battery","cls":"3_4to8h","gw":1.47,"gwh":7.1},{"carbon":550,"demand":"d123","year":2050,"carrier":"Battery","cls":"4_8h","gw":24.707,"gwh":197.7},{"carbon":550,"demand":"d123","year":2050,"carrier":"Water","cls":"2_2to4h","gw":0.25,"gwh":0.9},{"carbon":550,"demand":"d123","year":2050,"carrier":"Water","cls":"3_4to8h","gw":0.247,"gwh":1.5},{"carbon":550,"demand":"d123","year":2050,"carrier":"Water","cls":"5_over8to24h","gw":3.379,"gwh":62.8},{"carbon":550,"demand":"d123","year":2050,"carrier":"Water","cls":"6_over24h","gw":3.241,"gwh":399.8}],"diagnostics":{"solves":48,"gap_max":0.003,"pinf_max":0.00217,"wall_min_min":118.0,"wall_max_min":313.0,"wall_mean_min":177.0,"wall_total_h":141.5,"rows_max":13935295,"iters_max":47000}};
+const M = DATA.meta;
+
+/* ---------- small helpers ------------------------------------------------ */
+const $ = (id) => document.getElementById(id);
+const SVGNS = "http://www.w3.org/2000/svg";
+const fmt = (v, d = 1) => v === null || v === undefined || Number.isNaN(v)
+  ? "–" : v.toLocaleString("en-AU", { minimumFractionDigits: d, maximumFractionDigits: d });
+const CARBON_LAB = (c) => c === 0 ? "$0" : "$" + c;
+
+/* demand scalars (from demand_scalars.csv) — the JSON carries only labels */
+const SCALARS = { d087: 0.869546, d100: 1.0, d110: 1.1, d123: 1.234752 };
+
+const SEQ = ["var(--seq-1)", "var(--seq-2)", "var(--seq-3)", "var(--seq-4)"];
+const seqFor = (carbon) => SEQ[M.carbons.indexOf(carbon)];
+const DEM = ["var(--dem-1)", "var(--dem-2)", "var(--dem-3)", "var(--dem-4)"];
+const demFor = (demand) => DEM[M.demands.indexOf(demand)];
+const DEM_LAB = (d) => "×" + M.demand_label[d];
+
+const _lum = (hex) => {
+  const h = hex.replace("#", "").trim();
+  if (h.length < 6) return 1;
+  const ch = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+};
+function labelInk(cssVar) {
+  const resolved = getComputedStyle(document.querySelector(".sw"))
+    .getPropertyValue(cssVar.replace(/^var\(|\)$/g, "")).trim();
+  return _lum(resolved) > 0.32 ? "#10151d" : "#ffffff";
+}
+
+const state = { demand: "d100", unit: "mwh", scYear: 2030, scCarbon: 150, basis: "res" };
+const UNITS = {
+  mwh: { label: "AUD/MWh", get: (c) => c.avg_cost, d: 1 },
+  bn:  { label: "bn AUD/yr", get: (c) => c.total_cost_bn, d: 1 },
+};
+
+/* ---------- tooltip ------------------------------------------------------ */
+const tt = $("tt");
+function ttShow(evt, title, rows) {
+  tt.innerHTML = "<b>" + title + "</b>" +
+    rows.map((r) => '<div class="r"><span>' + r[0] + "</span><span>" + r[1] + "</span></div>").join("");
+  tt.style.opacity = "1";
+  const pad = 14, w = tt.offsetWidth, h = tt.offsetHeight;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  if (x + w > window.innerWidth - 8) x = evt.clientX - w - pad;
+  if (y + h > window.innerHeight - 8) y = evt.clientY - h - pad;
+  tt.style.left = x + "px"; tt.style.top = y + "px";
+}
+const ttHide = () => { tt.style.opacity = "0"; };
+function hit(el, title, rows) {
+  el.classList.add("hit");
+  el.addEventListener("mousemove", (e) => ttShow(e, title, rows));
+  el.addEventListener("mouseleave", ttHide);
+}
+
+/* ---------- svg builders -------------------------------------------------- */
+function svg(tag, attrs, parent) {
+  const el = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) el.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(el);
+  return el;
+}
+function frame(id, w, h) {
+  const el = $(id);
+  el.innerHTML = "";
+  el.setAttribute("viewBox", "0 0 " + w + " " + h);
+  el.setAttribute("width", "100%");
+  el.style.height = h + "px";
+  return el;
+}
+function vbar(p, x, yTop, w, hgt, fill) {
+  const r = Math.min(4, w / 2, Math.max(0, hgt));
+  if (hgt <= 0.4) return null;
+  const y2 = yTop + hgt;
+  const d = "M" + x + " " + y2 + " L" + x + " " + (yTop + r) +
+            " Q" + x + " " + yTop + " " + (x + r) + " " + yTop +
+            " L" + (x + w - r) + " " + yTop +
+            " Q" + (x + w) + " " + yTop + " " + (x + w) + " " + (yTop + r) +
+            " L" + (x + w) + " " + y2 + " Z";
+  return svg("path", { d: d, fill: fill }, p);
+}
+function legend(id, items) {
+  $(id).innerHTML = items.map((i) => i.c === null
+    ? '<span style="color:var(--ink-3)">' + i.k + "</span>"
+    : '<span><i class="swatch" style="background:' + i.c + '"></i>' + i.k + "</span>").join("");
+}
+/* push labels apart vertically so endpoint labels never collide */
+function spreadLabels(items, minGap) {
+  items.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < items.length; i++) {
+    if (items[i].y - items[i - 1].y < minGap) items[i].y = items[i - 1].y + minGap;
+  }
+  return items;
+}
+
+const cellAt = (carbon, demand, year) =>
+  DATA.cells.find((c) => c.carbon === carbon && c.demand === demand && c.year === year);
+const margAt = (carbon, year) =>
+  DATA.marginals.filter((m) => m.carbon === carbon && m.year === year)
+    .sort((a, b) => a.from_twh - b.from_twh);
+const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+
+/* facet geometry shared by the three full-width small-multiple panels */
+function facetGeom(w, padL, gapF, labR) {
+  const fw = (w - padL - 2 * gapF - 10) / 3;
+  return M.years.map((y, i) => {
+    const x0 = padL + i * (fw + gapF);
+    return { year: y, x0: x0, x1: x0 + fw - labR };
+  });
+}
+function yGrid(el, geoms, Y, dom, padL, dec) {
+  for (let i = 0; i <= 4; i++) {
+    const gv = dom[0] + (dom[1] - dom[0]) * i / 4;
+    const gy = Y(gv);
+    geoms.forEach((g) => svg("line", { x1: g.x0, x2: g.x1, y1: gy, y2: gy, class: "gl" }, el));
+    const tx = svg("text", { x: padL - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = fmt(gv, dec);
+  }
+}
+
+/* ---------- 1. cost surface (facets by year, lines by demand) ------------ */
+function drawSurface() {
+  const U = UNITS[state.unit];
+  $("cs-unit").textContent = U.label;
+  const w = 1160, h = 330, padL = 52, padT = 30, padB = 38;
+  const el = frame("cs", w, h);
+  const geoms = facetGeom(w, padL, 30, 46);
+  const vals = DATA.cells.map(U.get);
+  const dom = [Math.min(...vals) * 0.93, Math.max(...vals) * 1.04];
+  const Y = (v) => h - padB - (v - dom[0]) / (dom[1] - dom[0]) * (h - padT - padB);
+  yGrid(el, geoms, Y, dom, padL, 0);
+
+  geoms.forEach((g) => {
+    const ft = svg("text", { x: (g.x0 + g.x1) / 2, y: padT - 13, "text-anchor": "middle", class: "fct" }, el);
+    ft.textContent = g.year;
+    const X = (cp) => g.x0 + 8 + cp / 550 * (g.x1 - g.x0 - 14);
+    svg("line", { x1: g.x0, x2: g.x1, y1: h - padB, y2: h - padB, class: "ax" }, el);
+    M.carbons.forEach((cp) => {
+      const tx = svg("text", { x: X(cp), y: h - padB + 16, "text-anchor": "middle" }, el);
+      tx.textContent = CARBON_LAB(cp);
+    });
+
+    const labels = [];
+    M.demands.forEach((dm) => {
+      const pts = M.carbons.map((cp) => {
+        const c = cellAt(cp, dm, g.year);
+        return { cp: cp, v: U.get(c), c: c };
+      });
+      const d = pts.map((p, i) => (i ? "L" : "M") + X(p.cp) + " " + Y(p.v)).join(" ");
+      svg("path", { d: d, fill: "none", stroke: demFor(dm), "stroke-width": 2,
+                    "stroke-linejoin": "round", "stroke-linecap": "round" }, el);
+      pts.forEach((p) => {
+        const gp = svg("g", {}, el);
+        svg("circle", { cx: X(p.cp), cy: Y(p.v), r: 5.5, fill: "var(--surface)" }, gp);
+        svg("circle", { cx: X(p.cp), cy: Y(p.v), r: 3.5, fill: demFor(dm) }, gp);
+        hit(gp, CARBON_LAB(p.cp) + "/t · " + DEM_LAB(dm) + " · " + g.year, [
+          ["Avg cost", fmt(p.c.avg_cost, 1) + " AUD/MWh"],
+          ["Total cost", fmt(p.c.total_cost_bn, 2) + " bn AUD/yr"],
+          ["Delivered", fmt(p.c.delivered_twh, 1) + " TWh"],
+          ["Renewable", fmt(p.c.renewable_pct, 1) + " %"],
+          ["Emissions", fmt(p.c.co2e_intensity, 3) + " t/MWh"],
+        ]);
+      });
+      labels.push({ y: Y(pts[pts.length - 1].v) + 3.5, k: DEM_LAB(dm) });
+    });
+    spreadLabels(labels, 13).forEach((lb) => {
+      const tx = svg("text", { x: g.x1 + 7, y: lb.y, class: "val" }, el);
+      tx.textContent = lb.k;
+    });
+  });
+  legend("cs-leg", M.demands.map((d) => ({
+    k: DEM_LAB(d) + " (" + M.demand_scenario[d] + ")", c: demFor(d) })));
+}
+
+/* ---------- 2. decomposition (facets by year, stacks by carbon) ---------- */
+const COMPS = [
+  { key: "cost_excl",   v: "--c-wind",  label: "Capital & fixed (incl. CCS T&S)" },
+  { key: "cost_fuel",   v: "--c-gas",   label: "Fuel" },
+  { key: "cost_carbon", v: "--c-water", label: "Carbon payment" },
+];
+function drawDecomp() {
+  const w = 1160, h = 350, padL = 52, padT = 30, padB = 38;
+  const el = frame("dc", w, h);
+  const geoms = facetGeom(w, padL, 30, 10);
+  const hi = Math.max(...DATA.cells.filter((c) => c.demand === state.demand)
+    .map((c) => c.avg_cost)) * 1.14;
+  const dom = [0, hi];
+  const Y = (v) => h - padB - v / hi * (h - padT - padB);
+  yGrid(el, geoms, Y, dom, padL, 0);
+
+  geoms.forEach((g) => {
+    const ft = svg("text", { x: (g.x0 + g.x1) / 2, y: padT - 13, "text-anchor": "middle", class: "fct" }, el);
+    ft.textContent = g.year;
+    svg("line", { x1: g.x0, x2: g.x1, y1: h - padB, y2: h - padB, class: "ax" }, el);
+    const slot = (g.x1 - g.x0) / M.carbons.length;
+    const barW = Math.min(52, slot - 22);
+    M.carbons.forEach((cp, i) => {
+      const cell = cellAt(cp, state.demand, g.year);
+      const bx = g.x0 + i * slot + (slot - barW) / 2;
+      const lab = svg("text", { x: bx + barW / 2, y: h - padB + 16, "text-anchor": "middle" }, el);
+      lab.textContent = CARBON_LAB(cp);
+      let acc = 0;
+      COMPS.forEach((cm) => {
+        const v = cell[cm.key];
+        if (v <= 0.01) { acc += v; return; }
+        const segH = v / hi * (h - padT - padB) - 2; /* 2px surface gap between fills */
+        if (segH <= 0.4) { acc += v; return; }
+        const yTop = Y(acc + v);
+        const rect = svg("rect", { x: bx, y: yTop, width: barW, height: segH, rx: 2,
+                                   fill: "var(" + cm.v + ")" }, el);
+        hit(rect, cm.label + " · " + CARBON_LAB(cp) + "/t · " + g.year, [
+          ["Component", fmt(v, 1) + " AUD/MWh"],
+          ["Share of cost", fmt(100 * v / cell.avg_cost, 0) + " %"],
+          ["Average cost", fmt(cell.avg_cost, 1) + " AUD/MWh"],
+        ]);
+        if (segH >= 15) {
+          const tx = svg("text", { x: bx + barW / 2, y: yTop + segH / 2 + 3.5,
+                                   "text-anchor": "middle", class: "val",
+                                   style: "fill:" + labelInk("var(" + cm.v + ")"),
+                                   "pointer-events": "none" }, el);
+          tx.textContent = fmt(v, 0);
+        }
+        acc += v;
+      });
+      const tot = svg("text", { x: bx + barW / 2, y: Y(cell.avg_cost) - 7,
+                                "text-anchor": "middle", class: "val" }, el);
+      tot.textContent = fmt(cell.avg_cost, 0);
+    });
+  });
+  legend("dc-leg", COMPS.map((cm) => ({ k: cm.label, c: "var(" + cm.v + ")" }))
+    .concat([{ k: "bars ordered by carbon price · " + DEM_LAB(state.demand) + " demand", c: null }]));
+}
+
+/* ---------- 3. fraction-space projection (Amendment 2) -------------------
+   Cost basis: resource cost = avg_cost − cost_carbon (≡ cost_excl + cost_fuel;
+   the identity is asserted in the cross-check, not assumed). The carbon payment
+   induced the fraction and would not exist under a fraction target.           */
+const RES = (c) => c.avg_cost - c.cost_carbon;
+const BASIS = {
+  res:  { label: "resource cost, excl. carbon payments", get: RES },
+  full: { label: "full cost, incl. carbon payments", get: (c) => c.avg_cost },
+};
+
+function drawCoverage() {
+  const w = 1160, h = 330, padL = 52, padT = 30, padB = 38;
+  const el = frame("cov", w, h);
+  const geoms = facetGeom(w, padL, 30, 44);
+  const dom = [45, 100];
+  const Y = (v) => h - padB - (v - dom[0]) / (dom[1] - dom[0]) * (h - padT - padB);
+  yGrid(el, geoms, Y, dom, padL, 0);
+  const s0 = SCALARS.d087, s1 = SCALARS.d123;
+
+  geoms.forEach((g) => {
+    const ft = svg("text", { x: (g.x0 + g.x1) / 2, y: padT - 13, "text-anchor": "middle", class: "fct" }, el);
+    ft.textContent = g.year;
+    const X = (d) => g.x0 + 10 + (SCALARS[d] - s0) / (s1 - s0) * (g.x1 - g.x0 - 18);
+    svg("line", { x1: g.x0, x2: g.x1, y1: h - padB, y2: h - padB, class: "ax" }, el);
+    M.demands.forEach((d) => {
+      const tx = svg("text", { x: X(d), y: h - padB + 16, "text-anchor": "middle" }, el);
+      tx.textContent = DEM_LAB(d);
+    });
+
+    /* the unreached band between the $0/t family and every priced family */
+    const loBand = Math.max(...M.demands.map((d) => cellAt(0, d, g.year).renewable_pct));
+    const hiBand = Math.min(...M.demands.flatMap((d) => M.carbons.filter((c) => c > 0)
+      .map((c) => cellAt(c, d, g.year).renewable_pct)));
+    if (hiBand - loBand >= 6) {
+      const tx = svg("text", { x: (g.x0 + g.x1) / 2, y: Y((loBand + hiBand) / 2) + 3.5,
+                               "text-anchor": "middle" }, el);
+      tx.textContent = "no solved cells in this band";
+    }
+
+    const labels = [];
+    M.carbons.forEach((cp) => {
+      const pts = M.demands.map((dm) => ({ dm: dm, c: cellAt(cp, dm, g.year) }));
+      const d = pts.map((p, i) => (i ? "L" : "M") + X(p.dm) + " " + Y(p.c.renewable_pct)).join(" ");
+      svg("path", { d: d, fill: "none", stroke: seqFor(cp), "stroke-width": 1.5,
+                    "stroke-linejoin": "round", "stroke-linecap": "round" }, el);
+      pts.forEach((p) => {
+        const gp = svg("g", {}, el);
+        svg("circle", { cx: X(p.dm), cy: Y(p.c.renewable_pct), r: 6.5, fill: "var(--surface)" }, gp);
+        svg("circle", { cx: X(p.dm), cy: Y(p.c.renewable_pct), r: 4.5, fill: seqFor(cp) }, gp);
+        hit(gp, CARBON_LAB(cp) + "/t · " + DEM_LAB(p.dm) + " · " + g.year, [
+          ["Realised fraction", fmt(p.c.renewable_pct, 1) + " %"],
+          ["Thermal", fmt(p.c.thermal_pct, 1) + " %"],
+          ["Resource cost", fmt(RES(p.c), 1) + " AUD/MWh"],
+          ["Full cost", fmt(p.c.avg_cost, 1) + " AUD/MWh"],
+        ]);
+      });
+      labels.push({ y: Y(pts[pts.length - 1].c.renewable_pct) + 3.5, k: CARBON_LAB(cp) });
+    });
+    spreadLabels(labels, 13).forEach((lb) => {
+      const tx = svg("text", { x: g.x1 + 7, y: lb.y, class: "val" }, el);
+      tx.textContent = lb.k;
+    });
+  });
+  legend("cov-leg", M.carbons.map((c) => ({ k: CARBON_LAB(c) + "/t", c: seqFor(c) }))
+    .concat([{ k: "lines connect a fixed carbon price across demand levels", c: null }]));
+}
+
+function drawFracCost() {
+  const B = BASIS[state.basis];
+  $("fb-unit").textContent = "AUD/MWh · " + B.label;
+  const w = 1160, h = 350, padL = 52, padT = 30, padB = 46;
+  const el = frame("fb", w, h);
+  const geoms = facetGeom(w, padL, 30, 46);
+  const vals = DATA.cells.map(B.get);
+  const dom = [Math.min(...vals) * 0.93, Math.max(...vals) * 1.05];
+  const Y = (v) => h - padB - (v - dom[0]) / (dom[1] - dom[0]) * (h - padT - padB);
+  yGrid(el, geoms, Y, dom, padL, 0);
+  const f0 = 50, f1 = 100;
+
+  geoms.forEach((g) => {
+    const ft = svg("text", { x: (g.x0 + g.x1) / 2, y: padT - 13, "text-anchor": "middle", class: "fct" }, el);
+    ft.textContent = g.year;
+    const X = (v) => g.x0 + 6 + (v - f0) / (f1 - f0) * (g.x1 - g.x0 - 12);
+    svg("line", { x1: g.x0, x2: g.x1, y1: h - padB, y2: h - padB, class: "ax" }, el);
+    for (let fv = f0; fv <= f1; fv += 10) {
+      const tx = svg("text", { x: X(fv), y: h - padB + 16, "text-anchor": "middle" }, el);
+      tx.textContent = fv;
+    }
+
+    const labels = [];
+    M.demands.forEach((dm) => {
+      const pts = M.carbons.map((cp) => ({ cp: cp, c: cellAt(cp, dm, g.year) }));
+      const d = pts.map((p, i) => (i ? "L" : "M") + X(p.c.renewable_pct) + " " + Y(B.get(p.c))).join(" ");
+      svg("path", { d: d, fill: "none", stroke: demFor(dm), "stroke-width": 2,
+                    "stroke-linejoin": "round", "stroke-linecap": "round" }, el);
+      pts.forEach((p) => {
+        const gp = svg("g", {}, el);
+        svg("circle", { cx: X(p.c.renewable_pct), cy: Y(B.get(p.c)), r: 6, fill: "var(--surface)" }, gp);
+        svg("circle", { cx: X(p.c.renewable_pct), cy: Y(B.get(p.c)), r: 4, fill: seqFor(p.cp) }, gp);
+        hit(gp, DEM_LAB(dm) + " · " + CARBON_LAB(p.cp) + "/t · " + g.year, [
+          ["Realised fraction", fmt(p.c.renewable_pct, 1) + " %"],
+          ["Resource cost", fmt(RES(p.c), 1) + " AUD/MWh"],
+          ["Full cost", fmt(p.c.avg_cost, 1) + " AUD/MWh"],
+          ["Carbon payment", fmt(p.c.cost_carbon, 1) + " AUD/MWh"],
+        ]);
+      });
+      labels.push({ y: Y(B.get(pts[pts.length - 1].c)) + 3.5, k: DEM_LAB(dm) });
+    });
+    spreadLabels(labels, 13).forEach((lb) => {
+      const tx = svg("text", { x: g.x1 + 7, y: lb.y, class: "val" }, el);
+      tx.textContent = lb.k;
+    });
+  });
+  const mid = geoms[1];
+  const xc = svg("text", { x: (mid.x0 + mid.x1) / 2, y: h - 5, "text-anchor": "middle", class: "lab" }, el);
+  xc.textContent = "realised renewable fraction (% of generation)";
+
+  legend("fb-leg", M.demands.map((d) => ({
+    k: DEM_LAB(d) + " (" + M.demand_scenario[d] + ")", c: demFor(d) }))
+    .concat([{ k: "point colour = carbon price, $0 light → $550 dark", c: null }]));
+  fracSlopeTable(B);
+}
+
+/* implied fraction-cost slope arcs; suppressed where Δρ < 2 pp or |Δcost| is
+   inside the ±0.5 AUD/MWh noise floor */
+function fracSlopeTable(B) {
+  const steps = [[0, 150], [150, 300], [300, 550]];
+  const rows = [];
+  M.demands.forEach((dm) => {
+    steps.forEach((st, si) => {
+      const vals = M.years.map((y) => {
+        const c1 = cellAt(st[0], dm, y), c2 = cellAt(st[1], dm, y);
+        const dr = c2.renewable_pct - c1.renewable_pct;
+        const dc = B.get(c2) - B.get(c1);
+        return (dr < 2 || Math.abs(dc) < 0.5) ? "—" : fmt(dc / dr, 1);
+      });
+      rows.push("<tr><td>" + (si === 0 ? DEM_LAB(dm) : "") + "</td><td>$" + st[0] +
+        "→$" + st[1] + "</td>" + vals.map((v) => "<td>" + v + "</td>").join("") + "</tr>");
+    });
+  });
+  $("fc-mini").innerHTML =
+    "<thead><tr><th>Implied slope, AUD/MWh per pp of fraction</th><th>Carbon step</th>" +
+    M.years.map((y) => "<th>" + y + "</th>").join("") + "</tr></thead><tbody>" +
+    rows.join("") + "</tbody>";
+}
+
+/* ---------- 4. pathway over time ----------------------------------------- */
+function drawPathway() {
+  const w = 560, h = 300, l = 52, r = 52, t = 16, b = 42;
+  const el = frame("pw", w, h);
+  const vals = DATA.cells.map((c) => c.avg_cost);
+  const dom = [Math.min(...vals) * 0.93, Math.max(...vals) * 1.04];
+  const X = (y) => l + M.years.indexOf(y) / (M.years.length - 1) * (w - l - r);
+  const Y = (v) => h - b - (v - dom[0]) / (dom[1] - dom[0]) * (h - t - b);
+  for (let i = 0; i <= 4; i++) {
+    const gv = dom[0] + (dom[1] - dom[0]) * i / 4, gy = Y(gv);
+    svg("line", { x1: l, x2: w - r, y1: gy, y2: gy, class: "gl" }, el);
+    const tx = svg("text", { x: l - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = fmt(gv, 0);
+  }
+  svg("line", { x1: l, x2: w - r, y1: h - b, y2: h - b, class: "ax" }, el);
+  M.years.forEach((y) => {
+    const tx = svg("text", { x: X(y), y: h - b + 17, "text-anchor": "middle", class: "lab" }, el);
+    tx.textContent = y;
+  });
+  const labels = [];
+  M.carbons.forEach((cp) => {
+    const pts = M.years.map((y) => ({ y: y, c: cellAt(cp, state.demand, y) }));
+    const d = pts.map((p, i) => (i ? "L" : "M") + X(p.y) + " " + Y(p.c.avg_cost)).join(" ");
+    svg("path", { d: d, fill: "none", stroke: seqFor(cp), "stroke-width": 2,
+                  "stroke-linejoin": "round", "stroke-linecap": "round" }, el);
+    pts.forEach((p) => {
+      const gp = svg("g", {}, el);
+      svg("circle", { cx: X(p.y), cy: Y(p.c.avg_cost), r: 5.5, fill: "var(--surface)" }, gp);
+      svg("circle", { cx: X(p.y), cy: Y(p.c.avg_cost), r: 3.5, fill: seqFor(cp) }, gp);
+      hit(gp, CARBON_LAB(cp) + "/t · " + p.y + " · " + DEM_LAB(state.demand), [
+        ["Avg cost", fmt(p.c.avg_cost, 1) + " AUD/MWh"],
+        ["Total cost", fmt(p.c.total_cost_bn, 2) + " bn AUD/yr"],
+        ["Renewable", fmt(p.c.renewable_pct, 1) + " %"],
+      ]);
+    });
+    labels.push({ y: Y(pts[pts.length - 1].c.avg_cost) + 3.5, k: CARBON_LAB(cp) });
+  });
+  spreadLabels(labels, 13).forEach((lb) => {
+    const tx = svg("text", { x: w - r + 9, y: lb.y, class: "val" }, el);
+    tx.textContent = lb.k;
+  });
+  const yl = svg("text", { x: l + 4, y: t + 4, class: "lab" }, el);
+  yl.textContent = "AUD/MWh";
+  legend("pw-leg", M.carbons.map((c) => ({ k: CARBON_LAB(c) + "/t", c: seqFor(c) })));
+}
+
+/* ---------- 5. marginal cost of demand (mean bar + arc ticks) ------------ */
+function drawMarginal() {
+  const w = 560, h = 320, l = 56, r = 14, t = 16, b = 58;
+  const el = frame("mc", w, h);
+  const hi = Math.max(...DATA.marginals.map((m) => m.mc)) * 1.1;
+  const Y = (v) => h - b - v / hi * (h - t - b);
+  for (let i = 0; i <= 4; i++) {
+    const gv = hi * i / 4, gy = Y(gv);
+    svg("line", { x1: l, x2: w - r, y1: gy, y2: gy, class: "gl" }, el);
+    const tx = svg("text", { x: l - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = fmt(gv, 0);
+  }
+  svg("line", { x1: l, x2: w - r, y1: Y(0), y2: Y(0), class: "ax" }, el);
+  const groupW = (w - l - r) / M.years.length;
+  const barW = Math.min(24, (groupW - 24) / M.carbons.length - 3);
+  M.years.forEach((yr, gi) => {
+    const gx = l + gi * groupW;
+    const lab = svg("text", { x: gx + groupW / 2, y: h - b + 18, "text-anchor": "middle", class: "lab" }, el);
+    lab.textContent = yr;
+    M.carbons.forEach((cp, bi) => {
+      const arcs = margAt(cp, yr);
+      const mn = mean(arcs.map((a) => a.mc));
+      const bx = gx + (groupW - (barW + 3) * M.carbons.length) / 2 + bi * (barW + 3);
+      const bar = vbar(el, bx, Y(mn), barW, Y(0) - Y(mn), seqFor(cp));
+      arcs.forEach((a) => {
+        svg("line", { x1: bx - 3, x2: bx + barW + 3, y1: Y(a.mc), y2: Y(a.mc),
+                      stroke: "var(--ink-2)", "stroke-width": 1.5 }, el);
+      });
+      const zone = svg("rect", { x: bx - 3, y: t, width: barW + 6, height: h - b - t,
+                                 fill: "transparent" }, el);
+      hit(zone, CARBON_LAB(cp) + "/t · " + yr, [
+        ["Mean of 3 arcs", fmt(mn, 1) + " AUD/MWh"],
+        ["×0.87→×1.00", fmt(arcs[0].mc, 1)],
+        ["×1.00→×1.10", fmt(arcs[1].mc, 1)],
+        ["×1.10→×1.23", fmt(arcs[2].mc, 1)],
+        ["Marginal thermal", fmt(mean(arcs.map((a) => a.thermal_pct)), 1) + " %"],
+      ]);
+      if (bar === null) return;
+    });
+  });
+  const yl = svg("text", { x: l + 4, y: t + 4, class: "lab" }, el);
+  yl.textContent = "AUD/MWh";
+  legend("mc-leg", M.carbons.map((c) => ({ k: CARBON_LAB(c) + "/t", c: seqFor(c) }))
+    .concat([{ k: "ink ticks = the three demand-step arcs", c: null }]));
+}
+
+/* ---------- 6. marginal composition (normalised, mean over steps) -------- */
+function drawSplit() {
+  const w = 560, h = 320, l = 56, r = 14, t = 16, b = 58;
+  const el = frame("ms", w, h);
+  const Y = (v) => h - b - v / 100 * (h - t - b);
+  [0, 25, 50, 75, 100].forEach((gv) => {
+    const gy = Y(gv);
+    svg("line", { x1: l, x2: w - r, y1: gy, y2: gy, class: "gl" }, el);
+    const tx = svg("text", { x: l - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = gv;
+  });
+  svg("line", { x1: l, x2: w - r, y1: Y(0), y2: Y(0), class: "ax" }, el);
+  const groupW = (w - l - r) / M.years.length;
+  const barW = Math.min(24, (groupW - 24) / M.carbons.length - 3);
+  M.years.forEach((yr, gi) => {
+    const gx = l + gi * groupW;
+    const lab = svg("text", { x: gx + groupW / 2, y: h - b + 18, "text-anchor": "middle", class: "lab" }, el);
+    lab.textContent = yr;
+    M.carbons.forEach((cp, bi) => {
+      const arcs = margAt(cp, yr);
+      const th = mean(arcs.map((a) => a.thermal_pct));
+      const re = mean(arcs.map((a) => a.renewable_pct));
+      const norm = th + re > 0 ? 100 / (th + re) : 0;
+      const thN = th * norm, reN = re * norm;
+      const bx = gx + (groupW - (barW + 3) * M.carbons.length) / 2 + bi * (barW + 3);
+      svg("rect", { x: bx, y: Y(reN), width: barW, height: reN / 100 * (h - t - b),
+                    fill: "var(--c-water)" }, el);
+      const thH = thN / 100 * (h - t - b) - 2; /* 2px surface gap */
+      if (thH > 0.4) svg("rect", { x: bx, y: Y(100), width: barW, height: thH, rx: 2,
+                                   fill: "var(--c-gas)" }, el);
+      const zone = svg("rect", { x: bx, y: t, width: barW, height: h - b - t,
+                                 fill: "transparent" }, el);
+      hit(zone, CARBON_LAB(cp) + "/t · " + yr + " · mean of 3 demand steps", [
+        ["Thermal", fmt(thN, 1) + " %"],
+        ["Renewable", fmt(reN, 1) + " %"],
+        ["Marginal cost", fmt(mean(arcs.map((a) => a.mc)), 1) + " AUD/MWh"],
+        ["Marginal emissions", fmt(mean(arcs.map((a) => a.mco2e)), 3) + " t/MWh"],
+      ]);
+      if (thN >= 8) {
+        const tx = svg("text", { x: bx + barW / 2, y: Y(100 - thN / 2) + 3.5,
+                                 "text-anchor": "middle", class: "val",
+                                 style: "fill:" + labelInk("var(--c-gas)"),
+                                 "pointer-events": "none" }, el);
+        tx.textContent = fmt(thN, 0);
+      }
+    });
+  });
+  const yl = svg("text", { x: 8, y: t + 4, class: "lab" }, el);
+  yl.textContent = "%";
+  legend("ms-leg", [{ k: "Thermal", c: "var(--c-gas)" }, { k: "Renewable", c: "var(--c-water)" },
+                    { k: "bars ordered by carbon price within each year", c: null }]);
+}
+
+/* ---------- 7. measured supply curve ------------------------------------- */
+function drawSupply() {
+  const w = 560, h = 330, l = 56, r = 18, t = 18, b = 46;
+  const el = frame("sc", w, h);
+  const cp = state.scCarbon, yr = state.scYear;
+  const cells = M.demands.map((d) => cellAt(cp, d, yr));
+  const arcs = margAt(cp, yr);
+  const stroke = seqFor(cp);
+
+  const xs = cells.map((c) => c.delivered_twh);
+  const x0 = Math.min(...xs) * 0.985, x1 = Math.max(...xs) * 1.015;
+  const ysAll = cells.map((c) => c.avg_cost).concat(arcs.map((a) => a.mc));
+  const y0 = Math.min(...ysAll) * 0.88, y1 = Math.max(...ysAll) * 1.1;
+  const X = (v) => l + (v - x0) / (x1 - x0) * (w - l - r);
+  const Y = (v) => h - b - (v - y0) / (y1 - y0) * (h - t - b);
+
+  for (let i = 0; i <= 4; i++) {
+    const gv = y0 + (y1 - y0) * i / 4, gy = Y(gv);
+    svg("line", { x1: l, x2: w - r, y1: gy, y2: gy, class: "gl" }, el);
+    const tx = svg("text", { x: l - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = fmt(gv, 0);
+  }
+  svg("line", { x1: l, x2: w - r, y1: h - b, y2: h - b, class: "ax" }, el);
+  for (let i = 0; i <= 3; i++) {
+    const gv = x0 + (x1 - x0) * i / 3;
+    const tx = svg("text", { x: X(gv), y: h - b + 17, "text-anchor": "middle" }, el);
+    tx.textContent = fmt(gv, 0);
+  }
+  const xl = svg("text", { x: (l + w - r) / 2, y: h - 6, "text-anchor": "middle", class: "lab" }, el);
+  xl.textContent = "delivered energy (TWh/yr)";
+  const yl = svg("text", { x: l + 4, y: t + 4, class: "lab" }, el);
+  yl.textContent = "AUD/MWh";
+
+  /* the three arc marginals as horizontal steps spanning their demand interval */
+  arcs.forEach((a, i) => {
+    const seg = svg("line", { x1: X(a.from_twh), x2: X(a.to_twh), y1: Y(a.mc), y2: Y(a.mc),
+                              stroke: stroke, "stroke-width": 3.5, "stroke-linecap": "round" }, el);
+    if (i > 0) svg("line", { x1: X(a.from_twh), x2: X(a.from_twh),
+                             y1: Y(arcs[i - 1].mc), y2: Y(a.mc),
+                             stroke: "var(--ink-3)", "stroke-width": 1,
+                             "stroke-dasharray": "3 3" }, el);
+    const lb = svg("text", { x: (X(a.from_twh) + X(a.to_twh)) / 2, y: Y(a.mc) - 7,
+                             "text-anchor": "middle", class: "val" }, el);
+    lb.textContent = fmt(a.mc, 0);
+    hit(seg, "Increment " + DEM_LAB(a.from) + " → " + DEM_LAB(a.to) + " · " +
+             CARBON_LAB(cp) + "/t · " + yr, [
+      ["Marginal cost", fmt(a.mc, 1) + " AUD/MWh"],
+      ["Δ delivered", fmt(a.d_twh, 2) + " TWh"],
+      ["From", fmt(a.from_twh, 1) + " TWh · " + fmt(a.from_cost_bn, 2) + " bn"],
+      ["To", fmt(a.to_twh, 1) + " TWh · " + fmt(a.to_cost_bn, 2) + " bn"],
+      ["Marginal thermal", fmt(a.thermal_pct, 1) + " %"],
+    ]);
+  });
+
+  /* the four average-cost points */
+  cells.forEach((c) => {
+    const gp = svg("g", {}, el);
+    svg("circle", { cx: X(c.delivered_twh), cy: Y(c.avg_cost), r: 7.5, fill: "var(--surface)" }, gp);
+    svg("circle", { cx: X(c.delivered_twh), cy: Y(c.avg_cost), r: 5.5, fill: stroke }, gp);
+    const lb = svg("text", { x: X(c.delivered_twh), y: Y(c.avg_cost) + 20,
+                             "text-anchor": "middle" }, el);
+    lb.textContent = DEM_LAB(c.demand);
+    hit(gp, DEM_LAB(c.demand) + " · " + CARBON_LAB(cp) + "/t · " + yr, [
+      ["Avg cost of supply", fmt(c.avg_cost, 1) + " AUD/MWh"],
+      ["Delivered", fmt(c.delivered_twh, 1) + " TWh"],
+      ["Total cost", fmt(c.total_cost_bn, 2) + " bn AUD/yr"],
+    ]);
+  });
+
+  /* convexity read against the noise floor (caveats: ±0.5 AUD/MWh on each
+     endpoint's average cost, propagated through the two upper arcs) */
+  const floorOf = (a) => 0.5 * Math.hypot(a.from_twh, a.to_twh) / a.d_twh;
+  const fl = Math.hypot(floorOf(arcs[1]), floorOf(arcs[2]));
+  const diff = arcs[2].mc - arcs[1].mc;
+  $("sc-note").textContent = Math.abs(diff) > fl
+    ? "Convexity read: the ×1.10→×1.23 increment is " +
+      (diff > 0 ? "steeper" : "flatter") + " than ×1.00→×1.10 by " + fmt(Math.abs(diff), 1) +
+      " AUD/MWh, outside the ±" + fmt(fl, 1) + " noise floor — the supply curve " +
+      (diff > 0 ? "steepens" : "flattens") + " with demand here."
+    : "Convexity read: the two upper increments differ by " + fmt(diff, 1) +
+      " AUD/MWh against a ±" + fmt(fl, 1) + " noise floor — no resolvable convexity at draft tolerance.";
+
+  legend("sc-leg", [
+    { k: "average cost of the whole supply", c: stroke },
+    { k: "cost of the increment (arc marginal)", c: null },
+  ]);
+}
+
+/* ---------- 8. which axis moves cost more (per-unit, normalised) --------- */
+function drawAxis() {
+  const w = 560, h = 280, l = 50, r = 14, t = 20, b = 46;
+  const el = frame("ax", w, h);
+  const dspan = (SCALARS.d123 - SCALARS.d087) / 0.1; /* demand span in +10% units */
+  const rows = M.years.map((yr) => {
+    const puC = mean(M.demands.map((d) =>
+      (cellAt(550, d, yr).avg_cost - cellAt(0, d, yr).avg_cost) / 5.5));
+    const puD = mean(M.carbons.map((c) =>
+      (cellAt(c, "d123", yr).avg_cost - cellAt(c, "d087", yr).avg_cost) / dspan));
+    const fsC = mean(M.demands.map((d) =>
+      cellAt(550, d, yr).avg_cost - cellAt(0, d, yr).avg_cost));
+    const fsD = mean(M.carbons.map((c) =>
+      cellAt(c, "d123", yr).avg_cost - cellAt(c, "d087", yr).avg_cost));
+    return { yr: yr, puC: puC, puD: puD, fsC: fsC, fsD: fsD };
+  });
+  const hi = Math.max(...rows.flatMap((x) => [x.puC, x.puD])) * 1.2;
+  const Y = (v) => h - b - v / hi * (h - t - b);
+  for (let i = 0; i <= 4; i++) {
+    const gv = hi * i / 4, gy = Y(gv);
+    svg("line", { x1: l, x2: w - r, y1: gy, y2: gy, class: "gl" }, el);
+    const tx = svg("text", { x: l - 9, y: gy + 3.5, "text-anchor": "end" }, el);
+    tx.textContent = fmt(gv, 0);
+  }
+  svg("line", { x1: l, x2: w - r, y1: Y(0), y2: Y(0), class: "ax" }, el);
+  const groupW = (w - l - r) / rows.length;
+  const barW = Math.min(44, groupW / 2 - 22);
+  rows.forEach((x, gi) => {
+    const gx = l + gi * groupW;
+    const lab = svg("text", { x: gx + groupW / 2, y: h - b + 18, "text-anchor": "middle", class: "lab" }, el);
+    lab.textContent = x.yr;
+    const pairs = [
+      { v: x.puC, c: "var(--seq-3)", k: "Carbon price, per $100/t",
+        rows: [["Per $100/t", fmt(x.puC, 1) + " AUD/MWh"],
+               ["Full span $0→$550", "+" + fmt(x.fsC, 1) + " AUD/MWh"],
+               ["Basis", "mean over 4 demand levels"]] },
+      { v: x.puD, c: "var(--dem-3)", k: "Demand, per +10%",
+        rows: [["Per +10% demand", fmt(x.puD, 1) + " AUD/MWh"],
+               ["Full span ×0.87→×1.23", "+" + fmt(x.fsD, 1) + " AUD/MWh"],
+               ["Basis", "mean over 4 carbon prices"]] },
+    ];
+    pairs.forEach((p, pi) => {
+      const bx = gx + groupW / 2 + (pi === 0 ? -barW - 4 : 4);
+      const bar = vbar(el, bx, Y(p.v), barW, Y(0) - Y(p.v), p.c);
+      if (bar) hit(bar, p.k + " · " + x.yr, p.rows);
+      const tx = svg("text", { x: bx + barW / 2, y: Y(p.v) - 7,
+                               "text-anchor": "middle", class: "val" }, el);
+      tx.textContent = fmt(p.v, 1);
+    });
+  });
+  const yl = svg("text", { x: l + 4, y: t + 2, class: "lab" }, el);
+  yl.textContent = "AUD/MWh per unit";
+  legend("ax-leg", [
+    { k: "carbon price, per $100/t (mean over demand levels)", c: "var(--seq-3)" },
+    { k: "demand, per +10% (mean over carbon prices)", c: "var(--dem-3)" },
+  ]);
+  $("ax-mini").innerHTML =
+    "<thead><tr><th>Full-span delta, mean over the other axis (headline only)</th>" +
+    M.years.map((y) => "<th>" + y + "</th>").join("") + "</tr></thead><tbody>" +
+    "<tr><td>Carbon $0→$550/t</td>" + rows.map((x) => "<td>+" + fmt(x.fsC, 1) + "</td>").join("") + "</tr>" +
+    "<tr><td>Demand ×0.87→×1.23</td>" + rows.map((x) => "<td>+" + fmt(x.fsD, 1) + "</td>").join("") + "</tr>" +
+    "</tbody>";
+}
+
+/* ---------- 9. the cost surface as numbers -------------------------------- */
+function drawTable() {
+  const U = UNITS[state.unit];
+  $("dt-unit").textContent = U.label;
+  const vals = DATA.cells.map(U.get);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const shade = (v) => "background:color-mix(in srgb, var(--seq-3) " +
+    (4 + 36 * (v - lo) / (hi - lo)).toFixed(0) + "%, transparent)";
+  const rows = [];
+  M.carbons.forEach((cp) => M.demands.forEach((dm) => {
+    const cells = M.years.map((y) => cellAt(cp, dm, y));
+    rows.push("<tr><td>" + CARBON_LAB(cp) + "/t</td><td>" + DEM_LAB(dm) +
+      " (" + M.demand_scenario[dm] + ")</td>" +
+      cells.map((c) => '<td class="num" style="' + shade(U.get(c)) + '">' +
+        fmt(U.get(c), U.d) + "</td>").join("") + "</tr>");
+  }));
+  $("dt").innerHTML =
+    "<thead><tr><th>Carbon</th><th>Demand</th>" +
+    M.years.map((y) => "<th>" + y + "</th>").join("") + "</tr></thead><tbody>" +
+    rows.join("") + "</tbody>";
+}
+
+/* ---------- static blocks ------------------------------------------------ */
+function drawStatic() {
+  const d = DATA.diagnostics;
+  $("prov").innerHTML = [
+    ["Grid", M.cells + " scenarios × " + M.years.length + " periods = " + d.solves + " solves"],
+    ["Topology", "full NEM, ISP sub-regions"],
+    ["Sampling", "13 demand-matched weeks @ 30 min"],
+    ["Validated", "vs full-year anchor at ($550, ×1.00): gas share −1.8 pp, served energy +0.005%"],
+    ["Solver", "HiGHS PDLP @ 3e-3"],
+    ["CCS", "flat A$89.93/tCO₂ T&amp;S adder"],
+    ["Demand levels", "AEMO 2026 ISP scenario ratios"],
+  ].map((p) => "<span><b>" + p[0] + "</b> " + p[1] + "</span>").join("");
+
+  const costs = DATA.cells.map((c) => c.avg_cost);
+  const a0 = cellAt(0, "d100", 2030).avg_cost, a550 = cellAt(550, "d100", 2030).avg_cost;
+  const demEff = 100 * mean(M.years.flatMap((y) => M.carbons.map((c) =>
+    cellAt(c, "d123", y).avg_cost / cellAt(c, "d087", y).avg_cost - 1)));
+  const mcs = DATA.marginals.map((m) => m.mc);
+  const worstUse = Math.max(...DATA.cells.map((c) => c.use_mwh || 0));
+
+  $("tiles").innerHTML = [
+    { k: "Cost of supply, across the grid",
+      v: fmt(Math.min(...costs), 1) + "–" + fmt(Math.max(...costs), 1) + "<small>AUD/MWh</small>",
+      s: "16 scenarios × 3 years; rises monotonically along both axes" },
+    { k: "Carbon price effect, 2030", v: "×" + fmt(a550 / a0, 2),
+      s: "$0→$550/t: " + fmt(a0, 1) + "→" + fmt(a550, 1) + " AUD/MWh at Step Change demand" },
+    { k: "Demand effect", v: "+" + fmt(demEff, 0) + "<small>%</small>",
+      s: "×0.87→×1.23 demand, averaged over prices and years" },
+    { k: "Marginal cost of demand",
+      v: fmt(Math.min(...mcs), 0) + "–" + fmt(Math.max(...mcs), 0) + "<small>AUD/MWh</small>",
+      s: "measured demand-step arcs, all years and prices" },
+    { k: "Acceptance", v: d.solves + "<small>/" + d.solves + "</small>",
+      s: "solves converged; worst unserved energy " + fmt(worstUse, 2) + " MWh",
+      pill: ["good", "PASS"] },
+  ].map((t) => '<div class="tile"><span class="tile-k">' + t.k + "</span>" +
+      '<span class="tile-v">' + t.v + "</span>" +
+      (t.pill ? '<span class="pill pill-good">' + t.pill[1] + "</span>" : "") +
+      '<span class="tile-s">' + t.s + "</span></div>").join("");
+
+  const accRows = [
+    ["Zero unserved energy", "good", "PASS", "0.00 MWh in all 48 cell-periods"],
+    ["Total cost rises with demand", "good", "PASS", "0 violations at any year or carbon price"],
+    ["Termination", "good", "PASS", "48/48 certified on PDLP relative metrics (status field never used)"],
+    ["Gas share falls with carbon price", "warn", "2030 EXCEPTION",
+     "Passes at 2040 and 2050. At 2030 it fails in all four demand levels because coal exits first " +
+     "and gas backfills; the companion gates — total thermal share and emissions intensity, both " +
+     "falling with carbon price — pass at every demand level and year."],
+  ];
+  $("acc").innerHTML = accRows.map((r) =>
+    '<div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between;' +
+    'padding:9px 0;border-bottom:1px solid var(--line-soft)">' +
+    '<div style="min-width:0"><div style="font-size:13.5px;font-weight:550">' + r[0] + "</div>" +
+    '<div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">' + r[3] + "</div></div>" +
+    '<span class="pill pill-' + (r[1] === "good" ? "good" : "warn") + '">' + r[2] + "</span></div>").join("");
+
+  $("cav").innerHTML = [
+    "Noise floor: cost differences below about ±0.5 AUD/MWh are within solver tolerance (PDLP 3e-3 on objectives of order A$40B) and should not be read as signal; arc marginal costs difference two reconstructed totals and carry proportionally larger uncertainty — of order ±10 AUD/MWh on an arc, which is what the supply-curve panel's convexity read is judged against. The same floor applies throughout the fraction-projection group, whose implied slope arcs carry proportionally larger uncertainty and are suppressed where unresolvable.",
+    "Fraction convention: the renewable fraction in the projection group is renewable share of grid generation in this model's topology, which excludes rooftop PV. It is not on the same denominator as externally quoted figures (grid versus combined shares differ), and must not be compared numerically against externally authored anchors until the convention is agreed — which is why no authored anchors are overlaid on any panel.",
+    "On-manifold bias: every projected point in the fraction group is the cheapest system found under a carbon price, not the cheapest way to reach that renewable fraction. Projected points are therefore upper bounds on the cost of achieving a given fraction; the size of the bias is unquantified until a fraction-controlled sweep exists.",
+    "Coverage: the projection contains no information about (demand, fraction) combinations outside the four price-traced curves; interpolation across the empty regions of the coverage map is not licensed by these results.",
+    "Temporal sampling is thirteen weeks at 30-minute resolution, chosen to match annual mean demand rather than spaced naively. It reproduces the full-year anchor's served energy to +0.005% and its gas share to −1.8 percentage points. Sampling bias at scenarios other than the validation cell is assumed comparable but was not separately measured.",
+    "Uniform demand scaling moves energy and peak together and leaves the load shape untouched, whereas real electrification reshapes it. The demand levels are ratios of AEMO's own 2026 ISP scenario traces: 0.87 is Slower Growth, 1.23 is Accelerated Transition, and 1.10 is an interpolated presentation level with no scenario behind it.",
+    "Carbon capture is represented by a single flat transport-and-storage adder of A$89.93/tCO₂, fleet-weighted from the authored supply-curve data. The spatial tranche machinery, including per-sub-region transport pricing and injectivity limits, is excluded pending its design; on that curve's own evidence the binding constraint is spatial, so a flat adder is optimistic about where CO₂ can go.",
+    "Myopic foresight: each milestone year is solved in sequence carrying the previous years' surviving build, with no perfect-foresight view of later years. Milestone steps are ten years, so the 2040 and 2050 fleets inherit coarser vintages than a five-year chain would give.",
+    "Draft-accuracy solver tolerance. All 48 period solves converged on PDLP's relative gap and feasibility metrics at 3e-3, the tolerance the full-year anchor was itself accepted at. The reported model status reads Unknown even on converged solves for this class of problem, so it is never the acceptance criterion.",
+    "Cost is reconstructed component-by-component as fleet capital and fixed costs plus fuel plus carbon, not read from the LP objective: carried capacity enters each year's problem at zero capital cost by design, so the objective understates fleet capital and is non-monotonic across the pathway.",
+    "The per-period wall-clock limit was raised from three hours to five on measured evidence, and two solves still exceeded it and were relaunched at ten hours. All reported solves completed within their budget.",
+  ].map((c) => "<li>" + c + "</li>").join("");
+}
+
+/* ---------- controls & render ------------------------------------------- */
+function seg(id, items, key, render) {
+  $(id).innerHTML = items.map((i) =>
+    '<button type="button" data-v="' + i.v + '" aria-pressed="' + (state[key] === i.v) + '">' +
+    i.k + "</button>").join("");
+  $(id).addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    state[key] = (key === "scYear" || key === "scCarbon") ? Number(b.dataset.v) : b.dataset.v;
+    $(id).querySelectorAll("button").forEach((n) =>
+      n.setAttribute("aria-pressed", String(n.dataset.v === b.dataset.v)));
+    render();
+  });
+}
+const renderDemand = () => { drawDecomp(); drawPathway(); };
+const renderUnit = () => { drawSurface(); drawTable(); };
+seg("seg-dem", M.demands.map((d) => ({ k: DEM_LAB(d), v: d })), "demand", renderDemand);
+seg("seg-unit", [{ k: "AUD/MWh", v: "mwh" }, { k: "bn AUD/yr", v: "bn" }], "unit", renderUnit);
+seg("seg-scy", M.years.map((y) => ({ k: y, v: y })), "scYear", drawSupply);
+seg("seg-scc", M.carbons.map((c) => ({ k: CARBON_LAB(c), v: c })), "scCarbon", drawSupply);
+seg("seg-basis", [{ k: "Resource (excl. carbon payments)", v: "res" },
+                  { k: "Full cost", v: "full" }], "basis", drawFracCost);
+
+drawStatic();
+drawSurface(); drawDecomp(); drawPathway();
+drawMarginal(); drawSplit(); drawSupply();
+drawCoverage(); drawFracCost(); drawAxis(); drawTable();
+window.addEventListener("resize", () => { ttHide(); });
+</script>
