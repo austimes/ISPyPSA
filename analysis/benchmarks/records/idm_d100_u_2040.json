@@ -1,0 +1,62 @@
+{
+  "run_id": "idm_d100_u_2040",
+  "config": "C:\\Users\\van538\\GitHub\\ISPyPSA\\analysis\\benchmarks\\configs_myopic\\idm_d100_u_2040.yaml",
+  "archetype": "cost_optimal",
+  "solver_options": {
+    "BarConvTol": 1e-08,
+    "Method": 2
+  },
+  "started_at": 1787559765.0297751,
+  "started_at_iso": "2026-08-24T18:22:45",
+  "iasr_load_s": 2.4784062998369336,
+  "templating_s": 420.41654960019514,
+  "retirement": {
+    "reducible_existing_units": 308,
+    "reducible_existing_installed_mw": 61742.899999999994,
+    "capped_below_installed_mw": 10398.768565728113,
+    "keeping_cost_per_mw": {
+      "min": 12219.6,
+      "max": 215566.1,
+      "mean": 52018.35629949405
+    },
+    "monotone_floor_applied": true
+  },
+  "recursive_dynamic": {
+    "carried_generators": 0,
+    "carried_batteries": 0,
+    "carried_generator_mw": 0.0,
+    "carried_battery_mw": 0.0
+  },
+  "capacity_cap_carried_adjust": {},
+  "phes_build_limit_carried_adjust": {},
+  "translation_s": 38.19638470001519,
+  "pypsa_build_s": 83.98757779970765,
+  "solve_s": 6173.121882899664,
+  "solve_ok": true,
+  "save_network_s": 6.473696999717504,
+  "annual_residual_co2e_t": 42576599.58096722,
+  "extract_results_s": 23.51169760012999,
+  "annual_generation_mwh_by_period": {
+    "2040": 247956779.87740445
+  },
+  "wall_clock_s": 6776.1990694999695,
+  "status": "completed",
+  "peak_rss_bytes": 40154173440,
+  "peak_rss_gib": 37.396488189697266,
+  "lp_rows": 12598723,
+  "lp_cols": 5744750,
+  "lp_nonzeros": 25232042,
+  "model_status": "Optimal",
+  "highs_run_time_s": null,
+  "simplex_iterations": null,
+  "ipm_iterations": null,
+  "ipm_final_pinf": 1.13e-05,
+  "ipm_final_dinf": 2.2e-08,
+  "ipm_final_gap": 1.25e-10,
+  "objective_value": 12968824800.0,
+  "gurobi_iterations": 1029390,
+  "gurobi_solver_time_s": 5967.03,
+  "gurobi_barrier_iterations": 122,
+  "gurobi_barrier_time_s": 1009.25,
+  "ipm_iterations_observed": 122
+}

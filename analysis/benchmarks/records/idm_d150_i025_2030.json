@@ -1,0 +1,72 @@
+{
+  "run_id": "idm_d150_i025_2030",
+  "config": "C:\\Users\\van538\\GitHub\\ISPyPSA\\analysis\\benchmarks\\configs_myopic\\idm_d150_i025_2030.yaml",
+  "archetype": "cost_optimal",
+  "solver_options": {
+    "solver": "pdlp",
+    "pdlp_optimality_tolerance": 0.003,
+    "primal_feasibility_tolerance": 0.003,
+    "dual_feasibility_tolerance": 0.003
+  },
+  "started_at": 1788296915.4320576,
+  "started_at_iso": "2026-09-02T07:08:35",
+  "iasr_load_s": 2.576130799949169,
+  "templating_s": 428.7048184000887,
+  "retirement": {
+    "reducible_existing_units": 329,
+    "reducible_existing_installed_mw": 73870.4,
+    "capped_below_installed_mw": 0.0,
+    "keeping_cost_per_mw": {
+      "min": 19531.97,
+      "max": 215566.1,
+      "mean": 49762.539299398726
+    },
+    "monotone_floor_applied": false
+  },
+  "recursive_dynamic": {
+    "carried_generators": 0,
+    "carried_batteries": 0,
+    "carried_generator_mw": 0.0,
+    "carried_battery_mw": 0.0
+  },
+  "capacity_cap_carried_adjust": {},
+  "phes_build_limit_carried_adjust": {},
+  "translation_s": 39.80933280009776,
+  "pypsa_build_s": 88.95367049984634,
+  "co2_cap_annual_t": 28015041.71502883,
+  "solve_s": 9355.091628300026,
+  "solve_ok": true,
+  "save_network_s": 5.829013300128281,
+  "annual_residual_co2e_t": 27996258.18722063,
+  "constraint_report": {
+    "objective_weight": 1.0,
+    "annual_residual_co2e_t": 27996258.18722063,
+    "co2_cap_annual_t_dual": -221.87303748731105
+  },
+  "extract_results_s": 25.105789499823004,
+  "annual_generation_mwh_by_period": {
+    "2030": 289579296.1037024
+  },
+  "wall_clock_s": 9963.895392800216,
+  "status": "completed",
+  "peak_rss_bytes": 38692499456,
+  "peak_rss_gib": 36.03519821166992,
+  "lp_rows": 12030866,
+  "lp_cols": 5513237,
+  "lp_nonzeros": 24586837,
+  "model_status": "Unknown",
+  "highs_run_time_s": 9115.61,
+  "simplex_iterations": null,
+  "ipm_iterations": null,
+  "ipm_final_pinf": null,
+  "ipm_final_dinf": null,
+  "ipm_final_gap": null,
+  "objective_value": 18942995845.0,
+  "pdlp_iterations": 22720,
+  "pdlp_final_pinf_abs": 6420.0,
+  "pdlp_final_pinf_rel": 0.000208,
+  "pdlp_final_dinf_abs": 19.0,
+  "pdlp_final_dinf_rel": 1.81e-06,
+  "pdlp_final_gap_abs": 113000000.0,
+  "pdlp_final_gap_rel": 0.00298
+}

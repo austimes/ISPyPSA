@@ -1,0 +1,68 @@
+{
+  "run_id": "idm_d120_i100_2040",
+  "config": "C:\\Users\\van538\\GitHub\\ISPyPSA\\analysis\\benchmarks\\configs_myopic\\idm_d120_i100_2040.yaml",
+  "archetype": "cost_optimal",
+  "solver_options": {
+    "BarConvTol": 1e-08,
+    "Method": 2
+  },
+  "started_at": 1787683300.384443,
+  "started_at_iso": "2026-08-26T04:41:40",
+  "iasr_load_s": 3.070385499857366,
+  "templating_s": 419.48279380006716,
+  "retirement": {
+    "reducible_existing_units": 308,
+    "reducible_existing_installed_mw": 61742.899999999994,
+    "capped_below_installed_mw": 10398.768565728113,
+    "keeping_cost_per_mw": {
+      "min": 12219.6,
+      "max": 215566.1,
+      "mean": 52018.35629949405
+    },
+    "monotone_floor_applied": true
+  },
+  "recursive_dynamic": {
+    "carried_generators": 0,
+    "carried_batteries": 0,
+    "carried_generator_mw": 0.0,
+    "carried_battery_mw": 0.0
+  },
+  "capacity_cap_carried_adjust": {},
+  "phes_build_limit_carried_adjust": {},
+  "translation_s": 40.286616700235754,
+  "pypsa_build_s": 92.0297498004511,
+  "co2_cap_annual_t": 51831378.196171954,
+  "solve_s": 8146.099768400192,
+  "solve_ok": true,
+  "save_network_s": 4.721508299931884,
+  "annual_residual_co2e_t": 49342687.905705824,
+  "constraint_report": {
+    "objective_weight": 1.0,
+    "annual_residual_co2e_t": 49342687.905705824,
+    "co2_cap_annual_t_dual": 0.0
+  },
+  "extract_results_s": 25.21391350030899,
+  "annual_generation_mwh_by_period": {
+    "2040": 296616245.89566314
+  },
+  "wall_clock_s": 8759.862291300204,
+  "status": "completed",
+  "peak_rss_bytes": 38699290624,
+  "peak_rss_gib": 36.04152297973633,
+  "lp_rows": 12598724,
+  "lp_cols": 5744750,
+  "lp_nonzeros": 25699418,
+  "model_status": "Optimal",
+  "highs_run_time_s": null,
+  "simplex_iterations": null,
+  "ipm_iterations": null,
+  "ipm_final_pinf": 3.6e-05,
+  "ipm_final_dinf": 1.38e-07,
+  "ipm_final_gap": 2.18e-05,
+  "objective_value": 19346835000.0,
+  "gurobi_iterations": 1556553,
+  "gurobi_solver_time_s": 7952.12,
+  "gurobi_barrier_iterations": 160,
+  "gurobi_barrier_time_s": 1219.49,
+  "ipm_iterations_observed": 160
+}
