@@ -18,7 +18,11 @@ Complete grid histories installable in ShARP, passing:
    draft scenario's grid demand trajectory reproduced by a blend of histories
    within 0.5% in every decision year through 2060.
 2. `diagnose_candidates_in_system.mjs --cases=all` — every scenario solves on
-   the menu with grid emissions not exceeding the default representation's.
+   the menu with grid emissions not exceeding the default representation's
+   **in every decision year, measured against the REBUILT default** (the
+   checked-in grid scenario settings are dropped on substitution, and three
+   IASR cases do not solve under the checked-in settings at all — the rebuilt
+   default is the only well-defined control).
 
 ## Methodology position (settled by measurement — do not relitigate silently)
 
@@ -150,11 +154,18 @@ Pressure ladder per trajectory:
 - Prices A$0/150/300/550/t: full chains, 4 milestones (continuity + duality
   cross-check set).
 - Caps: 2050 targets 0.005 / 0.002 / 0.001 / 0.0005 t/MWh (absolute annual
-  tonnes = target x that trajectory's source load). Schedule: 2030 uncapped
-  (the A$0 2030 fleet is the realistic near-term state), 2040 cap = geometric
-  interpolation between the trajectory's realised A$0 2030 intensity and the
-  2050 target, 2060 held at the 2050 target. This schedule is a decision knob;
-  it is the default, record deviations.
+  tonnes = target x that trajectory's source load). Schedule — REVISED per the
+  accepted ShARP-side objection (2026-09-16): **2030 capped at 0.12 t/MWh
+  delivered** (the low end of the IASR default range; feasibility confirmed
+  against the solved 2030 ladder, where 0.12 sits between the 0.198 and 0.099
+  rungs at duals of A$73-135/t), 2040 cap = geometric interpolation from 0.12
+  to the 2050 target, 2060 held at the 2050 target. Rationale: ShARP blends
+  histories with ONE weight per history across the whole horizon, so a cap
+  chain must be admissible in EVERY year on its own — an uncapped (A$0) 2030
+  at ~0.4 t/MWh strands the chain regardless of its 2050 depth. The A$0 2030
+  fleet remains represented by the A$0 price chains (the incumbent family)
+  only. This changes no solve count. Deviations from the schedule are
+  recorded per chain.
 - NO A$1000/t chains (see methodology position).
 
 Count: 5 trajectories x 8 chains x 4 milestones = **160 annual solves** (+40
@@ -214,6 +225,14 @@ cost, conversion expenditure decomposed with retention once, renewable share,
 solver block, provenance). Add: **both duals per cell** (cap shadow price
 A$/t; demand-weighted marginal supply cost A$/MWh), realised intensity on the
 delivered basis, and the `authored_horizon_extension` flag.
+
+Plus one solve-free evidence export: **per-milestone NEM operational demand**
+(the trace-derived series already in `demand_components_traces.csv`, extended
+to every milestone used), published alongside whatever national-demand
+denominator the ShARP side sources, so the stipulated 1.3 NEM-to-national
+factor becomes a year-varying evidenced series rather than a constant. The
+national denominator is not in the IASR data and must come from the ShARP
+side; the bridge itself remains applied only at handover.
 
 ## Staging (gate the spend — the prior campaigns' pattern, kept because it
 caught every defect early)
