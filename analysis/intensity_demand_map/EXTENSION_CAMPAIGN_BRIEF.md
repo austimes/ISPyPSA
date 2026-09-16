@@ -153,19 +153,33 @@ Pressure ladder per trajectory:
 
 - Prices A$0/150/300/550/t: full chains, 4 milestones (continuity + duality
   cross-check set).
-- Caps: 2050 targets 0.005 / 0.002 / 0.001 / 0.0005 t/MWh (absolute annual
-  tonnes = target x that trajectory's source load). Schedule — REVISED per the
-  accepted ShARP-side objection (2026-09-16): **2030 capped at 0.12 t/MWh
-  delivered** (the low end of the IASR default range; feasibility confirmed
-  against the solved 2030 ladder, where 0.12 sits between the 0.198 and 0.099
-  rungs at duals of A$73-135/t), 2040 cap = geometric interpolation from 0.12
-  to the 2050 target, 2060 held at the 2050 target. Rationale: ShARP blends
-  histories with ONE weight per history across the whole horizon, so a cap
-  chain must be admissible in EVERY year on its own — an uncapped (A$0) 2030
-  at ~0.4 t/MWh strands the chain regardless of its 2050 depth. The A$0 2030
-  fleet remains represented by the A$0 price chains (the incumbent family)
-  only. This changes no solve count. Deviations from the schedule are
-  recorded per chain.
+- Caps: 2050 targets 0.005 / 0.002 / 0.001 / 0.0005 t/MWh on the SHARP
+  DELIVERED basis. **Caps are always written into the solver as absolute
+  annual tonnes, with the basis conversion shown in the manifest**: delivered
+  intensity = source intensity / 0.91, so a delivered target ι_d at source
+  load Q_source TWh is cap_t = (0.91 x ι_d) x Q_source x 1e6. Example: the
+  2030 cap of 0.12 t/MWh delivered = 0.109 t/MWh source-basis (the map's
+  ladder rungs 0.198 and 0.099 are source-basis; 0.109 sits between them at
+  duals of A$73-135/t, confirming feasibility). Never quote a cap without its
+  basis.
+  Schedule — REVISED per the accepted ShARP-side objections (2026-09-16):
+  **2030 capped at 0.12 t/MWh delivered** (low end of the IASR default range),
+  2040 cap = geometric interpolation from the 2030 cap to the 2050 target,
+  2060 held at the 2050 target — EXCEPT the deepest (0.0005) chain, whose
+  **2060 rung tightens to 0.0001 t/MWh source-basis (near-zero)**: the rebuilt
+  default's 2060 grid is 0.0-1.1 Mt and the s1/s2 scenario class sits near
+  zero, so a 2060 held at 0.0005 (~0.2 Mt at 460 TWh) would fail criterion 2
+  for exactly those cases. Near-zero feasibility is measured (2050 floor
+  probes solved to 10-500 t at duals of A$190-311k/t). If the tightened rung
+  still exceeds an s1/s2 default year, criterion 2 carries a small absolute
+  tolerance at 2060 only (the default's 2060 is itself an authored trajectory,
+  so a stated tolerance is defensible); record which of the two closed the
+  gap. Rationale for the capped 2030: ShARP blends histories with ONE weight
+  per history across the whole horizon, so a cap chain must be admissible in
+  EVERY year on its own — an uncapped (A$0) 2030 at ~0.4 t/MWh strands the
+  chain regardless of its 2050 depth. The A$0 2030 fleet remains represented
+  by the A$0 price chains (the incumbent family) only. No change to solve
+  count. Deviations from the schedule are recorded per chain.
 - NO A$1000/t chains (see methodology position).
 
 Count: 5 trajectories x 8 chains x 4 milestones = **160 annual solves** (+40
@@ -226,13 +240,34 @@ solver block, provenance). Add: **both duals per cell** (cap shadow price
 A$/t; demand-weighted marginal supply cost A$/MWh), realised intensity on the
 delivered basis, and the `authored_horizon_extension` flag.
 
-Plus one solve-free evidence export: **per-milestone NEM operational demand**
-(the trace-derived series already in `demand_components_traces.csv`, extended
-to every milestone used), published alongside whatever national-demand
-denominator the ShARP side sources, so the stipulated 1.3 NEM-to-national
-factor becomes a year-varying evidenced series rather than a constant. The
-national denominator is not in the IASR data and must come from the ShARP
-side; the bridge itself remains applied only at handover.
+Plus three solve-free evidence exports:
+
+- **Per-milestone NEM operational demand** (the trace-derived series already
+  in `demand_components_traces.csv`, extended to every milestone used),
+  published alongside whatever national-demand denominator the ShARP side
+  sources, so the stipulated 1.3 NEM-to-national factor becomes a
+  year-varying evidenced series. The national denominator is not in the IASR
+  data; the bridge itself remains applied only at handover.
+- **The ANNUAL demand series per trajectory** (the authored year-by-year
+  source loads each trajectory follows, not just its four milestone values).
+  Diagnostic 1 tests every IASR decision year (2027, 2029, 2033, 2037, ...);
+  ShARP interpolates between milestones, and a milestone hull that covers
+  every milestone can still miss an intermediate year by more than 0.5% if
+  the IASR path is not linear between them. The ShARP-side fix (interpolate
+  along the trajectory's authored annual demand) needs this series exported.
+- **The forward-basis 2025 anchor** (`anchor_2025_forward_components*.csv`,
+  already on the branch): 2025 fleet FOM and per-carrier VOM as A$/yr
+  components. **The ShARP side must bridge the anchor identically to the
+  cells (C = beta x kappa x C_source, beta = 1.3, kappa = 0.972411530) —
+  never divide NEM-fleet A$ by the national denominator directly.** Bridged
+  correctly the anchor lands near A$26/MWh delivered, ABOVE the ~A$21.5 2030
+  row: a smooth join whose downward step is the measured coal-retirement FOM
+  decline, not a level error. FY2025-commissioning units (11, listed
+  separately) are RULED: charge FOM only, no construction annuity — the same
+  decided-before-first-decision convention every ECAA committed/anticipated
+  unit already gets in every cell. Storage FOM is zero in the IASR ECAA
+  storage table; leave it out UNIFORMLY (cells and anchor alike) rather than
+  patching the anchor alone.
 
 ## Staging (gate the spend — the prior campaigns' pattern, kept because it
 caught every defect early)
