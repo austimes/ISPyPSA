@@ -143,11 +143,44 @@ Trajectories (source-NEM load, TWh at 2030/2040/2050/2060), each a
 recursive-dynamic chain with year-varying demand:
 
 - `iasr_low`: 180 / 253 / 336 / 402; `iasr_central`: 183 / 268 / 365 / 431;
-  `iasr_high`: 185 / 282 / 393 / 460; brackets `iasr_low x 0.92` and
-  `iasr_high x 1.08` every year.
-- Note the bracket margin also absorbs delivery-bridge drift: the 0.91-loss /
-  1.3-national bridge is ShARP-authored and unratified; +/-8% covers a
-  revision of either factor. State this in the manifest.
+  `iasr_high`: 185 / 282 / 393 / 460; lower bracket `iasr_low x 0.92`.
+- **Owner-approved upper-bracket revision, 16 September 2026:** replace
+  `iasr_high x 1.08` with `iasr_stress`: **225 / 350 / 490 / 585 TWh**.
+  This remains five paths, not six. The previous upper bracket left only
+  about 5% demand headroom in 2050 and 3% in 2060 against current ShARP
+  requirements, before biomass deduction.
+- The stress path also has demand-shape knots of **210 TWh in 2027 and
+  220 TWh in 2029**. Interpolate absolute source TWh linearly between these
+  knots and the milestones. Retain the common customer-delivered 2025
+  anchor of 193.911 TWh and interpolate 2026 to the adjusted 2027 point.
+  The early knots are authored demand shapes, not extra investment solves
+  or evidence that the pre-2030 fleet can deliver them. Export the annual
+  series and disclose that authoring assumption.
+- Require **at least 20% customer-delivered quantity headroom in every
+  decision year from 2027 through 2060**, after the delivery and biomass
+  adjustments. The baseline is the largest demand across all eleven IASR
+  scenarios in both the rebuilt-default and scalable-candidate comparisons.
+  The checked planning envelope gives about 579 TWh in 2050 and 691 TWh
+  in 2060, after deducting the full 12 PJ biomass reference at the highest
+  observed biomass electricity yield. Every future decision year passes.
+  The bridge remains authored and unratified: do not spend the 20% margin
+  on bridge revisions. Recalculate source targets if losses, national
+  scaling or new-cell biomass yields change.
+- The versioned ShARP `next-sweep-demand-plan.json` is the planning input;
+  `check_sweep_demand_headroom.py --check` reproduces its envelope evidence.
+  Neither is a launch configuration. Wire the plan into the new runner and
+  retain its version in every manifest. See the linked demand-plan record
+  below for the precise inputs and check command.
+
+The demand-plan record is ShARP version `20260916-headroom-v1`:
+[planning JSON](https://github.com/austimes/sharp/blob/a09411440235da436607cb31bffb232aaeb35a50/docs/reviews/ispypsa-electricity/next-sweep-demand-plan.json),
+[checked headroom by decision year](https://github.com/austimes/sharp/blob/a09411440235da436607cb31bffb232aaeb35a50/docs/reviews/ispypsa-electricity/out/next_sweep_demand_headroom.csv),
+and [purpose and setup](https://github.com/austimes/sharp/blob/a09411440235da436607cb31bffb232aaeb35a50/docs/reviews/ispypsa-electricity/next-sweep-overview.md).
+From the ShARP repository root, reproduce the planning check with:
+
+```text
+python docs/reviews/ispypsa-electricity/check_sweep_demand_headroom.py --check
+```
 
 Pressure ladder per trajectory:
 
@@ -187,6 +220,11 @@ if 2070 is added), plus 1 smoke chain, plus 3-5 full-chronology validations,
 plus acceptance re-solves. Same as the draft's count, with the A$1000 chains
 replaced by the validations.
 
+The upper stress path receives all eight pressure settings, including all
+four cap schedules. Recalculate absolute annual caps using its higher load;
+do not reuse the old upper path's tonnage limits. Accepted central and upper
+pilot histories count within the 40 chains and are not repeated in Stage 2.
+
 ## Compute plan (corrected — the draft's is not executable)
 
 - **There are 2 Gurobi seats, not 40 workers** (CSIRO token server; the map
@@ -199,16 +237,30 @@ replaced by the validations.
   spec for sampled LPs, and the duals are the product). Budget 300 min/cell
   first pass, 600 min uncontended retries, PDLP 1e-3 as the recorded fallback
   with gap exported.
-- Realistic wall-clock: ~480 solver-hours central at mean ~3 h; at effective
-  width ~3 (2 Gurobi seats + contention losses) that is **7-10 days**, not
-  12 hours. 2060 cells and deep caps skew slower. Record host, threads, and
-  contention (concurrent solves) per record — the old records did not.
+- Initial budget: ~480 solver-hours at mean ~3 h. With two Gurobi seats,
+  that is **about ten days at continuous utilisation**, before contention,
+  retries and full-year checks. The previous 7-10 day estimate assumed
+  effective width above two and cannot be inferred from two seats. The
+  larger upper path may take longer despite an unchanged run count.
+  Re-budget after both pilots; any faster mixed-solver schedule must state
+  its licence and resource assumptions. Record host, threads and concurrent
+  solves per record; the old records did not.
 - Chains are sequential internally: 8 chains x 5 trajectories = 40
   independent lanes; the binding constraint is seats, not lanes.
 
 ## Acceptance before handover (amended)
 
 1. Convex-hull demand coverage through 2060 (diagnostic 1, `--cases=all`).
+   Extend acceptance to each scenario's grid-demand path increased by 20%
+   from 2027, preserving the common 2025 anchor. One complete-history blend
+   must meet each path within the same 0.5% tolerance in every decision year,
+   including 2027/2029 and the intermediate years. A year-by-year upper
+   envelope alone does not establish that result. Test clean supply at the
+   higher demand jointly; the stress histories must satisfy the same annual
+   emissions, unserved-energy and numerical criteria as the other histories.
+   The current ShARP commands do not automatically implement these new
+   stress checks; add them before acceptance, without changing whole-economy
+   end-use demands merely to force a chosen grid trajectory.
 2. Per trajectory, at least one history at or below 0.001 t/MWh in 2050,
    held through 2060. If a cap is infeasible-in-practice, the LP will shed
    load rather than report infeasible (USE is an emission-free slack at
@@ -281,12 +333,17 @@ caught every defect early)
   2060 milestone exercising the authored extension is the novel risk — if it
   fails structurally (build limits, REZ caps at 431 TWh), stop and report
   before the grid.
-- **Stage 2**: the 40 chains, price chains first (they are the fast,
+- **Stage 1b**: run `iasr_stress` under the deepest cap schedule through
+  all four milestones before releasing the remaining grid. Apply the same
+  Stage 1 gates and the tightened 2060 cap. Stop and report if high demand
+  and clean supply cannot be achieved together. Count this accepted history
+  within the planned 40, and use its timings to revise the compute budget.
+- **Stage 2**: the remaining chains, price chains first (they are the fast,
   well-understood class), then caps shallow-to-deep so infeasibility
   boundaries are approached with context.
 - Surface-and-pause on: any Stage 0/1 gate failure; USE > 0 above the 0.001
   cap class; the 2060 authored extension proving structurally infeasible at
-  `iasr_high x 1.08`; solver certification failing on >20% of a class.
+  `iasr_stress`; solver certification failing on >20% of a class.
 
 ## Handover (as the draft)
 
