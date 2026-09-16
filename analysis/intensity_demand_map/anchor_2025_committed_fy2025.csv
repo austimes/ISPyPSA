@@ -1,0 +1,12 @@
+generator,fuel_type,maximum_capacity_mw,status,commissioning_date
+Bundaberg Solar Farm,Solar,78.0,Committed,2025-12-01
+Wunghnu Solar Farm,Solar,93.5,Committed,2025-03-01
+Clarke Creek Wind Farm,Wind,450.0,Committed,2025-09-01
+Golden Plains Wind Farm East,Wind,756.4,Committed,2025-12-01
+MacIntyre Wind Farm,Wind,923.4,Committed,2025-11-01
+Wambo Wind Farm,Wind,252.0,Committed,2025-02-01
+Ravenswood Solar Farm,Solar,467.7,Additional policy-supported project,2025-01-01
+Campbells Forest Solar Farm,Solar,205.0,Additional policy-supported project,2025-01-01
+Thunderbolt Wind Farm,Wind,210.0,Additional policy-supported project,2025-01-01
+Hay Sun Farm,Solar,110.0,Anticipated,2025-07-01
+Dubbo Firming Power Station,Gas,57.0,Anticipated,2025-07-01
