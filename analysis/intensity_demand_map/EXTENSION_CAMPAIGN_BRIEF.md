@@ -236,15 +236,20 @@ pilot histories count within the 40 chains and are not repeated in Stage 2.
 - Certification: Gurobi barrier crossover-on `BarConvTol 1e-8` (the validated
   spec for sampled LPs, and the duals are the product). Budget 300 min/cell
   first pass, 600 min uncontended retries, PDLP 1e-3 as the recorded fallback
-  with gap exported.
+  with gap exported. If the 2-seat queue becomes the campaign bottleneck, the
+  sanctioned mixed-solver split is: PRICE chains to PDLP (their duals are not
+  the deliverable), CAP chains stay on Gurobi (their shadow prices are);
+  record the tier per cell. Full-chronology validations go straight to PDLP
+  (Gurobi crossover has already failed at that scale).
 - Initial budget: ~480 solver-hours at mean ~3 h. With two Gurobi seats,
   that is **about ten days at continuous utilisation**, before contention,
   retries and full-year checks. The previous 7-10 day estimate assumed
   effective width above two and cannot be inferred from two seats. The
   larger upper path may take longer despite an unchanged run count.
-  Re-budget after both pilots; any faster mixed-solver schedule must state
-  its licence and resource assumptions. Record host, threads and concurrent
-  solves per record; the old records did not.
+  Re-budget after both pilots; any faster mixed-solver schedule (including
+  the sanctioned split above) must state its licence and resource
+  assumptions. Record host, threads and concurrent solves per record; the
+  old records did not.
 - Chains are sequential internally: 8 chains x 5 trajectories = 40
   independent lanes; the binding constraint is seats, not lanes.
 
