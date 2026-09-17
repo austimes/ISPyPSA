@@ -157,6 +157,14 @@ code { font: 500 12.5px "IBM Plex Mono", monospace; background: var(--sunken);
 </section>
 
 <section>
+  <h2>Storage built</h2>
+  <p class="lede">Battery and pumped hydro power per chain at each milestone, from the storage
+  units the optimiser built (storage is not generation, so it does not appear in the sent-out
+  mix below). Hover shows the longest reservoir duration the cell built.</p>
+  <div class="grid4" id="storage"></div>
+</section>
+
+<section>
   <h2>What the fleet generates</h2>
   <p class="lede">Annual sent-out energy by carrier at each milestone. Load shedding appears as its
   own band, so a pathway that cannot serve its demand shows the gap rather than hiding it.</p>
@@ -393,6 +401,26 @@ function renderAvgCost() {
     { xaxis: { type: "log", autorange: "reversed" } });
 }
 
+// Storage per chain and year: stacked Battery and pumped hydro power. Chains are ordered
+// trajectory-major, pressure-minor, so each panel reads left to right as demand rising.
+function renderStorage() {
+  const order = [...DATA.chains].sort((a, b) =>
+    Object.keys(TRAJ_LABEL).indexOf(a.trajectory) - Object.keys(TRAJ_LABEL).indexOf(b.trajectory)
+    || PRESSURES.indexOf(pressureOf(a)) - PRESSURES.indexOf(pressureOf(b)));
+  const tracesFor = y => [["Battery", "--gas"], ["Water", "--water"]].map(([kind, hue]) => {
+    const cells = order.map(c => ({ c, m: c.milestones.find(m => m.year === y) })).filter(p => p.m);
+    return {
+      x: cells.map(p => describe(p.c)), y: cells.map(p => p.m.storage[`${kind}_gw`] ?? 0),
+      name: kind === "Water" ? "Pumped hydro" : "Battery", type: "bar",
+      marker: { color: tok(hue), line: { width: 1, color: tok("--raised") } },
+      text: cells.map(p => `longest ${p.m.storage.longest_duration_h ?? "-"} h`),
+      hovertemplate: "%{x}<br>" + (kind === "Water" ? "pumped hydro" : "battery") + " %{y:.1f} GW<br>%{text}<extra></extra>",
+    };
+  });
+  smallMultiples("storage", "stor", tracesFor, "GW", "", { xaxis: { showticklabels: false } });
+  for (const y of YEARS) Plotly.relayout(`stor-${y}`, { barmode: "stack", bargap: 0.25 });
+}
+
 function renderNotes() {
   const shed = DATA.chains.flatMap(c => c.milestones.map(m => ({ ...m, chain: c.run_id })))
     .filter(isBoundary);
@@ -416,7 +444,7 @@ function renderAll() {
   const failures = [];
   for (const [name, fn] of [["summary", renderStrip], ["gates", renderGates],
       ["intensity chart", renderIntensity], ["abatement chart", renderPrice],
-      ["cost surface", renderSurface], ["average cost", renderAvgCost],
+      ["cost surface", renderSurface], ["average cost", renderAvgCost], ["storage", renderStorage],
       ["generation mix", renderMixes], ["notes", renderNotes]]) {
     try { fn(); } catch (e) { failures.push(`${name}: ${e.message}`); }
   }
