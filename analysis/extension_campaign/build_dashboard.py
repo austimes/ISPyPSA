@@ -17,10 +17,11 @@ _TEMPLATE = Path(__file__).parent / "dashboard_template.html"
 
 
 def render(template: str, data: dict) -> str:
-    """Inline the run data into the template's data island.
+    """Inline the run data into the template as a JavaScript object literal.
 
-    The island is a JSON script tag, so the only character that can break out of it is the
-    closing tag; escaping its slash keeps the payload inert without altering the parsed JSON.
+    JSON is valid JavaScript, so the payload drops straight into `const DATA = ...;`. The one
+    sequence that could end the enclosing script tag early is a closing tag inside a string,
+    so its slash is escaped, which JavaScript reads back as the same character.
     """
     payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
     return template.replace(_PLACEHOLDER, payload)

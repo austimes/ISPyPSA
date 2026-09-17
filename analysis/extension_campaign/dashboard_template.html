@@ -1,6 +1,6 @@
 <title>Grid Pathways Monitor</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600&display=swap">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.34.0/plotly.min.js"></script>
 <style>
 :root {
   --surface: #fcfcfb; --raised: #ffffff; --sunken: #f4f3ef;
@@ -152,9 +152,10 @@ code { font: 500 12.5px "IBM Plex Mono", monospace; background: var(--sunken);
 <footer id="foot"></footer>
 </div>
 
-<script id="campaign-data" type="application/json">__DASHBOARD_DATA__</script>
 <script>
-const DATA = JSON.parse(document.getElementById("campaign-data").textContent);
+// Data is a plain JavaScript literal rather than a JSON data island: a publishing host
+// that sanitises non-script <script> tags would otherwise drop it and blank the page.
+const DATA = __DASHBOARD_DATA__;
 const CARRIERS = [
   ["Wind", "--wind"], ["Solar", "--solar"], ["Water", "--water"],
   ["Biomass", "--biomass"], ["Gas", "--gas"],
@@ -301,15 +302,27 @@ function renderNotes() {
     where the cap stops being reachable.</p>`;
 }
 
+// Each section renders independently so one failure (a chart library that did not load,
+// a field missing from one record) cannot blank the whole page; the failure is reported
+// in place instead of swallowed.
 function renderAll() {
-  renderStrip(); renderGates(); renderIntensity(); renderPrice(); renderMixes(); renderNotes();
+  const failures = [];
+  for (const [name, fn] of [["summary", renderStrip], ["gates", renderGates],
+      ["intensity chart", renderIntensity], ["abatement chart", renderPrice],
+      ["generation mix", renderMixes], ["notes", renderNotes]]) {
+    try { fn(); } catch (e) { failures.push(`${name}: ${e.message}`); }
+  }
   document.getElementById("foot").textContent =
     `${DATA.chains_found} chains - ${DATA.milestones_solved} solved milestones - `
     + `Gurobi barrier with crossover, BarConvTol 1e-8 - 13 demand-matched weeks at 30 minutes, `
     + `reference year 2018 - IASR 2026 Final (v7.8) - caps on the customer-delivered basis, `
-    + `converted to absolute annual tonnes per chain.`;
+    + `converted to absolute annual tonnes per chain.`
+    + (failures.length ? ` - could not render ${failures.join("; ")}` : "");
 }
 renderAll();
+// A host that defers external scripts delivers the chart library after this runs;
+// rendering again on load picks it up. Rendering is idempotent.
+window.addEventListener("load", renderAll);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", renderAll);
 new MutationObserver(renderAll).observe(document.documentElement,
   { attributes: true, attributeFilter: ["data-theme"] });
