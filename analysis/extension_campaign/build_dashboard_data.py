@@ -111,9 +111,11 @@ def collect_chains(output_root: Path, archetype: str = "cost_optimal") -> list[d
     records, runs = output_root / "records", output_root / "runs"
     chains = []
     for chain_record in sorted(records.glob("ext_*.json")):
-        if chain_record.stem[-4:].isdigit():
-            continue  # a per-milestone record; collected under its chain below
         summary = json.loads(chain_record.read_text())
+        # Cap keys end in digits too (ext_central_cap0001), so the run id cannot tell a
+        # chain from one of its milestones. Only the chain driver writes this kind.
+        if summary.get("kind") != "myopic_sequential":
+            continue
         milestones = [
             m
             for p in sorted(records.glob(f"{chain_record.stem}_20??.json"))
