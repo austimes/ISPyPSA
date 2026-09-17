@@ -41,7 +41,8 @@ body {
   font: 400 15px/1.55 "IBM Plex Sans", system-ui, -apple-system, sans-serif;
   margin: 0; padding: 2.5rem 1.5rem 5rem;
 }
-.wrap { max-width: 78rem; margin: 0 auto; display: flex; flex-direction: column; gap: 2.25rem; }
+.wrap { margin: 0 auto; display: flex; flex-direction: column; gap: 2.25rem; }
+.grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1.25rem; }
 
 header { display: flex; flex-direction: column; gap: .5rem; }
 h1 {
@@ -137,6 +138,22 @@ code { font: 500 12.5px "IBM Plex Mono", monospace; background: var(--sunken);
     <div class="panel"><div class="plot" id="p-intensity"></div></div>
     <div class="panel"><div class="plot" id="p-price"></div></div>
   </div>
+</section>
+
+<section>
+  <h2>Cost against demand, by pressure setting</h2>
+  <p class="lede">Annual resource cost (new-build annuities, fixed and variable operating cost and fuel;
+  carbon payments and the load-shedding penalty removed) against delivered demand, one line per
+  pressure setting. Hollow markers are boundary cells.</p>
+  <div class="grid4" id="surface"></div>
+  <div class="legend" id="surface-legend"></div>
+</section>
+
+<section>
+  <h2>Average cost against realised intensity, by trajectory</h2>
+  <p class="lede">The same cost per delivered MWh, placed on the intensity each cell actually
+  reached, so price chains and cap chains sit on one curve per demand trajectory.</p>
+  <div class="grid4" id="avgcost"></div>
 </section>
 
 <section>
@@ -292,6 +309,73 @@ function renderMixes() {
     `<span><i style="background:${tok(hue)}"></i>${name}</span>`).join("");
 }
 
+// Nick's cost-surface views, self-contained. Cost is the LP objective net of the
+// unserved-energy penalty and any carbon payment: new-build annuities plus operating cost
+// plus fuel. ponytail: fuel stays inside until the cost-deliverables export lands; swap
+// resourceCost for that export's excl-fuel figure then.
+const USE_PRICE = 10000;
+const pressureOf = c => c.run_id.replace("ext_", "").split("_").pop();
+const PRESSURES = ["c0", "c150", "c300", "c550", "cap002", "cap001", "cap0005", "cap0002", "cap0001", "cap00005"];
+const PRESSURE_LABEL = { c0: "A$0/t", c150: "A$150/t", c300: "A$300/t", c550: "A$550/t",
+  cap002: "cap 0.02", cap001: "cap 0.01", cap0005: "cap 0.005", cap0002: "cap 0.002",
+  cap0001: "cap 0.001", cap00005: "cap 0.0005" };
+const pressureHue = k => k.startsWith("c")
+  ? tok(["--wind", "--water", "--solar", "--gas"][["c0", "c150", "c300", "c550"].indexOf(k)])
+  : ["#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"][PRESSURES.indexOf(k) - 4];
+const resourceCostBn = (c, m) =>
+  (m.objective_aud - m.unserved_twh * 1e6 * USE_PRICE - (c.carbon_price || 0) * m.realised_co2e_t) / 1e9;
+const YEARS = [2030, 2040, 2050, 2060];
+
+function smallMultiples(hostId, prefix, tracesFor, yTitle, xTitle, opts = {}) {
+  const host = document.getElementById(hostId);
+  host.innerHTML = YEARS.map(y => `<div class="panel"><div class="plot" id="${prefix}-${y}"></div></div>`).join("");
+  for (const y of YEARS) {
+    const l = baseLayout(String(y), xTitle, yTitle);
+    Object.assign(l.xaxis, opts.xaxis || {}); Object.assign(l.yaxis, opts.yaxis || {});
+    Plotly.newPlot(`${prefix}-${y}`, tracesFor(y), l, CFG);
+  }
+}
+
+function renderSurface() {
+  const tracesFor = y => PRESSURES.map(k => {
+    const pts = DATA.chains.filter(c => pressureOf(c) === k)
+      .flatMap(c => c.milestones.filter(m => m.year === y).map(m => ({ c, m })))
+      .sort((a, b) => a.m.delivered_twh - b.m.delivered_twh);
+    return {
+      x: pts.map(p => p.m.delivered_twh), y: pts.map(p => resourceCostBn(p.c, p.m)),
+      name: PRESSURE_LABEL[k], mode: "lines+markers",
+      line: { width: 1.5, color: pressureHue(k) },
+      marker: { size: 8, color: pts.map(p => isBoundary(p.m) ? tok("--raised") : pressureHue(k)),
+                line: { width: 1.5, color: pressureHue(k) } },
+      text: pts.map(p => `${p.c.trajectory} ${PRESSURE_LABEL[k]}`),
+      hovertemplate: "%{text}<br>%{x:.0f} TWh<br>A$%{y:.1f} bn/yr<extra></extra>",
+    };
+  }).filter(t => t.x.length);
+  smallMultiples("surface", "surf", tracesFor, "resource cost A$bn/yr", "delivered TWh");
+  document.getElementById("surface-legend").innerHTML = PRESSURES.map(k =>
+    `<span><i style="background:${pressureHue(k)}"></i>${PRESSURE_LABEL[k]}</span>`).join("");
+}
+
+function renderAvgCost() {
+  const trajs = [...new Set(DATA.chains.map(c => c.trajectory))];
+  const tracesFor = y => trajs.map((t, i) => {
+    const pts = DATA.chains.filter(c => c.trajectory === t)
+      .flatMap(c => c.milestones.filter(m => m.year === y && m.intensity_t_per_mwh > 0).map(m => ({ c, m })))
+      .sort((a, b) => b.m.intensity_t_per_mwh - a.m.intensity_t_per_mwh);
+    const hue = tok(CHAIN_HUES[i % CHAIN_HUES.length]);
+    return {
+      x: pts.map(p => p.m.intensity_t_per_mwh),
+      y: pts.map(p => 1e3 * resourceCostBn(p.c, p.m) / p.m.delivered_twh),
+      name: t, mode: "lines+markers", line: { width: 1.5, color: hue },
+      marker: { size: 8, color: pts.map(p => isBoundary(p.m) ? tok("--raised") : hue), line: { width: 1.5, color: hue } },
+      text: pts.map(p => `${t} ${PRESSURE_LABEL[pressureOf(p.c)]}`),
+      hovertemplate: "%{text}<br>%{x:.5f} t/MWh<br>A$%{y:.0f}/MWh<extra></extra>",
+    };
+  }).filter(t => t.x.length);
+  smallMultiples("avgcost", "avg", tracesFor, "A$/MWh delivered", "t CO2e/MWh delivered",
+    { xaxis: { type: "log", autorange: "reversed" } });
+}
+
 function renderNotes() {
   const shed = DATA.chains.flatMap(c => c.milestones.map(m => ({ ...m, chain: c.run_id })))
     .filter(isBoundary);
@@ -315,6 +399,7 @@ function renderAll() {
   const failures = [];
   for (const [name, fn] of [["summary", renderStrip], ["gates", renderGates],
       ["intensity chart", renderIntensity], ["abatement chart", renderPrice],
+      ["cost surface", renderSurface], ["average cost", renderAvgCost],
       ["generation mix", renderMixes], ["notes", renderNotes]]) {
     try { fn(); } catch (e) { failures.push(`${name}: ${e.message}`); }
   }
