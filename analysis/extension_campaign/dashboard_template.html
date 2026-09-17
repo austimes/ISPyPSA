@@ -218,7 +218,7 @@ function renderGates() {
   for (const c of DATA.chains) for (const m of c.milestones) {
     const [cls, label] = verdict(m);
     rows.push(`<tr class="${cls === "bad" ? "boundary" : ""}">
-      <td class="id">${c.run_id.replace("ext_", "")}</td>
+      <td title="${c.run_id}">${describe(c)}</td>
       <td class="num">${m.year}</td>
       <td class="id">${m.model_status ?? "--"}</td>
       <td class="num">${mt(m.cap_t)}</td>
@@ -240,12 +240,13 @@ function baseLayout(title, xTitle, yTitle) {
     title: { text: title, font: { family: "IBM Plex Sans", size: 13.5, color: tok("--ink") }, x: 0, xanchor: "left" },
     paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
     font: { family: "IBM Plex Mono", size: 11, color: tok("--ink-2") },
-    margin: { l: 58, r: 14, t: 34, b: 42 },
+    margin: { l: 58, r: 14, t: 34, b: 96 },
     xaxis: { title: { text: xTitle, font: { size: 11 } }, gridcolor: tok("--plot-grid"),
              zerolinecolor: tok("--plot-zero"), linecolor: tok("--plot-zero"), tickfont: { size: 10.5 } },
     yaxis: { title: { text: yTitle, font: { size: 11 } }, gridcolor: tok("--plot-grid"),
              zerolinecolor: tok("--plot-zero"), linecolor: tok("--plot-zero"), tickfont: { size: 10.5 } },
-    showlegend: false, hovermode: "closest",
+    showlegend: true, hovermode: "closest",
+    legend: { orientation: "h", y: -0.28, x: 0, font: { size: 10 }, itemwidth: 30 },
     hoverlabel: { bgcolor: tok("--raised"), bordercolor: tok("--rule-strong"),
                   font: { family: "IBM Plex Mono", size: 11, color: tok("--ink") } },
   };
@@ -253,37 +254,43 @@ function baseLayout(title, xTitle, yTitle) {
 const CFG = { displayModeBar: false, responsive: true };
 const CHAIN_HUES = ["--wind", "--solar", "--water", "--biomass", "--gas"];
 
+// One line per chain, coloured by pressure setting and grouped that way in the legend;
+// the legend, not end-of-line labels, carries identity (41 labels overlapped).
 function renderIntensity() {
-  const traces = DATA.chains.map((c, i) => ({
-    x: c.milestones.map(m => m.year),
-    y: c.milestones.map(m => m.intensity_t_per_mwh),
-    name: c.run_id.replace("ext_", ""), mode: "lines+markers+text",
-    text: c.milestones.map((m, j) => j === c.milestones.length - 1 ? " " + c.run_id.replace("ext_", "") : ""),
-    textposition: "middle right", textfont: { size: 10.5, color: tok("--ink-2") },
-    line: { width: 2, color: tok(CHAIN_HUES[i % CHAIN_HUES.length]) },
-    marker: { size: 8, color: tok(CHAIN_HUES[i % CHAIN_HUES.length]) },
-    hovertemplate: "%{x}<br>%{y:.5f} t/MWh<extra></extra>",
+  const traces = DATA.chains.map(c => ({
+    x: c.milestones.map(m => m.year), y: c.milestones.map(m => m.intensity_t_per_mwh),
+    name: describe(c), legendgroup: pressureOf(c), mode: "lines+markers",
+    line: { width: 1.5, color: pressureHue(pressureOf(c)) },
+    marker: { size: 6, color: c.milestones.map(m => isBoundary(m) ? tok("--raised") : pressureHue(pressureOf(c))),
+              line: { width: 1.5, color: pressureHue(pressureOf(c)) } },
+    hovertemplate: `${describe(c)}<br>%{x}: %{y:.5f} t/MWh<extra></extra>`,
   }));
   const l = baseLayout("Emissions intensity by milestone", "", "t CO2e / MWh delivered");
-  l.yaxis.type = "log"; l.margin.r = 96;
+  l.yaxis.type = "log"; l.legend = { font: { size: 9.5 }, y: 1, x: 1.02, tracegroupgap: 6 };
+  l.margin.b = 42; l.margin.r = 260;
   Plotly.newPlot("p-intensity", traces, l, CFG);
 }
 
+// Cap shadow price per cell: markers only, one trace per year, since a line through
+// cells from different demand trajectories would join unrelated points.
 function renderPrice() {
-  const pts = DATA.chains.flatMap(c => c.milestones
-    .filter(m => m.implied_carbon_price_aud_per_t)
-    .map(m => ({ ...m, chain: c.run_id.replace("ext_", "") })))
-    .sort((a, b) => b.intensity_t_per_mwh - a.intensity_t_per_mwh);
-  const trace = {
-    x: pts.map(p => p.intensity_t_per_mwh), y: pts.map(p => p.implied_carbon_price_aud_per_t),
-    mode: "lines+markers+text", text: pts.map(p => " " + p.year), textposition: "top center",
-    textfont: { size: 10, color: tok("--ink-3") },
-    line: { width: 2, color: tok("--wind") }, marker: { size: 9, color: tok("--wind") },
-    hovertemplate: "%{x:.5f} t/MWh<br>A$%{y:,.0f}/t<extra></extra>",
-  };
-  const l = baseLayout("Marginal abatement cost", "t CO2e / MWh delivered", "implied carbon price A$/t");
+  const yearHue = { 2030: "--water", 2040: "--wind", 2050: "--solar", 2060: "--gas" };
+  const traces = YEARS.map(y => {
+    const pts = DATA.chains.flatMap(c => c.milestones
+      .filter(m => m.year === y && m.implied_carbon_price_aud_per_t)
+      .map(m => ({ c, m })));
+    return {
+      x: pts.map(p => p.m.intensity_t_per_mwh), y: pts.map(p => p.m.implied_carbon_price_aud_per_t),
+      name: String(y), mode: "markers", legendgroup: String(y),
+      marker: { size: 8, color: pts.map(p => isBoundary(p.m) ? tok("--raised") : tok(yearHue[y])),
+                line: { width: 1.5, color: tok(yearHue[y]) } },
+      text: pts.map(p => describe(p.c)),
+      hovertemplate: "%{text}<br>%{x:.5f} t/MWh<br>A$%{y:,.0f}/t<extra></extra>",
+    };
+  }).filter(t => t.x.length);
+  const l = baseLayout("Marginal abatement cost (cap chains)", "t CO2e / MWh delivered", "implied carbon price A$/t");
   l.xaxis.type = "log"; l.yaxis.type = "log"; l.xaxis.autorange = "reversed";
-  Plotly.newPlot("p-price", [trace], l, CFG);
+  Plotly.newPlot("p-price", traces, l, CFG);
 }
 
 function renderMixes() {
@@ -299,7 +306,7 @@ function renderMixes() {
         marker: { color: tok(hue), line: { width: 2, color: tok("--raised") } },
         hovertemplate: `${name}: %{y:.1f} TWh<extra></extra>`,
       }));
-    const l = baseLayout(c.run_id.replace("ext_", ""), "", "TWh sent out");
+    const l = baseLayout(describe(c), "", "TWh sent out");
     l.barmode = "stack"; l.bargap = 0.45;
     Plotly.newPlot(`mix-${i}`, traces, l, CFG);
   });
@@ -325,6 +332,16 @@ const pressureHue = k => k.startsWith("c")
 const resourceCostBn = (c, m) =>
   (m.objective_aud - m.unserved_twh * 1e6 * USE_PRICE - (c.carbon_price || 0) * m.realised_co2e_t) / 1e9;
 const YEARS = [2030, 2040, 2050, 2060];
+const TRAJ_LABEL = { low_bracket: "Low demand, -8%", low: "Low demand", central: "Central demand",
+  high: "High demand", stress: "Stress demand" };
+// "Central demand (365 TWh in 2050), cap 0.002 t/MWh" instead of ext_central_cap0002.
+function describe(c) {
+  const at2050 = c.milestones.find(m => m.year === 2050);
+  const size = at2050 ? ` (${Math.round(at2050.delivered_twh)} TWh in 2050)` : "";
+  const p = pressureOf(c);
+  const pressure = p.startsWith("cap") ? `cap ${PRESSURE_LABEL[p].slice(4)} t/MWh` : `carbon price ${PRESSURE_LABEL[p]}`;
+  return `${TRAJ_LABEL[c.trajectory] || c.trajectory}${size}, ${pressure}`;
+}
 
 function smallMultiples(hostId, prefix, tracesFor, yTitle, xTitle, opts = {}) {
   const host = document.getElementById(hostId);
@@ -347,7 +364,7 @@ function renderSurface() {
       line: { width: 1.5, color: pressureHue(k) },
       marker: { size: 8, color: pts.map(p => isBoundary(p.m) ? tok("--raised") : pressureHue(k)),
                 line: { width: 1.5, color: pressureHue(k) } },
-      text: pts.map(p => `${p.c.trajectory} ${PRESSURE_LABEL[k]}`),
+      text: pts.map(p => describe(p.c)),
       hovertemplate: "%{text}<br>%{x:.0f} TWh<br>A$%{y:.1f} bn/yr<extra></extra>",
     };
   }).filter(t => t.x.length);
@@ -368,7 +385,7 @@ function renderAvgCost() {
       y: pts.map(p => 1e3 * resourceCostBn(p.c, p.m) / p.m.delivered_twh),
       name: t, mode: "lines+markers", line: { width: 1.5, color: hue },
       marker: { size: 8, color: pts.map(p => isBoundary(p.m) ? tok("--raised") : hue), line: { width: 1.5, color: hue } },
-      text: pts.map(p => `${t} ${PRESSURE_LABEL[pressureOf(p.c)]}`),
+      text: pts.map(p => describe(p.c)),
       hovertemplate: "%{text}<br>%{x:.5f} t/MWh<br>A$%{y:.0f}/MWh<extra></extra>",
     };
   }).filter(t => t.x.length);
