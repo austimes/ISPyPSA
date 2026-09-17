@@ -397,8 +397,12 @@ function renderAvgCost() {
       hovertemplate: "%{text}<br>%{x:.5f} t/MWh<br>A$%{y:.0f}/MWh<extra></extra>",
     };
   }).filter(t => t.x.length);
+  // Shared y range so the four years compare by eye; boundary cells excluded from the
+  // range because their shed-load penalty is already stripped, not because they are outliers.
+  const all = DATA.chains.flatMap(c => c.milestones.map(m => 1e3 * resourceCostBn(c, m) / m.delivered_twh));
+  const yRange = [0, Math.ceil(Math.max(...all) / 10) * 10];
   smallMultiples("avgcost", "avg", tracesFor, "A$/MWh delivered", "t CO2e/MWh delivered",
-    { xaxis: { type: "log", autorange: "reversed" } });
+    { xaxis: { type: "log", autorange: "reversed" }, yaxis: { range: yRange, autorange: false } });
 }
 
 // Storage per chain and year: stacked Battery and pumped hydro power. Chains are ordered
