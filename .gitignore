@@ -206,3 +206,6 @@ data/*
 
 # Campaign run products (configs, logs, records, solved networks). Never committed.
 outputs/
+
+# The campaign dashboard template is source, not a generated report.
+!analysis/extension_campaign/dashboard_template.html

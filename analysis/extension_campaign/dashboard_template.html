@@ -1,0 +1,316 @@
+<title>Grid Pathways Monitor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js"></script>
+<style>
+:root {
+  --surface: #fcfcfb; --raised: #ffffff; --sunken: #f4f3ef;
+  --ink: #1a1a19; --ink-2: #57564f; --ink-3: #8a887d;
+  --rule: #e2e0d8; --rule-strong: #cbc8bc;
+  --good: #00694a; --warn: #a06a00; --crit: #b3312f;
+  --good-bg: #e6f2ed; --warn-bg: #faf0db; --crit-bg: #fbe9e8;
+  --wind: #2a78d6; --solar: #eb6834; --water: #1baf7a;
+  --biomass: #eda100; --gas: #e87ba4; --coal: #57564f; --unserved: #e34948;
+  --plot-grid: #e8e6de; --plot-zero: #cbc8bc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #1a1a19; --raised: #232322; --sunken: #141413;
+    --ink: #ffffff; --ink-2: #c3c2b7; --ink-3: #8a887d;
+    --rule: #34342f; --rule-strong: #4a4a43;
+    --good: #4cb391; --warn: #d9a441; --crit: #e66767;
+    --good-bg: #16302a; --warn-bg: #332a15; --crit-bg: #3a1f1e;
+    --wind: #3987e5; --solar: #d95926; --water: #199e70;
+    --biomass: #c98500; --gas: #d55181; --coal: #9d9b90; --unserved: #e66767;
+    --plot-grid: #2e2e29; --plot-zero: #4a4a43;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #1a1a19; --raised: #232322; --sunken: #141413;
+  --ink: #ffffff; --ink-2: #c3c2b7; --ink-3: #8a887d;
+  --rule: #34342f; --rule-strong: #4a4a43;
+  --good: #4cb391; --warn: #d9a441; --crit: #e66767;
+  --good-bg: #16302a; --warn-bg: #332a15; --crit-bg: #3a1f1e;
+  --wind: #3987e5; --solar: #d95926; --water: #199e70;
+  --biomass: #c98500; --gas: #d55181; --coal: #9d9b90; --unserved: #e66767;
+  --plot-grid: #2e2e29; --plot-zero: #4a4a43;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--surface); color: var(--ink);
+  font: 400 15px/1.55 "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  margin: 0; padding: 2.5rem 1.5rem 5rem;
+}
+.wrap { max-width: 78rem; margin: 0 auto; display: flex; flex-direction: column; gap: 2.25rem; }
+
+header { display: flex; flex-direction: column; gap: .5rem; }
+h1 {
+  font: 600 2.05rem/1.15 "IBM Plex Serif", Georgia, serif;
+  margin: 0; letter-spacing: -0.015em; text-wrap: balance;
+}
+.standfirst { color: var(--ink-2); max-width: 58ch; margin: 0; }
+.stamp {
+  font: 500 11.5px/1 "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase;
+}
+
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 1px;
+  background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+.cell { background: var(--raised); padding: .85rem 1rem; display: flex; flex-direction: column; gap: .2rem; }
+.cell .k { font: 500 10.5px/1 "IBM Plex Mono", monospace; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-3); }
+.cell .v { font: 600 1.6rem/1.1 "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+.cell .n { font-size: 12px; color: var(--ink-2); }
+.cell.alert .v { color: var(--crit); }
+
+h2 { font: 600 1.1rem/1.2 "IBM Plex Sans", sans-serif; margin: 0 0 .15rem;
+  letter-spacing: -0.005em; }
+.lede { color: var(--ink-2); font-size: 13.5px; margin: 0 0 .9rem; max-width: 66ch; }
+section { display: flex; flex-direction: column; }
+
+.scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--raised); }
+th, td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th { font: 500 10.5px/1 "IBM Plex Mono", monospace; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-3); background: var(--sunken); position: sticky; top: 0; }
+td.num { text-align: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+td.id { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; }
+tbody tr:last-child td { border-bottom: 0; }
+tr.boundary td { background: var(--crit-bg); }
+
+.chip { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .45rem;
+  border-radius: 2px; font: 500 11px/1.5 "IBM Plex Mono", monospace; letter-spacing: .02em; }
+.chip::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.chip.ok { color: var(--good); background: var(--good-bg); }
+.chip.warn { color: var(--warn); background: var(--warn-bg); }
+.chip.bad { color: var(--crit); background: var(--crit-bg); }
+
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(27rem, 1fr)); gap: 1.75rem; }
+.panel { border: 1px solid var(--rule); border-radius: 3px; background: var(--raised);
+  padding: 1rem 1rem .5rem; display: flex; flex-direction: column; }
+.plot { width: 100%; height: 300px; }
+
+.legend { display: flex; flex-wrap: wrap; gap: .3rem .9rem; margin: .5rem .2rem .2rem; }
+.legend span { display: inline-flex; align-items: center; gap: .35rem;
+  font: 500 11.5px/1.6 "IBM Plex Mono", monospace; color: var(--ink-2); }
+.legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+.note { border-left: 2px solid var(--rule-strong); padding: .1rem 0 .1rem .85rem;
+  color: var(--ink-2); font-size: 13.5px; max-width: 70ch; }
+.note b { color: var(--ink); font-weight: 600; }
+footer { color: var(--ink-3); font-size: 12px; border-top: 1px solid var(--rule); padding-top: .9rem; }
+code { font: 500 12.5px "IBM Plex Mono", monospace; background: var(--sunken);
+  padding: .05rem .3rem; border-radius: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+<header>
+  <p class="stamp" id="stamp">loading</p>
+  <h1>Grid Pathways Monitor</h1>
+  <p class="standfirst">Emissions-capped capacity expansion for the National Electricity Market,
+  2030 to 2060. Each chain carries one demand trajectory under one emissions-cap schedule, solved
+  milestone by milestone with the fleet carried forward.</p>
+</header>
+
+<div class="strip" id="strip"></div>
+
+<section>
+  <h2>Milestone gates</h2>
+  <p class="lede">A milestone joins the pathway menu only if it is solver-certified, tracks its cap
+  within one per cent, and sheds no load. A cell that sheds load is a measurement of where the cap
+  stops being reachable, not a pathway anyone can follow.</p>
+  <div class="scroll"><table id="gates">
+    <thead><tr>
+      <th>Chain</th><th>Year</th><th>Solver</th><th>Cap Mt</th><th>Realised Mt</th>
+      <th>Track %</th><th>Intensity t/MWh</th><th>A$/t</th><th>Shed TWh</th><th>Min</th><th>Verdict</th>
+    </tr></thead><tbody></tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Where the caps bite</h2>
+  <p class="lede">Realised emissions intensity against the shadow price of the cap that produced it.
+  The price is what one further tonne of abatement costs the system, and it climbs far faster than
+  the intensity falls.</p>
+  <div class="grid2">
+    <div class="panel"><div class="plot" id="p-intensity"></div></div>
+    <div class="panel"><div class="plot" id="p-price"></div></div>
+  </div>
+</section>
+
+<section>
+  <h2>What the fleet generates</h2>
+  <p class="lede">Annual sent-out energy by carrier at each milestone. Load shedding appears as its
+  own band, so a pathway that cannot serve its demand shows the gap rather than hiding it.</p>
+  <div class="grid2" id="mixes"></div>
+  <div class="legend" id="legend"></div>
+</section>
+
+<section id="boundary-note"></section>
+
+<footer id="foot"></footer>
+</div>
+
+<script id="campaign-data" type="application/json">__DASHBOARD_DATA__</script>
+<script>
+const DATA = JSON.parse(document.getElementById("campaign-data").textContent);
+const CARRIERS = [
+  ["Wind", "--wind"], ["Solar", "--solar"], ["Water", "--water"],
+  ["Biomass", "--biomass"], ["Gas", "--gas"],
+  ["Black Coal", "--coal"], ["Brown Coal", "--coal"], ["Unserved Energy", "--unserved"],
+];
+const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = (v, d = 2) => v === null || v === undefined ? "--" : Number(v).toFixed(d);
+const mt = v => v === null || v === undefined ? "--" : (v / 1e6).toFixed(3);
+
+function verdict(m) {
+  if (m.unserved_twh > 0.000001) return ["bad", "boundary"];
+  if (m.model_status !== "Optimal") return ["warn", "fallback"];
+  if (m.cap_tracking_pct !== null && Math.abs(m.cap_tracking_pct) > 1) return ["warn", "cap drift"];
+  return ["ok", "menu"];
+}
+
+function renderStrip() {
+  const ms = DATA.chains.flatMap(c => c.milestones);
+  const shed = ms.filter(m => m.unserved_twh > 0.000001);
+  const hours = DATA.chains.reduce((a, c) => a + c.chain_hours, 0);
+  const cells = [
+    ["chains solved", DATA.chains_found, "of 41 planned"],
+    ["milestones", DATA.milestones_solved, "four per chain"],
+    ["certified", ms.filter(m => m.model_status === "Optimal").length, "Gurobi optimal"],
+    ["boundary cells", shed.length, shed.length ? "cap unreachable" : "none", shed.length > 0],
+    ["solver hours", hours.toFixed(1), "cumulative"],
+  ];
+  document.getElementById("strip").innerHTML = cells.map(([k, v, n, alert]) =>
+    `<div class="cell${alert ? " alert" : ""}"><span class="k">${k}</span>
+     <span class="v">${v}</span><span class="n">${n}</span></div>`).join("");
+  document.getElementById("stamp").textContent =
+    `campaign monitor - updated ${DATA.generated_at.replace("T", " ")}`;
+}
+
+function renderGates() {
+  const rows = [];
+  for (const c of DATA.chains) for (const m of c.milestones) {
+    const [cls, label] = verdict(m);
+    rows.push(`<tr class="${cls === "bad" ? "boundary" : ""}">
+      <td class="id">${c.run_id.replace("ext_", "")}</td>
+      <td class="num">${m.year}</td>
+      <td class="id">${m.model_status ?? "--"}</td>
+      <td class="num">${mt(m.cap_t)}</td>
+      <td class="num">${mt(m.realised_co2e_t)}</td>
+      <td class="num">${fmt(m.cap_tracking_pct, 3)}</td>
+      <td class="num">${fmt(m.intensity_t_per_mwh, 5)}</td>
+      <td class="num">${m.implied_carbon_price_aud_per_t === null ? "--"
+        : Math.round(m.implied_carbon_price_aud_per_t).toLocaleString()}</td>
+      <td class="num">${m.unserved_twh > 0.000001 ? fmt(m.unserved_twh, 2) : "0"}</td>
+      <td class="num">${fmt(m.wall_minutes, 0)}</td>
+      <td><span class="chip ${cls}">${label}</span></td></tr>`);
+  }
+  document.querySelector("#gates tbody").innerHTML = rows.join("") ||
+    `<tr><td colspan="11" style="color:var(--ink-3)">No milestones solved yet.</td></tr>`;
+}
+
+function baseLayout(title, xTitle, yTitle) {
+  return {
+    title: { text: title, font: { family: "IBM Plex Sans", size: 13.5, color: tok("--ink") }, x: 0, xanchor: "left" },
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: { family: "IBM Plex Mono", size: 11, color: tok("--ink-2") },
+    margin: { l: 58, r: 14, t: 34, b: 42 },
+    xaxis: { title: { text: xTitle, font: { size: 11 } }, gridcolor: tok("--plot-grid"),
+             zerolinecolor: tok("--plot-zero"), linecolor: tok("--plot-zero"), tickfont: { size: 10.5 } },
+    yaxis: { title: { text: yTitle, font: { size: 11 } }, gridcolor: tok("--plot-grid"),
+             zerolinecolor: tok("--plot-zero"), linecolor: tok("--plot-zero"), tickfont: { size: 10.5 } },
+    showlegend: false, hovermode: "closest",
+    hoverlabel: { bgcolor: tok("--raised"), bordercolor: tok("--rule-strong"),
+                  font: { family: "IBM Plex Mono", size: 11, color: tok("--ink") } },
+  };
+}
+const CFG = { displayModeBar: false, responsive: true };
+const CHAIN_HUES = ["--wind", "--solar", "--water", "--biomass", "--gas"];
+
+function renderIntensity() {
+  const traces = DATA.chains.map((c, i) => ({
+    x: c.milestones.map(m => m.year),
+    y: c.milestones.map(m => m.intensity_t_per_mwh),
+    name: c.run_id.replace("ext_", ""), mode: "lines+markers+text",
+    text: c.milestones.map((m, j) => j === c.milestones.length - 1 ? " " + c.run_id.replace("ext_", "") : ""),
+    textposition: "middle right", textfont: { size: 10.5, color: tok("--ink-2") },
+    line: { width: 2, color: tok(CHAIN_HUES[i % CHAIN_HUES.length]) },
+    marker: { size: 8, color: tok(CHAIN_HUES[i % CHAIN_HUES.length]) },
+    hovertemplate: "%{x}<br>%{y:.5f} t/MWh<extra></extra>",
+  }));
+  const l = baseLayout("Emissions intensity by milestone", "", "t CO2e / MWh delivered");
+  l.yaxis.type = "log"; l.margin.r = 96;
+  Plotly.newPlot("p-intensity", traces, l, CFG);
+}
+
+function renderPrice() {
+  const pts = DATA.chains.flatMap(c => c.milestones
+    .filter(m => m.implied_carbon_price_aud_per_t)
+    .map(m => ({ ...m, chain: c.run_id.replace("ext_", "") })))
+    .sort((a, b) => b.intensity_t_per_mwh - a.intensity_t_per_mwh);
+  const trace = {
+    x: pts.map(p => p.intensity_t_per_mwh), y: pts.map(p => p.implied_carbon_price_aud_per_t),
+    mode: "lines+markers+text", text: pts.map(p => " " + p.year), textposition: "top center",
+    textfont: { size: 10, color: tok("--ink-3") },
+    line: { width: 2, color: tok("--wind") }, marker: { size: 9, color: tok("--wind") },
+    hovertemplate: "%{x:.5f} t/MWh<br>A$%{y:,.0f}/t<extra></extra>",
+  };
+  const l = baseLayout("Marginal abatement cost", "t CO2e / MWh delivered", "implied carbon price A$/t");
+  l.xaxis.type = "log"; l.yaxis.type = "log"; l.xaxis.autorange = "reversed";
+  Plotly.newPlot("p-price", [trace], l, CFG);
+}
+
+function renderMixes() {
+  const host = document.getElementById("mixes");
+  host.innerHTML = DATA.chains.map((c, i) =>
+    `<div class="panel"><div class="plot" id="mix-${i}"></div></div>`).join("");
+  DATA.chains.forEach((c, i) => {
+    const years = c.milestones.map(m => m.year);
+    const traces = CARRIERS.filter(([name]) =>
+      c.milestones.some(m => (m.energy_twh[name] ?? 0) > 0.001)).map(([name, hue]) => ({
+        x: years, y: c.milestones.map(m => m.energy_twh[name] ?? 0),
+        name, type: "bar",
+        marker: { color: tok(hue), line: { width: 2, color: tok("--raised") } },
+        hovertemplate: `${name}: %{y:.1f} TWh<extra></extra>`,
+      }));
+    const l = baseLayout(c.run_id.replace("ext_", ""), "", "TWh sent out");
+    l.barmode = "stack"; l.bargap = 0.45;
+    Plotly.newPlot(`mix-${i}`, traces, l, CFG);
+  });
+  const used = CARRIERS.filter(([name]) => DATA.chains.some(c =>
+    c.milestones.some(m => (m.energy_twh[name] ?? 0) > 0.001)));
+  document.getElementById("legend").innerHTML = used.map(([name, hue]) =>
+    `<span><i style="background:${tok(hue)}"></i>${name}</span>`).join("");
+}
+
+function renderNotes() {
+  const shed = DATA.chains.flatMap(c => c.milestones.map(m => ({ ...m, chain: c.run_id })))
+    .filter(m => m.unserved_twh > 0.000001);
+  const host = document.getElementById("boundary-note");
+  if (!shed.length) { host.innerHTML = ""; return; }
+  const worst = shed.reduce((a, b) => b.unserved_twh > a.unserved_twh ? b : a);
+  host.innerHTML = `<h2>Why some cells shed load</h2>
+    <p class="note"><b>${shed.length} milestone${shed.length > 1 ? "s" : ""} could not serve
+    their demand under the cap.</b> The deepest is ${worst.chain.replace("ext_", "")} at
+    ${worst.year}, short by ${worst.unserved_twh.toFixed(1)} TWh, or
+    ${(100 * worst.unserved_twh / worst.delivered_twh).toFixed(1)} per cent of the demand it was
+    asked to meet. Unserved energy is priced at A$10,000 per MWh and carries no emissions, so the
+    optimiser sheds load rather than reporting the cap as impossible. Treat these as measurements of
+    where the cap stops being reachable.</p>`;
+}
+
+function renderAll() {
+  renderStrip(); renderGates(); renderIntensity(); renderPrice(); renderMixes(); renderNotes();
+  document.getElementById("foot").textContent =
+    `${DATA.chains_found} chains - ${DATA.milestones_solved} solved milestones - `
+    + `Gurobi barrier with crossover, BarConvTol 1e-8 - 13 demand-matched weeks at 30 minutes, `
+    + `reference year 2018 - IASR 2026 Final (v7.8) - caps on the customer-delivered basis, `
+    + `converted to absolute annual tonnes per chain.`;
+}
+renderAll();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", renderAll);
+new MutationObserver(renderAll).observe(document.documentElement,
+  { attributes: true, attributeFilter: ["data-theme"] });
+</script>
