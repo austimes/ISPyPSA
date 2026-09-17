@@ -11,6 +11,8 @@ Usage:
 
 import argparse
 import json
+import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pandas as pd
@@ -106,20 +108,49 @@ def _milestone(record_path: Path, runs: Path, archetype: str) -> dict | None:
     }
 
 
-def collect_chains(output_root: Path, archetype: str = "cost_optimal") -> list[dict]:
-    """Every campaign chain found under the output root, with its solved milestones."""
-    records, runs = output_root / "records", output_root / "runs"
-    chains = []
-    for chain_record in sorted(records.glob("ext_*.json")):
-        summary = json.loads(chain_record.read_text())
+def _chain_summaries(records: Path) -> list[tuple[Path, dict]]:
+    """Chain-level records only, skipping the per-milestone ones beside them."""
+    summaries = []
+    for path in sorted(records.glob("ext_*.json")):
+        summary = json.loads(path.read_text())
         # Cap keys end in digits too (ext_central_cap0001), so the run id cannot tell a
         # chain from one of its milestones. Only the chain driver writes this kind.
-        if summary.get("kind") != "myopic_sequential":
-            continue
+        if summary.get("kind") == "myopic_sequential":
+            summaries.append((path, summary))
+    return summaries
+
+
+def _milestones_in_parallel(
+    paths: list[Path], runs: Path, archetype: str, workers: int
+) -> dict[Path, dict | None]:
+    """Read every milestone's network across a process pool; each read takes ~30 s."""
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        results = pool.map(
+            _milestone, paths, [runs] * len(paths), [archetype] * len(paths)
+        )
+    return dict(zip(paths, results, strict=True))
+
+
+def collect_chains(
+    output_root: Path, archetype: str = "cost_optimal", workers: int | None = None
+) -> list[dict]:
+    """Every campaign chain found under the output root, with its solved milestones."""
+    records, runs = output_root / "records", output_root / "runs"
+    summaries = _chain_summaries(records)
+    paths = [
+        p
+        for chain, _ in summaries
+        for p in sorted(records.glob(f"{chain.stem}_20??.json"))
+    ]
+    solved = _milestones_in_parallel(
+        paths, runs, archetype, workers or os.cpu_count() or 1
+    )
+    chains = []
+    for chain_record, summary in summaries:
         milestones = [
-            m
+            solved[p]
             for p in sorted(records.glob(f"{chain_record.stem}_20??.json"))
-            if (m := _milestone(p, runs, archetype)) is not None
+            if solved[p] is not None
         ]
         chains.append(
             {
@@ -148,9 +179,15 @@ def main() -> None:
         "--out", type=Path, default=Path("outputs/campaign/dashboard_data.json")
     )
     parser.add_argument("--archetype", default="cost_optimal")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Parallel network reads (default: all cores)",
+    )
     args = parser.parse_args()
 
-    chains = collect_chains(args.output_root, args.archetype)
+    chains = collect_chains(args.output_root, args.archetype, args.workers)
     for chain in chains:
         chain["trajectory"] = chain["trajectory"] or _trajectory_from_run_id(
             chain["run_id"]
