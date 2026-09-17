@@ -61,6 +61,12 @@ def _tranche_dir_for_year(tranches_root: Path, year: int) -> Path:
     return tranches_root / str(year)
 
 
+def _strip_vintage(name: str) -> str:
+    """Drop a trailing `_YYYY` vintage suffix so a generator's vintages share a
+    base (`biomass_nq_2030` / `biomass_nq_2050` -> `biomass_nq`)."""
+    return re.sub(r"_\d{4}$", "", str(name))
+
+
 def _extract_new_built(
     component: pd.DataFrame,
     pf_rows: pd.DataFrame,
@@ -91,12 +97,22 @@ def _extract_new_built(
     it collides with next period's re-templated ECAA row (the duplicate-index
     halt). Only genuine new-entrant builds carry; the existing fleet reappears
     every period from IASR and must never be carried.
+
+    The exclusion matches on the vintage-stripped name as well as the exact one:
+    the translator appends `_<build_year>` to new-entrant rows, so a unit the
+    period solved as `<base>_<year>` can reappear in a later period's ECAA
+    roster as plain `<base>`. Matching only the exact index let those rows carry
+    and then duplicate against the re-templated ECAA row.
     """
+    row_names = component.index.astype(str)
+    is_existing = row_names.isin(existing_names) | pd.Index(
+        [_strip_vintage(n) for n in row_names]
+    ).isin(existing_names)
     built_mask = (
         (component["p_nom_extendable"])
         & (component["build_year"] == year)
         & (component["p_nom_opt"] > _P_NOM_OPT_THRESHOLD_MW)
-        & (~component.index.astype(str).isin(existing_names))
+        & (~is_existing)
     )
     if "bus" in component.columns:
         built_mask &= component["bus"] != "bus_for_custom_constraint_gens"
@@ -305,12 +321,6 @@ def _align_to_target_columns(
 # ---------------------------------------------------------------------------
 
 _CAPACITY_ATTRS = ("p_nom", "e_nom")
-
-
-def _strip_vintage(name: str) -> str:
-    """Drop a trailing `_YYYY` vintage suffix so a generator's vintages share a
-    base (`biomass_nq_2030` / `biomass_nq_2050` -> `biomass_nq`)."""
-    return re.sub(r"_\d{4}$", "", str(name))
 
 
 def _carried_capacity_rows(

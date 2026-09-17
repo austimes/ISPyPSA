@@ -35,7 +35,7 @@ uv run python analysis/benchmarks/run_myopic.py --run-id "$RUN_ID" --output-root
   --parsed-traces-directory-schedule $(cat outputs/campaign/tracedirs/$TRAJ.txt) \
   --rep-weeks 1 6 10 14 19 22 26 32 35 39 41 45 50 --no-named-weeks \
   --tns-price 89.93 --ccs-supply-curve none \
-  --gas-supply-curve analysis/gas_market/gas_supply_curve_central.csv \
-  --biomass-supply-curve analysis/bioenergy_market/biomass_supply_curve_central.csv \
+  --gas-supply-curve analysis/extension_campaign/gas_supply_curve_central_held_to_2060.csv \
+  --biomass-supply-curve analysis/extension_campaign/biomass_supply_curve_central_held_to_2060.csv \
   --use-gurobi --gurobi-method 2 --gurobi-bar-conv-tol 1e-8 --gurobi-threads $SLURM_CPUS_PER_TASK \
   --highs-threads $SLURM_CPUS_PER_TASK --budget-min 600 --resume $ARGS

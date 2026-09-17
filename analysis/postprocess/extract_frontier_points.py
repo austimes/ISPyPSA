@@ -81,6 +81,15 @@ _TOLERANCE = 3e-3
 # dually-non-converged (dinf O(1)) with a corrupted objective field but a
 # primal-sane solution, while 2030-2045 converge to dinf ~1e-4.
 _GUROBI_DUAL_INF_TOL = 1e-2
+# The inherited-fleet (ECAA) rosters: (PyPSA component, roster file, name column).
+_ECAA_ROSTERS = (
+    ("generators", "ecaa_generators.csv", "generator"),
+    ("storage_units", "ecaa_batteries.csv", "storage_name"),
+)
+# The LP keeping charge and the roster FOM are two readings of the same physical
+# quantity, so they agree to rounding when both are present. Anything wider means
+# the two sources disagree and the row's retention charge is not trustworthy.
+_RETENTION_RECONCILE_TOL = 0.01
 
 
 def extract_frontier_point(
@@ -104,15 +113,26 @@ def extract_frontier_point(
     """
     network = pypsa.Network(network_path)
     base = extract_method_year_row(
-        network, pypsa_friendly_dir, workbook_cache, year,
-        archetype_id=sweep_id, archetype_bounds={},
-        carbon_price=carbon_price, tns_price=tns_price,
+        network,
+        pypsa_friendly_dir,
+        workbook_cache,
+        year,
+        archetype_id=sweep_id,
+        archetype_bounds={},
+        carbon_price=carbon_price,
+        tns_price=tns_price,
     )
     carried = _carried_vintage_capex(prior_year_ncs, at_year=year)
     existing_fom = _existing_fleet_fom(network, ispypsa_inputs_dir, at_year=year)
     diagnostics = _solve_diagnostics(record_path)
     row = _assemble_frontier_row(
-        sweep_id, year, carbon_price, tns_price, base, carried, existing_fom,
+        sweep_id,
+        year,
+        carbon_price,
+        tns_price,
+        base,
+        carried,
+        existing_fom,
         diagnostics,
     )
     composition = _composition_diagnostic(network, sweep_id, year)
@@ -137,26 +157,65 @@ def _existing_fleet_fom(
     year-t new-build capex. Only capacity still active at at_year
     (build_year + lifetime > at_year) is billed, matching the retirement filter
     the dispatch already respects.
+
+    This roster figure is only ADDED to the cost when the LP itself charged
+    nothing for keeping the fleet. A chain run with `--reducible-existing
+    --existing-fom-keeping` sets each ECAA unit's `capital_cost` to its FOM, so
+    the year-t LP spend already carries the retention charge and adding this term
+    would bill it twice. `_assemble_frontier_row` decides using
+    `_lp_keeping_charge_aud`; this function always reports the roster figure as a
+    diagnostic regardless of which way that decision goes.
     """
     total_aud, active_mw = 0.0, 0.0
-    rosters = (
-        ("generators", "ecaa_generators.csv", "generator"),
-        ("storage_units", "ecaa_batteries.csv", "storage_name"),
-    )
-    for component, roster_file, name_col in rosters:
-        aud, mw = _roster_fom(network, component, ispypsa_inputs_dir / roster_file,
-                              name_col, at_year)
+    for component, roster_file, name_col in _ECAA_ROSTERS:
+        aud, mw = _roster_fom(
+            network, component, ispypsa_inputs_dir / roster_file, name_col, at_year
+        )
         total_aud += aud
         active_mw += mw
     return {
         "existing_fleet_fom_aud_per_yr": total_aud,
         "existing_fleet_active_gw": active_mw / 1000.0,
+        "existing_fleet_lp_keeping_charge_aud_per_yr": _lp_keeping_charge_aud(
+            network, _ecaa_roster_names(ispypsa_inputs_dir)
+        ),
     }
 
 
+def _ecaa_roster_names(ispypsa_inputs_dir: Path) -> set[str]:
+    """Every inherited-fleet (ECAA) unit name, across the generator and battery
+    rosters."""
+    names: set[str] = set()
+    for _, roster_file, name_col in _ECAA_ROSTERS:
+        roster_path = ispypsa_inputs_dir / roster_file
+        if roster_path.exists():
+            names |= set(pd.read_csv(roster_path)[name_col].astype(str))
+    return names
+
+
+def _lp_keeping_charge_aud(network: pypsa.Network, ecaa_names: set[str]) -> float:
+    """Retention charge the LP itself billed on the inherited fleet, AUD/yr.
+
+    A chain run with `--reducible-existing --existing-fom-keeping` writes each
+    ECAA unit's FOM into `capital_cost` (see benchmarks/retirement.py
+    `make_existing_reducible`), so this is nonzero exactly when the year-t LP
+    spend already carries the retained-fleet fixed cost. Without FOM keeping,
+    ISPyPSA leaves ECAA `capital_cost` at 0 and this is zero.
+    """
+    total = 0.0
+    for component, _, _ in _ECAA_ROSTERS:
+        df = getattr(network, component)
+        rows = df[df.index.astype(str).isin(ecaa_names)]
+        total += float((rows["capital_cost"] * rows["p_nom_opt"]).sum())
+    return total
+
+
 def _roster_fom(
-    network: pypsa.Network, component: str, roster_path: Path,
-    name_col: str, at_year: int,
+    network: pypsa.Network,
+    component: str,
+    roster_path: Path,
+    name_col: str,
+    at_year: int,
 ) -> tuple[float, float]:
     """Σ fom_$/kw/annum × active MW × 1000 for one ECAA roster (gens or storage)."""
     if not roster_path.exists():
@@ -170,9 +229,7 @@ def _roster_fom(
     return float((rate * cap_mw * 1000.0).sum()), float(cap_mw.sum())
 
 
-def _carried_vintage_capex(
-    prior_year_ncs: dict[int, Path], at_year: int
-) -> dict:
+def _carried_vintage_capex(prior_year_ncs: dict[int, Path], at_year: int) -> dict:
     """Annualised capex of all surviving prior vintages, re-attributed from
     each prior year's solved network at its ORIGINAL capital_cost."""
     per_vintage: dict[int, float] = {}
@@ -239,12 +296,16 @@ def _solve_diagnostics(record_path: Path) -> dict:
     rec = json.loads(record_path.read_text())
     if rec.get("gurobi_barrier_iterations") is not None:
         gap, pinf, dinf = (
-            rec.get("ipm_final_gap"), rec.get("ipm_final_pinf"), rec.get("ipm_final_dinf"),
+            rec.get("ipm_final_gap"),
+            rec.get("ipm_final_pinf"),
+            rec.get("ipm_final_dinf"),
         )
         iters = rec.get("gurobi_barrier_iterations")
         robust = (
-            pinf is not None and dinf is not None
-            and pinf < _GUROBI_DUAL_INF_TOL and dinf < _GUROBI_DUAL_INF_TOL
+            pinf is not None
+            and dinf is not None
+            and pinf < _GUROBI_DUAL_INF_TOL
+            and dinf < _GUROBI_DUAL_INF_TOL
         )
     else:
         gap = rec.get("pdlp_final_gap_rel")
@@ -265,8 +326,14 @@ def _solve_diagnostics(record_path: Path) -> dict:
 
 
 def _assemble_frontier_row(
-    sweep_id: str, year: int, carbon_price: float, tns_price: float,
-    base: dict, carried: dict, existing_fom: dict, diagnostics: dict,
+    sweep_id: str,
+    year: int,
+    carbon_price: float,
+    tns_price: float,
+    base: dict,
+    carried: dict,
+    existing_fom: dict,
+    diagnostics: dict,
 ) -> dict:
     """Tidy frontier row: the contract cost column first, diagnostics after.
 
@@ -285,15 +352,24 @@ def _assemble_frontier_row(
     not billed here. Useful trajectory-internal bookkeeping if simple-msm ever
     wants the build-year allocation; it is NOT the cost intensity, because it
     excludes the operating cost of the carried fleet (~86% of capacity by 2050).
+
+    INHERITED-FLEET FOM — added to the primary only when the LP charged nothing
+    for keeping the inherited (ECAA) fleet. A FOM-keeping run writes each ECAA
+    unit's FOM into `capital_cost`, so the year-t incremental already carries the
+    retention charge and re-adding the roster figure would bill the whole
+    inherited fleet twice. `retention_charge_counted_once` reports the outcome of
+    that reconciliation per row.
     """
     annual_mwh = base["diagnostic_annual_mwh_delivered"]
     year_t_incremental = base["diagnostic_cost_per_unit_excl_fuel_and_carbon"]
-    # Full-fleet = year-t spend + carried-vintage capex+FOM + existing-fleet FOM,
-    # the three-way partition of fleet fixed cost (no overlap: ECAA roster vs
-    # carried tranches vs current-year new-build).
-    fleet_fixed_aud = (
-        carried["carried_capex_aud_per_yr"]
-        + existing_fom["existing_fleet_fom_aud_per_yr"]
+    roster_fom_aud = existing_fom["existing_fleet_fom_aud_per_yr"]
+    lp_keeping_aud = existing_fom["existing_fleet_lp_keeping_charge_aud_per_yr"]
+    # Full-fleet = year-t spend + carried-vintage capex+FOM + existing-fleet FOM.
+    # The last term is added only when the LP charged nothing for keeping the
+    # inherited fleet: a FOM-keeping run puts that same charge in ECAA
+    # `capital_cost`, where the year-t LP spend already picks it up.
+    fleet_fixed_aud = carried["carried_capex_aud_per_yr"] + (
+        0.0 if lp_keeping_aud > 0 else roster_fom_aud
     )
     excl_fuel_carbon = year_t_incremental + (
         fleet_fixed_aud / annual_mwh if annual_mwh > 0 else 0.0
@@ -319,7 +395,11 @@ def _assemble_frontier_row(
         "carried_capex_aud_per_yr": carried["carried_capex_aud_per_yr"],
         "carried_vintages": carried["carried_vintages"],
         "carried_gw": carried["carried_gw"],
-        "existing_fleet_fom_aud_per_yr": existing_fom["existing_fleet_fom_aud_per_yr"],
+        "existing_fleet_fom_aud_per_yr": roster_fom_aud,
+        "existing_fleet_lp_keeping_charge_aud_per_yr": lp_keeping_aud,
+        "retention_charge_counted_once": _retention_charge_counted_once(
+            lp_keeping_aud, roster_fom_aud
+        ),
         "existing_fleet_active_gw": existing_fom["existing_fleet_active_gw"],
         "renewable_share_pct_bulk_grid": base["renewable_share_pct"],
         "diagnostic_cost_per_mwh_year_t_incremental": year_t_incremental,
@@ -327,6 +407,22 @@ def _assemble_frontier_row(
         "diagnostic_fuel_cost_per_mwh": base["diagnostic_fuel_cost_per_unit"],
         "diagnostic_carbon_cost_per_mwh": base["diagnostic_carbon_cost_per_unit"],
     }
+
+
+def _retention_charge_counted_once(
+    lp_keeping_aud: float, roster_fom_aud: float
+) -> bool:
+    """Whether the inherited fleet's retention charge is billed exactly once.
+
+    True when the LP charged nothing (so the roster FOM supplies the only copy)
+    or when the LP charge reconciles with the roster FOM to within
+    `_RETENTION_RECONCILE_TOL` (so dropping the roster copy loses nothing). False
+    flags a row where the two readings of the retention charge disagree.
+    """
+    if lp_keeping_aud == 0.0:
+        return True
+    gap = abs(lp_keeping_aud - roster_fom_aud)
+    return gap <= _RETENTION_RECONCILE_TOL * roster_fom_aud
 
 
 def _composition_diagnostic(
@@ -339,7 +435,7 @@ def _composition_diagnostic(
     gens = gens[gens["bus"] != "bus_for_custom_constraint_gens"]
     gens = gens[gens["carrier"] != "Unserved Energy"]
     active = gens[gens["build_year"] + gens["lifetime"] > year]
-    by_carrier = (active["p_nom_opt"].fillna(0).groupby(active["carrier"]).sum() / 1000.0)
+    by_carrier = active["p_nom_opt"].fillna(0).groupby(active["carrier"]).sum() / 1000.0
     out = by_carrier.reset_index()
     out.columns = ["carrier", "capacity_gw"]
     out.insert(0, "year", year)
@@ -371,17 +467,24 @@ def extract_chain(
     for year in years:
         run_root = runs_dir / f"{run_id}_{year}__{archetype}"
         prior_ncs = {
-            y: runs_dir / f"{run_id}_{y}__{archetype}" / "outputs" / "capacity_expansion.nc"
-            for y in years if y < year
+            y: runs_dir
+            / f"{run_id}_{y}__{archetype}"
+            / "outputs"
+            / "capacity_expansion.nc"
+            for y in years
+            if y < year
         }
         row, composition = extract_frontier_point(
-            sweep_id, year, prior_ncs,
+            sweep_id,
+            year,
+            prior_ncs,
             network_path=run_root / "outputs" / "capacity_expansion.nc",
             pypsa_friendly_dir=run_root / "pypsa_friendly",
             ispypsa_inputs_dir=run_root / "ispypsa_inputs",
             workbook_cache=workbook_cache,
             record_path=records_dir / f"{run_id}_{year}.json",
-            carbon_price=carbon_price, tns_price=tns_price,
+            carbon_price=carbon_price,
+            tns_price=tns_price,
         )
         rows.append(row)
         compositions.append(composition)
@@ -395,20 +498,27 @@ def main():
     ap.add_argument("--years", type=int, nargs="+", required=True)
     ap.add_argument("--carbon-price", type=float, required=True)
     ap.add_argument("--tns-price", type=float, default=20.0)
-    ap.add_argument("--runs-dir", type=Path,
-                    default=Path("analysis/benchmarks/runs_myopic"))
-    ap.add_argument("--records-dir", type=Path,
-                    default=Path("analysis/benchmarks/records"))
-    ap.add_argument("--workbook-cache", type=Path,
-                    default=Path("analysis/data/workbook_cache"))
-    ap.add_argument("--out-dir", type=Path,
-                    default=Path("analysis/outputs/frontier"))
+    ap.add_argument(
+        "--runs-dir", type=Path, default=Path("analysis/benchmarks/runs_myopic")
+    )
+    ap.add_argument(
+        "--records-dir", type=Path, default=Path("analysis/benchmarks/records")
+    )
+    ap.add_argument(
+        "--workbook-cache", type=Path, default=Path("analysis/data/workbook_cache")
+    )
+    ap.add_argument("--out-dir", type=Path, default=Path("analysis/outputs/frontier"))
     args = ap.parse_args()
 
     frontier, compositions = extract_chain(
-        args.sweep_id, args.run_id, args.years,
-        args.carbon_price, args.tns_price,
-        args.runs_dir, args.records_dir, args.workbook_cache,
+        args.sweep_id,
+        args.run_id,
+        args.years,
+        args.carbon_price,
+        args.tns_price,
+        args.runs_dir,
+        args.records_dir,
+        args.workbook_cache,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     frontier_path = args.out_dir / f"frontier_points_{args.sweep_id}.csv"

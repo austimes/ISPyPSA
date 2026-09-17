@@ -2,7 +2,7 @@
 
 One row per solved cell, from the saved network plus its run record. This is the
 map's own extraction layer — the previous sweep's committed deliverables are not
-touched. Two deliberate differences from demand_carbon_sweep/build_deliverables:
+touched. Three deliberate differences from demand_carbon_sweep/build_deliverables:
 
 1. CCS reporting fix (Stage 0.4). Generation and capacity are grouped on
    technology groups built from `isp_technology_type` (joined from the run's
@@ -14,6 +14,12 @@ touched. Two deliberate differences from demand_carbon_sweep/build_deliverables:
    constraint_duals.json (written in-process by instrumented_runner, since the
    linopy model is not persisted); the demand-balance marginal is the
    load-weighted mean of bus marginal prices from the saved network.
+
+3. VRE curtailment and biomass fuel burn. Curtailment is available minus
+   dispatched energy over the Wind and Solar fleet; biomass burn is dispatch
+   times the run's `isp_heat_rate_gj/mwh`, carrying a CO2e term from the NGER
+   biomass factor (a CH4 + N2O combustion residual, biogenic CO2 being
+   zero-rated).
 
 Renewable share is reported in the colleague's convention (r_total, r_VRE on
 real grid generation: slack and unserved excluded; rooftop PV outside the
@@ -28,6 +34,7 @@ import pandas as pd
 import pypsa
 
 from analysis.benchmarks.output_layout import OutputLayout
+from analysis.postprocess.nger_factors import nger_factor_table
 
 LAYOUT = OutputLayout()
 RUNS = LAYOUT.runs
@@ -37,6 +44,14 @@ RENEWABLE_CARRIERS = {"Wind", "Solar", "Water", "Biomass"}
 VRE_CARRIERS = {"Wind", "Solar"}
 SLACK_BUS = "bus_for_custom_constraint_gens"
 REPORTING_FLOOR_MW = 1.0
+
+# NGA/NGER total CO2e factor for solid biomass, kg CO2e/GJ. Biogenic combustion
+# CO2 is zero-rated under NGER, so this factor is the CH4 + N2O combustion
+# residual alone -- the separately-exported biomass term, not a full-combustion
+# intensity comparable with the fossil carriers.
+BIOMASS_CO2E_KG_PER_GJ = float(
+    nger_factor_table().set_index("carrier").at["Biomass", "total_co2e_kg_per_gj"]
+)
 
 
 def _tech_group(carrier: str, technology_type: str) -> str:
@@ -48,6 +63,52 @@ def _tech_group(carrier: str, technology_type: str) -> str:
 
 def run_root(run_id: str) -> Path:
     return RUNS / f"{run_id}__cost_optimal"
+
+
+def _vre_curtailment(network: pypsa.Network) -> tuple[float, float]:
+    """Snapshot-weighted VRE curtailment and delivered VRE energy, both MWh.
+
+    Curtailment is available minus dispatched, clipped at zero.
+    `get_switchable_as_dense` resolves `p_max_pu` whether a generator's
+    availability is a static value or a per-snapshot trace.
+
+    :param network: Solved network.
+    :return: (curtailed_mwh, delivered_vre_mwh).
+    """
+    gens = network.generators
+    vre = gens[(gens["bus"] != SLACK_BUS) & gens["carrier"].isin(VRE_CARRIERS)]
+    weights = network.snapshot_weightings["generators"]
+    available_mw = network.get_switchable_as_dense("Generator", "p_max_pu")[
+        vre.index
+    ].multiply(vre["p_nom_opt"], axis=1)
+    dispatched_mw = network.generators_t.p[vre.index].clip(lower=0)
+    curtailed_mw = (available_mw - dispatched_mw).clip(lower=0)
+    return (
+        float(curtailed_mw.mul(weights, axis=0).sum().sum()),
+        float(dispatched_mw.mul(weights, axis=0).sum().sum()),
+    )
+
+
+def _biomass_burn_gj(network: pypsa.Network, pf: pd.DataFrame) -> float:
+    """Snapshot-weighted biomass fuel burn, GJ.
+
+    The heat rate comes from the run's sibling pypsa_friendly generators.csv
+    because the PyPSA component table drops the isp_* metadata.
+
+    :param network: Solved network.
+    :param pf: pypsa_friendly generators table, indexed by generator name.
+    :return: Fuel burn across all Biomass generators, GJ.
+    """
+    gens = network.generators
+    biomass = gens[(gens["bus"] != SLACK_BUS) & (gens["carrier"] == "Biomass")]
+    weights = network.snapshot_weightings["generators"]
+    dispatch_mwh = (
+        network.generators_t.p[biomass.index].clip(lower=0).mul(weights, axis=0).sum()
+    )
+    heat_rate = pd.to_numeric(
+        pf["isp_heat_rate_gj/mwh"].reindex(biomass.index), errors="coerce"
+    ).fillna(0.0)
+    return float((dispatch_mwh * heat_rate).sum())
 
 
 def extract_cell(run_id: str) -> dict:
@@ -106,6 +167,15 @@ def extract_cell(run_id: str) -> dict:
     )
     row["intensity_delivered_t_per_mwh"] = co2e_t / delivered_mwh
     row["intensity_generated_t_per_mwh"] = co2e_t / (generation_twh * 1e6)
+
+    curtailed_mwh, vre_delivered_mwh = _vre_curtailment(network)
+    row["curtailment_mwh"] = curtailed_mwh
+    row["curtailment_pct_of_available"] = (
+        curtailed_mwh / (curtailed_mwh + vre_delivered_mwh) * 100
+    )
+    biomass_gj = _biomass_burn_gj(network, pf)
+    row["biomass_burn_pj"] = biomass_gj / 1e6
+    row["biomass_co2e_t"] = biomass_gj * BIOMASS_CO2E_KG_PER_GJ / 1000.0
 
     # Demand-balance marginal: load-weighted mean of bus marginal prices, AUD/MWh.
     prices = network.buses_t.marginal_price
