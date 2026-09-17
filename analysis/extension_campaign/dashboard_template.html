@@ -165,8 +165,14 @@ const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).
 const fmt = (v, d = 2) => v === null || v === undefined ? "--" : Number(v).toFixed(d);
 const mt = v => v === null || v === undefined ? "--" : (v / 1e6).toFixed(3);
 
+// Gurobi's crossover leaves a few thousand MWh of unserved energy on otherwise clean
+// cells (at most 0.0007% of demand across the grid), so the boundary test is relative:
+// a cell sheds load when it fails to serve at least one part in a thousand of its demand.
+const shedFraction = m => m.unserved_twh / m.delivered_twh;
+const isBoundary = m => shedFraction(m) > 0.001;
+
 function verdict(m) {
-  if (m.unserved_twh > 0.000001) return ["bad", "boundary"];
+  if (isBoundary(m)) return ["bad", "boundary"];
   if (m.model_status !== "Optimal") return ["warn", "fallback"];
   if (m.cap_tracking_pct !== null && Math.abs(m.cap_tracking_pct) > 1) return ["warn", "cap drift"];
   return ["ok", "menu"];
@@ -174,7 +180,7 @@ function verdict(m) {
 
 function renderStrip() {
   const ms = DATA.chains.flatMap(c => c.milestones);
-  const shed = ms.filter(m => m.unserved_twh > 0.000001);
+  const shed = ms.filter(isBoundary);
   const hours = DATA.chains.reduce((a, c) => a + c.chain_hours, 0);
   const cells = [
     ["chains solved", DATA.chains_found, "of 41 planned"],
@@ -204,7 +210,7 @@ function renderGates() {
       <td class="num">${fmt(m.intensity_t_per_mwh, 5)}</td>
       <td class="num">${m.implied_carbon_price_aud_per_t === null ? "--"
         : Math.round(m.implied_carbon_price_aud_per_t).toLocaleString()}</td>
-      <td class="num">${m.unserved_twh > 0.000001 ? fmt(m.unserved_twh, 2) : "0"}</td>
+      <td class="num">${isBoundary(m) ? fmt(m.unserved_twh, 2) + " (" + (100 * shedFraction(m)).toFixed(1) + "%)" : "0"}</td>
       <td class="num">${fmt(m.wall_minutes, 0)}</td>
       <td><span class="chip ${cls}">${label}</span></td></tr>`);
   }
@@ -288,7 +294,7 @@ function renderMixes() {
 
 function renderNotes() {
   const shed = DATA.chains.flatMap(c => c.milestones.map(m => ({ ...m, chain: c.run_id })))
-    .filter(m => m.unserved_twh > 0.000001);
+    .filter(isBoundary);
   const host = document.getElementById("boundary-note");
   if (!shed.length) { host.innerHTML = ""; return; }
   const worst = shed.reduce((a, b) => b.unserved_twh > a.unserved_twh ? b : a);
