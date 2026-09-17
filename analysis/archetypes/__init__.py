@@ -24,18 +24,18 @@ projections rather than the team's own cost_optimal output, so the archetypes
 read as alternative policy pathways relative to a public authoritative source.
 """
 
-from ._pumped_storage_fix import apply as _pumped_storage_fix_apply
-from ._phes_menu import apply as _phes_menu_apply
-from ._maintenance_overlay import apply as _maintenance_overlay_apply
-from ._repowering import apply as _repowering_apply
 from ._biomass_cap import apply as _biomass_cap_apply
 from ._biomass_feedstock_cost import apply as _biomass_feedstock_cost_apply
+from ._maintenance_overlay import apply as _maintenance_overlay_apply
+from ._phes_menu import apply as _phes_menu_apply
+from ._pumped_storage_fix import apply as _pumped_storage_fix_apply
+from ._repowering import apply as _repowering_apply
 from .cost_optimal import apply as cost_optimal_apply
-from .rapid_coal_phaseout import apply as rapid_coal_phaseout_apply
-from .gas_fleet_maintained import apply as gas_fleet_maintained_apply
-from .storage_led import apply as storage_led_apply
 from .fossil_incumbent import apply as fossil_incumbent_apply
+from .gas_fleet_maintained import apply as gas_fleet_maintained_apply
 from .nuclear_baseload import apply as nuclear_baseload_apply
+from .rapid_coal_phaseout import apply as rapid_coal_phaseout_apply
+from .storage_led import apply as storage_led_apply
 
 PRODUCTION_ARCHETYPES = [
     "cost_optimal",
@@ -57,7 +57,10 @@ def _with_pre_passes(archetype_fn):
 
       1b. PHES menu repair — appends the IASR's new-entrant pumped-hydro
          candidates (10/24/48 h + BOTN - Cethana 20 h) at workbook costs,
-         build limits and lead times, and the two committed/policy PHES units
+         build limits and lead times, two authored long-duration classes
+         (168 h and 336 h) whose capex is extrapolated from the published
+         duration-cost line, a per-sub-region shared-site cap on total
+         new-entrant PHES power, and the two committed/policy PHES units
          (Kidston, Phoenix) the templater's battery-only filter drops.
          See _phes_menu.py for per-value workbook citations.
 
@@ -106,10 +109,10 @@ def _with_pre_passes(archetype_fn):
 
 
 APPLY_ARCHETYPE = {
-    "cost_optimal":         _with_pre_passes(cost_optimal_apply),
-    "rapid_coal_phaseout":  _with_pre_passes(rapid_coal_phaseout_apply),
+    "cost_optimal": _with_pre_passes(cost_optimal_apply),
+    "rapid_coal_phaseout": _with_pre_passes(rapid_coal_phaseout_apply),
     "gas_fleet_maintained": _with_pre_passes(gas_fleet_maintained_apply),
-    "storage_led":          _with_pre_passes(storage_led_apply),
-    "fossil_incumbent":     _with_pre_passes(fossil_incumbent_apply),
-    "nuclear_baseload":     _with_pre_passes(nuclear_baseload_apply),
+    "storage_led": _with_pre_passes(storage_led_apply),
+    "fossil_incumbent": _with_pre_passes(fossil_incumbent_apply),
+    "nuclear_baseload": _with_pre_passes(nuclear_baseload_apply),
 }

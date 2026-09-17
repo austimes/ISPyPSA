@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from analysis.archetypes._phes_menu import _append_extrapolated_build_costs
 from analysis.archetypes._phes_menu import apply as phes_menu_apply
 from analysis.benchmarks.recursive_dynamic import (
     adjust_phes_build_limits_for_carried,
@@ -99,6 +100,25 @@ def _stub_config(cache_dir, period):
     )
 
 
+def _mini_build_costs():
+    """Templated `new_entrant_build_costs` ($/MW) whose three published PHES
+    points sit exactly on capex = 2,000,000 + 50,000 x duration in FY2050 and
+    1,800,000 + 45,000 x duration in FY2040, so the fitted coefficients and the
+    168/336 h evaluations are known by construction."""
+    return pd.DataFrame(
+        {
+            "technology": [
+                "Battery Storage (1hr storage)",
+                "Pumped Hydro (10hrs storage)",
+                "Pumped Hydro (24hrs storage)",
+                "Pumped Hydro (48hrs storage)",
+            ],
+            "2039_40_$/mw": [500_000.0, 2_250_000.0, 2_880_000.0, 3_960_000.0],
+            "2049_50_$/mw": [454_000.0, 2_500_000.0, 3_200_000.0, 4_400_000.0],
+        }
+    )
+
+
 def _tables_with_one_battery(sub_regions=("NNSW", "SNW")):
     """`sub_regions` seeds ecaa_batteries so `_existing_sub_regions` treats
     them as present in the model (the pre-pass skips candidates elsewhere)."""
@@ -119,7 +139,11 @@ def _tables_with_one_battery(sub_regions=("NNSW", "SNW")):
             "fuel_type": ["Battery"] * len(sub_regions),
         }
     )
-    return {"new_entrant_batteries": new_entrants, "ecaa_batteries": ecaa}
+    return {
+        "new_entrant_batteries": new_entrants,
+        "ecaa_batteries": ecaa,
+        "new_entrant_build_costs": _mini_build_costs(),
+    }
 
 
 def test_phes_menu_2050_offers_candidates_where_limits_are_nonzero(tmp_path):
@@ -130,11 +154,15 @@ def test_phes_menu_2050_offers_candidates_where_limits_are_nonzero(tmp_path):
 
     phes = result["new_entrant_batteries"]
     phes = phes[phes["fuel_type"] == "Water"].reset_index(drop=True)
-    # NNSW: 10h/24h/48h; SNW: 10h only (zero 24h/48h limits); no BOTN (zero).
+    # NNSW: 10h/24h/48h plus the two authored classes; SNW: 10h only (zero
+    # 24h/48h limits, and the authored classes key off the 48h limit); no
+    # BOTN (zero).
     assert sorted(phes["storage_name"]) == [
         "phes_10h_nnsw",
         "phes_10h_snw",
+        "phes_168h_nnsw",
         "phes_24h_nnsw",
+        "phes_336h_nnsw",
         "phes_48h_nnsw",
     ]
     row = phes.set_index("storage_name").loc["phes_24h_nnsw"]
@@ -191,9 +219,7 @@ def test_phes_menu_appends_kidston_and_phoenix_to_ecaa(tmp_path):
     assert ecaa.loc["Kidston", "round_trip_efficiency_%"] == 80.0
     assert ecaa.loc["Kidston", "commissioning_date"] == "2027-01-01"
     assert ecaa.loc["Kidston", "closure_year"] == 2065
-    assert (
-        ecaa.loc["Phoenix Pumped Hydro Project", "maximum_capacity_mw"] == 810.0
-    )
+    assert ecaa.loc["Phoenix Pumped Hydro Project", "maximum_capacity_mw"] == 810.0
     assert ecaa.loc["Phoenix Pumped Hydro Project", "storage_duration_hours"] == 12.0
     assert (
         ecaa.loc["Phoenix Pumped Hydro Project", "commissioning_date"] == "2032-07-01"
@@ -211,9 +237,7 @@ def test_phes_menu_multi_period_skips_with_warning(tmp_path, caplog):
             SimpleNamespace(
                 paths=SimpleNamespace(parsed_workbook_cache=str(tmp_path)),
                 temporal=SimpleNamespace(
-                    capacity_expansion=SimpleNamespace(
-                        investment_periods=[2030, 2050]
-                    )
+                    capacity_expansion=SimpleNamespace(investment_periods=[2030, 2050])
                 ),
                 scenario="Step Change",
             ),
@@ -240,6 +264,154 @@ def test_phes_menu_missing_cache_table_fails_loud(tmp_path):
 
     with pytest.raises(FileNotFoundError, match="build_limits_phes"):
         phes_menu_apply(_tables_with_one_battery(), _stub_config(tmp_path, 2050))
+
+
+# ---------------------------------------------------------------------------
+# Authored long-duration classes: capex extrapolation
+# ---------------------------------------------------------------------------
+
+
+def test_capex_fit_extrapolates_published_points_to_168_and_336(csv_str_to_df):
+    build_costs = _mini_build_costs()
+
+    result = _append_extrapolated_build_costs(build_costs)
+
+    expected = csv_str_to_df("""
+        technology,                        2039_40_$/mw,  2049_50_$/mw
+        Battery__Storage__(1hr__storage),  500000.0,      454000.0
+        Pumped__Hydro__(10hrs__storage),   2250000.0,     2500000.0
+        Pumped__Hydro__(24hrs__storage),   2880000.0,     3200000.0
+        Pumped__Hydro__(48hrs__storage),   3960000.0,     4400000.0
+        Pumped__Hydro__(168hrs__storage),  9360000.0,     10400000.0
+        Pumped__Hydro__(336hrs__storage),  16920000.0,    18800000.0
+    """)
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_capex_extrapolation_warns_with_auditable_coefficients(caplog):
+    build_costs = _mini_build_costs()
+
+    with caplog.at_level(logging.WARNING):
+        _append_extrapolated_build_costs(build_costs)
+
+    assert (
+        "phes_menu: capex for ['Pumped Hydro (168hrs storage)', "
+        "'Pumped Hydro (336hrs storage)'] is extrapolated beyond the published "
+        "10-48 h duration range by a per-financial-year least-squares fit of "
+        "capex against duration; FY2050 power cost 2000.0 $/kW, reservoir cost "
+        "50.00 $/kW per storage hour"
+    ) in caplog.text
+    assert "is not linear in duration" not in caplog.text
+
+
+def test_capex_fit_warns_when_published_points_are_not_linear(caplog):
+    build_costs = _mini_build_costs()
+    build_costs["2049_50_$/mw"] = [454_000.0, 2_000_000.0, 2_100_000.0, 5_000_000.0]
+
+    with caplog.at_level(logging.WARNING):
+        _append_extrapolated_build_costs(build_costs)
+
+    assert (
+        "phes_menu: published 10/24/48 h capex is not linear in duration "
+        "(R-squared below 0.95) in financial years ['2049_50_$/mw']; the "
+        "extrapolated 168/336 h capex is less reliable there"
+    ) in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Authored long-duration classes: candidates and shared site limits
+# ---------------------------------------------------------------------------
+
+
+def test_long_duration_classes_inherit_the_48_hour_parameters(tmp_path, csv_str_to_df):
+    _write_mini_phes_cache(tmp_path)
+    tables = _tables_with_one_battery()
+
+    result = phes_menu_apply(tables, _stub_config(tmp_path, 2050))
+
+    columns = [
+        "storage_name",
+        "technology_type",
+        "isp_resource_type",
+        "storage_duration_hours",
+        "round_trip_efficiency_%",
+        "charging_efficiency_%",
+        "fom_$/kw/annum",
+        "technology_specific_lcf_%",
+        "connection_cost_$/mw",
+        "lifetime",
+        "wacc",
+        "build_limit_mw",
+    ]
+    long_duration = result["new_entrant_batteries"]
+    long_duration = long_duration[
+        long_duration["storage_name"].isin(["phes_168h_nnsw", "phes_336h_nnsw"])
+    ]
+    # build_limit_mw is NNSW's 48-hour limit (19,500 MW) for both classes.
+    expected = csv_str_to_df("""
+        storage_name,    technology_type,                   isp_resource_type,     storage_duration_hours, round_trip_efficiency_%, charging_efficiency_%, fom_$/kw/annum, technology_specific_lcf_%, connection_cost_$/mw, lifetime, wacc,  build_limit_mw
+        phes_168h_nnsw,  Pumped__Hydro__(168hrs__storage),  Pumped__Hydro__168h,   168.0,                  76.0,                    87.17797887081348,     85.5372,        98.6125928742748,          101502.27785795153,   40.0,     0.085, 19500.0
+        phes_336h_nnsw,  Pumped__Hydro__(336hrs__storage),  Pumped__Hydro__336h,   336.0,                  76.0,                    87.17797887081348,     85.5372,        98.6125928742748,          101502.27785795153,   40.0,     0.085, 19500.0
+    """)
+    pd.testing.assert_frame_equal(
+        long_duration[columns].reset_index(drop=True), expected
+    )
+
+
+def test_long_duration_classes_gated_by_the_inherited_lead_time(tmp_path, caplog):
+    _write_mini_phes_cache(tmp_path)
+    tables = _tables_with_one_battery()
+
+    with caplog.at_level(logging.INFO):
+        result = phes_menu_apply(tables, _stub_config(tmp_path, 2034))
+
+    phes = result["new_entrant_batteries"]
+    assert phes["storage_name"].isin(["phes_168h_nnsw", "phes_336h_nnsw"]).sum() == 0
+    assert (
+        "phes_menu: Pumped Hydro (168hrs storage) unavailable at 2034 "
+        "(earliest build FY 2035 from IASR total lead time)"
+    ) in caplog.text
+
+
+def test_shared_site_constraint_sums_every_phes_class_in_a_sub_region(
+    tmp_path, csv_str_to_df
+):
+    _write_mini_phes_cache(tmp_path)
+    tables = _tables_with_one_battery()
+
+    result = phes_menu_apply(tables, _stub_config(tmp_path, 2050))
+
+    # SNW has a zero 48-hour limit, so it gets no site constraint at all.
+    expected_lhs = csv_str_to_df("""
+        constraint_id,              term_type,         term_id,                  coefficient
+        phes_site_limit_nnsw_2050,  storage_capacity,  phes_10h_nnsw_2050,       1.0
+        phes_site_limit_nnsw_2050,  storage_capacity,  phes_24h_nnsw_2050,       1.0
+        phes_site_limit_nnsw_2050,  storage_capacity,  phes_48h_nnsw_2050,       1.0
+        phes_site_limit_nnsw_2050,  storage_capacity,  phes_168h_nnsw_2050,      1.0
+        phes_site_limit_nnsw_2050,  storage_capacity,  phes_336h_nnsw_2050,      1.0
+    """)
+    pd.testing.assert_frame_equal(result["custom_constraints_lhs"], expected_lhs)
+
+    expected_rhs = csv_str_to_df("""
+        constraint_id,              constraint_type,  rhs
+        phes_site_limit_nnsw_2050,  <=,               19500.0
+    """)
+    pd.testing.assert_frame_equal(result["custom_constraints_rhs"], expected_rhs)
+
+
+def test_sub_region_without_a_48_hour_limit_gets_neither_long_duration_class(
+    tmp_path,
+):
+    _write_mini_phes_cache(tmp_path)
+    tables = _tables_with_one_battery(sub_regions=("SNW",))
+
+    result = phes_menu_apply(tables, _stub_config(tmp_path, 2050))
+
+    phes = result["new_entrant_batteries"]
+    phes = phes[phes["fuel_type"] == "Water"]
+    # SNW's only non-zero limit is the 10-hour class.
+    assert sorted(phes["storage_name"]) == ["phes_10h_snw"]
+    assert "custom_constraints_lhs" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -305,10 +477,8 @@ def test_translator_phes_capital_cost_annuitises_at_workbook_wacc_and_life():
 
     # (4,338,000 x 1.0601190499981938 + 101,502.27785795153) x CRF(8.5%, 40y)
     # + 74.84505 x 1000, CRF = 0.085 / (1 - 1.085^-40)
-    crf = 0.085 / (1 - 1.085 ** -40)
-    expected = (
-        4338000.0 * 1.0601190499981938 + 101502.27785795153
-    ) * crf + 74845.05
+    crf = 0.085 / (1 - 1.085**-40)
+    expected = (4338000.0 * 1.0601190499981938 + 101502.27785795153) * crf + 74845.05
     result = result.set_index("name")
     assert result.loc["phes_24h_nnsw_2050", "capital_cost"] == pytest.approx(expected)
 
@@ -334,9 +504,9 @@ def test_carried_phes_decrements_candidate_p_nom_max():
 
     assert adjustments == {"phes_24h_nnsw": 1200.0}
     assert (
-        pypsa_friendly["batteries"].set_index("name").loc[
-            "phes_24h_nnsw_2050", "p_nom_max"
-        ]
+        pypsa_friendly["batteries"]
+        .set_index("name")
+        .loc["phes_24h_nnsw_2050", "p_nom_max"]
         == 8200.0
     )
 
