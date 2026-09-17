@@ -27,8 +27,11 @@ from pathlib import Path
 import pandas as pd
 import pypsa
 
-RUNS = Path("analysis/benchmarks/runs_myopic")
-RECORDS = Path("analysis/benchmarks/records")
+from analysis.benchmarks.output_layout import OutputLayout
+
+LAYOUT = OutputLayout()
+RUNS = LAYOUT.runs
+RECORDS = LAYOUT.records
 
 RENEWABLE_CARRIERS = {"Wind", "Solar", "Water", "Biomass"}
 VRE_CARRIERS = {"Wind", "Solar"}
@@ -76,16 +79,16 @@ def extract_cell(run_id: str) -> dict:
         row[f"share_{key}_pct"] = twh / generation_twh * 100
 
     built = gens[real & (gens["p_nom_opt"] > REPORTING_FLOOR_MW)]
-    for name, gw in (built.groupby(group.loc[built.index])["p_nom_opt"].sum() / 1e3).items():
+    for name, gw in (
+        built.groupby(group.loc[built.index])["p_nom_opt"].sum() / 1e3
+    ).items():
         row[f"gw_{name.lower().replace(' ', '_')}"] = gw
     storage = network.storage_units
     storage_built = storage[storage["p_nom_opt"] > REPORTING_FLOOR_MW]
     for name, gw in (storage_built.groupby("carrier")["p_nom_opt"].sum() / 1e3).items():
         row[f"gw_storage_{name.lower().replace(' ', '_')}"] = gw
 
-    renewable_twh = sum(
-        by_group.get(c, 0.0) for c in RENEWABLE_CARRIERS
-    )
+    renewable_twh = sum(by_group.get(c, 0.0) for c in RENEWABLE_CARRIERS)
     row["r_total_pct"] = renewable_twh / generation_twh * 100
     row["r_vre_pct"] = (
         sum(by_group.get(c, 0.0) for c in VRE_CARRIERS) / generation_twh * 100
@@ -93,7 +96,9 @@ def extract_cell(run_id: str) -> dict:
     row["use_mwh"] = float(energy[gens["carrier"] == "Unserved Energy"].sum())
 
     resid = pd.to_numeric(pf["isp_residual_co2_t_per_mwh"], errors="coerce").fillna(0.0)
-    captured = pd.to_numeric(pf["isp_captured_co2_t_per_mwh"], errors="coerce").fillna(0.0)
+    captured = pd.to_numeric(pf["isp_captured_co2_t_per_mwh"], errors="coerce").fillna(
+        0.0
+    )
     co2e_t = float((energy * resid.reindex(energy.index).fillna(0.0)).sum())
     row["residual_co2e_t"] = co2e_t
     row["captured_co2_t"] = float(
@@ -125,10 +130,19 @@ def extract_cell(run_id: str) -> dict:
         row["share_min_dual_raw"] = duals.get("renewable_share_min_dual")
 
     for key in (
-        "co2_cap_annual_t", "renewable_share_min", "annual_residual_co2e_t",
-        "model_status", "objective_value", "solve_s", "wall_clock_s",
-        "lp_rows", "pdlp_final_gap_rel", "pdlp_final_pinf_rel",
-        "pdlp_final_dinf_rel", "gurobi_barrier_iterations", "status",
+        "co2_cap_annual_t",
+        "renewable_share_min",
+        "annual_residual_co2e_t",
+        "model_status",
+        "objective_value",
+        "solve_s",
+        "wall_clock_s",
+        "lp_rows",
+        "pdlp_final_gap_rel",
+        "pdlp_final_pinf_rel",
+        "pdlp_final_dinf_rel",
+        "gurobi_barrier_iterations",
+        "status",
     ):
         if key in record:
             row[f"rec_{key}"] = record[key]

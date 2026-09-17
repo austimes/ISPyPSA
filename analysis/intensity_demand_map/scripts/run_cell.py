@@ -31,12 +31,14 @@ import psutil
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from analysis.benchmarks.output_layout import OutputLayout  # noqa: E402
 from analysis.benchmarks.run_myopic import _write_period_config  # noqa: E402
 
 BENCH = Path("analysis/benchmarks")
-LOGS = BENCH / "logs"
-RECORDS = BENCH / "records"
-CONDITIONING_CHAIN = BENCH / "runs_myopic" / "sweep_c0_d100"
+LAYOUT = OutputLayout()
+LOGS = LAYOUT.logs
+RECORDS = LAYOUT.records
+CONDITIONING_CHAIN = LAYOUT.chain_dir("sweep_c0_d100")
 TRACE_ROOT = Path(
     "C:/Users/van538/AppData/Local/Temp/5/claude/"
     "c--Users-van538-GitHub-ISPyPSA/c3ca439d-74e8-4532-aba1-90d19353fa8e/scratchpad"
@@ -93,8 +95,11 @@ def _run_with_budget(command: str, budget_min: float) -> dict:
                     pass
             psproc.kill()
             proc.wait(timeout=30)
-            return {"returncode": None, "status": "timed_out",
-                    "wall_s": time.time() - started}
+            return {
+                "returncode": None,
+                "status": "timed_out",
+                "wall_s": time.time() - started,
+            }
         time.sleep(5)
 
 
@@ -102,19 +107,33 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--year", type=int, required=True, choices=[2030, 2040, 2050])
-    parser.add_argument("--demand-level", required=True,
-                        help="d100/d105/d110/d120/d135/d150 (a built trace dir)")
-    parser.add_argument("--cap-t", type=float, default=None,
-                        help="Absolute annual CO2e cap in tonnes (omit = uncapped)")
-    parser.add_argument("--share-min", type=float, default=None,
-                        help="Minimum renewable share 0-1 (wedge subset)")
+    parser.add_argument(
+        "--demand-level",
+        required=True,
+        help="d100/d105/d110/d120/d135/d150 (a built trace dir)",
+    )
+    parser.add_argument(
+        "--cap-t",
+        type=float,
+        default=None,
+        help="Absolute annual CO2e cap in tonnes (omit = uncapped)",
+    )
+    parser.add_argument(
+        "--share-min",
+        type=float,
+        default=None,
+        help="Minimum renewable share 0-1 (wedge subset)",
+    )
     parser.add_argument("--solver", choices=["gurobi", "pdlp"], default="gurobi")
     parser.add_argument("--gurobi-bar-conv-tol", type=float, default=1e-8)
     parser.add_argument("--gurobi-threads", type=int, default=None)
     parser.add_argument("--pdlp-tolerance", type=float, default=3e-3)
     parser.add_argument("--budget-min", type=float, default=180)
-    parser.add_argument("--full-year", action="store_true",
-                        help="Full-year chronology (low-intensity tail cells)")
+    parser.add_argument(
+        "--full-year",
+        action="store_true",
+        help="Full-year chronology (low-intensity tail cells)",
+    )
     args = parser.parse_args()
 
     trace_dir = TRACE_ROOT / f"traces_{args.demand_level}"
@@ -143,8 +162,10 @@ def main() -> None:
 
     LOGS.mkdir(parents=True, exist_ok=True)
     command = _runner_command(args, cfg)
-    print(f"launching {args.run_id}: year={args.year} level={args.demand_level} "
-          f"cap_t={args.cap_t} share_min={args.share_min} solver={args.solver}")
+    print(
+        f"launching {args.run_id}: year={args.year} level={args.demand_level} "
+        f"cap_t={args.cap_t} share_min={args.share_min} solver={args.solver}"
+    )
     result = _run_with_budget(command, args.budget_min)
     print(f"finished {args.run_id}: {result}")
 
@@ -152,9 +173,16 @@ def main() -> None:
     solve_failed = False
     if record_path.exists():
         record = json.loads(record_path.read_text())
-        for key in ("status", "model_status", "objective_value", "solve_s",
-                    "wall_clock_s", "co2_cap_annual_t", "annual_residual_co2e_t",
-                    "constraint_report"):
+        for key in (
+            "status",
+            "model_status",
+            "objective_value",
+            "solve_s",
+            "wall_clock_s",
+            "co2_cap_annual_t",
+            "annual_residual_co2e_t",
+            "constraint_report",
+        ):
             if key in record:
                 print(f"  {key}: {record[key]}")
         # solve_ok=False (e.g. a license-server connection error that isn't a
@@ -169,8 +197,10 @@ def main() -> None:
             and record.get("objective_value") is None
         ):
             solve_failed = True
-            print(f"  SOLVE FAILED SILENTLY (solve_ok=False, no network saved) "
-                  f"-- see logs/{args.run_id}.log for the exception")
+            print(
+                f"  SOLVE FAILED SILENTLY (solve_ok=False, no network saved) "
+                f"-- see logs/{args.run_id}.log for the exception"
+            )
     else:
         solve_failed = True
     if (

@@ -25,9 +25,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from analysis.intensity_demand_map.scripts.extract_cell import extract_cell  # noqa: E402
+from analysis.intensity_demand_map.scripts.extract_cell import (
+    extract_cell,  # noqa: E402
+)
 
-RECORDS = Path("analysis/benchmarks/records")
+RECORDS = Path("outputs/records")
 SCRIPTS = Path(__file__).parent
 MATCHED_CAP_KEYS = ["i100", "i025", "i005"]
 
@@ -51,14 +53,22 @@ def main() -> None:
                 continue
             r_total = extract_cell(matched_id)["r_total_pct"] / 100.0
             command = [
-                sys.executable, str(SCRIPTS / "run_cell.py"),
-                "--run-id", wedge_id, "--year", str(year),
-                "--demand-level", "d100",
-                "--share-min", f"{r_total:.6f}",
-                "--solver", "gurobi", "--budget-min", str(args.budget_min),
+                sys.executable,
+                str(SCRIPTS / "run_cell.py"),
+                "--run-id",
+                wedge_id,
+                "--year",
+                str(year),
+                "--demand-level",
+                "d100",
+                "--share-min",
+                f"{r_total:.6f}",
+                "--solver",
+                "gurobi",
+                "--budget-min",
+                str(args.budget_min),
             ]
-            print(f"wedge {wedge_id}: share_min={r_total:.4f} "
-                  f"(from {matched_id})")
+            print(f"wedge {wedge_id}: share_min={r_total:.4f} (from {matched_id})")
             if args.dry_run:
                 continue
             rc = subprocess.run(command).returncode

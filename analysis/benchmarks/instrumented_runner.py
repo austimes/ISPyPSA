@@ -5,7 +5,8 @@ Wraps the standard run_workflow pipeline with:
   - peak RSS memory tracked via a sibling psutil poller
   - HiGHS log parsing for LP problem size and convergence status
 
-Writes a JSON record summarising the run to bench/records/<run_id>.json.
+Writes a JSON record summarising the run to <output-root>/records/<run_id>.json and
+the solver log to <output-root>/logs/<run_id>.log (default root: outputs/).
 
 Usage:
     uv run python analysis/benchmarks/instrumented_runner.py \
@@ -20,6 +21,7 @@ import logging
 import os
 import random
 import re
+import socket
 import sys
 import threading
 import time
@@ -30,6 +32,10 @@ import psutil
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from analysis.benchmarks.output_layout import (  # noqa: E402
+    DEFAULT_OUTPUT_ROOT,
+    OutputLayout,
+)
 
 # ----- Gurobi license-retry ----------------------------------------------
 
@@ -301,6 +307,12 @@ def _run_staged_pipeline(
     import contextlib
     from io import StringIO
 
+    from analysis.archetypes import APPLY_ARCHETYPE
+    from analysis.benchmarks.flagged_exclusions_2026 import (
+        exclude_ecaa_without_trace,
+        exclude_flagged_new_entrants,
+        normalize_2026_rez_ids,
+    )
     from ispypsa.config import load_config
     from ispypsa.data_fetch import read_csvs, write_csvs
     from ispypsa.iasr_table_caching import build_local_cache
@@ -317,12 +329,6 @@ def _run_staged_pipeline(
     from ispypsa.translator import (
         create_pypsa_friendly_inputs,
         create_pypsa_friendly_timeseries_inputs,
-    )
-    from analysis.archetypes import APPLY_ARCHETYPE
-    from analysis.benchmarks.flagged_exclusions_2026 import (
-        exclude_ecaa_without_trace,
-        exclude_flagged_new_entrants,
-        normalize_2026_rez_ids,
     )
 
     configure_logging()
@@ -659,9 +665,12 @@ def _run_staged_pipeline(
     import pandas as pd
 
     pf_gens = pypsa_friendly["generators"].set_index("name")
-    resid_full = pd.to_numeric(
-        pf_gens["isp_residual_co2_t_per_mwh"], errors="coerce"
-    ).fillna(0.0).reindex(network.generators.index).fillna(0.0)
+    resid_full = (
+        pd.to_numeric(pf_gens["isp_residual_co2_t_per_mwh"], errors="coerce")
+        .fillna(0.0)
+        .reindex(network.generators.index)
+        .fillna(0.0)
+    )
     dispatch_mwh = (
         network.generators_t.p.clip(lower=0)
         .mul(network.snapshot_weightings["generators"], axis=0)
@@ -757,6 +766,21 @@ def _run_staged_pipeline(
     return timings
 
 
+def _host_provenance(threads: int | None) -> dict:
+    """Where and how wide this solve ran, for the run record.
+
+    Solve times are only comparable across records that name their host and thread
+    count, and a Slurm job id ties the record back to the scheduler's own log.
+    """
+    return {
+        "host": socket.gethostname(),
+        "cpu_count": psutil.cpu_count(logical=True),
+        "threads": threads,
+        "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
+        "slurm_array_task_id": os.environ.get("SLURM_ARRAY_TASK_ID"),
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True, type=Path)
@@ -815,6 +839,21 @@ def main():
         "trajectories concurrently so concurrent x threads <= cores with "
         "headroom; default (unset) lets Gurobi use all cores (right for a "
         "single solve).",
+    )
+    ap.add_argument(
+        "--highs-threads",
+        type=int,
+        default=None,
+        help="Set the HiGHS 'threads' option for simplex, IPM and PDLP. Pin to the "
+        "job's core allocation on a shared node; ignored with --use-gurobi.",
+    )
+    ap.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_OUTPUT_ROOT,
+        help="Directory for the solver log and JSON record (logs/, records/); "
+        "the config's paths.run_directory should sit under the same root. "
+        "Default 'outputs' at the repo root.",
     )
     ap.add_argument(
         "--gurobi-method",
@@ -984,10 +1023,13 @@ def main():
             gurobi_opts["ObjScale"] = args.gurobi_obj_scale
         if gurobi_opts:
             solver_options = gurobi_opts
+    if args.highs_threads is not None and not args.use_gurobi:
+        solver_options = solver_options or {}
+        solver_options["threads"] = args.highs_threads
 
-    bench_dir = Path(__file__).parent
-    log_path = bench_dir / "logs" / f"{args.run_id}.log"
-    record_path = bench_dir / "records" / f"{args.run_id}.json"
+    layout = OutputLayout(args.output_root)
+    log_path = layout.log(args.run_id)
+    record_path = layout.record(args.run_id)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     record_path.parent.mkdir(parents=True, exist_ok=True)
     # Do NOT truncate the log file: when this runner is invoked from
@@ -1004,6 +1046,9 @@ def main():
         "solver_options": solver_options,
         "started_at": time.time(),
         "started_at_iso": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        **_host_provenance(
+            args.gurobi_threads if args.use_gurobi else args.highs_threads
+        ),
     }
 
     t_total = time.perf_counter()

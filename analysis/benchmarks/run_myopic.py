@@ -25,6 +25,15 @@ investment period, optionally injects carried tranches (if
 --recursive-dynamic), solves, extracts dispatch + capacity + (in RD mode)
 the newly-built tranche, then moves to the next period.
 
+Per-period settings that vary along a chain (the absolute CO2e cap and the parsed
+trace directory) are given as ``YEAR:VALUE`` schedules, one entry per period:
+
+    --co2-cap-t-schedule 2030:19984000 2040:2672000 2050:332000 2060:392000
+    --parsed-traces-directory-schedule 2030:/traces/central_2030 2040:/traces/central_2040 ...
+
+All run products go under ``--output-root`` (default ``outputs/``); see
+output_layout.OutputLayout for the directory shape.
+
 Usage:
     uv run python analysis/benchmarks/run_myopic.py \\
         --run-id nsw_6p_myopic \\
@@ -42,7 +51,9 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypeVar
 
 import pandas as pd
 import psutil
@@ -55,10 +66,41 @@ import psutil
 # instrumented_runner.py:30 and probe_persistence.py:43 use the same idiom.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from analysis.benchmarks.output_layout import (  # noqa: E402
+    DEFAULT_OUTPUT_ROOT,
+    OutputLayout,
+)
+
 BENCH = Path(__file__).parent
-LOGS = BENCH / "logs"
-RECORDS = BENCH / "records"
-CONFIG_TEMPLATE_DIR = BENCH / "configs"
+
+T = TypeVar("T")
+
+
+def _parse_year_schedule(tokens: list[str], cast: Callable[[str], T]) -> dict[int, T]:
+    """Parse ``YEAR:VALUE`` tokens into a per-year mapping.
+
+    ``["2030:1.5", "2040:2"]`` with ``cast=float`` gives ``{2030: 1.5, 2040: 2.0}``.
+    Each year may appear once; a malformed token raises ``ValueError``.
+    """
+    schedule: dict[int, T] = {}
+    for token in tokens:
+        year_text, sep, value_text = token.partition(":")
+        if not sep or not year_text.isdigit():
+            raise ValueError(f"Schedule entry must look like YEAR:VALUE, got {token!r}")
+        year = int(year_text)
+        if year in schedule:
+            raise ValueError(f"Year {year} appears twice in schedule {tokens}")
+        schedule[year] = cast(value_text)
+    return schedule
+
+
+def _require_schedule_covers_periods(
+    schedule: dict[int, T], periods: list[int], flag: str
+) -> None:
+    """Raise early if a schedule leaves any period of the chain unspecified."""
+    missing = sorted(set(periods) - set(schedule))
+    if missing:
+        raise ValueError(f"{flag} has no entry for periods {missing}")
 
 
 def _write_period_config(
@@ -80,6 +122,7 @@ def _write_period_config(
     iasr_final: bool = False,
     unserved_energy_cost: float = 10000.0,
     reference_years: list[int] | None = None,
+    layout: OutputLayout = OutputLayout(DEFAULT_OUTPUT_ROOT),
 ) -> Path:
     """Synthesise a single-period config for this milestone year.
 
@@ -94,9 +137,8 @@ def _write_period_config(
     66 chars).
     """
     ref_years = reference_years if reference_years is not None else [2018]
-    cfg_dir = BENCH / "configs_myopic"
-    cfg_dir.mkdir(parents=True, exist_ok=True)
-    cfg_path = cfg_dir / f"{run_id}.yaml"
+    cfg_path = layout.config(run_id)
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
     filter_line = f"filter_by_nem_regions: {regions}\n" if regions else "# Full NEM\n"
     # Vintage wiring: dataset_year 2026 -> Draft 2026 ISP economics (v7.5 cache +
     # the Draft 2026 workbook + the 7.5/ manual tables); otherwise 2025 IASR
@@ -125,7 +167,7 @@ def _write_period_config(
         iasr_version = "7.4"
     cfg_text = f"""# Auto-generated myopic config for {run_id} year {year}
 paths:
-  run_directory: "analysis/benchmarks/runs_myopic"
+  run_directory: "{layout.runs.as_posix()}"
   ispypsa_run_name: {run_id}
   parsed_traces_directory: "{parsed_traces_directory}"
   workbook_path: "{workbook_path}"
@@ -232,22 +274,28 @@ def _run_one_period(
     existing_fom_keeping: bool = False,
     span_weight_years: int | None = None,
     disestablishment_cost: float = 0.0,
+    co2_cap_t: float | None = None,
+    highs_threads: int | None = None,
+    layout: OutputLayout = OutputLayout(DEFAULT_OUTPUT_ROOT),
 ) -> dict:
     """Run a single period via the instrumented runner and return its record."""
-    log_path = LOGS / f"{run_id}.log"
-    record_path = RECORDS / f"{run_id}.json"
+    log_path = layout.log(run_id)
+    record_path = layout.record(run_id)
     if record_path.exists():
         record_path.unlink()
     if log_path.exists():
         log_path.unlink()
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    solver_flags = ""
+    solver_flags = f' --output-root "{layout.root.as_posix()}"'
+    if highs_threads is not None:
+        solver_flags += f" --highs-threads {highs_threads}"
     if use_pdlp:
-        solver_flags = " --use-pdlp"
+        solver_flags += " --use-pdlp"
         if pdlp_tolerance is not None:
             solver_flags += f" --pdlp-tolerance {pdlp_tolerance}"
     elif use_gurobi:
-        solver_flags = " --use-gurobi"
+        solver_flags += " --use-gurobi"
         if gurobi_bar_conv_tol is not None:
             solver_flags += f" --gurobi-bar-conv-tol {gurobi_bar_conv_tol}"
         if gurobi_opt_tol is not None:
@@ -283,6 +331,8 @@ def _run_one_period(
         carried_tranches_dir is not None or retention_floor_dir is not None
     ):
         solver_flags += f" --current-year {current_year}"
+    if co2_cap_t is not None:
+        solver_flags += f" --co2-cap-t {co2_cap_t}"
 
     cmd_str = (
         f'"{sys.executable}" -u "{BENCH / "instrumented_runner.py"}" '
@@ -335,16 +385,26 @@ def _run_one_period(
     }
 
 
-def _extract_built_capacities(run_id: str, year: int, archetype: str) -> pd.DataFrame:
+def _completed_record(layout: OutputLayout, run_id: str, archetype: str) -> dict | None:
+    """The saved record for a period that already solved, or None if it must be run.
+
+    Used by ``--resume`` so a requeued chain skips periods whose record reports
+    ``completed`` and whose solved network is on disk.
+    """
+    record_path = layout.record(run_id)
+    if not record_path.exists() or not layout.network(run_id, archetype).exists():
+        return None
+    record = json.loads(record_path.read_text())
+    return record if record.get("status") == "completed" else None
+
+
+def _extract_built_capacities(
+    layout: OutputLayout, run_id: str, year: int, archetype: str
+) -> pd.DataFrame:
     """Extract capacity built in this period — generators with build_year=year."""
     import pypsa
 
-    nc_path = (
-        Path("analysis/benchmarks/runs_myopic")
-        / f"{run_id}_{year}__{archetype}"
-        / "outputs"
-        / "capacity_expansion.nc"
-    )
+    nc_path = layout.network(f"{run_id}_{year}", archetype)
     if not nc_path.exists():
         return pd.DataFrame()
     n = pypsa.Network(nc_path)
@@ -427,6 +487,14 @@ def main():
         "with headroom; default (unset) uses all cores (single-solve default).",
     )
     ap.add_argument(
+        "--highs-threads",
+        type=int,
+        default=None,
+        help="Set the HiGHS 'threads' option (simplex, IPM and PDLP). Pin to the "
+        "job's core allocation on a shared node; default (unset) lets HiGHS "
+        "use every core it sees.",
+    )
+    ap.add_argument(
         "--gurobi-method",
         type=int,
         default=None,
@@ -503,14 +571,37 @@ def main():
     ap.add_argument(
         "--resume",
         action="store_true",
-        help="Resume a partially-completed recursive-dynamic chain: do NOT "
-        "wipe the tranches/ and retention/ dirs on launch, so prior "
-        "periods' saved tranches + retention floors are preserved and "
-        "carried forward. Pass --periods with only the REMAINING years "
-        "(e.g. after 2030 completed, --periods 2035 2040 2045 2050). "
-        "Used to apply a per-period tolerance fallback without re-solving "
-        "already-converged earlier periods. Default (fresh chain, wipe) "
-        "is unchanged when this flag is absent.",
+        help="Resume a partially-completed chain: keep the tranches/ and "
+        "retention/ dirs, and skip any period whose record already reports "
+        "completed and whose solved network is on disk, so a requeued job "
+        "continues from the first unsolved period. Pass a solver change "
+        "together with --periods limited to the remaining years to apply a "
+        "per-period fallback. Default (fresh chain, wipe) when absent.",
+    )
+    ap.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_OUTPUT_ROOT,
+        help="Directory for every run product: configs/, logs/, records/, runs/ "
+        "(see output_layout.OutputLayout). Default 'outputs' at the repo root.",
+    )
+    ap.add_argument(
+        "--co2-cap-t-schedule",
+        nargs="+",
+        default=None,
+        metavar="YEAR:TONNES",
+        help="Absolute annual CO2e cap per period, e.g. 2030:19984000 "
+        "2040:2672000. Every period in --periods needs an entry. Passed to the "
+        "runner as --co2-cap-t for that period; the cap's dual is recorded.",
+    )
+    ap.add_argument(
+        "--parsed-traces-directory-schedule",
+        nargs="+",
+        default=None,
+        metavar="YEAR:DIR",
+        help="Parsed-traces base directory per period, e.g. 2030:/scratch/central_2030 "
+        "2040:/scratch/central_2040 (isp_<dataset_year> is appended). Every "
+        "period in --periods needs an entry. Overrides --parsed-traces-directory.",
     )
     ap.add_argument(
         "--reducible-existing",
@@ -666,14 +757,32 @@ def main():
     if args.ccs_supply_curve and args.ccs_supply_curve.lower() == "none":
         args.ccs_supply_curve = None
 
+    layout = OutputLayout(args.output_root)
+    cap_schedule = (
+        _parse_year_schedule(args.co2_cap_t_schedule, float)
+        if args.co2_cap_t_schedule
+        else {}
+    )
+    if cap_schedule:
+        _require_schedule_covers_periods(
+            cap_schedule, args.periods, "--co2-cap-t-schedule"
+        )
+    traces_schedule = (
+        _parse_year_schedule(args.parsed_traces_directory_schedule, str)
+        if args.parsed_traces_directory_schedule
+        else {}
+    )
+    if traces_schedule:
+        _require_schedule_covers_periods(
+            traces_schedule, args.periods, "--parsed-traces-directory-schedule"
+        )
+
     regions = [args.filter] if args.filter else None
     # Per-chain tranche directory: independent-static runs never touch it
     # (carried_tranches_dir stays None), so default behaviour is bit-identical
     # to the pre-recursive-dynamic code path.
     tranches_dir = (
-        Path("analysis/benchmarks/runs_myopic") / args.run_id / "tranches"
-        if args.recursive_dynamic
-        else None
+        layout.chain_dir(args.run_id) / "tranches" if args.recursive_dynamic else None
     )
     if tranches_dir is not None:
         # Fresh chain → empty tranche directory. A re-run that wants to resume
@@ -689,9 +798,7 @@ def main():
     # tranches_dir, a fresh chain starts clean so a rerun does not inherit stale
     # retained levels from a different configuration.
     retention_dir = (
-        Path("analysis/benchmarks/runs_myopic") / args.run_id / "retention"
-        if args.reducible_existing
-        else None
+        layout.chain_dir(args.run_id) / "retention" if args.reducible_existing else None
     )
     if retention_dir is not None:
         if retention_dir.exists() and not args.resume:
@@ -706,7 +813,10 @@ def main():
         "periods": args.periods,
         "recursive_dynamic": args.recursive_dynamic,
         "tranches_dir": str(tranches_dir) if tranches_dir else None,
+        "output_root": str(layout.root),
         "carbon_price": args.carbon_price,
+        "co2_cap_t_schedule": cap_schedule or None,
+        "parsed_traces_directory_schedule": traces_schedule or None,
         "tns_price": args.tns_price,
         "gas_supply_curve": args.gas_supply_curve,
         "biomass_supply_curve": args.biomass_supply_curve,
@@ -730,6 +840,13 @@ def main():
         # is fixed at 30 in the template, so capacity_expansion stays 30 unless
         # the caller knows what they are doing.
         resolution_min = args.resolution_min if args.resolution_min is not None else 30
+        # A schedule path is normalised to POSIX form because it lands inside a
+        # double-quoted YAML scalar, where a Windows backslash path is a bad escape.
+        traces_dir = (
+            Path(traces_schedule[year]).as_posix()
+            if traces_schedule
+            else args.parsed_traces_directory
+        )
         cfg = _write_period_config(
             sub_run_id,
             year,
@@ -744,14 +861,22 @@ def main():
             biomass_supply_curve_csv=args.biomass_supply_curve,
             ccs_sink_tranches_csv=args.ccs_supply_curve,
             ccs_transport_csv=args.ccs_transport_adders,
-            parsed_traces_directory=args.parsed_traces_directory,
+            parsed_traces_directory=traces_dir,
             dataset_year=args.dataset_year,
             iasr_final=args.iasr_final,
             unserved_energy_cost=args.unserved_energy_cost,
             reference_years=args.reference_years,
+            layout=layout,
         )
         per_started = time.time()
-        rec = _run_one_period(
+        already_solved = (
+            _completed_record(layout, sub_run_id, args.archetype)
+            if args.resume
+            else None
+        )
+        if already_solved is not None:
+            print(f"  Period {year} already completed; skipping solve (--resume)")
+        rec = already_solved or _run_one_period(
             cfg,
             sub_run_id,
             args.budget_min,
@@ -777,13 +902,16 @@ def main():
             existing_fom_keeping=args.existing_fom_keeping,
             span_weight_years=args.span_weight_years,
             disestablishment_cost=args.disestablishment_cost,
+            co2_cap_t=cap_schedule.get(year),
+            highs_threads=args.highs_threads,
+            layout=layout,
         )
         per_wall = time.time() - per_started
         rec["per_period_wall_s"] = per_wall
         rec["per_period_peak_gib"] = rec.get("peak_rss_gib", 0)
         # capacity_built per fuel_type
         try:
-            built = _extract_built_capacities(args.run_id, year, args.archetype)
+            built = _extract_built_capacities(layout, args.run_id, year, args.archetype)
             by_fuel_gw = (
                 built.groupby("carrier")["p_nom_opt"].sum() / 1000.0
             ).to_dict()
@@ -798,12 +926,7 @@ def main():
                     save_tranche,
                 )
 
-                nc_path = (
-                    Path("analysis/benchmarks/runs_myopic")
-                    / f"{sub_run_id}__{args.archetype}"
-                    / "outputs"
-                    / "capacity_expansion.nc"
-                )
+                nc_path = layout.network(sub_run_id, args.archetype)
                 tranche = extract_new_built_tranche(nc_path, year)
                 save_tranche(tranche, tranches_dir, year)
                 rec["tranche_extracted"] = {
@@ -829,10 +952,7 @@ def main():
                     save_retention_floor,
                 )
 
-                run_root = (
-                    Path("analysis/benchmarks/runs_myopic")
-                    / f"{sub_run_id}__{args.archetype}"
-                )
+                run_root = layout.run_dir(sub_run_id, args.archetype)
                 floor = extract_retained_existing(run_root, year)
                 save_retention_floor(floor, retention_dir, year)
                 rec["retention_floor"] = {
@@ -847,7 +967,7 @@ def main():
             seq_record["peak_rss_gib_observed"], rec.get("peak_rss_gib", 0)
         )
         # Save partial after each period in case we die early.
-        (RECORDS / f"{args.run_id}.json").write_text(
+        layout.record(args.run_id).write_text(
             json.dumps(seq_record, indent=2, default=str)
         )
         if rec.get("status") != "completed":
@@ -877,9 +997,7 @@ def main():
 
     seq_record["ended_at_iso"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     seq_record["cumulative_wall_clock_s"] = time.time() - seq_started
-    (RECORDS / f"{args.run_id}.json").write_text(
-        json.dumps(seq_record, indent=2, default=str)
-    )
+    layout.record(args.run_id).write_text(json.dumps(seq_record, indent=2, default=str))
     print(
         f"\n=== Done. Cumulative wall: {seq_record['cumulative_wall_clock_s']:.0f}s ==="
     )

@@ -36,10 +36,16 @@ import pandas as pd
 
 SCRIPTS = Path(__file__).parent
 STAGE0 = SCRIPTS.parent / "stage0_conditioning.csv"
-RECORDS = Path("analysis/benchmarks/records")
+RECORDS = Path("outputs/records")
 
-FULL_LADDER = {"i150": 1.5, "i100": 1.0, "i050": 0.5, "i025": 0.25,
-               "i010": 0.10, "i005": 0.05}
+FULL_LADDER = {
+    "i150": 1.5,
+    "i100": 1.0,
+    "i050": 0.5,
+    "i025": 0.25,
+    "i010": 0.10,
+    "i005": 0.05,
+}
 REDUCED_LADDER = {"i100": 1.0, "i025": 0.25, "i005": 0.05}
 FULL_DEMANDS = {"d100": 1.00, "d110": 1.10, "d150": 1.50}
 REDUCED_DEMANDS = {"d105": 1.05, "d120": 1.20, "d135": 1.35}
@@ -73,13 +79,20 @@ def cell_list(years: list[int]) -> list[dict]:
 
 def _run_cell(cell: dict, solver: str, budget_min: int) -> dict:
     command = [
-        sys.executable, str(SCRIPTS / "run_cell.py"),
-        "--run-id", cell["run_id"],
-        "--year", str(cell["year"]),
-        "--demand-level", cell["demand_level"],
-        "--cap-t", str(cell["cap_t"]),
-        "--solver", solver,
-        "--budget-min", str(budget_min),
+        sys.executable,
+        str(SCRIPTS / "run_cell.py"),
+        "--run-id",
+        cell["run_id"],
+        "--year",
+        str(cell["year"]),
+        "--demand-level",
+        cell["demand_level"],
+        "--cap-t",
+        str(cell["cap_t"]),
+        "--solver",
+        solver,
+        "--budget-min",
+        str(budget_min),
     ]
     started = time.time()
     completed = subprocess.run(command, capture_output=True, text=True)
@@ -94,19 +107,28 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--years", type=int, nargs="+", default=YEARS)
     parser.add_argument("--solver", choices=["gurobi", "pdlp"], default="gurobi")
-    parser.add_argument("--width", type=int, default=2,
-                        help="Concurrent cells (Gurobi: <= 2 licence seats)")
+    parser.add_argument(
+        "--width",
+        type=int,
+        default=2,
+        help="Concurrent cells (Gurobi: <= 2 licence seats)",
+    )
     parser.add_argument("--budget-min", type=int, default=300)
-    parser.add_argument("--skip-solved", action="store_true",
-                        help="Skip cells whose record already reports completed")
+    parser.add_argument(
+        "--skip-solved",
+        action="store_true",
+        help="Skip cells whose record already reports completed",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     cells = cell_list(args.years)
     if args.skip_solved:
+
         def _done(cell):
             path = RECORDS / f"{cell['run_id']}.json"
             return path.exists() and '"completed"' in path.read_text()
+
         cells = [c for c in cells if not _done(c)]
 
     if args.dry_run:
@@ -118,14 +140,15 @@ def main() -> None:
     print(f"launching {len(cells)} cells, width {args.width}, solver {args.solver}")
     with ThreadPoolExecutor(max_workers=args.width) as pool:
         futures = [
-            pool.submit(_run_cell, cell, args.solver, args.budget_min)
-            for cell in cells
+            pool.submit(_run_cell, cell, args.solver, args.budget_min) for cell in cells
         ]
         for future in futures:
             result = future.result()
             status = "ok" if result["returncode"] == 0 else f"rc={result['returncode']}"
-            print(f"  {result['run_id']:<24} {status:<8} {result['wall_s']:>9.1f} s",
-                  flush=True)
+            print(
+                f"  {result['run_id']:<24} {status:<8} {result['wall_s']:>9.1f} s",
+                flush=True,
+            )
 
 
 if __name__ == "__main__":

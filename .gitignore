@@ -195,7 +195,6 @@ data/*
 
 # ignore all pypsa output files
 *.nc
-/analysis
 
 # Temporary compatibility shim (junctions + module copies at the old paths)
 # keeping the in-flight gsc5_c550 myopic chain alive across the analysis/
@@ -204,3 +203,6 @@ data/*
 
 # Local IASR workbook + PDFs (downloadable from AEMO portal; not in repo)
 /iasr inputs/
+
+# Campaign run products (configs, logs, records, solved networks). Never committed.
+outputs/
