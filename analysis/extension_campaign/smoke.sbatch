@@ -17,16 +17,17 @@ set -euo pipefail
 : "${TRACES_2030:?export TRACES_2030 to the 2030 parsed-traces base directory}"
 : "${TRACES_2040:?export TRACES_2040 to the 2040 parsed-traces base directory}"
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export UV_CACHE_DIR=/scratch3/wes148/uv_cache2
 cd /scratch3/wes148/code/ispypsa
 mkdir -p outputs/campaign/slurm
 # Placeholder NSW tonnages: round numbers chosen to bind without being deep, not
 # a rung of the campaign ladder (which is national and written by build_manifest.py).
-uv run python analysis/benchmarks/run_myopic.py --run-id smoke_nsw_capped --output-root outputs \
+uv run --no-sync python analysis/benchmarks/run_myopic.py --run-id smoke_nsw_capped --output-root outputs \
   --filter NSW --periods 2030 2040 --recursive-dynamic --reducible-existing --existing-fom-keeping \
   --iasr-final --dataset-year 2026 \
   --parsed-traces-directory-schedule 2030:$TRACES_2030 2040:$TRACES_2040 \
   --rep-weeks 1 6 10 14 19 22 26 32 35 39 41 45 50 --no-named-weeks \
-  --tns-price 89.93 --ccs-supply-curve none \
+  --tns-price 89.93 --ccs-supply-curve none --gas-unblended \
   --gas-supply-curve analysis/gas_market/gas_supply_curve_central.csv \
   --biomass-supply-curve analysis/bioenergy_market/biomass_supply_curve_central.csv \
   --use-pdlp --pdlp-tolerance 3e-3 --highs-threads $SLURM_CPUS_PER_TASK \

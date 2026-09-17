@@ -16,15 +16,15 @@ from ispypsa.translator.buses import (
     _translate_rezs_to_buses,
     create_pypsa_friendly_bus_demand_timeseries,
 )
-from ispypsa.translator.custom_constraints import (
-    _append_if_not_empty,
-    _translate_custom_constraints,
-)
 from ispypsa.translator.ccs_supply_curve import (
     _add_ccs_transport_columns,
     _translate_ccs_sink_tranches,
     _translate_ccs_transport_adders,
     _validate_sinks_have_tranches,
+)
+from ispypsa.translator.custom_constraints import (
+    _append_if_not_empty,
+    _translate_custom_constraints,
 )
 from ispypsa.translator.fuel_supply_curve import _translate_fuel_supply_curve
 from ispypsa.translator.generators import (
@@ -441,6 +441,7 @@ def create_pypsa_friendly_timeseries_inputs(
         pypsa_friendly_timeseries_inputs_location,
         carbon_price=config.carbon_pricing.carbon_price,
         tns_price=config.carbon_pricing.tns_price,
+        blend_biomethane_into_gas=config.fuel_pricing.blend_biomethane_into_gas,
     )
 
     snapshots = _add_snapshot_weightings(

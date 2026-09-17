@@ -13,6 +13,7 @@ from ispypsa.templater.mappings import (
 )
 from ispypsa.templater.static_ecaa_generator_properties import (
     _add_closure_year_column,
+    _fill_thermal_heat_rate_and_vom_from_technology_medians,
     _template_ecaa_generators_static_properties,
 )
 from ispypsa.templater.static_new_generator_properties import (
@@ -118,6 +119,85 @@ def test_static_new_generator_templater(workbook_table_cache_test_path: Path):
         for where_tech in technology_dfs:
             tech_df = df.loc[where_tech, :]
             assert all(tech_df[zero_col_name] == 0.0)
+
+
+def test_fill_thermal_heat_rate_and_vom_from_technology_medians(csv_str_to_df, caplog):
+    """Test that missing heat rate and VOM are filled from same-technology peers."""
+    ecaa_generators_csv = """
+    generator,      technology_type,  heat_rate_gj/mwh,  vom_$/mwh_sent_out
+    Gas_Peaker_A,   OCGT,             11.0,              7.0
+    Gas_Peaker_B,   OCGT,             ,
+    Gas_CCGT,       CCGT,             9.0,               4.0
+    """
+    ecaa_generators = csv_str_to_df(ecaa_generators_csv)
+
+    with caplog.at_level("WARNING"):
+        result = _fill_thermal_heat_rate_and_vom_from_technology_medians(
+            ecaa_generators
+        )
+
+    expected_csv = """
+    generator,      technology_type,  heat_rate_gj/mwh,  vom_$/mwh_sent_out
+    Gas_Peaker_A,   OCGT,             11.0,              7.0
+    Gas_Peaker_B,   OCGT,             11.0,              7.0
+    Gas_CCGT,       CCGT,             9.0,               4.0
+    """
+    expected = csv_str_to_df(expected_csv)
+    pd.testing.assert_frame_equal(result, expected)
+    assert (
+        "ECAA generators given technology-median heat rate/VOM "
+        "(missing in IASR): ['Gas_Peaker_B']"
+    ) in caplog.text
+
+
+def test_fill_thermal_heat_rate_and_vom_with_no_missing_values(csv_str_to_df, caplog):
+    """Test that a complete table is left alone and logs nothing."""
+    ecaa_generators_csv = """
+    generator,      technology_type,  heat_rate_gj/mwh,  vom_$/mwh_sent_out
+    Gas_Peaker_A,   OCGT,             11.0,              7.0
+    Gas_Peaker_B,   OCGT,             12.0,              8.0
+    Gas_CCGT,       CCGT,             9.0,               4.0
+    """
+    ecaa_generators = csv_str_to_df(ecaa_generators_csv)
+
+    with caplog.at_level("WARNING"):
+        result = _fill_thermal_heat_rate_and_vom_from_technology_medians(
+            ecaa_generators
+        )
+
+    expected_csv = """
+    generator,      technology_type,  heat_rate_gj/mwh,  vom_$/mwh_sent_out
+    Gas_Peaker_A,   OCGT,             11.0,              7.0
+    Gas_Peaker_B,   OCGT,             12.0,              8.0
+    Gas_CCGT,       CCGT,             9.0,               4.0
+    """
+    expected = csv_str_to_df(expected_csv)
+    pd.testing.assert_frame_equal(result, expected)
+    assert "technology-median heat rate/VOM" not in caplog.text
+
+
+def test_fill_thermal_heat_rate_and_vom_with_no_peer(csv_str_to_df, caplog):
+    """Test that a technology with no peer value is left missing."""
+    ecaa_generators_csv = """
+    generator,      technology_type,  heat_rate_gj/mwh,  vom_$/mwh_sent_out
+    Battery_A,      Battery Storage,  ,
+    Gas_CCGT,       CCGT,             9.0,               4.0
+    """
+    ecaa_generators = csv_str_to_df(ecaa_generators_csv)
+
+    with caplog.at_level("WARNING"):
+        result = _fill_thermal_heat_rate_and_vom_from_technology_medians(
+            ecaa_generators
+        )
+
+    expected_csv = """
+    generator,      technology_type,  heat_rate_gj/mwh,  vom_$/mwh_sent_out
+    Battery_A,      Battery Storage,  ,
+    Gas_CCGT,       CCGT,             9.0,               4.0
+    """
+    expected = csv_str_to_df(expected_csv)
+    pd.testing.assert_frame_equal(result, expected)
+    assert "technology-median heat rate/VOM" not in caplog.text
 
 
 def test_add_closure_year_column(csv_str_to_df):

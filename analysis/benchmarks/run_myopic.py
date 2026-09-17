@@ -122,6 +122,7 @@ def _write_period_config(
     iasr_final: bool = False,
     unserved_energy_cost: float = 10000.0,
     reference_years: list[int] | None = None,
+    gas_unblended: bool = False,
     layout: OutputLayout = OutputLayout(DEFAULT_OUTPUT_ROOT),
 ) -> Path:
     """Synthesise a single-period config for this milestone year.
@@ -234,6 +235,8 @@ carbon_pricing:
   carbon_price: {carbon_price}
   tns_price: {tns_price}
 """
+    if gas_unblended:
+        cfg_text += "fuel_pricing:\n  blend_biomethane_into_gas: false\n"
     if gas_supply_curve_csv is not None:
         cfg_text += f'gas_supply_curve:\n  curve_csv: "{gas_supply_curve_csv}"\n'
     if biomass_supply_curve_csv is not None:
@@ -671,6 +674,15 @@ def main():
         "prices).",
     )
     ap.add_argument(
+        "--gas-unblended",
+        action="store_true",
+        help="Price the Gas carrier from the IASR gas price table alone, writing "
+        "fuel_pricing.blend_biomethane_into_gas: false into every period "
+        "config. By default AEMO's mandated biomethane blend is folded into "
+        "the gas price trajectory; switching it off isolates the blend's cost "
+        "effect and leaves biomethane to a separate bioenergy model.",
+    )
+    ap.add_argument(
         "--biomass-supply-curve",
         default="analysis/bioenergy_market/biomass_supply_curve_central.csv",
         help="Path to a biomass feedstock supply curve CSV (tranche, "
@@ -819,6 +831,7 @@ def main():
         "parsed_traces_directory_schedule": traces_schedule or None,
         "tns_price": args.tns_price,
         "gas_supply_curve": args.gas_supply_curve,
+        "gas_unblended": args.gas_unblended,
         "biomass_supply_curve": args.biomass_supply_curve,
         "ccs_supply_curve": args.ccs_supply_curve,
         "unserved_energy_cost": args.unserved_energy_cost,
@@ -858,6 +871,7 @@ def main():
             carbon_price=args.carbon_price,
             tns_price=args.tns_price,
             gas_supply_curve_csv=args.gas_supply_curve,
+            gas_unblended=args.gas_unblended,
             biomass_supply_curve_csv=args.biomass_supply_curve,
             ccs_sink_tranches_csv=args.ccs_supply_curve,
             ccs_transport_csv=args.ccs_transport_adders,

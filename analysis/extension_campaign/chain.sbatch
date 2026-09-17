@@ -23,18 +23,19 @@
 #SBATCH --output=/scratch3/wes148/code/ispypsa/outputs/campaign/slurm/%x-%A_%a.out
 set -euo pipefail
 export GRB_LICENSE_FILE=$HOME/gurobi_sc2.lic
+export UV_CACHE_DIR=/scratch3/wes148/uv_cache2
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 cd /scratch3/wes148/code/ispypsa
 mkdir -p outputs/campaign/slurm
 IFS=$'\t' read -r RUN_ID TRAJ ARGS < <(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" outputs/campaign/chains.tsv)
 # $ARGS is deliberately unquoted: it is either "--carbon-price N" or a
 # "--co2-cap-t-schedule 2030:T 2040:T ..." token list that must word-split.
-uv run python analysis/benchmarks/run_myopic.py --run-id "$RUN_ID" --output-root outputs \
+uv run --no-sync python analysis/benchmarks/run_myopic.py --run-id "$RUN_ID" --output-root outputs \
   --periods 2030 2040 2050 2060 --recursive-dynamic --reducible-existing --existing-fom-keeping \
   --iasr-final --dataset-year 2026 \
   --parsed-traces-directory-schedule $(cat outputs/campaign/tracedirs/$TRAJ.txt) \
   --rep-weeks 1 6 10 14 19 22 26 32 35 39 41 45 50 --no-named-weeks \
-  --tns-price 89.93 --ccs-supply-curve none \
+  --tns-price 89.93 --ccs-supply-curve none --gas-unblended \
   --gas-supply-curve analysis/extension_campaign/gas_supply_curve_central_held_to_2060.csv \
   --biomass-supply-curve analysis/extension_campaign/biomass_supply_curve_central_held_to_2060.csv \
   --use-gurobi --gurobi-method 2 --gurobi-bar-conv-tol 1e-8 --gurobi-threads $SLURM_CPUS_PER_TASK \

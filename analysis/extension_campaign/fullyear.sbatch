@@ -19,16 +19,17 @@
 #SBATCH --output=/scratch3/wes148/code/ispypsa/outputs/campaign/slurm/%x-%A_%a.out
 set -euo pipefail
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export UV_CACHE_DIR=/scratch3/wes148/uv_cache2
 cd /scratch3/wes148/code/ispypsa
 mkdir -p outputs/campaign/slurm
 IFS=$'\t' read -r RUN_ID TRAJ ARGS < <(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" outputs/campaign/fullyear.tsv)
 # $ARGS is deliberately unquoted so its pressure tokens word-split.
-uv run python analysis/benchmarks/run_myopic.py --run-id "${RUN_ID}_fullyear" --output-root outputs \
+uv run --no-sync python analysis/benchmarks/run_myopic.py --run-id "${RUN_ID}_fullyear" --output-root outputs \
   --periods 2050 --reducible-existing --existing-fom-keeping \
   --iasr-final --dataset-year 2026 \
   --parsed-traces-directory-schedule $(cat outputs/campaign/tracedirs/$TRAJ.txt) \
   --full-year --resolution-min 30 \
-  --tns-price 89.93 --ccs-supply-curve none \
+  --tns-price 89.93 --ccs-supply-curve none --gas-unblended \
   --gas-supply-curve analysis/gas_market/gas_supply_curve_central.csv \
   --biomass-supply-curve analysis/bioenergy_market/biomass_supply_curve_central.csv \
   --use-pdlp --pdlp-tolerance 1e-3 --highs-threads $SLURM_CPUS_PER_TASK \

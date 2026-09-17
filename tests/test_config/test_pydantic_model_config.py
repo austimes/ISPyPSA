@@ -510,3 +510,19 @@ def test_tns_price_still_works_without_a_ccs_supply_curve():
     model = ModelConfig(**config)
 
     assert model.carbon_pricing.tns_price == 20.0
+
+
+def test_fuel_pricing_defaults_to_blending_biomethane_into_gas():
+    """Omitting the block keeps AEMO's biomethane blend in the gas price trajectory."""
+    model = ModelConfig(**get_valid_config())
+
+    assert model.fuel_pricing.blend_biomethane_into_gas is True
+
+
+def test_fuel_pricing_can_switch_the_biomethane_blend_off():
+    config = get_valid_config()
+    config["fuel_pricing"] = {"blend_biomethane_into_gas": False}
+
+    model = ModelConfig(**config)
+
+    assert model.fuel_pricing.blend_biomethane_into_gas is False
