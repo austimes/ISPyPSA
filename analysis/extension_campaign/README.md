@@ -18,21 +18,26 @@ artifact links is the one manual step; the script prints the files.
 
 Machine-specific locations come from the environment, with defaults matching the campaign's current homes:
 
-| variable | default | meaning | |---|---|---| | `ISPYPSA_REMOTE_HOST` | `petrichor` | ssh host holding the runs | |
-`ISPYPSA_REMOTE_REPO` | `/scratch3/wes148/code/ispypsa` | clone on that host | | `ISPYPSA_SHARE_DIR` |
-`P:/work/AusTIMES2/data/ispypsa/outputs` | where colleagues open the pages | | `ISPYPSA_SLURM_ACCOUNT`,
-`ISPYPSA_SLURM_PARTITION`, `ISPYPSA_WORKERS` | `OD-241887`, `defq`, `16` | cluster stage (read by `refresh_remote.sh`) |
+| variable                  | default                                  | meaning                                     |
+| ------------------------- | ---------------------------------------- | ------------------------------------------- |
+| `ISPYPSA_REMOTE_HOST`     | `petrichor`                              | ssh host holding the runs                   |
+| `ISPYPSA_REMOTE_REPO`     | `/scratch3/wes148/code/ispypsa`          | clone on that host                          |
+| `ISPYPSA_SHARE_DIR`       | `P:/work/AusTIMES2/data/ispypsa/outputs` | where colleagues open the pages             |
+| `ISPYPSA_SLURM_ACCOUNT`   | `OD-241887`                              | cluster stage (read by `refresh_remote.sh`) |
+| `ISPYPSA_SLURM_PARTITION` | `defq`                                   | cluster stage                               |
+| `ISPYPSA_WORKERS`         | `16`                                     | parallel network reads on the compute node  |
 
 ## Pieces
 
-| script | role | |---|---| | `build_manifest.py` | Turns the demand plan into the 41-chain manifest and cap tonnages
-(`outputs/campaign/`) | | `build_trajectory_demand_dirs.py` | Rewrites the demand traces per trajectory and milestone,
-with the FY2050 to FY2060 relabel | | `hold_supply_curves.py` | Extends the gas and biomass supply curves to 2060 by
-holding their last year | | `chain.sbatch`, `smoke.sbatch`, `fullyear.sbatch` | Slurm launchers for the production
-array, the NSW smoke chain and full-year validations | | `build_dashboard_data.py`, `build_dashboard.py` | Solved
-milestones to JSON, JSON to the monitoring page | | `build_deliverables.py`, `build_cost_dashboard_data.py`,
-`build_cost_dashboard.py` | Cost decomposition per cell, marginals, and the cost-surface page | | `refresh_remote.sh`,
-`refresh.py` | The cluster half and the single entry point above |
+| script                                                                             | role                                                                                       |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `build_manifest.py`                                                                | Turns the demand plan into the 41-chain manifest and cap tonnages (`outputs/campaign/`)    |
+| `build_trajectory_demand_dirs.py`                                                  | Rewrites the demand traces per trajectory and milestone, with the FY2050 to FY2060 relabel |
+| `hold_supply_curves.py`                                                            | Extends the gas and biomass supply curves to 2060 by holding their last year               |
+| `chain.sbatch`, `smoke.sbatch`, `fullyear.sbatch`                                  | Slurm launchers for the production array, the NSW smoke chain and full-year validations    |
+| `build_dashboard_data.py`, `build_dashboard.py`                                    | Solved milestones to JSON, JSON to the monitoring page                                     |
+| `build_deliverables.py`, `build_cost_dashboard_data.py`, `build_cost_dashboard.py` | Cost decomposition per cell, marginals, and the cost-surface page                          |
+| `refresh_remote.sh`, `refresh.py`                                                  | The cluster half and the single entry point above                                          |
 
 ## Launching solves
 
