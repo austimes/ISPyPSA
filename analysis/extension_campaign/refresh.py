@@ -12,9 +12,6 @@ Steps, each deterministic given the solved networks on the cluster:
 3. Render both dashboards from their templates into ``outputs/exports/``.
 4. Copy the dashboards and their data to the team share.
 
-Publishing to the Claude artifact URL is the one step that stays outside this script,
-because it needs the interactive Artifact tool; the script prints the file to publish.
-
 Host, paths and share are read from the environment (see ``_Settings``) so the script
 carries no machine-specific constants; the defaults match the campaign's current homes.
 """
@@ -125,7 +122,4 @@ def main(skip_remote: bool = False, no_share: bool = False) -> None:
     _render_dashboards()
     if not no_share:
         _copy_to_share(settings)
-    print(
-        f"publish {EXPORTS / 'dashboard.html'} and {EXPORTS / 'cost_dashboard.html'} "
-        "with the Artifact tool to refresh the Claude links."
-    )
+    print(f"page: {settings.share_dir / 'dashboard.html'}")
