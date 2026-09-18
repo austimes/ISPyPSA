@@ -4,6 +4,8 @@ Emissions-capped capacity expansion for the NEM over 2030 to 2060: five demand t
 carbon prices and six absolute cap schedules), 41 recursive-dynamic chains solved on petrichor. The campaign design is
 in `../intensity_demand_map/EXTENSION_CAMPAIGN_BRIEF.md`.
 
+For the source versions, fuel settings, input preparation commands and Windows trace-copy option, see [reproducing electricity investment histories](../../docs/reproducing-electricity-histories.md).
+
 ## Regenerate everything
 
 ```bash

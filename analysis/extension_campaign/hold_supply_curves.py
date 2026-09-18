@@ -4,12 +4,12 @@ The gas and biomass supply curves (tranche, financial_year, cap_pj, adder_$/gj) 
 FY2055, but the extension campaign solves a 2060 milestone. The campaign brief holds every
 trajectory-valued input at its last published year beyond the data, so the held copy
 repeats the final year's tranche rows for each requested later year. The output is an
-authored extension and is written beside the campaign scripts so the provenance is visible.
+authored extension and should be written under the run's output directory.
 
 Usage:
     uv run python analysis/extension_campaign/hold_supply_curves.py \\
         --curve analysis/gas_market/gas_supply_curve_central.csv \\
-        --out analysis/extension_campaign/gas_supply_curve_central_held_to_2060.csv \\
+        --out outputs/inputs/gas_supply_curve_held_to_2060.csv \\
         --years 2060
 """
 
@@ -50,6 +50,7 @@ def main() -> None:
     args = parser.parse_args()
 
     held = hold_curve_to_years(pd.read_csv(args.curve), args.years)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
     held.to_csv(args.out, index=False, lineterminator="\n")
     print(f"wrote {args.out} ({len(held)} rows, to FY{held['financial_year'].max()})")
 
