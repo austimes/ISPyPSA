@@ -204,3 +204,6 @@ data/*
 
 # Local IASR workbook + PDFs (downloadable from AEMO portal; not in repo)
 /iasr inputs/
+
+# Generated model-run inputs, state, networks, logs and records.
+/outputs/

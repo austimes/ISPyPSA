@@ -16,6 +16,8 @@ An open-source capacity expansion modelling tool based on the methodology and as
 
 ## Installation
 
+For the electricity campaign's sequential investment histories, fuel curves and authored storage assumptions, see [Reproducing electricity histories](docs/reproducing-electricity-histories.md).
+
 ```bash
 pip install ispypsa
 ```

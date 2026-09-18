@@ -6,7 +6,6 @@ import pypsa
 
 from ispypsa.translator.helpers import convert_to_numeric_if_possible
 
-
 # Monthly capacity-factor profile for conventional (non-pumped) hydro, applied
 # as a static p_max_pu series for Water-carrier generators. ISPyPSA does not
 # load hydro availability traces, so without this constraint the LP dispatches
@@ -20,25 +19,70 @@ from ispypsa.translator.helpers import convert_to_numeric_if_possible
 # Bendeela, etc.); per-generator CF differentiation requires AEMO Gen Info
 # per-facility data which is out of scope for this fix.
 _HYDRO_MONTHLY_CF = {
-    1: 0.25, 2: 0.25,             # peak summer — low inflows
-    3: 0.35, 4: 0.35, 5: 0.35,    # autumn
-    6: 0.40, 7: 0.40, 8: 0.40,    # winter — peak inflows
-    9: 0.45, 10: 0.45, 11: 0.45,  # spring — snowmelt
-    12: 0.30,                     # early summer
+    1: 0.25,
+    2: 0.25,  # peak summer — low inflows
+    3: 0.35,
+    4: 0.35,
+    5: 0.35,  # autumn
+    6: 0.40,
+    7: 0.40,
+    8: 0.40,  # winter — peak inflows
+    9: 0.45,
+    10: 0.45,
+    11: 0.45,  # spring — snowmelt
+    12: 0.30,  # early summer
 }
 
 
-# Empirical NEM-wide realised annual capacity factor for conventional (non-pumped)
-# hydro, used to cap total annual Water-carrier generation via a GlobalConstraint
+# NEM-wide annual conventional-hydro energy budget (MWh) by financial year,
+# used to cap total annual Water-carrier generation via a GlobalConstraint
 # (see `_add_hydro_energy_budget_constraint`). `_HYDRO_MONTHLY_CF` above is only a
 # ceiling on instantaneous output; paired with hydro's near-zero marginal cost, the
 # LP dispatches Water generators at ~that ceiling in almost every hour, which
 # overstates annual hydro generation because real hydro is water-limited, not just
-# capacity-limited. AEMO Quarterly Energy Dynamics reports show average NEM hydro
-# output of ~1,344 MW (Q1 2024) to ~1,612 MW (Q4 2024) against ~6.9 GW of installed
-# conventional hydro capacity -- an annual CF of roughly 0.20, well below the
-# _HYDRO_MONTHLY_CF ceiling's ~0.37 mean.
-_HYDRO_ANNUAL_CF = 0.20
+# capacity-limited.
+#
+# Source: AEMO 2026 ISP Step Change modelled conventional-hydro generation
+# ("Annual generation and emissions 2026 ISP.xlsx", sheet 'SC Gen', column
+# 'Hydro', sensitivity FP20403_260508a; PHES is reported and modelled separately
+# here as StorageUnits). The repository extract with the full 2027-2050 trajectory
+# is analysis/calibration/aemo_2026_isp_sc_hydro_generation.csv. This replaces the
+# earlier flat 0.20-CF calibration. AEMO's own trajectory declines from about
+# 16.7 TWh (2027) to 9.8 TWh (2050).
+_HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY = {
+    2027: 16_669_580.0,
+    2028: 15_495_760.0,
+    2029: 15_517_830.0,
+    2030: 12_988_940.0,
+    2031: 13_099_010.0,
+    2032: 12_685_670.0,
+    2033: 12_164_150.0,
+    2034: 12_471_840.0,
+    2035: 14_362_580.0,
+    2036: 13_483_620.0,
+    2037: 13_301_300.0,
+    2038: 14_846_830.0,
+    2039: 13_635_800.0,
+    2040: 12_769_520.0,
+    2041: 10_776_160.0,
+    2042: 9_830_530.0,
+    2043: 10_737_040.0,
+    2044: 10_726_160.0,
+    2045: 11_001_850.0,
+    2046: 9_187_630.0,
+    2047: 9_972_260.0,
+    2048: 11_812_520.0,
+    2049: 11_380_730.0,
+    2050: 9_833_820.0,
+}
+
+
+def _hydro_annual_budget_mwh(period: int) -> float:
+    """Return the AEMO hydro budget, clamped to the published year range."""
+    years = sorted(_HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY)
+    clamped = min(max(int(period), years[0]), years[-1])
+    return _HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY[clamped]
+
 
 _HOURS_PER_YEAR = 8760
 
@@ -186,12 +230,14 @@ def _add_generators_to_network(
 
 
 def _add_hydro_energy_budget_constraint(network: pypsa.Network) -> None:
-    """Caps total annual Water-carrier generation at a realistic energy budget.
+    """Caps total annual Water-carrier generation at AEMO's modelled budget.
 
     Adds a PyPSA `GlobalConstraint` (type "operational_limit") per investment
     period, so the LP must allocate a limited annual water budget to its
     highest-value hours rather than dispatching hydro at its `p_max_pu`
-    ceiling in every hour. Does nothing if the network has no Water generators.
+    ceiling in every hour. The budget is the AEMO 2026 ISP Step Change
+    conventional-hydro generation for that financial year. Does nothing if the
+    network has no Water generators.
 
     Args:
         network: The `pypsa.Network` object, with generators already added.
@@ -204,16 +250,14 @@ def _add_hydro_energy_budget_constraint(network: pypsa.Network) -> None:
     if water_capacity_mw == 0:
         return
 
-    annual_budget_mwh = water_capacity_mw * _HYDRO_ANNUAL_CF * _HOURS_PER_YEAR
-
     for period, years in network.investment_period_weightings["years"].items():
         network.add(
             "GlobalConstraint",
-            f"water_annual_energy_budget_{period}",
+            f"water_annual_energy_budget_aemo2026sc_{period}",
             type="operational_limit",
             carrier_attribute="Water",
             sense="<=",
-            constant=annual_budget_mwh * years,
+            constant=_hydro_annual_budget_mwh(period) * years,
             investment_period=period,
         )
 

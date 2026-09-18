@@ -140,6 +140,46 @@ def test_strip_all_text_after_numeric_value_series():
     pd.testing.assert_series_equal(result, expected)
 
 
+def test_strip_all_text_after_numeric_value_plain_multi_digit_integers():
+    """Plain integers of four or more digits must survive intact."""
+    test_series = pd.Series(
+        [
+            "1660",
+            "1000",
+            "12345",
+            "2131000",
+            "1,660",
+            "680 MW",
+            "4600: 3000)",
+            "-1660 deficit",
+            "+1660",
+            "1660.5",
+            "12,345,678",
+            "999",
+        ]
+    )
+
+    result = _strip_all_text_after_numeric_value(test_series)
+
+    expected = pd.Series(
+        [
+            "1660",
+            "1000",
+            "12345",
+            "2131000",
+            "1,660",
+            "680",
+            "4600",
+            "-1660",
+            "+1660",
+            "1660.5",
+            "12,345,678",
+            "999",
+        ]
+    )
+    pd.testing.assert_series_equal(result, expected)
+
+
 def test_strip_all_text_after_numeric_value_non_object_dtype():
     """Test that non-object dtype Series are returned unchanged."""
     # Test with numeric Series (non-object dtype)

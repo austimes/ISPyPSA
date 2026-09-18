@@ -275,7 +275,7 @@ def _strip_all_text_after_numeric_value(
         # - Optional decimal part with one period
         # - Followed by optional whitespace and any other text
         series = series.astype(str).str.replace(
-            r"^([+-]?(?:[0-9]{1,3}(?:,[0-9]{3})*|[0-9]+)(?:\.[0-9]+)?)\s*.*",
+            r"^([+-]?(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.[0-9]+)?)\s*.*",
             r"\1",
             regex=True,
         )

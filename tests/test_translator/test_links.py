@@ -107,6 +107,40 @@ def test_translate_expansion_costs_to_links(csv_str_to_df):
         )
 
 
+def test_translate_expansion_costs_to_links_beyond_published_years(csv_str_to_df):
+    flow_path_expansion_costs = csv_str_to_df("""
+    flow_path,     additional_network_capacity_mw,  2025_26_$/mw,  2026_27_$/mw
+    NodeA-NodeB,   500,                             1200,          1500
+    """)
+    existing_links_df = csv_str_to_df("""
+    isp_name,    name,                 carrier,  bus0,    bus1,    p_nom
+    NodeA-NodeB, NodeA-NodeB_existing, AC,       NodeA,   NodeB,   1000
+    """)
+
+    result = _translate_expansion_costs_to_links(
+        flow_path_expansion_costs,
+        existing_links_df,
+        [2027, 2032],
+        "fy",
+        0.07,
+        30,
+        id_column="flow_path",
+        match_column="isp_name",
+    )
+
+    expected_result = csv_str_to_df("""
+    isp_name,    name,                 bus0,   bus1,  carrier, p_nom,  p_nom_extendable,  p_min_pu,  build_year,  lifetime
+    NodeA-NodeB, NodeA-NodeB_exp_2027, NodeA, NodeB,  AC,      0.0,    True,              -1.0,      2027,        INF
+    NodeA-NodeB, NodeA-NodeB_exp_2032, NodeA, NodeB,  AC,      0.0,    True,              -1.0,      2032,        INF
+    """)
+    assert result["capital_cost"].nunique() == 1
+    pd.testing.assert_frame_equal(
+        result.drop(columns="capital_cost").sort_values("name").reset_index(drop=True),
+        expected_result.sort_values("name").reset_index(drop=True),
+        check_dtype=False,
+    )
+
+
 def test_translate_expansion_costs_to_links_empty(csv_str_to_df):
     """Test that empty flow path expansion costs result in empty DataFrame."""
     # Create empty DataFrame
@@ -181,8 +215,8 @@ def test_translate_expansion_costs_to_links_no_matching_years(csv_str_to_df):
     """
     existing_links_df = csv_str_to_df(existing_links_csv)
 
-    # Investment periods don't include 2026
-    investment_periods = [2027, 2028]
+    # Both investment periods precede the published cost year.
+    investment_periods = [2024, 2025]
     year_type = "fy"
     wacc = 0.07
     asset_lifetime = 30

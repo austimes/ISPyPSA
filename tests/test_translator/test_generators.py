@@ -362,6 +362,28 @@ def test_add_new_entrant_generator_build_costs(
     pd.testing.assert_frame_equal(result, expected_result_df, check_dtype=False)
 
 
+def test_add_new_entrant_generator_build_costs_beyond_published_years(
+    csv_str_to_df, sample_generator_translator_tables
+):
+    generators_df = csv_str_to_df("""
+    generator_name,           build_year
+    CCGT,                     2025
+    CCGT,                     2035
+    Wind,                     2035
+    """)
+    build_costs_df = sample_generator_translator_tables["new_entrant_build_costs"]
+
+    result = _add_new_entrant_generator_build_costs(generators_df, build_costs_df)
+
+    expected_result_df = csv_str_to_df("""
+    generator_name,           build_year,    build_cost_$/mw
+    CCGT,                     2025,          1900000
+    CCGT,                     2035,          1900000
+    Wind,                     2035,          1500000
+    """)
+    pd.testing.assert_frame_equal(result, expected_result_df, check_dtype=False)
+
+
 def test_add_new_entrant_generator_build_costs_missing_build_year(
     csv_str_to_df, sample_generator_translator_tables
 ):
@@ -417,7 +439,7 @@ def test_get_vre_connection_costs_dict(csv_str_to_df):
     vre_costs_df = csv_str_to_df(vre_costs_csv)
 
     # Call the function
-    result = _get_vre_connection_costs_dict(vre_costs_df)
+    result = _get_vre_connection_costs_dict(vre_costs_df, [2025, 2040])
 
     expected_result = {
         "Northern Qld_2025": 60000.0,
@@ -430,6 +452,26 @@ def test_get_vre_connection_costs_dict(csv_str_to_df):
         "Tumut_2040": 220000.0,
     }
 
+    assert result == expected_result
+
+
+def test_get_vre_connection_costs_dict_beyond_published_years(csv_str_to_df):
+    vre_costs_df = csv_str_to_df("""
+    REZ__names,                2024_25_$/mw,  2039_40_$/mw, system_strength_connection_cost_$/mw
+    Northern__Qld,             50000,         45000,        10000
+    Wide__Bay,                 55000,         50000,        12000
+    """)
+
+    result = _get_vre_connection_costs_dict(vre_costs_df, [2025, 2040, 2045])
+
+    expected_result = {
+        "Northern Qld_2025": 60000.0,
+        "Northern Qld_2040": 55000.0,
+        "Northern Qld_2045": 55000.0,
+        "Wide Bay_2025": 67000.0,
+        "Wide Bay_2040": 62000.0,
+        "Wide Bay_2045": 62000.0,
+    }
     assert result == expected_result
 
 
@@ -619,6 +661,60 @@ def test_get_single_carrier_fuel_prices_simple(
         expected_black_coal_prices.sort_values("isp_fuel_cost_mapping").reset_index(
             drop=True
         ),
+    )
+
+
+def test_get_single_carrier_fuel_prices_gas_blended(
+    sample_generator_translator_tables, csv_str_to_df
+):
+    ispypsa_tables = {
+        key: sample_generator_translator_tables[key]
+        for key in [
+            "gas_prices",
+            "biomethane_prices",
+            "gpg_emissions_reduction_biomethane",
+        ]
+    }
+    generators_df = sample_generator_translator_tables["translated_generators_df"]
+
+    gas_prices = _get_single_carrier_fuel_prices("Gas", generators_df, ispypsa_tables)
+
+    expected_gas_prices = csv_str_to_df("""
+    isp_fuel_cost_mapping,   2022_23_$/gj,  2023_24_$/gj,  2024_25_$/gj,  carrier
+    Bairnsdale,              22.0,          23.8,          24.4,          Gas
+    SA__new__CCGT,           22.0,          23.8,          24.4,          Gas
+    """)
+    pd.testing.assert_frame_equal(
+        gas_prices.sort_values("isp_fuel_cost_mapping").reset_index(drop=True),
+        expected_gas_prices.sort_values("isp_fuel_cost_mapping").reset_index(drop=True),
+    )
+
+
+def test_get_single_carrier_fuel_prices_gas_unblended(
+    sample_generator_translator_tables, csv_str_to_df
+):
+    ispypsa_tables = {
+        key: sample_generator_translator_tables[key]
+        for key in [
+            "gas_prices",
+            "biomethane_prices",
+            "gpg_emissions_reduction_biomethane",
+        ]
+    }
+    generators_df = sample_generator_translator_tables["translated_generators_df"]
+
+    gas_prices = _get_single_carrier_fuel_prices(
+        "Gas", generators_df, ispypsa_tables, blend_biomethane_into_gas=False
+    )
+
+    expected_gas_prices = csv_str_to_df("""
+    isp_fuel_cost_mapping,   2022_23_$/gj,  2023_24_$/gj,  2024_25_$/gj,  carrier
+    Bairnsdale,              20.0,          21.0,          22.0,          Gas
+    SA__new__CCGT,           20.0,          21.0,          22.0,          Gas
+    """)
+    pd.testing.assert_frame_equal(
+        gas_prices.sort_values("isp_fuel_cost_mapping").reset_index(drop=True),
+        expected_gas_prices.sort_values("isp_fuel_cost_mapping").reset_index(drop=True),
     )
 
 

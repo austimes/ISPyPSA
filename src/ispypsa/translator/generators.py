@@ -13,6 +13,7 @@ from ispypsa.templater.helpers import (
 from ispypsa.translator.helpers import (
     _add_investment_periods_as_build_years,
     _annuitised_investment_costs,
+    _extend_trajectory_to_periods,
     _get_commissioning_or_build_year_as_int,
     _get_financial_year_int_from_string,
 )
@@ -315,6 +316,12 @@ def _add_new_entrant_generator_build_costs(
         "build_year"
     ].astype("int64")
 
+    build_costs = _extend_trajectory_to_periods(
+        build_costs,
+        "build_year",
+        sorted(new_entrant_generators_table["build_year"].unique()),
+    )
+
     # return generator table with build costs merged in
     new_entrants_with_build_costs = new_entrant_generators_table.merge(
         build_costs, how="left"
@@ -376,7 +383,8 @@ def _add_new_entrant_generator_connection_costs(
     vre_connection_cost_dict = {}
     if new_entrant_wind_and_solar_connection_costs is not None:
         vre_connection_cost_dict = _get_vre_connection_costs_dict(
-            new_entrant_wind_and_solar_connection_costs
+            new_entrant_wind_and_solar_connection_costs,
+            sorted(new_entrant_generators_table["build_year"].unique()),
         )
     # NON-VRE
     non_vre_connection_cost_dict = {}
@@ -411,6 +419,7 @@ def _add_new_entrant_generator_connection_costs(
 
 def _get_vre_connection_costs_dict(
     new_entrant_wind_and_solar_connection_costs: pd.DataFrame,
+    build_years: list[int],
 ) -> dict[str, float]:
     """
     Creates a dictionary mapping REZ name and generator build year to connection costs for
@@ -453,6 +462,9 @@ def _get_vre_connection_costs_dict(
     ].apply(
         _get_financial_year_int_from_string,
         args=("new entrant VRE generator connection costs", "fy"),
+    )
+    new_vre_connection_costs_long = _extend_trajectory_to_periods(
+        new_vre_connection_costs_long, "build_year", build_years
     )
     # sum the connection costs and system strength connection costs for each year:
     new_vre_connection_costs_long["connection_cost_$/mw"] = (
@@ -603,6 +615,7 @@ def create_pypsa_friendly_dynamic_marginal_costs(
     pypsa_inputs_path: Path | str,
     carbon_price: float = 0.0,
     tns_price: float = 0.0,
+    blend_biomethane_into_gas: bool = True,
 ) -> None:
     """
     Args:
@@ -640,7 +653,10 @@ def create_pypsa_friendly_dynamic_marginal_costs(
         return
 
     fuel_prices = _get_dynamic_fuel_prices(
-        ispypsa_tables, time_varying_marginal_cost_generators, snapshots
+        ispypsa_tables,
+        time_varying_marginal_cost_generators,
+        snapshots,
+        blend_biomethane_into_gas,
     )
     fuel_prices = fuel_prices.set_index(["carrier", "isp_fuel_cost_mapping"])
 
@@ -751,6 +767,7 @@ def _get_dynamic_fuel_prices(
     ispypsa_tables: dict[str, pd.DataFrame],
     generators_df: pd.DataFrame,
     snapshots: pd.DataFrame,
+    blend_biomethane_into_gas: bool = True,
 ) -> pd.DataFrame:
     """Gets all dynamic fuel prices as dataframes including gas, liquid fuel, hyblend, coal,
     biomass and hydrogen.
@@ -777,7 +794,7 @@ def _get_dynamic_fuel_prices(
     for carrier in unique_carriers:
         if carrier in _CARRIER_TO_FUEL_COST_TABLES.keys():
             carrier_prices_table = _get_single_carrier_fuel_prices(
-                carrier, generators_df, ispypsa_tables
+                carrier, generators_df, ispypsa_tables, blend_biomethane_into_gas
             )
             all_dynamic_fuel_prices.append(carrier_prices_table)
 
@@ -810,10 +827,25 @@ def _get_dynamic_fuel_prices(
     return pd.DataFrame(dynamic_fuel_prices)
 
 
+def _fuel_cost_tables_for_carrier(
+    carrier: str, blend_biomethane_into_gas: bool
+) -> dict[str, str]:
+    """Return the carrier table mapping, optionally without the gas blend."""
+    table_mapping = _CARRIER_TO_FUEL_COST_TABLES[carrier]
+    if carrier != "Gas" or blend_biomethane_into_gas:
+        return table_mapping
+    return {
+        key: value
+        for key, value in table_mapping.items()
+        if key not in ("blend_table", "blend_percent_table")
+    }
+
+
 def _get_single_carrier_fuel_prices(
     carrier: str,
     generators_df: pd.DataFrame,
     ispypsa_tables: dict[str, pd.DataFrame],
+    blend_biomethane_into_gas: bool = True,
 ):
     """Gets fuel prices for a given carrier, calculating blended prices where necessary,
     for each available financial year.
@@ -830,7 +862,7 @@ def _get_single_carrier_fuel_prices(
         `pd.DataFrame`: fetched or calculated fuel prices in tabular format
     """
 
-    table_mapping = _CARRIER_TO_FUEL_COST_TABLES[carrier]
+    table_mapping = _fuel_cost_tables_for_carrier(carrier, blend_biomethane_into_gas)
     base_prices_table = ispypsa_tables[table_mapping["base_table"]]
 
     # set the index of base_prices_table to the column containing the equivalent

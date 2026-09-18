@@ -1,3 +1,4 @@
+import logging
 import re
 
 import pandas as pd
@@ -134,6 +135,28 @@ def _add_investment_periods_as_build_years(
     df["build_year"] = df["build_year"].astype("int64")
 
     return df
+
+
+def _extend_trajectory_to_periods(
+    long_df: pd.DataFrame, year_col: str, investment_periods: list[int]
+) -> pd.DataFrame:
+    """Hold a trajectory at its last published year for later periods."""
+    if long_df.empty:
+        return long_df
+    last_published = int(long_df[year_col].max())
+    beyond_published = [int(p) for p in investment_periods if int(p) > last_published]
+    if not beyond_published:
+        return long_df
+    logging.warning(
+        f"Trajectory held at FY{last_published} for investment periods beyond the "
+        f"published data: {sorted(beyond_published)}"
+    )
+    last_published_rows = long_df[long_df[year_col] == last_published]
+    held = [
+        last_published_rows.assign(**{year_col: period})
+        for period in sorted(beyond_published)
+    ]
+    return pd.concat([long_df, *held], ignore_index=True)
 
 
 def convert_to_numeric_if_possible(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:

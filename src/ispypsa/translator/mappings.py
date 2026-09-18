@@ -70,11 +70,11 @@ _GENERATOR_ATTRIBUTE_ORDER = [
 # cannot import from the project-specific postprocess layer; keep in sync if
 # either dict changes. The values are NGA Factors 2024 Tables 4, 5, 8.
 _CARRIER_TO_TOTAL_CO2E_KG_PER_GJ = {
-    "Black Coal": 90.24,    # 90.0 + 0.04 + 0.2
-    "Brown Coal": 93.82,    # 93.5 + 0.02 + 0.3
-    "Gas": 51.53,           # 51.4 + 0.1 + 0.03
-    "Liquid Fuel": 70.2,    # 69.9 + 0.1 + 0.2
-    "Biomass": 1.8,         # biogenic CO2; CH4 + N2O combustion residuals
+    "Black Coal": 90.24,  # 90.0 + 0.04 + 0.2
+    "Brown Coal": 93.82,  # 93.5 + 0.02 + 0.3
+    "Gas": 51.53,  # 51.4 + 0.1 + 0.03
+    "Liquid Fuel": 70.2,  # 69.9 + 0.1 + 0.2
+    "Biomass": 1.8,  # biogenic CO2; CH4 + N2O combustion residuals
     "Hydrogen": 0.0,
     "Biomethane": 0.13,
     "Nuclear": 0.0,
@@ -136,6 +136,7 @@ _BATTERY_ATTRIBUTE_ORDER = [
     "name",
     "bus",
     "p_nom",
+    "p_nom_max",
     "p_nom_extendable",
     "carrier",
     "max_hours",
@@ -247,6 +248,16 @@ _VRE_BUILD_LIMIT_CUSTOM_CONSTRAINT_GROUPS = {
         constraint_filter_col="carrier",
         constraint_type="build_limit_mw",
         can_be_relaxed=False,
+        # A land-use limit is definitionally onshore, and AEMO reports
+        # `land_use_limits_mw_wind = 0` for every offshore REZ (V8, V9, T4, N10,
+        # N11). Filtering on `carrier == "Wind"` alone caught the offshore
+        # candidates in that zero cap, and because this group sets
+        # can_be_relaxed=False there was no escape valve: every offshore
+        # candidate was pinned to exactly 0 MW, and the dedicated
+        # `offshore_wind_build_limits` group above was a dead letter. Excluding
+        # the offshore resource types here leaves each group governing what it
+        # was written for.
+        exclude_resource_types=("WFL", "WFX"),
     ),
 }
 """ _VRE_BUILD_LIMIT_CUSTOM_CONSTRAINT_GROUPS

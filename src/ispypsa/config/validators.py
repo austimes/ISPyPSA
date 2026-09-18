@@ -159,6 +159,19 @@ class CarbonPricingConfig(BaseModel):
     tns_price: float = 0.0  # AUD/tCO2 on captured tonnes (CCS opex)
 
 
+class FuelPricingConfig(BaseModel):
+    """How fuel carriers are priced from the IASR fuel price tables.
+
+    AEMO blends biomethane into the gas price trajectory, so the Gas carrier's
+    price rises with the mandated blend share. Setting
+    `blend_biomethane_into_gas` to False prices Gas from `gas_prices` alone,
+    which isolates the blend's cost effect and lets a separate bioenergy model
+    carry the biomethane. Default True reproduces AEMO's own treatment.
+    """
+
+    blend_biomethane_into_gas: bool = True
+
+
 class FuelSupplyCurveConfig(BaseModel):
     """Stepped supply curve for one fuel consumed by that fuel's generators.
 
@@ -186,6 +199,7 @@ class ModelConfig(BaseModel):
     unserved_energy: UnservedEnergyConfig
     trace_data: TraceDataConfig = TraceDataConfig()
     carbon_pricing: CarbonPricingConfig = CarbonPricingConfig()
+    fuel_pricing: FuelPricingConfig = FuelPricingConfig()
     gas_supply_curve: FuelSupplyCurveConfig = FuelSupplyCurveConfig()
     biomass_supply_curve: FuelSupplyCurveConfig = FuelSupplyCurveConfig()
     filter_by_nem_regions: list[str] | None = None

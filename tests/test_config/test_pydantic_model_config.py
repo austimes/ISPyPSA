@@ -442,3 +442,18 @@ def test_base_paths_only():
     assert not hasattr(model.paths, "capacity_expansion_timeseries_location")
     assert not hasattr(model.paths, "operational_timeseries_location")
     assert not hasattr(model.paths, "pypsa_outputs_directory")
+
+
+def test_fuel_pricing_defaults_to_blending_biomethane_into_gas():
+    model = ModelConfig(**get_valid_config())
+
+    assert model.fuel_pricing.blend_biomethane_into_gas is True
+
+
+def test_fuel_pricing_can_switch_the_biomethane_blend_off():
+    config = get_valid_config()
+    config["fuel_pricing"] = {"blend_biomethane_into_gas": False}
+
+    model = ModelConfig(**config)
+
+    assert model.fuel_pricing.blend_biomethane_into_gas is False

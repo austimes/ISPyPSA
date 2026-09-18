@@ -190,6 +190,7 @@ def _merge_and_set_ecaa_generators_static_properties(
         df, iasr_tables["gpg_min_stable_level_existing_generators"]
     )
     df = _zero_renewable_heat_rates(df, "heat_rate_gj/mwh")
+    df = _fill_thermal_heat_rate_and_vom_from_technology_medians(df)
     df = _zero_renewable_minimum_load(df, "minimum_load_mw")
     df = _zero_ocgt_recip_minimum_load(df, "minimum_load_mw")
     df = _zero_solar_wind_h2gt_partial_outage_derating_factor(
@@ -270,6 +271,35 @@ def _zero_renewable_heat_rates(df: pd.DataFrame, heat_rate_col: str) -> pd.DataF
         heat_rate_col,
     ] = 0.0
     return df
+
+
+def _fill_thermal_heat_rate_and_vom_from_technology_medians(
+    ecaa_generators: pd.DataFrame,
+) -> pd.DataFrame:
+    """Fill missing heat rates and variable costs from same-technology peers."""
+    filled_generators = set()
+    for col in ("heat_rate_gj/mwh", "vom_$/mwh_sent_out"):
+        was_missing = pd.to_numeric(ecaa_generators[col], errors="coerce").isna()
+        ecaa_generators[col] = _column_filled_from_technology_medians(
+            ecaa_generators, col
+        )
+        newly_filled = was_missing & ecaa_generators[col].notna()
+        filled_generators.update(ecaa_generators.loc[newly_filled, "generator"])
+    if filled_generators:
+        logging.warning(
+            f"ECAA generators given technology-median heat rate/VOM "
+            f"(missing in IASR): {sorted(filled_generators)}"
+        )
+    return ecaa_generators
+
+
+def _column_filled_from_technology_medians(
+    ecaa_generators: pd.DataFrame, col: str
+) -> pd.Series:
+    """Fill a numeric column from the median of the same technology type."""
+    values = pd.to_numeric(ecaa_generators[col], errors="coerce")
+    technology_medians = values.groupby(ecaa_generators["technology_type"]).median()
+    return values.fillna(ecaa_generators["technology_type"].map(technology_medians))
 
 
 def _zero_renewable_minimum_load(

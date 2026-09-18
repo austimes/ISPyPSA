@@ -5,7 +5,8 @@ Wraps the standard run_workflow pipeline with:
   - peak RSS memory tracked via a sibling psutil poller
   - HiGHS log parsing for LP problem size and convergence status
 
-Writes a JSON record summarising the run to bench/records/<run_id>.json.
+Writes a JSON record summarising the run to <output-root>/records/<run_id>.json and
+the solver log to <output-root>/logs/<run_id>.log (default root: outputs/).
 
 Usage:
     uv run python analysis/benchmarks/instrumented_runner.py \
@@ -15,11 +16,14 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
 import random
 import re
+import socket
+import subprocess
 import sys
 import threading
 import time
@@ -30,6 +34,12 @@ import psutil
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from analysis.benchmarks.output_layout import (  # noqa: E402
+    DEFAULT_OUTPUT_ROOT,
+    OutputLayout,
+)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # ----- Gurobi license-retry ----------------------------------------------
 
@@ -287,6 +297,8 @@ def _run_staged_pipeline(
     existing_fom_keeping: bool = False,
     span_weight_years: int | None = None,
     disestablishment_cost: float = 0.0,
+    co2_cap_t: float | None = None,
+    renewable_share_min: float | None = None,
 ) -> dict:
     """Run the ISPyPSA pipeline with per-stage timing. Returns timings dict.
 
@@ -299,6 +311,12 @@ def _run_staged_pipeline(
     import contextlib
     from io import StringIO
 
+    from analysis.archetypes import APPLY_ARCHETYPE
+    from analysis.benchmarks.flagged_exclusions_2026 import (
+        exclude_ecaa_without_trace,
+        exclude_flagged_new_entrants,
+        normalize_2026_rez_ids,
+    )
     from ispypsa.config import load_config
     from ispypsa.data_fetch import read_csvs, write_csvs
     from ispypsa.iasr_table_caching import build_local_cache
@@ -315,12 +333,6 @@ def _run_staged_pipeline(
     from ispypsa.translator import (
         create_pypsa_friendly_inputs,
         create_pypsa_friendly_timeseries_inputs,
-    )
-    from analysis.archetypes import APPLY_ARCHETYPE
-    from analysis.benchmarks.flagged_exclusions_2026 import (
-        exclude_ecaa_without_trace,
-        exclude_flagged_new_entrants,
-        normalize_2026_rez_ids,
     )
 
     configure_logging()
@@ -449,6 +461,7 @@ def _run_staged_pipeline(
     if carried_tranches_dir is not None and current_year is not None:
         from analysis.benchmarks.recursive_dynamic import (
             adjust_capacity_caps_for_carried,
+            adjust_phes_build_limits_for_carried,
             inject_carried_tranches,
             load_tranches,
         )
@@ -462,9 +475,16 @@ def _run_staged_pipeline(
         timings["capacity_cap_carried_adjust"] = adjust_capacity_caps_for_carried(
             pypsa_friendly, current_year
         )
+        # Same cumulative-scope fix for the PHES menu's per-candidate workbook
+        # build limits (p_nom_max columns, invisible to the RHS netting above).
+        timings["phes_build_limit_carried_adjust"] = (
+            adjust_phes_build_limits_for_carried(pypsa_friendly, current_year)
+        )
         print(
             f"\n=== RECURSIVE-DYNAMIC INJECTION === {timings['recursive_dynamic']} "
-            f"| capacity-cap carried adjust: {timings['capacity_cap_carried_adjust']}",
+            f"| capacity-cap carried adjust: {timings['capacity_cap_carried_adjust']} "
+            f"| PHES build-limit carried adjust: "
+            f"{timings['phes_build_limit_carried_adjust']}",
             flush=True,
         )
 
@@ -546,6 +566,67 @@ def _run_staged_pipeline(
                 flush=True,
             )
 
+    # Intensity-x-demand map constraints. Both are added straight to the linopy
+    # model built by build_pypsa_network — the same seam the fuel supply curve
+    # and the disestablishment term use — so no model code changes. Coefficient
+    # construction mirrors _constrain_fuel_burn_to_purchases (outer product of
+    # snapshot weights and per-generator coefficients, built on the variable's
+    # own coords so xarray aligns with linopy's snapshot MultiIndex).
+    if co2_cap_t is not None or renewable_share_min is not None:
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        weights = network.snapshot_weightings["generators"].to_numpy()
+
+    if co2_cap_t is not None:
+        # Absolute annual CO2e cap on generation combustion. Coefficients are the
+        # translator's isp_residual_co2_t_per_mwh (carrier total Scope-1 CO2e
+        # factor x heat rate x (1 - capture_rate)), so CCS residual emissions at
+        # the configured capture rate are INSIDE the cap and captured CO2 is not.
+        gens_pf = pypsa_friendly["generators"].set_index("name")
+        resid = pd.to_numeric(
+            gens_pf["isp_residual_co2_t_per_mwh"], errors="coerce"
+        ).fillna(0.0)
+        resid = resid.reindex(network.generators.index).fillna(0.0)
+        emitting = resid[resid > 0]
+        p = network.model.variables.Generator_p.loc[:, emitting.index.to_list()]
+        t_per_mw = xr.DataArray(
+            np.outer(weights, emitting.to_numpy()), coords=p.coords, dims=p.dims
+        )
+        network.model.add_constraints(
+            (p * t_per_mw).sum() <= float(co2_cap_t), name="co2_cap_annual_t"
+        )
+        timings["co2_cap_annual_t"] = float(co2_cap_t)
+        print(
+            f"\n=== CO2 CAP === {co2_cap_t:.1f} t CO2e/yr over "
+            f"{len(emitting)} emitting generators",
+            flush=True,
+        )
+
+    if renewable_share_min is not None:
+        # Minimum renewable share of real generation (the wedge comparator):
+        # sum_renew(w p) >= r x sum_real(w p), i.e. renewables weighted (1 - r)
+        # and non-renewable real generators weighted -r, >= 0. Slack generators
+        # and unserved energy are excluded from both sides, matching r_total.
+        g = network.generators
+        real = (g["bus"] != "bus_for_custom_constraint_gens") & (
+            g["carrier"] != "Unserved Energy"
+        )
+        renewable = g["carrier"].isin({"Wind", "Solar", "Water", "Biomass"})
+        names = list(g.index[real])
+        share = float(renewable_share_min)
+        coeff = np.where(renewable[real].to_numpy(), 1.0 - share, -share)
+        p = network.model.variables.Generator_p.loc[:, names]
+        share_coeff = xr.DataArray(
+            np.outer(weights, coeff), coords=p.coords, dims=p.dims
+        )
+        network.model.add_constraints(
+            (p * share_coeff).sum() >= 0.0, name="renewable_share_min"
+        )
+        timings["renewable_share_min"] = share
+        print(f"\n=== RENEWABLE SHARE MIN === {share:.4f}", flush=True)
+
     # HiGHS C++ writes directly to OS fd 1. When this runner is launched by
     # run_chain.py, fd 1 is the per-run log file — so HiGHS output is captured
     # without any in-process redirect. When run standalone, HiGHS output goes
@@ -568,6 +649,48 @@ def _run_staged_pipeline(
     t = time.perf_counter()
     save_pypsa_network(network, outputs_dir, "capacity_expansion")
     timings["save_network_s"] = time.perf_counter() - t
+
+    # Realised residual CO2e and constraint duals. The linopy model is not
+    # persisted with the NetCDF, so the cap/share duals must be read here,
+    # in-process, and written both into the record and outputs/ for extraction.
+    import pandas as pd
+
+    pf_gens = pypsa_friendly["generators"].set_index("name")
+    resid_full = (
+        pd.to_numeric(pf_gens["isp_residual_co2_t_per_mwh"], errors="coerce")
+        .fillna(0.0)
+        .reindex(network.generators.index)
+        .fillna(0.0)
+    )
+    dispatch_mwh = (
+        network.generators_t.p.clip(lower=0)
+        .mul(network.snapshot_weightings["generators"], axis=0)
+        .sum()
+    )
+    timings["annual_residual_co2e_t"] = float((dispatch_mwh * resid_full).sum())
+
+    if co2_cap_t is not None or renewable_share_min is not None:
+        constraint_report = {
+            "objective_weight": float(
+                network.investment_period_weightings["objective"].iloc[0]
+            ),
+            "annual_residual_co2e_t": timings["annual_residual_co2e_t"],
+        }
+        for cname in ("co2_cap_annual_t", "renewable_share_min"):
+            if cname not in network.model.constraints:
+                continue
+            try:
+                constraint_report[f"{cname}_dual"] = float(
+                    network.model.constraints[cname].dual
+                )
+            except Exception as e:  # dual genuinely unavailable — report, not drop
+                constraint_report[f"{cname}_dual"] = None
+                constraint_report[f"{cname}_dual_error"] = f"{type(e).__name__}: {e}"
+        timings["constraint_report"] = constraint_report
+        (outputs_dir / "constraint_duals.json").write_text(
+            json.dumps(constraint_report, indent=2, default=str)
+        )
+        print(f"\n=== CONSTRAINT DUALS === {constraint_report}", flush=True)
 
     t = time.perf_counter()
     results = extract_tabular_results(network, ispypsa_tables)
@@ -634,6 +757,79 @@ def _run_staged_pipeline(
     return timings
 
 
+def _host_provenance(threads: int | None) -> dict:
+    """Where and how wide this solve ran, for the run record.
+
+    Solve times are only comparable across records that name their host and thread
+    count, and a Slurm job id ties the record back to the scheduler's own log.
+    """
+    return {
+        "host": socket.gethostname(),
+        "cpu_count": psutil.cpu_count(logical=True),
+        "threads": threads,
+        "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
+        "slurm_array_task_id": os.environ.get("SLURM_ARRAY_TASK_ID"),
+    }
+
+
+def _git_provenance(repo_root: Path = PROJECT_ROOT) -> dict:
+    """Record the exact checked-out source revision and whether it was modified.
+
+    Git metadata may be unavailable in an exported source tree or a damaged
+    checkout. The run record states that explicitly rather than inventing a
+    revision or treating an unknown worktree as clean.
+    """
+    provenance = {
+        "source_git_status": "available",
+        "source_git_commit": None,
+        "source_git_dirty": None,
+    }
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if not commit:
+            raise RuntimeError("git rev-parse HEAD returned an empty commit")
+        provenance["source_git_commit"] = commit
+
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=normal"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        provenance["source_git_dirty"] = bool(status.strip())
+    except (OSError, subprocess.CalledProcessError, RuntimeError) as error:
+        provenance["source_git_status"] = "unavailable"
+        stderr = getattr(error, "stderr", None)
+        detail = (
+            stderr.strip() if isinstance(stderr, str) and stderr.strip() else str(error)
+        )
+        provenance["source_git_error"] = f"{type(error).__name__}: {detail}"
+    return provenance
+
+
+def _config_provenance(config_path: Path) -> dict:
+    """Hash the exact input YAML without reading or hashing external trace data."""
+    try:
+        digest = hashlib.sha256(config_path.read_bytes()).hexdigest()
+    except OSError as error:
+        return {
+            "input_config_sha256_status": "unavailable",
+            "input_config_sha256": None,
+            "input_config_sha256_error": f"{type(error).__name__}: {error}",
+        }
+    return {
+        "input_config_sha256_status": "available",
+        "input_config_sha256": digest,
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True, type=Path)
@@ -692,6 +888,21 @@ def main():
         "trajectories concurrently so concurrent x threads <= cores with "
         "headroom; default (unset) lets Gurobi use all cores (right for a "
         "single solve).",
+    )
+    ap.add_argument(
+        "--highs-threads",
+        type=int,
+        default=None,
+        help="Set the HiGHS 'threads' option for simplex, IPM and PDLP. Pin to the "
+        "job's core allocation on a shared node; ignored with --use-gurobi.",
+    )
+    ap.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_OUTPUT_ROOT,
+        help="Directory for the solver log and JSON record (logs/, records/); "
+        "the config's paths.run_directory should sit under the same root. "
+        "Default 'outputs' at the repo root.",
     )
     ap.add_argument(
         "--gurobi-method",
@@ -802,6 +1013,25 @@ def main():
         "retired existing capacity, added as -D*p_nom to the objective (x1, NOT "
         "span-weighted). A unit sheds only when FOM*span > D. Default 0 (off).",
     )
+    ap.add_argument(
+        "--co2-cap-t",
+        type=float,
+        default=None,
+        help="Absolute annual CO2e cap (tonnes) on generation combustion, added "
+        "as a linear constraint over Generator_p with the translator's "
+        "isp_residual_co2_t_per_mwh coefficients (CCS residual inside the cap, "
+        "captured CO2 outside). The constraint's dual is recorded in the run "
+        "record and outputs/constraint_duals.json. Default: no cap.",
+    )
+    ap.add_argument(
+        "--renewable-share-min",
+        type=float,
+        default=None,
+        help="Minimum renewable share (0-1) of real generation (Wind/Solar/"
+        "Water/Biomass over all non-slack, non-unserved generation), added as "
+        "a linear constraint. Used for the intensity-vs-share wedge subset. "
+        "Default: no constraint.",
+    )
     args = ap.parse_args()
     if args.carried_tranches_dir is not None and args.current_year is None:
         ap.error("--carried-tranches-dir requires --current-year.")
@@ -842,10 +1072,13 @@ def main():
             gurobi_opts["ObjScale"] = args.gurobi_obj_scale
         if gurobi_opts:
             solver_options = gurobi_opts
+    if args.highs_threads is not None and not args.use_gurobi:
+        solver_options = solver_options or {}
+        solver_options["threads"] = args.highs_threads
 
-    bench_dir = Path(__file__).parent
-    log_path = bench_dir / "logs" / f"{args.run_id}.log"
-    record_path = bench_dir / "records" / f"{args.run_id}.json"
+    layout = OutputLayout(args.output_root)
+    log_path = layout.log(args.run_id)
+    record_path = layout.record(args.run_id)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     record_path.parent.mkdir(parents=True, exist_ok=True)
     # Do NOT truncate the log file: when this runner is invoked from
@@ -862,6 +1095,11 @@ def main():
         "solver_options": solver_options,
         "started_at": time.time(),
         "started_at_iso": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        **_host_provenance(
+            args.gurobi_threads if args.use_gurobi else args.highs_threads
+        ),
+        **_git_provenance(),
+        **_config_provenance(args.config),
     }
 
     t_total = time.perf_counter()
@@ -880,6 +1118,8 @@ def main():
             existing_fom_keeping=args.existing_fom_keeping,
             span_weight_years=args.span_weight_years,
             disestablishment_cost=args.disestablishment_cost,
+            co2_cap_t=args.co2_cap_t,
+            renewable_share_min=args.renewable_share_min,
         )
         record.update(timings)
         record["wall_clock_s"] = time.perf_counter() - t_total

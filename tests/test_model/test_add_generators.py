@@ -4,7 +4,6 @@ import pytest
 
 from ispypsa.pypsa_build.generators import (
     _HOURS_PER_YEAR,
-    _HYDRO_ANNUAL_CF,
     _add_generator_to_network,
     _add_hydro_energy_budget_constraint,
 )
@@ -197,8 +196,7 @@ def test_add_generator_to_network_with_traces(mock_network, mock_trace_paths):
 
 
 def test_add_hydro_energy_budget_constraint_adds_one_constraint_per_period():
-    """Test an annual energy budget GlobalConstraint is added per investment period,
-    scaled by that period's number of years, for the total Water-carrier capacity."""
+    """Test an AEMO-sourced annual energy budget is added per period."""
     network = pypsa.Network()
     network.add("Bus", "test_bus")
     network.add("Generator", "hydro_1", bus="test_bus", carrier="Water", p_nom=100)
@@ -211,22 +209,24 @@ def test_add_hydro_energy_budget_constraint_adds_one_constraint_per_period():
 
     _add_hydro_energy_budget_constraint(network)
 
-    expected_annual_budget_mwh = (100 + 50) * _HYDRO_ANNUAL_CF * _HOURS_PER_YEAR
-
     assert set(network.global_constraints.index) == {
-        "water_annual_energy_budget_2025",
-        "water_annual_energy_budget_2030",
+        "water_annual_energy_budget_aemo2026sc_2025",
+        "water_annual_energy_budget_aemo2026sc_2030",
     }
     assert (network.global_constraints["type"] == "operational_limit").all()
     assert (network.global_constraints["carrier_attribute"] == "Water").all()
     assert (network.global_constraints["sense"] == "<=").all()
     assert (
-        network.global_constraints.at["water_annual_energy_budget_2025", "constant"]
-        == expected_annual_budget_mwh * 5
+        network.global_constraints.at[
+            "water_annual_energy_budget_aemo2026sc_2025", "constant"
+        ]
+        == 16_669_580.0 * 5
     )
     assert (
-        network.global_constraints.at["water_annual_energy_budget_2030", "constant"]
-        == expected_annual_budget_mwh * 10
+        network.global_constraints.at[
+            "water_annual_energy_budget_aemo2026sc_2030", "constant"
+        ]
+        == 12_988_940.0 * 10
     )
 
 

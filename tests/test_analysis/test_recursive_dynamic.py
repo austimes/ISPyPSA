@@ -341,6 +341,66 @@ def test_extract_excludes_reducible_existing_fleet():
     assert list(built["name"]) == ["ocgt_nq_2030"]
 
 
+def test_extract_excludes_vintage_suffixed_existing_fleet():
+    """Regression for the vintage-suffix leak in the existing-fleet exclusion.
+
+    The translator appends `_<build_year>` to new-entrant names, so a unit the
+    2030 solve carries as `<base>_2030` can reappear in a later period's ECAA
+    roster as plain `<base>`. Matching `existing_names` on the exact index alone
+    let such a row carry and then duplicate against the re-templated ECAA row.
+    A genuine new entrant whose stripped base is absent from the roster still
+    carries."""
+    n = _make_solved_network_one_period(
+        period=2030,
+        generator_rows=[
+            {
+                "name": "Gawara Baya Wind Farm_2030",
+                "bus": "node",
+                "carrier": "Wind",
+                "p_nom": 0.0,
+                "p_nom_extendable": True,
+                "build_year": 2030,
+                "lifetime": 45,
+                "capital_cost": 80000.0,
+                "p_nom_opt": 600.0,
+            },
+            {
+                "name": "wind_high_cwo_2030",
+                "bus": "node",
+                "carrier": "Wind",
+                "p_nom": 0.0,
+                "p_nom_extendable": True,
+                "build_year": 2030,
+                "lifetime": 45,
+                "capital_cost": 90000.0,
+                "p_nom_opt": 450.0,
+            },
+        ],
+    )
+
+    pf_gens = pd.DataFrame(
+        {
+            "name": ["Gawara Baya Wind Farm_2030", "wind_high_cwo_2030"],
+            "carrier": ["Wind", "Wind"],
+            "p_nom": [0.0, 0.0],
+            "p_nom_extendable": [True, True],
+            "build_year": [2030, 2030],
+            "lifetime": [45.0, 45.0],
+            "capital_cost": [80000.0, 90000.0],
+            "isp_heat_rate_gj/mwh": [0.0, 0.0],
+        }
+    ).set_index("name")
+
+    built = _extract_new_built_generators(
+        n,
+        pf_gens,
+        year=2030,
+        existing_names={"Gawara Baya Wind Farm"},
+    )
+
+    assert list(built["name"]) == ["wind_high_cwo_2030"]
+
+
 def test_extract_storage_carries_capacity_not_soc():
     """Sharpening point #2: carried storage pins capacity (p_nom, max_hours)
     and preserves cyclic_state_of_charge=True. PyPSA's column for
