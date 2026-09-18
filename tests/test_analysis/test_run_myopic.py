@@ -1,14 +1,59 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
+from analysis.benchmarks import run_myopic
 from analysis.benchmarks.output_layout import OutputLayout
 from analysis.benchmarks.run_myopic import (
     _completed_record,
     _parse_year_schedule,
     _require_schedule_covers_periods,
 )
+
+
+def test_campaign_command_keeps_fuel_curves_with_historical_flat_ccs(
+    monkeypatch, tmp_path
+):
+    class StopBeforeSolve(Exception):
+        pass
+
+    def inspect_config(config, *args, **kwargs):
+        inputs = yaml.safe_load(config.read_text())
+        assert (
+            inputs["biomass_supply_curve"]["curve_csv"]
+            == "analysis/bioenergy_market/biomass_supply_curve_central.csv"
+        )
+        assert (
+            inputs["gas_supply_curve"]["curve_csv"]
+            == "analysis/gas_market/gas_supply_curve_central.csv"
+        )
+        assert inputs["carbon_pricing"]["tns_price"] == 89.93
+        assert "ccs_supply_curve" not in inputs
+        raise StopBeforeSolve
+
+    monkeypatch.setattr(run_myopic, "_run_one_period", inspect_config)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_myopic.py",
+            "--run-id",
+            "unit_fuel_defaults",
+            "--periods",
+            "2030",
+            "--output-root",
+            str(tmp_path),
+            "--ccs-supply-curve",
+            "none",
+            "--tns-price",
+            "89.93",
+        ],
+    )
+    with pytest.raises(StopBeforeSolve):
+        run_myopic.main()
 
 
 def test_parse_year_schedule_casts_values():

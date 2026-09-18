@@ -9,7 +9,7 @@ Two design rules carry over from the intensity-demand-map builder:
 * Every scalar, including 1.0, goes through the identical read-scale-write round trip, so the round trip itself cannot
   masquerade as a demand signal.
 * VRE traces (``project/``, ``zone/``) are symlinked to one shared source store, so wind and solar are bit-identical
-  between trajectories.
+  between trajectories. Use ``--vre-mode copy`` to retain the same bytes on systems without symlink privileges.
 
 The 2060 milestone sits past the end of the parsed store, so it is built by relabelling: the FY2050 rows are copied
 forward exactly ten years and appended. Demand gets the 2060 scalar applied to the relabelled rows; VRE is relabelled
@@ -34,6 +34,7 @@ import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -76,6 +77,7 @@ class TraceStores:
     reference_year: int
     source_fy_mwh: dict[int, float]
     extended_vre: Path | None
+    vre_mode: str = "symlink"
 
     @property
     def dataset_dir(self) -> str:
@@ -136,8 +138,12 @@ def _relabel_to_extension_year(frame: pd.DataFrame) -> pd.DataFrame:
     return rows
 
 
-def _reset_dataset_dir(base_dir: Path, dataset_dir: str) -> Path:
+def _reset_dataset_dir(base_dir: Path, dataset_dir: str, out_root: Path) -> Path:
     """Empty output directory for one build, returning the ``isp_<dataset year>`` level that ISPyPSA reads."""
+    if base_dir.is_symlink() or base_dir.resolve().parent != out_root.resolve():
+        raise ValueError(
+            f"Trace output must be an immediate child of the output root: {base_dir}"
+        )
     if base_dir.exists():
         shutil.rmtree(base_dir)
     dataset = base_dir / dataset_dir
@@ -184,18 +190,21 @@ def _build_extended_vre_store(
     """One shared VRE store carrying a relabelled FY2060, or None when no milestone reaches past the parsed store."""
     if EXTENSION_YEAR not in milestone_years:
         return None
-    dataset_dir = _reset_dataset_dir(out_root / EXTENDED_VRE_DIR, source.name)
+    dataset_dir = _reset_dataset_dir(out_root / EXTENDED_VRE_DIR, source.name, out_root)
     for subdir in LINKED_SUBDIRS:
         _append_relabelled_vre(source, dataset_dir, subdir, reference_year)
     return dataset_dir
 
 
 def _link_vre(stores: TraceStores, dataset_dir: Path, milestone_year: int) -> None:
-    """Symlink ``project/`` and ``zone/`` to one shared store, so wind and solar are bit-identical across trajectories."""
+    """Link or explicitly copy the shared wind and solar store without changing its data."""
     vre_store = (
         stores.extended_vre if milestone_year == EXTENSION_YEAR else stores.source
     )
     for subdir in LINKED_SUBDIRS:
+        if stores.vre_mode == "copy":
+            shutil.copytree(vre_store / subdir, dataset_dir / subdir)
+            continue
         os.symlink(
             (vre_store / subdir).resolve(),
             dataset_dir / subdir,
@@ -208,7 +217,9 @@ def _build_demand_dir(
 ) -> dict:
     """Write one (trajectory, milestone year) trace directory and report how its realised financial-year energy landed."""
     dataset_dir = _reset_dataset_dir(
-        stores.out_root / f"{trajectory}_{milestone_year}", stores.dataset_dir
+        stores.out_root / f"{trajectory}_{milestone_year}",
+        stores.dataset_dir,
+        stores.out_root,
     )
     source_fy_mwh = stores.source_fy_mwh[milestone_year]
     scalar = target_twh * MWH_PER_TWH / source_fy_mwh
@@ -318,14 +329,26 @@ def _print_summary(records: list[dict]) -> None:
         )
 
 
-def main(source: Path, out_root: Path, plan: Path, reference_year: int = 2018) -> None:
+def main(
+    source: Path,
+    out_root: Path,
+    plan: Path,
+    reference_year: int = 2018,
+    vre_mode: Literal["symlink", "copy"] = "symlink",
+) -> None:
     """Build every campaign trace directory, its schedule-token file, the annual demand series and the manifest.
 
     :param source: Parsed trace store root, e.g. ``data/trace_data_final/isp_2026``.
     :param out_root: Directory the rewritten trace directories are written under.
     :param plan: Demand plan JSON holding ``milestone_years`` and ``demand_paths_source_twh``.
     :param reference_year: Weather reference year partition to rewrite.
+    :param vre_mode: Link the shared VRE store, or copy it when directory symlinks are unavailable.
     """
+    source_root, output_root = source.resolve(), out_root.resolve()
+    if source_root.is_relative_to(output_root) or output_root.is_relative_to(
+        source_root
+    ):
+        raise ValueError("Source and output trace stores must not overlap")
     plan_data = json.loads(plan.read_text(encoding="utf-8"))
     out_root.mkdir(parents=True, exist_ok=True)
     _write_annual_demand_series(out_root, plan_data)
@@ -339,6 +362,7 @@ def main(source: Path, out_root: Path, plan: Path, reference_year: int = 2018) -
         extended_vre=_build_extended_vre_store(
             source, out_root, reference_year, plan_data["milestone_years"]
         ),
+        vre_mode=vre_mode,
     )
     records = []
     for trajectory, targets in plan_data["demand_paths_source_twh"].items():

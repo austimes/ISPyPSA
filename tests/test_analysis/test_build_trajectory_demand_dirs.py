@@ -7,7 +7,10 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis.extension_campaign.build_trajectory_demand_dirs import main
+from analysis.extension_campaign.build_trajectory_demand_dirs import (
+    _reset_dataset_dir,
+    main,
+)
 
 DATASET_DIR = "isp_2026"
 REFERENCE_YEAR = 2018
@@ -17,6 +20,37 @@ STORE_FINANCIAL_YEARS = (2048, 2049, 2050)
 DEMAND_MW = 100.0
 # Two August days, two sub-regions, 100 MW flat: 2 x 96 intervals x 100 MW x 0.5 h.
 SOURCE_FY_MWH = 9600.0
+
+
+@pytest.mark.parametrize(
+    "relationship", ["same", "source_inside_output", "output_inside_source"]
+)
+def test_overlapping_stores_are_rejected_before_writing(tmp_path, relationship):
+    source, output = tmp_path / "source", tmp_path / "out"
+    if relationship == "same":
+        output = source
+    elif relationship == "source_inside_output":
+        source = output / "source"
+    else:
+        output = source / "out"
+    source.mkdir(parents=True)
+    sentinel = source / "original.txt"
+    sentinel.write_text("preserved", encoding="utf-8")
+    with pytest.raises(ValueError, match="must not overlap"):
+        main(source=source, out_root=output, plan=Path("unused.json"))
+    assert sentinel.read_text(encoding="utf-8") == "preserved"
+
+
+def test_reset_rejects_output_escape_before_deleting(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "original.txt"
+    sentinel.write_text("preserved", encoding="utf-8")
+    output = tmp_path / "out"
+    output.mkdir()
+    with pytest.raises(ValueError, match="immediate child"):
+        _reset_dataset_dir(output / ".." / "outside", DATASET_DIR, output)
+    assert sentinel.read_text(encoding="utf-8") == "preserved"
 
 
 def _half_hours(financial_year: int) -> pd.DatetimeIndex:
@@ -96,8 +130,13 @@ def plan_file(tmp_path: Path) -> Path:
     return path
 
 
+@pytest.fixture(params=["copy", "symlink"])
+def vre_mode(request):
+    return request.param
+
+
 @pytest.fixture
-def built(source_store: Path, plan_file: Path, tmp_path: Path) -> Path:
+def built(source_store: Path, plan_file: Path, tmp_path: Path, vre_mode: str) -> Path:
     """Output root after one full build; skipped where the platform refuses to create directory symlinks."""
     out_root = tmp_path / "out"
     try:
@@ -106,9 +145,12 @@ def built(source_store: Path, plan_file: Path, tmp_path: Path) -> Path:
             out_root=out_root,
             plan=plan_file,
             reference_year=REFERENCE_YEAR,
+            vre_mode=vre_mode,
         )
     except OSError as error:
-        pytest.skip(f"directory symlinks unavailable on this platform: {error}")
+        if vre_mode == "symlink" and getattr(error, "winerror", None) == 1314:
+            pytest.skip(f"directory symlinks unavailable on this platform: {error}")
+        raise
     return out_root
 
 
@@ -177,7 +219,7 @@ def test_extended_vre_store_gains_an_unscaled_fy2060(built, source_store):
     pd.testing.assert_frame_equal(appended, expected)
 
 
-def test_vre_is_symlinked_to_one_shared_store(built, source_store):
+def test_vre_matches_one_shared_store(built, source_store, vre_mode):
     milestone_links = [
         built / "unit_flat_2049" / DATASET_DIR / subdir
         for subdir in ("project", "zone")
@@ -187,6 +229,27 @@ def test_vre_is_symlinked_to_one_shared_store(built, source_store):
         for subdir in ("project", "zone")
     ]
 
+    if vre_mode == "copy":
+        originals = [source_store / subdir for subdir in ("project", "zone")]
+        originals += [
+            built / "_vre_2060" / DATASET_DIR / subdir for subdir in ("project", "zone")
+        ]
+        for copied, original in zip(
+            milestone_links + extension_links, originals, strict=True
+        ):
+            assert not copied.is_symlink()
+            source_files = sorted(
+                path.relative_to(original) for path in original.rglob("*.parquet")
+            )
+            assert (
+                sorted(path.relative_to(copied) for path in copied.rglob("*.parquet"))
+                == source_files
+            )
+            for relative in source_files:
+                assert (copied / relative).read_bytes() == (
+                    original / relative
+                ).read_bytes()
+        return
     assert all(link.is_symlink() for link in milestone_links + extension_links)
     assert [link.resolve() for link in milestone_links] == [
         (source_store / "project").resolve(),

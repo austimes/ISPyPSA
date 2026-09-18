@@ -16,12 +16,14 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
 import random
 import re
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -30,7 +32,8 @@ from pathlib import Path
 
 import psutil
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from analysis.benchmarks.output_layout import (  # noqa: E402
     DEFAULT_OUTPUT_ROOT,
@@ -781,6 +784,64 @@ def _host_provenance(threads: int | None) -> dict:
     }
 
 
+def _git_provenance(repo_root: Path = PROJECT_ROOT) -> dict:
+    """Record the exact checked-out source revision and whether it was modified.
+
+    Git metadata may be unavailable in an exported source tree or a damaged
+    checkout. The run record states that explicitly rather than inventing a
+    revision or treating an unknown worktree as clean.
+    """
+    provenance = {
+        "source_git_status": "available",
+        "source_git_commit": None,
+        "source_git_dirty": None,
+    }
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if not commit:
+            raise RuntimeError("git rev-parse HEAD returned an empty commit")
+        provenance["source_git_commit"] = commit
+
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=normal"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        provenance["source_git_dirty"] = bool(status.strip())
+    except (OSError, subprocess.CalledProcessError, RuntimeError) as error:
+        provenance["source_git_status"] = "unavailable"
+        stderr = getattr(error, "stderr", None)
+        detail = (
+            stderr.strip() if isinstance(stderr, str) and stderr.strip() else str(error)
+        )
+        provenance["source_git_error"] = f"{type(error).__name__}: {detail}"
+    return provenance
+
+
+def _config_provenance(config_path: Path) -> dict:
+    """Hash the exact input YAML without reading or hashing external trace data."""
+    try:
+        digest = hashlib.sha256(config_path.read_bytes()).hexdigest()
+    except OSError as error:
+        return {
+            "input_config_sha256_status": "unavailable",
+            "input_config_sha256": None,
+            "input_config_sha256_error": f"{type(error).__name__}: {error}",
+        }
+    return {
+        "input_config_sha256_status": "available",
+        "input_config_sha256": digest,
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True, type=Path)
@@ -1046,6 +1107,8 @@ def main():
         "solver_options": solver_options,
         "started_at": time.time(),
         "started_at_iso": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        **_git_provenance(),
+        **_config_provenance(args.config),
         **_host_provenance(
             args.gurobi_threads if args.use_gurobi else args.highs_threads
         ),
