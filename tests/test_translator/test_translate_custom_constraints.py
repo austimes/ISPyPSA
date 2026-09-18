@@ -803,6 +803,81 @@ def test_create_vre_build_limit_constraints_offshore_wind(csv_str_to_df):
     assert dummy_generators is None
 
 
+def test_offshore_wind_is_not_caught_by_the_onshore_land_use_limit(csv_str_to_df):
+    """Offshore candidates must not enter the wind land-use build limit.
+
+    Regression test. AEMO publishes `land_use_limits_mw_wind = 0.0` for every
+    offshore REZ (a land-use limit is onshore by definition), and the land-use
+    group filters on `carrier`, which is "Wind" for offshore candidates too. With
+    `can_be_relaxed=False` there is no escape valve, so every offshore candidate
+    was pinned to exactly 0 MW and the dedicated offshore build limits were dead
+    letters. The pre-existing offshore test passes a NaN land-use limit, which
+    produces no constraint at all, so it never exercised this path.
+    """
+    renewable_energy_zones_csv = """
+    rez_id,     wind_generation_total_limits_mw_high,   wind_generation_total_limits_mw_medium, solar_pv_plus_solar_thermal_limits_mw_solar,    wind_generation_total_limits_mw_offshore_floating,  wind_generation_total_limits_mw_offshore_fixed,  land_use_limits_mw_wind,    land_use_limits_mw_solar,   rez_resource_limit_violation_penalty_factor_$/mw
+    REZ1,       500.0,                                  0.0,                                    0.0,                                            5000,                                               54996,                                           0.0,                        NaN,                        300000.0
+    """
+    renewable_energy_zones = csv_str_to_df(renewable_energy_zones_csv)
+
+    generators_csv = """
+    name,               bus,    carrier,    p_nom,  p_nom_extendable,   build_year,     isp_resource_type
+    WFL_REZ1_2025,      REZ1,   Wind,       0,      True,               2025,           WFL
+    WFX_REZ1_2025,      REZ1,   Wind,       0,      True,               2025,           WFX
+    WH_REZ1_2025,       REZ1,   Wind,       0,      True,               2025,           WH
+    """
+    generators = csv_str_to_df(generators_csv)
+
+    lhs, rhs, _ = _create_vre_build_and_resource_limit_constraints(
+        renewable_energy_zones, generators, [2025], 0.05, 30
+    )
+
+    # The land-use limit binds only the onshore candidate; each offshore
+    # candidate is bound solely by its own offshore build limit.
+    expected_lhs_csv = """
+    constraint_name,            variable_name,      component,  attribute,  coefficient
+    REZ1_WFL_build_limit,       WFL_REZ1_2025,      Generator,  p_nom,      1.0
+    REZ1_WFX_build_limit,       WFX_REZ1_2025,      Generator,  p_nom,      1.0
+    REZ1_WH_resource_limit,     WH_REZ1_2025,       Generator,  p_nom,      1.0
+    REZ1_Wind_build_limit,      WH_REZ1_2025,       Generator,  p_nom,      1.0
+    """
+    expected_lhs = csv_str_to_df(expected_lhs_csv)
+    lhs_col_order = [
+        "constraint_name",
+        "variable_name",
+        "coefficient",
+        "component",
+        "attribute",
+    ]
+    real_generator_lhs = lhs[lhs["variable_name"].isin(generators["name"])]
+    pd.testing.assert_frame_equal(
+        real_generator_lhs[lhs_col_order]
+        .sort_values(by=["constraint_name", "variable_name"])
+        .reset_index(drop=True),
+        expected_lhs[lhs_col_order]
+        .sort_values(by=["constraint_name", "variable_name"])
+        .reset_index(drop=True),
+        check_dtype=False,
+    )
+
+    expected_rhs_csv = """
+    constraint_name,            constraint_type,    rhs
+    REZ1_WFL_build_limit,       <=,                 5000.0
+    REZ1_WFX_build_limit,       <=,                 54996.0
+    REZ1_WH_resource_limit,     <=,                 500.0
+    REZ1_Wind_build_limit,      <=,                 0.0
+    """
+    expected_rhs = csv_str_to_df(expected_rhs_csv)
+    rhs_col_order = ["constraint_name", "constraint_type", "rhs"]
+    pd.testing.assert_frame_equal(
+        rhs[rhs_col_order].sort_values(by="constraint_name").reset_index(drop=True),
+        expected_rhs[rhs_col_order]
+        .sort_values(by="constraint_name")
+        .reset_index(drop=True),
+        check_dtype=False,
+    )
+
+
 def test_create_vre_build_limit_constraints_empty_inputs(csv_str_to_df):
     """Test with empty inputs."""
     # Empty inputs

@@ -43,19 +43,22 @@ def test_build_required_tables_old_format():
 
 def test_backfill_early_fy_fills_empty_columns_from_first_populated(tmp_path):
     import pandas as pd
+
     from ispypsa.iasr_table_caching.schema_normalisation import (
         backfill_early_fy_fuel_prices,
     )
 
     # Two-row hydrogen_prices with empty FY 2022-23, 2023-24 and populated 2024-25+.
-    df = pd.DataFrame({
-        "Hydrogen price": ["Hydrogen", "Hydrogen"],
-        "Hydrogen price scenario": ["Step Change", "Progressive Change"],
-        "2022-23": [None, None],
-        "2023-24": [None, None],
-        "2024-25": [42.9, 31.7],
-        "2025-26": [41.5, 30.8],
-    })
+    df = pd.DataFrame(
+        {
+            "Hydrogen price": ["Hydrogen", "Hydrogen"],
+            "Hydrogen price scenario": ["Step Change", "Progressive Change"],
+            "2022-23": [None, None],
+            "2023-24": [None, None],
+            "2024-25": [42.9, 31.7],
+            "2025-26": [41.5, 30.8],
+        }
+    )
     df.to_csv(tmp_path / "hydrogen_prices.csv", index=False)
 
     backfill_early_fy_fuel_prices(tmp_path)
@@ -71,17 +74,20 @@ def test_backfill_early_fy_fills_empty_columns_from_first_populated(tmp_path):
 
 def test_backfill_early_fy_is_noop_when_all_populated(tmp_path):
     import pandas as pd
+
     from ispypsa.iasr_table_caching.schema_normalisation import (
         backfill_early_fy_fuel_prices,
     )
 
     # gas_prices_existing_generators with all FY columns populated.
-    df = pd.DataFrame({
-        "Generator": ["Bayswater"],
-        "2022-23": [10.0],
-        "2023-24": [10.5],
-        "2024-25": [11.0],
-    })
+    df = pd.DataFrame(
+        {
+            "Generator": ["Bayswater"],
+            "2022-23": [10.0],
+            "2023-24": [10.5],
+            "2024-25": [11.0],
+        }
+    )
     df.to_csv(tmp_path / "gas_prices_existing_generators.csv", index=False)
 
     backfill_early_fy_fuel_prices(tmp_path)
@@ -97,5 +103,6 @@ def test_backfill_early_fy_skips_missing_tables(tmp_path):
     from ispypsa.iasr_table_caching.schema_normalisation import (
         backfill_early_fy_fuel_prices,
     )
+
     # Empty tmp_path; nothing to do. Should not raise.
     backfill_early_fy_fuel_prices(tmp_path)

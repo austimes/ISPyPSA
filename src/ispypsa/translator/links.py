@@ -2,7 +2,10 @@ import numpy as np
 import pandas as pd
 
 from ispypsa.config import ModelConfig
-from ispypsa.translator.helpers import _annuitised_investment_costs
+from ispypsa.translator.helpers import (
+    _annuitised_investment_costs,
+    _extend_trajectory_to_periods,
+)
 from ispypsa.translator.mappings import _LINK_ATTRIBUTES
 
 
@@ -237,6 +240,10 @@ def _translate_time_varying_expansion_costs(
 
     df_melted["investment_year"] = df_melted["cost_year_raw_with_suffix"].apply(
         parse_cost_year
+    )
+
+    df_melted = _extend_trajectory_to_periods(
+        df_melted, "investment_year", investment_periods
     )
 
     # Filter to only include costs relevant to our investment periods

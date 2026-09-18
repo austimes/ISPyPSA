@@ -32,5 +32,7 @@ def _add_carriers_to_network(
     # generator and storage tables (e.g. "Water" used by conventional-hydro
     # Generators and pumped-storage StorageUnits). PyPSA requires unique
     # Carrier names, so combine via dict.fromkeys() to preserve order.
-    carriers = list(dict.fromkeys(generator_carriers + storage_carriers + standard_carriers))
+    carriers = list(
+        dict.fromkeys(generator_carriers + storage_carriers + standard_carriers)
+    )
     network.add("Carrier", carriers)

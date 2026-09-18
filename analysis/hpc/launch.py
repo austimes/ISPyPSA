@@ -1,0 +1,150 @@
+"""Stamp a launch directory, write its manifest and submit the campaign to Slurm.
+
+One launch is one stamped directory under ``$IO_DIR/runs/<run_set>/``, holding the
+manifest that decides what each Slurm array task solves and every product of the run.
+The array index is the chain's row in ``campaign/chains.tsv``, so the manifest and the
+array are written together and never drift apart.
+
+``submit`` is the single place that knows how a campaign job is handed to Slurm: the
+account, partition, stdout path and the two exported variables (``RUN_DIR`` and
+``REPO``) that the sbatch scripts read. The deliverables builder submits its own
+extract array through it as well, so the two entry points cannot disagree.
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+
+import pandas as pd
+
+from analysis.env import REPO_ROOT, Env, OutputLayout
+from analysis.hpc import manifest, tracedirs
+from analysis.model import ARCHETYPE
+
+SLURM_DIR = Path(__file__).parent / "slurm"
+DEFAULT_PLAN = Path(__file__).parent / "demand_plan.json"
+
+
+def sbatch_command(
+    script: Path,
+    array: str,
+    export: dict[str, str],
+    layout: OutputLayout,
+    env: Env,
+    dependency: str | None = None,
+) -> list[str]:
+    """The ``sbatch`` command line for one array submission of ``script``."""
+    exported = {
+        "RUN_DIR": layout.root.as_posix(),
+        "REPO": REPO_ROOT.as_posix(),
+        **export,
+    }
+    return [
+        "sbatch",
+        f"--array={array}",
+        "--export=ALL,"
+        + ",".join(f"{name}={value}" for name, value in exported.items()),
+        f"--account={env.slurm_account}",
+        f"--partition={env.slurm_partition}",
+        f"--output={(layout.campaign / 'slurm').as_posix()}/%x-%A_%a.out",
+        *([f"--dependency={dependency}"] if dependency else []),
+        script.as_posix(),
+    ]
+
+
+def submit(
+    script: Path,
+    array: str,
+    export: dict[str, str],
+    layout: OutputLayout,
+    env: Env,
+    dependency: str | None = None,
+) -> str:
+    """Submit one Slurm array job for this launch and return its job id.
+
+    :param script: The sbatch script to run.
+    :param array: Slurm array specification, e.g. ``0-40`` or ``3,7,9``.
+    :param export: Extra variables to export on top of ``RUN_DIR`` and ``REPO``.
+    :param layout: The launch directory the job writes into.
+    :param env: Cluster account and partition.
+    :param dependency: Slurm dependency expression, e.g. ``afterok:12345``.
+    """
+    (layout.campaign / "slurm").mkdir(parents=True, exist_ok=True)
+    command = sbatch_command(script, array, export, layout, env, dependency)
+    print(" ".join(command))
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    return result.stdout.split()[-1]
+
+
+def _chain_is_complete(layout: OutputLayout, run_id: str, last_period: int) -> bool:
+    """True when a chain's final period has a completed record or a solved network on disk."""
+    final_run = f"{run_id}_{last_period}"
+    if layout.network(final_run, ARCHETYPE).exists():
+        return True
+    record = layout.record(final_run)
+    if not record.exists():
+        return False
+    return json.loads(record.read_text(encoding="utf-8")).get("status") == "completed"
+
+
+def incomplete_array(
+    layout: OutputLayout, chains: pd.DataFrame, last_period: int
+) -> str:
+    """Slurm array specification covering only the chains that have not finished.
+
+    :param layout: The launch directory to inspect.
+    :param chains: The launch's chain table, whose ``row`` is the array index.
+    :param last_period: Final milestone year of every chain.
+    :return: A comma-separated index list, empty when every chain is complete.
+    """
+    rows = [
+        chain.row
+        for chain in chains.itertuples()
+        if not _chain_is_complete(layout, chain.run_id, last_period)
+    ]
+    return ",".join(str(row) for row in rows)
+
+
+def main(
+    run_set: str = "ext41",
+    plan: Path = DEFAULT_PLAN,
+    run: Path | None = None,
+    resume: bool = False,
+    smoke: bool = False,
+    array: str | None = None,
+    dry_run: bool = False,
+) -> None:
+    """Prepare a campaign launch and submit its chains to Slurm.
+
+    :param run_set: Name of the run set a new launch is stamped under.
+    :param plan: Demand plan JSON holding the trajectories, loads and milestone years.
+    :param run: Existing launch directory to submit into, instead of stamping a new one.
+    :param resume: Submit only the chains whose final period has not completed.
+    :param smoke: Submit the single NSW two-period gate chain instead of the campaign.
+    :param array: Slurm array specification, overriding the one derived from the manifest.
+    :param dry_run: Write the manifest and print the sbatch command, building no trace
+        directories and submitting nothing.
+    """
+    env = Env.from_env()
+    layout = OutputLayout(run) if run else env.new_run(run_set)
+    if not dry_run:
+        tracedirs.build(env.traces, env.tracedirs, plan)
+    chains = manifest.build(plan, layout, env.tracedirs)
+    if array is None and smoke:
+        array = "0"
+    if array is None and resume:
+        milestones = json.loads(plan.read_text(encoding="utf-8"))["milestone_years"]
+        array = incomplete_array(layout, chains, milestones[-1])
+        if not array:
+            print(f"every chain in {layout.root} has completed its final period")
+            return
+    if array is None:
+        array = f"0-{len(chains) - 1}"
+    script = SLURM_DIR / ("smoke.sbatch" if smoke else "chain.sbatch")
+    if dry_run:
+        print(" ".join(sbatch_command(script, array, {}, layout, env)))
+    else:
+        submit(script, array, {}, layout, env)
+    print(layout.root)

@@ -26,12 +26,16 @@ dependencies = [
     "numpy>=2.0.0",
     "shapely>=2.1.0",
     "gurobipy>=11,<12",
+    # Campaign tooling under analysis/ (the msm command line); moves with that package.
+    "cyclopts>=3",
+    "python-dotenv>=1.0",
 ]
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
 
 [project.scripts]
 ispypsa = "ispypsa.cli.cli:main"
+msm = "analysis.cli:app"
 
 [project.optional-dependencies]
 solvers = [
@@ -101,10 +105,14 @@ include = [
     "src/ispypsa/**/*.py",
     "src/ispypsa/data_fetch/manifests/**/*.txt",
     "src/ispypsa/templater/manually_extracted_template_tables/**/*.csv",
+    "analysis/**/*.py",
+    "analysis/**/*.csv",
+    "analysis/**/*.json",
+    "analysis/**/*.sbatch",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ispypsa"]
+packages = ["src/ispypsa", "analysis"]
 exclude = [
     "tests/",
     "docs/",

@@ -1,0 +1,69 @@
+"""Fork-specific model input patches, applied between ISPyPSA's templater and translator.
+
+Each patch takes ``(ispypsa_tables: dict[str, DataFrame], config)`` and returns a (possibly
+mutated) ``ispypsa_tables`` dict. Patches typically edit ``new_entrant_generators``, append rows
+to ``custom_constraints_lhs`` / ``custom_constraints_rhs``, or tweak ``expected_closure_years``.
+
+Design choice: patches act at the ISPyPSA-input layer (CSVs between templater and translator)
+rather than the PyPSA-friendly layer. This keeps mutations expressed in ISP-domain units
+(technology names, REZ ids, financial-year shares) rather than PyPSA bus/generator names.
+
+:func:`apply_model_patches` applies six patches, in order, to every run:
+
+  1. Pumped-storage fix -- re-route Wivenhoe / Shoalhaven / Borumba / Snowy 2.0 from
+     ecaa_generators to ecaa_batteries so they are modelled as PyPSA StorageUnits, not
+     unconstrained Water-carrier generators. See ``pumped_storage_fix.py`` for the data sources.
+
+  2. PHES menu repair -- appends the IASR's new-entrant pumped-hydro candidates (10/24/48 h +
+     BOTN - Cethana 20 h) at workbook costs, build limits and lead times, two authored
+     long-duration classes (168 h and 336 h) whose capex is extrapolated from the published
+     duration-cost line, a per-sub-region shared-site cap on total new-entrant PHES power, and
+     the two committed/policy PHES units (Kidston, Phoenix) the templater's battery-only filter
+     drops. See ``phes_menu.py`` for per-value workbook citations.
+
+  3. Ageing-fleet maintenance overlay -- adds a per-row ageing premium to fom_$/kw/annum on ECAA
+     thermal generators in their final years of operation, anchored against published
+     refurbishment cost references. See ``maintenance_overlay.py`` for sources and methodology.
+
+  4. End-of-life renewable repowering -- extends ECAA wind / solar closure_year by 20 years and
+     adds an annualised repowering capex premium to fom_$/kw/annum. See ``repowering.py`` for
+     sources, methodology, and limitations.
+
+  5. Biomass availability cap -- adds a per-milestone-year NEM-wide biomass capacity ceiling as a
+     PyPSA custom_constraint, anchored on the ARENA Bioenergy Roadmap 2021 and the AEMO ISP 2024
+     baseline. See ``biomass_cap.py``.
+
+  6. Biomass feedstock cost -- re-prices biomass feedstock from the IASR $0.66/GJ residue-tier
+     value to a scale-appropriate beyond-residue delivered cost ($6.0/GJ, IRENA locally-collected
+     tier), so biomass's capacity factor is an economic output rather than unlimited
+     residue-priced baseload. See ``biomass_feedstock_cost.py``.
+
+The biomass feedstock re-price (6) runs after the capacity cap (5) -- order does not matter
+between them (one edits a price table, the other a constraint).
+"""
+
+from .biomass_cap import apply as _apply_biomass_cap
+from .biomass_feedstock_cost import apply as _apply_biomass_feedstock_cost
+from .maintenance_overlay import apply as _apply_maintenance_overlay
+from .phes_menu import apply as _apply_phes_menu
+from .pumped_storage_fix import apply as _apply_pumped_storage_fix
+from .repowering import apply as _apply_repowering
+
+ARCHETYPE = "cost_optimal"
+"""The suffix ISPyPSA run directories keep, so existing solved runs stay addressable."""
+
+
+def apply_model_patches(ispypsa_tables, config):
+    """Apply the six fork-specific model patches, in order, to templated ISPyPSA tables.
+
+    :param ispypsa_tables: Templated ISPyPSA input tables, keyed by table name.
+    :param config: The run's ISPyPSA configuration.
+    :return: The patched tables.
+    """
+    ispypsa_tables = _apply_pumped_storage_fix(ispypsa_tables, config)
+    ispypsa_tables = _apply_phes_menu(ispypsa_tables, config)
+    ispypsa_tables = _apply_maintenance_overlay(ispypsa_tables, config)
+    ispypsa_tables = _apply_repowering(ispypsa_tables, config)
+    ispypsa_tables = _apply_biomass_cap(ispypsa_tables, config)
+    ispypsa_tables = _apply_biomass_feedstock_cost(ispypsa_tables, config)
+    return ispypsa_tables

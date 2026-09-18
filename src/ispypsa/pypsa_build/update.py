@@ -4,6 +4,7 @@ import pandas as pd
 import pypsa
 
 from ispypsa.pypsa_build.buses import _update_buses_demand_timeseries
+from ispypsa.pypsa_build.ccs_supply_curve import _add_ccs_supply_curve
 from ispypsa.pypsa_build.custom_constraints import _add_custom_constraints
 from ispypsa.pypsa_build.fuel_supply_curve import _add_fuel_supply_curve
 from ispypsa.pypsa_build.generators import _update_generators_availability_timeseries
@@ -116,4 +117,12 @@ def update_network_timeseries(
             pypsa_friendly_input_tables["biomass_supply_curve"],
             pypsa_friendly_input_tables["generators"],
             "Biomass",
+        )
+
+    if "ccs_sink_tranches" in pypsa_friendly_input_tables:
+        _add_ccs_supply_curve(
+            network,
+            pypsa_friendly_input_tables["ccs_sink_tranches"],
+            pypsa_friendly_input_tables["ccs_transport_adders"],
+            pypsa_friendly_input_tables["generators"],
         )
