@@ -53,12 +53,16 @@ def _cell_id(carbon_price: int, level: str) -> str:
     return f"sweep_c{carbon_price}_{level}"
 
 
-def _network(cell: str, year: int) -> pypsa.Network:
-    return pypsa.Network(RUNS / f"{cell}_{year}__cost_optimal" / "outputs" / "capacity_expansion.nc")
+def _network(cell: str, year: int, runs_dir: Path = RUNS) -> pypsa.Network:
+    return pypsa.Network(
+        runs_dir / f"{cell}_{year}__cost_optimal" / "outputs" / "capacity_expansion.nc"
+    )
 
 
 def _annual_mwh(network: pypsa.Network) -> pd.Series:
-    return network.generators_t.p.mul(network.snapshot_weightings["generators"], axis=0).sum()
+    return network.generators_t.p.mul(
+        network.snapshot_weightings["generators"], axis=0
+    ).sum()
 
 
 # ----------------------------------------------------------------- frontier rows
@@ -69,13 +73,24 @@ def _run_frontier_extraction(carbon_price: int, level: str) -> None:
     cell = _cell_id(carbon_price, level)
     subprocess.run(
         [
-            "uv", "run", "python", "analysis/postprocess/extract_frontier_points.py",
-            "--sweep-id", cell, "--run-id", cell,
-            "--years", *[str(y) for y in PERIODS],
-            "--carbon-price", str(carbon_price),
-            "--tns-price", str(CCS_FLAT_ADDER),
-            "--workbook-cache", str(WORKBOOK_CACHE),
-            "--out-dir", str(FRONTIER_DIR),
+            "uv",
+            "run",
+            "python",
+            "analysis/postprocess/extract_frontier_points.py",
+            "--sweep-id",
+            cell,
+            "--run-id",
+            cell,
+            "--years",
+            *[str(y) for y in PERIODS],
+            "--carbon-price",
+            str(carbon_price),
+            "--tns-price",
+            str(CCS_FLAT_ADDER),
+            "--workbook-cache",
+            str(WORKBOOK_CACHE),
+            "--out-dir",
+            str(FRONTIER_DIR),
         ],
         check=True,
         capture_output=True,
@@ -97,18 +112,36 @@ def _load_frontier(carbon_price: int, level: str) -> pd.DataFrame:
         + frame["diagnostic_carbon_cost_per_mwh"]
     )
     frame["delivered_twh"] = frame["annual_generation_twh"]
-    frame["total_cost_aud_per_yr"] = frame["avg_cost_aud_per_mwh"] * frame["delivered_twh"] * 1e6
-    frame["co2e_total_kt_per_yr"] = frame["co2e_total_t_per_mwh"] * frame["delivered_twh"] * 1e3
+    frame["total_cost_aud_per_yr"] = (
+        frame["avg_cost_aud_per_mwh"] * frame["delivered_twh"] * 1e6
+    )
+    frame["co2e_total_kt_per_yr"] = (
+        frame["co2e_total_t_per_mwh"] * frame["delivered_twh"] * 1e3
+    )
     return frame
 
 
 # ------------------------------------------------------------------- mix tables
 
 
-def _mix_row(cell: str, year: int) -> dict:
-    network = _network(cell, year)
+def _mix_row(
+    cell: str,
+    year: int,
+    runs_dir: Path = RUNS,
+    excluded_carriers: frozenset[str] = frozenset(),
+) -> dict:
+    """Generation mix and built capacity for one cell-year.
+
+    `excluded_carriers` drops carriers from the mix and capacity columns before the
+    shares are taken. A run that sheds load needs "Unserved Energy" excluded, or the
+    shed energy lands in the mix as if it were a generation technology; `use_mwh` is
+    still reported from that carrier regardless.
+    """
+    network = _network(cell, year, runs_dir)
     energy = _annual_mwh(network)
-    by_carrier = energy.groupby(network.generators.carrier).sum() / 1e6
+    carriers = network.generators.carrier
+    kept = ~carriers.isin(excluded_carriers)
+    by_carrier = energy[kept].groupby(carriers[kept]).sum() / 1e6
     total = by_carrier.sum()
     row = {"cell": cell, "year": year, "total_twh": total}
     for carrier, twh in by_carrier.items():
@@ -118,9 +151,10 @@ def _mix_row(cell: str, year: int) -> dict:
         row[f"share_{carrier}"] = twh / total * 100 if total else 0.0
     renewable = sum(by_carrier.get(c, 0.0) for c in RENEWABLE_CARRIERS)
     row["renewable_fraction_pct"] = renewable / total * 100 if total else 0.0
-    row["use_mwh"] = float(energy[network.generators.carrier == "Unserved Energy"].sum())
+    row["use_mwh"] = float(energy[carriers == "Unserved Energy"].sum())
 
-    built = network.generators[network.generators.p_nom_opt > REPORTING_FLOOR_MW]
+    generators = network.generators[kept]
+    built = generators[generators.p_nom_opt > REPORTING_FLOOR_MW]
     for carrier, gw in (built.groupby("carrier")["p_nom_opt"].sum() / 1e3).items():
         if carrier:
             row[f"gw_{carrier}"] = gw
@@ -143,8 +177,8 @@ def _duration_class(hours: float) -> str:
     return "6_over24h"
 
 
-def _storage_rows(cell: str, year: int) -> list[dict]:
-    network = _network(cell, year)
+def _storage_rows(cell: str, year: int, runs_dir: Path = RUNS) -> list[dict]:
+    network = _network(cell, year, runs_dir)
     units = network.storage_units
     built = units[units.p_nom_opt > REPORTING_FLOOR_MW].copy()
     built["duration_class"] = built["max_hours"].map(_duration_class)
@@ -159,7 +193,13 @@ def _storage_rows(cell: str, year: int) -> list[dict]:
         include_groups=False,
     )
     return [
-        {"cell": cell, "year": year, "carrier": carrier, "duration_class": duration_class, **row}
+        {
+            "cell": cell,
+            "year": year,
+            "carrier": carrier,
+            "duration_class": duration_class,
+            **row,
+        }
         for (carrier, duration_class), row in grouped.iterrows()
     ]
 
@@ -203,20 +243,32 @@ def _manifest_row(carbon_price: int, level: str, year: int) -> dict:
 # ------------------------------------------------------------------- marginals
 
 
-def _marginals(results: pd.DataFrame) -> pd.DataFrame:
-    """Finite differences between adjacent demand levels at each carbon price.
+def _marginals(
+    results: pd.DataFrame,
+    level_order: list[str] | None = None,
+    periods: list[int] = PERIODS,
+    series_column: str = "carbon_price",
+    level_column: str = "demand_level",
+) -> pd.DataFrame:
+    """Finite differences between adjacent demand levels within each series value.
+
+    A series value is whatever holds constant across the difference — the carbon price
+    for the sweep, the pressure setting for the extension campaign — and is carried
+    through to the output under `series_column`. Levels absent from `results` are
+    skipped rather than bridged, so dropping a cell drops its two arcs instead of
+    silently widening a neighbouring one.
 
     Both cells' totals are carried alongside the difference, so every marginal is
     auditable against its two endpoints rather than presented as a bare number.
     """
-    order = list(DEMAND_LEVELS)
+    order = list(level_order if level_order is not None else DEMAND_LEVELS)
     rows = []
-    for carbon_price in sorted(results["carbon_price"].unique()):
-        for year in PERIODS:
+    for series_value in sorted(results[series_column].unique()):
+        for year in periods:
             for low, high in zip(order, order[1:]):
                 pair = results[
-                    (results.carbon_price == carbon_price) & (results.year == year)
-                ].set_index("demand_level")
+                    (results[series_column] == series_value) & (results.year == year)
+                ].set_index(level_column)
                 if low not in pair.index or high not in pair.index:
                     continue
                 a, b = pair.loc[low], pair.loc[high]
@@ -226,14 +278,16 @@ def _marginals(results: pd.DataFrame) -> pd.DataFrame:
                 d_cost = b["total_cost_aud_per_yr"] - a["total_cost_aud_per_yr"]
                 d_co2e = (b["co2e_total_kt_per_yr"] - a["co2e_total_kt_per_yr"]) * 1e3
                 thermal = sum(
-                    b.get(f"twh_{c}", 0.0) - a.get(f"twh_{c}", 0.0) for c in THERMAL_CARRIERS
+                    b.get(f"twh_{c}", 0.0) - a.get(f"twh_{c}", 0.0)
+                    for c in THERMAL_CARRIERS
                 )
                 renewable = sum(
-                    b.get(f"twh_{c}", 0.0) - a.get(f"twh_{c}", 0.0) for c in RENEWABLE_CARRIERS
+                    b.get(f"twh_{c}", 0.0) - a.get(f"twh_{c}", 0.0)
+                    for c in RENEWABLE_CARRIERS
                 )
                 rows.append(
                     {
-                        "carbon_price": carbon_price,
+                        series_column: series_value,
                         "year": year,
                         "from_level": low,
                         "to_level": high,
@@ -251,12 +305,20 @@ def _marginals(results: pd.DataFrame) -> pd.DataFrame:
                         # Per marginal MWh *delivered*. These two sum above 100 %
                         # because marginal generation exceeds marginal demand: storage
                         # round-trip and network losses have to be generated too.
-                        "marginal_thermal_per_delivered_pct": thermal / (d_mwh / 1e6) * 100,
-                        "marginal_renewable_per_delivered_pct": renewable / (d_mwh / 1e6) * 100,
+                        "marginal_thermal_per_delivered_pct": thermal
+                        / (d_mwh / 1e6)
+                        * 100,
+                        "marginal_renewable_per_delivered_pct": renewable
+                        / (d_mwh / 1e6)
+                        * 100,
                         # Per marginal MWh *generated*, so the pair sums to 100 %. This is
                         # the technology identity of the marginal MWh.
-                        "marginal_thermal_pct_of_generation": thermal / (thermal + renewable) * 100,
-                        "marginal_renewable_pct_of_generation": renewable / (thermal + renewable) * 100,
+                        "marginal_thermal_pct_of_generation": thermal
+                        / (thermal + renewable)
+                        * 100,
+                        "marginal_renewable_pct_of_generation": renewable
+                        / (thermal + renewable)
+                        * 100,
                     }
                 )
     return pd.DataFrame(rows)
@@ -269,8 +331,12 @@ def _acceptance(results: pd.DataFrame, manifest: pd.DataFrame) -> pd.DataFrame:
     """The four tests, as amended by Addendum 1."""
     rows = []
     for _, row in manifest.iterrows():
-        cell_result = results[(results.cell == row["cell"]) & (results.year == row["year"])]
-        use = float(cell_result["use_mwh"].iloc[0]) if len(cell_result) else float("nan")
+        cell_result = results[
+            (results.cell == row["cell"]) & (results.year == row["year"])
+        ]
+        use = (
+            float(cell_result["use_mwh"].iloc[0]) if len(cell_result) else float("nan")
+        )
         # Converged if all three PDLP relative metrics sit inside the requested
         # tolerance. The status field cannot be used: HiGHS PDLP reports Unknown on this
         # LP class even when every metric is satisfied.
@@ -301,14 +367,20 @@ def _acceptance(results: pd.DataFrame, manifest: pd.DataFrame) -> pd.DataFrame:
     monotone = []
     for year in PERIODS:
         for carbon_price in sorted(results["carbon_price"].unique()):
-            block = results[(results.year == year) & (results.carbon_price == carbon_price)]
-            block = block.set_index("demand_level").reindex(DEMAND_LEVELS).dropna(how="all")
+            block = results[
+                (results.year == year) & (results.carbon_price == carbon_price)
+            ]
+            block = (
+                block.set_index("demand_level").reindex(DEMAND_LEVELS).dropna(how="all")
+            )
             costs = block["total_cost_aud_per_yr"]
             monotone.append(
                 {
                     "year": year,
                     "carbon_price": carbon_price,
-                    "test3_cost_monotone_in_demand": bool((costs.diff().dropna() >= 0).all()),
+                    "test3_cost_monotone_in_demand": bool(
+                        (costs.diff().dropna() >= 0).all()
+                    ),
                 }
             )
         for level in DEMAND_LEVELS:
@@ -321,7 +393,9 @@ def _acceptance(results: pd.DataFrame, manifest: pd.DataFrame) -> pd.DataFrame:
                     "demand_level": level,
                     "test2_gas_share_monotone_in_carbon": bool(
                         (gas.diff().dropna() <= 0).all()
-                    ) if gas is not None else None,
+                    )
+                    if gas is not None
+                    else None,
                 }
             )
     return frame, pd.DataFrame(monotone)
@@ -329,8 +403,11 @@ def _acceptance(results: pd.DataFrame, manifest: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--skip-frontier", action="store_true",
-                        help="Reuse existing frontier CSVs instead of re-extracting")
+    parser.add_argument(
+        "--skip-frontier",
+        action="store_true",
+        help="Reuse existing frontier CSVs instead of re-extracting",
+    )
     args = parser.parse_args()
 
     FRONTIER_DIR.mkdir(parents=True, exist_ok=True)
@@ -353,7 +430,9 @@ def main() -> None:
 
     frontier = pd.concat(frontier_frames, ignore_index=True)
     mix = pd.DataFrame(mix_rows)
-    results = frontier.merge(mix, on=["cell", "year"], how="left", suffixes=("", "_mix"))
+    results = frontier.merge(
+        mix, on=["cell", "year"], how="left", suffixes=("", "_mix")
+    )
     # A carrier absent from one cell-year (no Brown Coal built by 2050, say) leaves NaN
     # rather than the zero it means, which would poison the marginal differences.
     absent = [c for c in results.columns if c.startswith(("twh_", "share_", "gw_"))]

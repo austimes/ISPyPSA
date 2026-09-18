@@ -294,7 +294,9 @@ def _solve_diagnostics(record_path: Path) -> dict:
     absolute primal/dual infeasibility and complementarity gap.
     """
     rec = json.loads(record_path.read_text())
-    if rec.get("gurobi_barrier_iterations") is not None:
+    # Branch on the metric itself: a Gurobi record whose log parse missed the iteration
+    # count still carries ipm_final_pinf, and must not be judged by absent PDLP fields.
+    if rec.get("ipm_final_pinf") is not None:
         gap, pinf, dinf = (
             rec.get("ipm_final_gap"),
             rec.get("ipm_final_pinf"),
