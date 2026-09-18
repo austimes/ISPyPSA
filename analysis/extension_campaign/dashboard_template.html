@@ -67,7 +67,9 @@ h1 {
 h2 { font: 600 1.1rem/1.2 "IBM Plex Sans", sans-serif; margin: 0 0 .15rem;
   letter-spacing: -0.005em; }
 .lede { color: var(--ink-2); font-size: 13.5px; margin: 0 0 .9rem; max-width: 66ch; }
-section { display: flex; flex-direction: column; }
+section { display: flex; flex-direction: column; resize: vertical; overflow: auto; min-height: 10rem;
+  padding-bottom: .6rem; border-bottom: 1px dashed var(--rule-strong); }
+.grid2, .grid4 { flex: 1; min-height: 0; }
 
 .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--raised); }
@@ -89,7 +91,7 @@ tr.boundary td { background: var(--crit-bg); }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(27rem, 1fr)); gap: 1.75rem; }
 .panel { border: 1px solid var(--rule); border-radius: 3px; background: var(--raised);
   padding: 1rem 1rem .5rem; display: flex; flex-direction: column; }
-.plot { width: 100%; height: 300px; }
+.plot { width: 100%; flex: 1; min-height: 260px; }
 
 .legend { display: flex; flex-wrap: wrap; gap: .3rem .9rem; margin: .5rem .2rem .2rem; }
 .legend span { display: inline-flex; align-items: center; gap: .35rem;
@@ -116,18 +118,6 @@ code { font: 500 12.5px "IBM Plex Mono", monospace; background: var(--sunken);
 
 <div class="strip" id="strip"></div>
 
-<section>
-  <h2>Milestone gates</h2>
-  <p class="lede">A milestone joins the pathway menu only if it is solver-certified, tracks its cap
-  within one per cent, and sheds no load. A cell that sheds load is a measurement of where the cap
-  stops being reachable, not a pathway anyone can follow.</p>
-  <div class="scroll"><table id="gates">
-    <thead><tr>
-      <th>Chain</th><th>Year</th><th>Solver</th><th>Cap Mt</th><th>Realised Mt</th>
-      <th>Track %</th><th>Intensity t/MWh</th><th>A$/t</th><th>Shed TWh</th><th>Min</th><th>Verdict</th>
-    </tr></thead><tbody></tbody>
-  </table></div>
-</section>
 
 <section>
   <h2>Where the caps bite</h2>
@@ -173,6 +163,19 @@ code { font: 500 12.5px "IBM Plex Mono", monospace; background: var(--sunken);
 </section>
 
 <section id="boundary-note"></section>
+
+<section>
+  <h2>Milestone gates</h2>
+  <p class="lede">A milestone joins the pathway menu only if it is solver-certified, tracks its cap
+  within one per cent, and sheds no load. A cell that sheds load is a measurement of where the cap
+  stops being reachable, not a pathway anyone can follow.</p>
+  <div class="scroll"><table id="gates">
+    <thead><tr>
+      <th>Chain</th><th>Year</th><th>Solver</th><th>Cap Mt</th><th>Realised Mt</th>
+      <th>Track %</th><th>Intensity t/MWh</th><th>A$/t</th><th>Shed TWh</th><th>Min</th><th>Verdict</th>
+    </tr></thead><tbody></tbody>
+  </table></div>
+</section>
 
 <footer id="foot"></footer>
 </div>
@@ -460,6 +463,9 @@ function renderAll() {
     + (failures.length ? ` - could not render ${failures.join("; ")}` : "");
 }
 renderAll();
+new ResizeObserver(entries => entries.forEach(e =>
+  e.target.querySelectorAll('.plot').forEach(p => p.data && Plotly.Plots.resize(p))))
+  .observe(document.body, { subtree: true, box: 'border-box' });
 // A host that defers external scripts delivers the chart library after this runs;
 // rendering again on load picks it up. Rendering is idempotent.
 window.addEventListener("load", renderAll);
