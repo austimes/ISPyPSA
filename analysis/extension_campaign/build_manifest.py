@@ -47,10 +47,9 @@ Outputs under ``--out`` (default ``outputs/campaign``):
   array ranges by hand.
 
 Usage:
-    uv run python analysis/extension_campaign/build_manifest.py
+    uv run isp manifest
 """
 
-import argparse
 import json
 import math
 import subprocess
@@ -310,47 +309,38 @@ def _trajectories_without_tracedirs(plan: dict, tracedirs_dir: Path) -> list[str
 
 
 def _print_summary(
-    plan: dict, caps: pd.DataFrame, chains: pd.DataFrame, args: argparse.Namespace
+    plan: dict,
+    caps: pd.DataFrame,
+    chains: pd.DataFrame,
+    out: Path,
+    tracedirs_dir: Path,
 ) -> None:
     """Report the chain count, the cap tonnages in Mt and any missing trace dirs."""
     print(f"plan version: {plan['version']}")
     print(f"chains: {len(chains)} (array 0-{len(chains) - 1})")
-    print(f"manifest written to {args.out}")
+    print(f"manifest written to {out}")
     print("\ncap schedules (Mt CO2e per year):")
     print(_caps_in_mt(caps).to_string())
-    missing = _trajectories_without_tracedirs(plan, args.tracedirs_dir)
+    missing = _trajectories_without_tracedirs(plan, tracedirs_dir)
     if missing:
-        print(f"\nno trace directory file in {args.tracedirs_dir} for: {missing}")
+        print(f"\nno trace directory file in {tracedirs_dir} for: {missing}")
 
 
-def _parse_args() -> argparse.Namespace:
-    """Command line for the manifest builder."""
-    ap = argparse.ArgumentParser(description="Build the extension campaign manifest.")
-    ap.add_argument("--plan", type=Path, default=DEFAULT_PLAN, help="Demand plan JSON.")
-    ap.add_argument(
-        "--out", type=Path, default=DEFAULT_OUT, help="Manifest output directory."
-    )
-    ap.add_argument(
-        "--tracedirs-dir",
-        type=Path,
-        default=None,
-        help="Directory of <trajectory>.txt per-milestone trace directory tokens "
-        "(default <out>/tracedirs).",
-    )
-    args = ap.parse_args()
-    if args.tracedirs_dir is None:
-        args.tracedirs_dir = args.out / "tracedirs"
-    return args
+def main(
+    plan: Path = DEFAULT_PLAN,
+    out: Path = DEFAULT_OUT,
+    tracedirs_dir: Path | None = None,
+) -> None:
+    """Build the extension campaign manifest.
 
-
-def main() -> None:
-    args = _parse_args()
-    plan = json.loads(args.plan.read_text(encoding="utf-8"))
-    caps = build_caps_table(plan, _read_git_commit())
-    chains = build_chain_table(plan, caps)
-    write_manifest(caps, chains, args.out)
-    _print_summary(plan, caps, chains, args)
-
-
-if __name__ == "__main__":
-    main()
+    :param plan: Demand plan JSON.
+    :param out: Manifest output directory.
+    :param tracedirs_dir: Directory of ``<trajectory>.txt`` per-milestone trace
+        directory tokens (default ``<out>/tracedirs``).
+    """
+    tracedirs_dir = tracedirs_dir or out / "tracedirs"
+    plan_data = json.loads(plan.read_text(encoding="utf-8"))
+    caps = build_caps_table(plan_data, _read_git_commit())
+    chains = build_chain_table(plan_data, caps)
+    write_manifest(caps, chains, out)
+    _print_summary(plan_data, caps, chains, out, tracedirs_dir)

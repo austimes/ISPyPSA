@@ -38,18 +38,13 @@ The extract stage is one chain per process so the 41 chains can run concurrently
 assemble stage reads the per-chain CSVs back and needs no networks.
 
 Usage:
-    uv run python analysis/extension_campaign/build_deliverables.py --only ext_low_c0 --stage extract
-    uv run python analysis/extension_campaign/build_deliverables.py --stage assemble
+    uv run isp deliverables --only ext_low_c0 --stage extract
+    uv run isp deliverables --stage assemble
 """
 
-import argparse
 import json
-import sys
 from pathlib import Path
-
-# Run as a script, sys.path[0] is this file's directory, so the repository root has to
-# be put on the path before the `analysis` package resolves.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from typing import Literal
 
 import pandas as pd
 
@@ -449,11 +444,16 @@ def _chain_ids(chains_path: Path) -> list[str]:
     return list(chains["run_id"])
 
 
-def _run_extract(args: argparse.Namespace, layout: OutputLayout, plan: dict) -> None:
+def _run_extract(
+    layout: OutputLayout,
+    plan: dict,
+    run_ids: list[str],
+    workbook_cache: Path,
+    exports: Path,
+) -> None:
     """Extract one chain's products, or every chain's in sequence."""
     trajectories = {t.key: t for t in trajectories_from_plan(plan)}
     years = plan["milestone_years"]
-    run_ids = [args.only] if args.only else _chain_ids(args.chains)
     for run_id in run_ids:
         trajectory_key, pressure_key = split_chain_id(run_id)
         solved = extract_chain_products(
@@ -462,23 +462,23 @@ def _run_extract(args: argparse.Namespace, layout: OutputLayout, plan: dict) -> 
             parse_pressure(pressure_key),
             years,
             layout,
-            args.workbook_cache,
-            args.exports / "per_chain",
+            workbook_cache,
+            exports / "per_chain",
         )
         print(f"  extracted {run_id}  ({len(solved)} milestones: {solved})")
 
 
-def _run_assemble(args: argparse.Namespace, plan: dict) -> None:
+def _run_assemble(plan: dict, exports: Path) -> None:
     """Build and write the six deliverable tables."""
     tables = assemble(
-        args.exports / "per_chain",
-        args.exports,
+        exports / "per_chain",
+        exports,
         plan["milestone_years"],
         trajectories_from_plan(plan),
     )
-    args.exports.mkdir(parents=True, exist_ok=True)
+    exports.mkdir(parents=True, exist_ok=True)
     for name, frame in tables.items():
-        frame.to_csv(args.exports / name, index=False)
+        frame.to_csv(exports / name, index=False)
         print(f"  wrote {name}  ({len(frame)} rows)")
     results = tables["results.csv"]
     print(
@@ -491,44 +491,31 @@ def _run_assemble(args: argparse.Namespace, plan: dict) -> None:
     )
 
 
-def _parse_args() -> argparse.Namespace:
-    """Command line for the campaign deliverables builder."""
-    parser = argparse.ArgumentParser(
-        description="Build the extension campaign deliverables."
-    )
-    parser.add_argument(
-        "--stage", choices=["extract", "assemble", "all"], default="all"
-    )
-    parser.add_argument(
-        "--only", help="Extract just this chain, for parallel extraction."
-    )
-    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
-    parser.add_argument("--plan", type=Path, default=DEFAULT_PLAN)
-    parser.add_argument("--workbook-cache", type=Path, default=DEFAULT_WORKBOOK_CACHE)
-    parser.add_argument(
-        "--chains",
-        type=Path,
-        default=None,
-        help="Default <output-root>/campaign/chains.tsv",
-    )
-    parser.add_argument(
-        "--exports", type=Path, default=None, help="Default <output-root>/exports"
-    )
-    args = parser.parse_args()
-    args.chains = args.chains or args.output_root / "campaign" / "chains.tsv"
-    args.exports = args.exports or args.output_root / "exports"
-    return args
+def main(
+    stage: Literal["extract", "assemble", "all"] = "all",
+    only: str | None = None,
+    output_root: Path = DEFAULT_OUTPUT_ROOT,
+    plan: Path = DEFAULT_PLAN,
+    workbook_cache: Path = DEFAULT_WORKBOOK_CACHE,
+    chains: Path | None = None,
+    exports: Path | None = None,
+) -> None:
+    """Build the extension campaign deliverables.
 
-
-def main() -> None:
-    args = _parse_args()
-    layout = OutputLayout(args.output_root)
-    plan = json.loads(args.plan.read_text(encoding="utf-8"))
-    if args.stage in ("extract", "all"):
-        _run_extract(args, layout, plan)
-    if args.stage in ("assemble", "all"):
-        _run_assemble(args, plan)
-
-
-if __name__ == "__main__":
-    main()
+    :param stage: Which half to run: per-chain extraction, assembly, or both.
+    :param only: Extract just this chain, for parallel extraction.
+    :param output_root: Campaign output root holding the runs.
+    :param plan: Demand plan JSON.
+    :param workbook_cache: Parsed IASR workbook cache the fuel prices come from.
+    :param chains: Slurm chains table (default ``<output-root>/campaign/chains.tsv``).
+    :param exports: Directory the deliverables are written to (default ``<output-root>/exports``).
+    """
+    chains = chains or output_root / "campaign" / "chains.tsv"
+    exports = exports or output_root / "exports"
+    layout = OutputLayout(output_root)
+    plan_data = json.loads(plan.read_text(encoding="utf-8"))
+    if stage in ("extract", "all"):
+        run_ids = [only] if only else _chain_ids(chains)
+        _run_extract(layout, plan_data, run_ids, workbook_cache, exports)
+    if stage in ("assemble", "all"):
+        _run_assemble(plan_data, exports)

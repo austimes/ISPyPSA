@@ -7,7 +7,7 @@ in `../intensity_demand_map/EXTENSION_CAMPAIGN_BRIEF.md`.
 ## Regenerate everything
 
 ```bash
-uv run python analysis/extension_campaign/refresh.py
+uv run isp refresh
 ```
 
 That one command pulls the branch on petrichor, reads every solved milestone on a compute node, runs the
@@ -27,17 +27,24 @@ Machine-specific locations come from the environment, with defaults matching the
 | `ISPYPSA_SLURM_PARTITION` | `defq`                                   | cluster stage                               |
 | `ISPYPSA_WORKERS`         | `16`                                     | parallel network reads on the compute node  |
 
-## Pieces
+## Commands
 
-| script                                                                             | role                                                                                       |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `build_manifest.py`                                                                | Turns the demand plan into the 41-chain manifest and cap tonnages (`outputs/campaign/`)    |
-| `build_trajectory_demand_dirs.py`                                                  | Rewrites the demand traces per trajectory and milestone, with the FY2050 to FY2060 relabel |
-| `hold_supply_curves.py`                                                            | Extends the gas and biomass supply curves to 2060 by holding their last year               |
-| `chain.sbatch`, `smoke.sbatch`, `fullyear.sbatch`                                  | Slurm launchers for the production array, the NSW smoke chain and full-year validations    |
-| `build_dashboard_data.py`, `build_dashboard.py`                                    | Solved milestones to JSON, JSON to the monitoring page                                     |
-| `build_deliverables.py`, `build_cost_dashboard_data.py`, `build_cost_dashboard.py` | Cost decomposition per cell, marginals, and the cost-surface page                          |
-| `refresh_remote.sh`, `refresh.py`                                                  | The cluster half and the single entry point above                                          |
+Every campaign entry point is a command of the one cyclopts app in `analysis/cli.py`, so nothing is run by script path.
+`uv run isp --help` lists them; `uv run isp <command> --help` shows a command's options. On petrichor's compute nodes,
+which have no internet, run them as `uv run --no-sync isp <command>`.
+
+| command               | script                            | role                                                                                       |
+| --------------------- | --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `manifest`            | `build_manifest.py`               | Turns the demand plan into the 41-chain manifest and cap tonnages                          |
+| `tracedirs`           | `build_trajectory_demand_dirs.py` | Rewrites the demand traces per trajectory and milestone, with the FY2050 to FY2060 relabel |
+| `hold-curves`         | `hold_supply_curves.py`           | Extends the gas and biomass supply curves to 2060 by holding their last year               |
+| `deliverables`        | `build_deliverables.py`           | Cost decomposition per cell and marginals                                                  |
+| `cost-dashboard-data` | `build_cost_dashboard_data.py`    | Deliverable tables to the cost-surface page's JSON                                         |
+| `cost-dashboard`      | `build_cost_dashboard.py`         | JSON to the cost-surface page                                                              |
+| `refresh`             | `refresh.py`                      | The single entry point above, driving the cluster half in `refresh_remote.sh`              |
+
+The Slurm launchers `chain.sbatch`, `smoke.sbatch` and `fullyear.sbatch` stay separate: they call
+`analysis/benchmarks/run_myopic.py`, which is not a campaign command.
 
 ## Launching solves
 

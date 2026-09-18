@@ -44,11 +44,11 @@ def storage(csv_str_to_df):
 @pytest.fixture
 def manifest(csv_str_to_df):
     return csv_str_to_df("""
-        cell,                year,  implied_carbon_price_aud_per_t,  ipm_final_pinf,  ipm_final_dinf,  wall_clock_s,  lp_rows,   peak_rss_gib
-        ext_central_c150,    2050,  150.0,                           1.5e-05,         3.8e-08,         3600.0,        13000000,  21.0
-        ext_stress_c150,     2050,  150.0,                           2.0e-05,         4.0e-08,         5400.0,        14000000,  23.0
-        ext_central_cap0001, 2050,  4815.9,                          5.0e-04,         9.0e-08,         7200.0,        13500000,  22.0
-        ext_stress_cap0001,  2050,  9021.4,                          1.4e-02,         1.0e-07,         9000.0,        14500000,  25.0
+        cell,                year,  implied_carbon_price_aud_per_t,  ipm_final_pinf,  ipm_final_dinf,  wall_clock_s,  lp_rows,   peak_rss_gib,  model_status,  co2_cap_annual_t,  annual_residual_co2e_t
+        ext_central_c150,    2050,  150.0,                           1.5e-05,         3.8e-08,         3600.0,        13000000,  21.0,          Optimal,       ,
+        ext_stress_c150,     2050,  150.0,                           2.0e-05,         4.0e-08,         5400.0,        14000000,  23.0,          Optimal,       ,
+        ext_central_cap0001, 2050,  4815.9,                          5.0e-04,         9.0e-08,         7200.0,        13500000,  22.0,          Optimal,       332150.0,          332150.0
+        ext_stress_cap0001,  2050,  9021.4,                          1.4e-02,         1.0e-07,         9000.0,        14500000,  25.0,          Optimal,       445900.0,          445900.0
     """)
 
 
@@ -104,6 +104,8 @@ def test_a_cell_carries_its_costs_mix_boundary_flag_and_implied_price(
         "boundary": False,
         "fuel_unpriced": False,
         "implied_carbon_price": 150.0,
+        "model_status": "Optimal",
+        "cap_tracking_pct": None,
         "carried_gw": 40.0,
         "mix": {
             "Wind": {"share": 50.0, "twh": 183.0},

@@ -23,13 +23,12 @@ Outputs under ``--out-root``:
 * ``manifest_demand_dirs.csv`` - the scalar and the energies behind every directory.
 
 Usage:
-    uv run python analysis/extension_campaign/build_trajectory_demand_dirs.py \\
+    uv run isp tracedirs \\
         --source data/trace_data_final/isp_2026 \\
         --out-root /scratch/extension_campaign_traces \\
         --plan analysis/extension_campaign/next-sweep-demand-plan.json
 """
 
-import argparse
 import json
 import os
 import shutil
@@ -319,63 +318,32 @@ def _print_summary(records: list[dict]) -> None:
         )
 
 
-def _parse_args(argv: list[str] | None) -> argparse.Namespace:
-    """Command-line arguments: the store to read, where to write, the plan to follow and the weather reference year."""
-    parser = argparse.ArgumentParser(
-        description="Build the extension campaign's per-trajectory demand trace directories."
-    )
-    parser.add_argument(
-        "--source",
-        type=Path,
-        required=True,
-        help="parsed trace store root, e.g. data/trace_data_final/isp_2026",
-    )
-    parser.add_argument(
-        "--out-root",
-        type=Path,
-        required=True,
-        help="directory the rewritten trace directories are written under",
-    )
-    parser.add_argument(
-        "--plan",
-        type=Path,
-        required=True,
-        help="demand plan JSON holding milestone_years and demand_paths_source_twh",
-    )
-    parser.add_argument(
-        "--reference-year",
-        type=int,
-        default=2018,
-        help="weather reference year partition to rewrite",
-    )
-    return parser.parse_args(argv)
+def main(source: Path, out_root: Path, plan: Path, reference_year: int = 2018) -> None:
+    """Build every campaign trace directory, its schedule-token file, the annual demand series and the manifest.
 
-
-def main(argv: list[str] | None = None) -> None:
-    """Build every campaign trace directory, its schedule-token file, the annual demand series and the manifest."""
-    args = _parse_args(argv)
-    plan = json.loads(args.plan.read_text(encoding="utf-8"))
-    args.out_root.mkdir(parents=True, exist_ok=True)
-    _write_annual_demand_series(args.out_root, plan)
+    :param source: Parsed trace store root, e.g. ``data/trace_data_final/isp_2026``.
+    :param out_root: Directory the rewritten trace directories are written under.
+    :param plan: Demand plan JSON holding ``milestone_years`` and ``demand_paths_source_twh``.
+    :param reference_year: Weather reference year partition to rewrite.
+    """
+    plan_data = json.loads(plan.read_text(encoding="utf-8"))
+    out_root.mkdir(parents=True, exist_ok=True)
+    _write_annual_demand_series(out_root, plan_data)
     stores = TraceStores(
-        source=args.source,
-        out_root=args.out_root,
-        reference_year=args.reference_year,
+        source=source,
+        out_root=out_root,
+        reference_year=reference_year,
         source_fy_mwh=_measure_source_energy(
-            args.source, args.reference_year, plan["milestone_years"]
+            source, reference_year, plan_data["milestone_years"]
         ),
         extended_vre=_build_extended_vre_store(
-            args.source, args.out_root, args.reference_year, plan["milestone_years"]
+            source, out_root, reference_year, plan_data["milestone_years"]
         ),
     )
     records = []
-    for trajectory, targets in plan["demand_paths_source_twh"].items():
+    for trajectory, targets in plan_data["demand_paths_source_twh"].items():
         records += _build_trajectory_dirs(
-            stores, trajectory, targets, plan["milestone_years"]
+            stores, trajectory, targets, plan_data["milestone_years"]
         )
-    _write_manifest(args.out_root, records, plan["version"])
+    _write_manifest(out_root, records, plan_data["version"])
     _print_summary(records)
-
-
-if __name__ == "__main__":
-    main()

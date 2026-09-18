@@ -1,6 +1,6 @@
 """Regenerate every campaign deliverable from the solved runs on petrichor, in one command.
 
-    uv run python analysis/extension_campaign/refresh.py
+    uv run isp refresh
 
 Steps, each deterministic given the solved networks on the cluster:
 
@@ -19,20 +19,20 @@ Host, paths and share are read from the environment (see ``_Settings``) so the s
 carries no machine-specific constants; the defaults match the campaign's current homes.
 """
 
-import argparse
 import os
 import shutil
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from analysis.extension_campaign import build_cost_dashboard
 
 CAMPAIGN = Path(__file__).parent
 REPO_ROOT = CAMPAIGN.parents[1]
 EXPORTS = REPO_ROOT / "outputs" / "exports"
 REMOTE_PRODUCTS = [
-    "outputs/campaign/dashboard_data.json",
     "outputs/exports/cost_dashboard_data.json",
+    "outputs/exports/slurm_state.txt",
     "outputs/exports/results.csv",
     "outputs/exports/marginals.csv",
     "outputs/exports/storage.csv",
@@ -41,8 +41,7 @@ REMOTE_PRODUCTS = [
     "outputs/exports/acceptance_per_grid.csv",
 ]
 DASHBOARDS = {
-    "dashboard.html": ("build_dashboard.py", "dashboard_data.json"),
-    "cost_dashboard.html": ("build_cost_dashboard.py", "cost_dashboard_data.json"),
+    "dashboard.html": (build_cost_dashboard.main, "cost_dashboard_data.json"),
 }
 
 
@@ -97,17 +96,8 @@ def _fetch_products(settings: _Settings) -> None:
 
 def _render_dashboards() -> None:
     """Render each dashboard page from its template and freshly fetched data."""
-    for page, (builder, data) in DASHBOARDS.items():
-        _run(
-            [
-                sys.executable,
-                str(CAMPAIGN / builder),
-                "--data",
-                str(EXPORTS / data),
-                "--out",
-                str(EXPORTS / page),
-            ]
-        )
+    for page, (render_page, data) in DASHBOARDS.items():
+        render_page(data=EXPORTS / data, out=EXPORTS / page)
 
 
 def _copy_to_share(settings: _Settings) -> None:
@@ -122,30 +112,20 @@ def _copy_to_share(settings: _Settings) -> None:
     print(f"share updated: {settings.share_dir}")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument(
-        "--skip-remote",
-        action="store_true",
-        help="Do not re-run the cluster stage; fetch and render what is already there.",
-    )
-    parser.add_argument(
-        "--no-share", action="store_true", help="Leave the team share untouched."
-    )
-    args = parser.parse_args()
-    settings = _Settings()
+def main(skip_remote: bool = False, no_share: bool = False) -> None:
+    """Regenerate every campaign deliverable from the solved runs on petrichor.
 
-    if not args.skip_remote:
+    :param skip_remote: Do not re-run the cluster stage; fetch and render what is already there.
+    :param no_share: Leave the team share untouched.
+    """
+    settings = _Settings()
+    if not skip_remote:
         _refresh_on_cluster(settings)
     _fetch_products(settings)
     _render_dashboards()
-    if not args.no_share:
+    if not no_share:
         _copy_to_share(settings)
     print(
         f"publish {EXPORTS / 'dashboard.html'} and {EXPORTS / 'cost_dashboard.html'} "
         "with the Artifact tool to refresh the Claude links."
     )
-
-
-if __name__ == "__main__":
-    main()

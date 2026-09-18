@@ -102,16 +102,10 @@ def built(source_store: Path, plan_file: Path, tmp_path: Path) -> Path:
     out_root = tmp_path / "out"
     try:
         main(
-            [
-                "--source",
-                str(source_store),
-                "--out-root",
-                str(out_root),
-                "--plan",
-                str(plan_file),
-                "--reference-year",
-                str(REFERENCE_YEAR),
-            ]
+            source=source_store,
+            out_root=out_root,
+            plan=plan_file,
+            reference_year=REFERENCE_YEAR,
         )
     except OSError as error:
         pytest.skip(f"directory symlinks unavailable on this platform: {error}")

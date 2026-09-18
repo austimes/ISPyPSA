@@ -1,16 +1,15 @@
 """Render the campaign cost dashboard by injecting its data into the page template.
 
 Keeps the page self-contained so it can be published or opened from a file with no
-server and no second request. Re-run after `build_cost_dashboard_data.py` to refresh
+server and no second request. Re-run after `isp cost-dashboard-data` to refresh
 the page.
 
 Usage:
-    uv run python analysis/extension_campaign/build_cost_dashboard.py \\
+    uv run isp cost-dashboard \\
         --data outputs/exports/cost_dashboard_data.json \\
         --out outputs/exports/cost_dashboard.html
 """
 
-import argparse
 import json
 from pathlib import Path
 
@@ -30,23 +29,20 @@ def render(template: str, data: dict) -> str:
     return template.replace(_PLACEHOLDER, payload)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--data", type=Path, default=_EXPORTS / "cost_dashboard_data.json"
-    )
-    parser.add_argument("--out", type=Path, default=_EXPORTS / "cost_dashboard.html")
-    args = parser.parse_args()
+def main(
+    data: Path = _EXPORTS / "cost_dashboard_data.json",
+    out: Path = _EXPORTS / "cost_dashboard.html",
+) -> None:
+    """Render the campaign cost-surface dashboard from its template and shaped data.
 
-    data = json.loads(args.data.read_text(encoding="utf-8"))
-    page = render(_TEMPLATE.read_text(encoding="utf-8"), data)
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(page, encoding="utf-8")
+    :param data: Shaped campaign data JSON to inline.
+    :param out: Self-contained HTML page to write.
+    """
+    blob = json.loads(data.read_text(encoding="utf-8"))
+    page = render(_TEMPLATE.read_text(encoding="utf-8"), blob)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(page, encoding="utf-8")
     print(
-        f"{args.out} ({len(page) / 1024:.0f} KB) from {data['meta']['chains']} chains, "
-        f"{len(data['cells'])} milestones"
+        f"{out} ({len(page) / 1024:.0f} KB) from {blob['meta']['chains']} chains, "
+        f"{len(blob['cells'])} milestones"
     )
-
-
-if __name__ == "__main__":
-    main()

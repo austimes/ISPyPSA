@@ -10,17 +10,11 @@ demand scalar becomes a demand `trajectory` positioned on the cost surface by th
 milestone's delivered TWh, which differs by year. See `campaign_grid.py` for both.
 
 Usage:
-    uv run python analysis/extension_campaign/build_cost_dashboard_data.py
+    uv run isp cost-dashboard-data
 """
 
-import argparse
 import json
-import sys
 from pathlib import Path
-
-# Run as a script, sys.path[0] is this file's directory, so the repository root has to
-# be put on the path before the `analysis` package resolves.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import pandas as pd
 
@@ -92,6 +86,15 @@ def _cell(row: pd.Series) -> dict:
         "boundary": bool(row["boundary"]),
         "fuel_unpriced": bool(row["fuel_unpriced"]),
         "implied_carbon_price": _round(row["implied_carbon_price_aud_per_t"], 1),
+        "model_status": row.get("model_status"),
+        "cap_tracking_pct": _round(
+            100
+            * (row["annual_residual_co2e_t"] - row["co2_cap_annual_t"])
+            / row["co2_cap_annual_t"],
+            4,
+        )
+        if row.get("co2_cap_annual_t")
+        else None,
         "carried_gw": _round(row.get("carried_gw"), 2),
         "mix": _mix(row),
     }
@@ -203,7 +206,16 @@ def build_payload(
         t for t in trajectories_from_plan(plan) if t.key in set(results["trajectory"])
     ]
     chain_axes = results[["cell", "pressure", "trajectory"]].drop_duplicates()
-    implied = manifest[["cell", "year", "implied_carbon_price_aud_per_t"]]
+    implied = manifest[
+        [
+            "cell",
+            "year",
+            "implied_carbon_price_aud_per_t",
+            "model_status",
+            "co2_cap_annual_t",
+            "annual_residual_co2e_t",
+        ]
+    ]
     return {
         "meta": {
             "pressures": [_pressure_payload(p) for p in pressures],
@@ -220,42 +232,61 @@ def build_payload(
     }
 
 
-def _parse_args() -> argparse.Namespace:
-    """Command line for the cost dashboard data builder."""
-    parser = argparse.ArgumentParser(
-        description="Shape the campaign exports for the cost dashboard."
-    )
-    parser.add_argument("--exports", type=Path, default=DEFAULT_OUTPUT_ROOT / "exports")
-    parser.add_argument("--plan", type=Path, default=DEFAULT_PLAN)
-    parser.add_argument(
-        "--out",
-        type=Path,
-        default=None,
-        help="Default <exports>/cost_dashboard_data.json",
-    )
-    args = parser.parse_args()
-    args.out = args.out or args.exports / "cost_dashboard_data.json"
-    return args
+def progress(results: pd.DataFrame, exports: Path) -> dict:
+    """Campaign progress as of this refresh: chains done, milestones solved, Slurm queue state.
+
+    Slurm counts come from ``slurm_state.txt`` (``squeue ... | sort | uniq -c``) written by the
+    cluster half of the refresh; absent when the refresh ran without it.
+    """
+    chains_file = exports.parent / "campaign" / "chains.tsv"
+    per_chain = results.groupby("cell")["year"].nunique()
+    slurm = {}
+    state_file = exports / "slurm_state.txt"
+    if state_file.exists():
+        for line in state_file.read_text().splitlines():
+            if line.strip():
+                count, state = line.split()
+                slurm[state.lower()] = int(count)
+    return {
+        "chains_total": sum(1 for _ in chains_file.open())
+        if chains_file.exists()
+        else None,
+        "chains_complete": int((per_chain == 4).sum()),
+        "milestones_solved": int(len(results)),
+        "boundary_cells": int(results["boundary"].sum()),
+        "slurm_running": slurm.get("running", 0),
+        "slurm_pending": slurm.get("pending", 0),
+        "generated_at": pd.Timestamp.now().isoformat(timespec="minutes"),
+    }
 
 
-def main() -> None:
-    args = _parse_args()
+def main(
+    exports: Path = DEFAULT_OUTPUT_ROOT / "exports",
+    plan: Path = DEFAULT_PLAN,
+    out: Path | None = None,
+) -> None:
+    """Shape the campaign exports for the cost dashboard.
+
+    :param exports: Directory holding the deliverable CSVs.
+    :param plan: Demand plan JSON.
+    :param out: JSON to write (default ``<exports>/cost_dashboard_data.json``).
+    """
+    out = out or exports / "cost_dashboard_data.json"
     payload = build_payload(
-        pd.read_csv(args.exports / "results.csv"),
-        pd.read_csv(args.exports / "marginals.csv"),
-        pd.read_csv(args.exports / "storage.csv"),
-        pd.read_csv(args.exports / "manifest.csv"),
-        json.loads(args.plan.read_text(encoding="utf-8")),
+        pd.read_csv(exports / "results.csv"),
+        pd.read_csv(exports / "marginals.csv"),
+        pd.read_csv(exports / "storage.csv"),
+        pd.read_csv(exports / "manifest.csv"),
+        json.loads(plan.read_text(encoding="utf-8")),
     )
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
-    print(f"wrote {args.out}  ({args.out.stat().st_size / 1024:.1f} KiB)")
+    payload["meta"]["progress"] = progress(
+        pd.read_csv(exports / "results.csv"), exports
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+    print(f"wrote {out}  ({out.stat().st_size / 1024:.1f} KiB)")
     print(
         f"  cells {len(payload['cells'])}  marginals {len(payload['marginals'])}"
         f"  storage {len(payload['storage'])}"
     )
     print(f"  diagnostics {payload['diagnostics']}")
-
-
-if __name__ == "__main__":
-    main()

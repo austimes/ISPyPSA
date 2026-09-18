@@ -208,5 +208,4 @@ data/*
 outputs/
 
 # The campaign dashboard templates are source, not generated reports.
-!analysis/extension_campaign/dashboard_template.html
 !analysis/extension_campaign/cost_dashboard_template.html

@@ -200,6 +200,10 @@
 
   /* ---- panels ------------------------------------------------------------ */
   .grid2 { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); }
+  .progress { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin-top: .8rem; font-family: var(--mono);
+    font-size: 12px; color: var(--muted); }
+  .progress b { color: var(--ink); font-weight: 600; }
+  .progress .bad b { color: var(--warn); }
   .panel { background: var(--surface); border: 1px solid var(--line);
            border-radius: 12px; padding: 18px 20px 16px; box-shadow: var(--shadow);
            display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -311,6 +315,7 @@
       what electricity costs to supply, on average and at the margin, as demand and pressure move
       &mdash; and where the pressure outruns the fleet and load is shed instead.</p>
     <div class="sw-prov" id="prov"></div>
+    <div class="progress" id="progress"></div>
   </header>
 
   <section class="sw-tiles" id="tiles"></section>
@@ -542,6 +547,13 @@
     <div class="scroll" style="max-height:560px"><table class="dt" id="dt"></table></div>
     <p class="foot" id="dt-foot"></p>
   </section>
+
+  <details class="panel" id="gates">
+    <summary class="panel-t" style="cursor:pointer">Milestone gates (expand)</summary>
+    <p class="panel-sub">One row per solved chain-year: solver status, cap tracking and shed load.
+      A row is a menu member only if certified, cap-tracked within 1% and shedding under 0.1% of demand.</p>
+    <div class="scroll" style="max-height:480px"><table class="dt" id="gates-table"></table></div>
+  </details>
 
   <div class="note">
     <h3>Caveats — carry these with any figure taken from this page</h3>
@@ -1595,4 +1607,26 @@ drawSurface(); drawDecomp(); drawPathway(); drawImplied();
 drawMarginal(); drawSplit(); drawSupply();
 drawCoverage(); drawFracCost(); drawAxis(); drawTable();
 window.addEventListener("resize", () => { ttHide(); });
+</script>
+<script>
+// Progress strip and gates table, fed by meta.progress and per-cell solver fields written at
+// refresh time. ponytail: Slurm counts are as-of-refresh, not live; rerun `isp refresh` to update.
+(function () {
+  const P = DATA.meta.progress || {};
+  const item = (k, v, bad) => `<span class="${bad ? "bad" : ""}">${k} <b>${v ?? "-"}</b></span>`;
+  document.getElementById("progress").innerHTML = [
+    item("chains complete", `${P.chains_complete ?? "-"} / ${P.chains_total ?? "-"}`),
+    item("milestones solved", P.milestones_solved),
+    item("Slurm running", P.slurm_running), item("queued", P.slurm_pending),
+    item("boundary cells", P.boundary_cells, (P.boundary_cells || 0) > 0),
+    item("refreshed", P.generated_at),
+  ].join("");
+  const rows = DATA.cells.slice().sort((a, b) => a.demand.localeCompare(b.demand) || a.pressure.localeCompare(b.pressure) || a.year - b.year);
+  const verdict = c => c.boundary ? "boundary" : c.model_status !== "Optimal" ? "fallback" : Math.abs(c.cap_tracking_pct || 0) > 1 ? "cap drift" : "menu";
+  document.getElementById("gates-table").innerHTML =
+    "<thead><tr><th>trajectory</th><th>pressure</th><th>year</th><th>solver</th><th>track %</th><th>t/MWh</th><th>shed %</th><th>verdict</th></tr></thead><tbody>" +
+    rows.map(c => `<tr><td>${c.demand}</td><td>${c.pressure}</td><td class="num">${c.year}</td><td>${c.model_status ?? "-"}</td>` +
+      `<td class="num">${c.cap_tracking_pct == null ? "-" : c.cap_tracking_pct.toFixed(3)}</td><td class="num">${(c.co2e_intensity ?? 0).toFixed(5)}</td>` +
+      `<td class="num${c.boundary ? " bnd" : ""}">${(c.use_pct ?? 0).toFixed(2)}</td><td>${verdict(c)}</td></tr>`).join("") + "</tbody>";
+})();
 </script>
