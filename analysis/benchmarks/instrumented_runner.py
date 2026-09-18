@@ -15,11 +15,13 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
 import random
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -28,7 +30,8 @@ from pathlib import Path
 
 import psutil
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
 
 
 # ----- Gurobi license-retry ----------------------------------------------
@@ -301,6 +304,12 @@ def _run_staged_pipeline(
     import contextlib
     from io import StringIO
 
+    from analysis.archetypes import APPLY_ARCHETYPE
+    from analysis.benchmarks.flagged_exclusions_2026 import (
+        exclude_ecaa_without_trace,
+        exclude_flagged_new_entrants,
+        normalize_2026_rez_ids,
+    )
     from ispypsa.config import load_config
     from ispypsa.data_fetch import read_csvs, write_csvs
     from ispypsa.iasr_table_caching import build_local_cache
@@ -317,12 +326,6 @@ def _run_staged_pipeline(
     from ispypsa.translator import (
         create_pypsa_friendly_inputs,
         create_pypsa_friendly_timeseries_inputs,
-    )
-    from analysis.archetypes import APPLY_ARCHETYPE
-    from analysis.benchmarks.flagged_exclusions_2026 import (
-        exclude_ecaa_without_trace,
-        exclude_flagged_new_entrants,
-        normalize_2026_rez_ids,
     )
 
     configure_logging()
@@ -659,9 +662,12 @@ def _run_staged_pipeline(
     import pandas as pd
 
     pf_gens = pypsa_friendly["generators"].set_index("name")
-    resid_full = pd.to_numeric(
-        pf_gens["isp_residual_co2_t_per_mwh"], errors="coerce"
-    ).fillna(0.0).reindex(network.generators.index).fillna(0.0)
+    resid_full = (
+        pd.to_numeric(pf_gens["isp_residual_co2_t_per_mwh"], errors="coerce")
+        .fillna(0.0)
+        .reindex(network.generators.index)
+        .fillna(0.0)
+    )
     dispatch_mwh = (
         network.generators_t.p.clip(lower=0)
         .mul(network.snapshot_weightings["generators"], axis=0)
@@ -755,6 +761,64 @@ def _run_staged_pipeline(
         }
 
     return timings
+
+
+def _git_provenance(repo_root: Path = PROJECT_ROOT) -> dict:
+    """Record the exact checked-out source revision and whether it was modified.
+
+    Git metadata may be unavailable in an exported source tree or a damaged
+    checkout. The run record states that explicitly rather than inventing a
+    revision or treating an unknown worktree as clean.
+    """
+    provenance = {
+        "source_git_status": "available",
+        "source_git_commit": None,
+        "source_git_dirty": None,
+    }
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if not commit:
+            raise RuntimeError("git rev-parse HEAD returned an empty commit")
+        provenance["source_git_commit"] = commit
+
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=normal"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        provenance["source_git_dirty"] = bool(status.strip())
+    except (OSError, subprocess.CalledProcessError, RuntimeError) as error:
+        provenance["source_git_status"] = "unavailable"
+        stderr = getattr(error, "stderr", None)
+        detail = (
+            stderr.strip() if isinstance(stderr, str) and stderr.strip() else str(error)
+        )
+        provenance["source_git_error"] = f"{type(error).__name__}: {detail}"
+    return provenance
+
+
+def _config_provenance(config_path: Path) -> dict:
+    """Hash the exact input YAML without reading or hashing external trace data."""
+    try:
+        digest = hashlib.sha256(config_path.read_bytes()).hexdigest()
+    except OSError as error:
+        return {
+            "input_config_sha256_status": "unavailable",
+            "input_config_sha256": None,
+            "input_config_sha256_error": f"{type(error).__name__}: {error}",
+        }
+    return {
+        "input_config_sha256_status": "available",
+        "input_config_sha256": digest,
+    }
 
 
 def main():
@@ -1004,6 +1068,8 @@ def main():
         "solver_options": solver_options,
         "started_at": time.time(),
         "started_at_iso": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        **_git_provenance(),
+        **_config_provenance(args.config),
     }
 
     t_total = time.perf_counter()
