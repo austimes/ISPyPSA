@@ -11,7 +11,7 @@ across the chain.
 Three correctness traps this design clears:
 
 1. **Current-year carbon price on carried rows.** Carried rows carry physical
-   characteristics (heat_rate, residual_co2, captured_co2 — vintage-invariant
+   characteristics (heat_rate, residual_co2, captured_co2 -- vintage-invariant
    per IASR) but reference the *base-tech* marginal_cost mapping. The
    year-(t+1) translator regenerates the marginal_cost parquet at year-(t+1)'s
    `config.carbon_pricing.carbon_price`, so a 2030-built CCGT dispatched in
@@ -32,7 +32,7 @@ Three correctness traps this design clears:
    retirement.
 
 Retirement: a carried row's PyPSA `lifetime` is the IASR new-entrant lifetime
-(annuitisation lifetime == technical/economic operating life — they are the
+(annuitisation lifetime == technical/economic operating life -- they are the
 same physical quantity, not a convenience coincidence). PyPSA's
 `multi_investment_periods=True` active-assets check (build_year <= period
 < build_year + lifetime) retires expired vintages at the model layer.
@@ -77,22 +77,22 @@ def _extract_new_built(
     pypsa_friendly table so the FULL attribute set is preserved.
 
     The build-year pypsa_friendly row is the source of truth (it has every
-    physically-meaningful column — heat_rate, capture_rate, residual_co2,
+    physically-meaningful column -- heat_rate, capture_rate, residual_co2,
     captured_co2, fuel_cost_mapping, vom, ...). We start from it and override
-    only the three things that change on carry-forward: `p_nom` ← solved
-    `p_nom_opt`, `p_nom_extendable` → False, `capital_cost` → 0.
+    only the three things that change on carry-forward: `p_nom` <- solved
+    `p_nom_opt`, `p_nom_extendable` -> False, `capital_cost` -> 0.
 
     This deliberately does NOT copy from `network.<component>`: the PyPSA
     component table drops the `isp_*` metadata, so copying it silently zeroed
-    heat_rate/capture_rate/residual on every carried row — which made carried
+    heat_rate/capture_rate/residual on every carried row -- which made carried
     fossil/CCS units mis-priced in the next solve and mis-counted (zero fuel,
     zero emissions) at extraction. Sourcing from pypsa_friendly preserves the
     whole class, not just the one observed (capture-rate) symptom.
 
     `existing_names` (the re-templated ECAA fleet) is excluded from the carry.
     The retirement seam (`make_existing_reducible`) turns the existing fleet
-    into a downward capacity decision — `p_nom_extendable=True` with the
-    period as `build_year` — so an extendable/build-year filter alone
+    into a downward capacity decision -- `p_nom_extendable=True` with the
+    period as `build_year` -- so an extendable/build-year filter alone
     misattributes a retained existing unit as a new build and carries it, where
     it collides with next period's re-templated ECAA row (the duplicate-index
     halt). Only genuine new-entrant builds carry; the existing fleet reappears
@@ -130,9 +130,9 @@ def extract_new_built_tranche(nc_path: Path, year: int) -> dict[str, pd.DataFram
     Carried rows preserve the full physically-meaningful attribute set by
     sourcing from the run's build-year `pypsa_friendly` tables (siblings of the
     NetCDF), not from the attribute-stripped PyPSA component tables. The
-    re-templated existing (ECAA) fleet — read from the run's `ispypsa_inputs`
-    siblings — is excluded so retirement-extendable existing units are not
-    misattributed as new builds. SOC is intentionally NOT carried for storage —
+    re-templated existing (ECAA) fleet -- read from the run's `ispypsa_inputs`
+    siblings -- is excluded so retirement-extendable existing units are not
+    misattributed as new builds. SOC is intentionally NOT carried for storage --
     `cyclic_state_of_charge=True` re-solves it fresh per year. Returns
     `generators` + `batteries` DataFrames in pypsa_friendly column shape, ready
     to concat into year-(T+1)'s dict.
@@ -164,7 +164,7 @@ def extract_new_built_tranche(nc_path: Path, year: int) -> dict[str, pd.DataFram
 def _read_existing_fleet_names(
     run_root: Path, filename: str, name_col: str
 ) -> set[str]:
-    """The re-templated existing (ECAA) fleet names for one component — the set
+    """The re-templated existing (ECAA) fleet names for one component -- the set
     the carry-forward must never carry (they reappear every period from IASR)."""
     path = run_root / "ispypsa_inputs" / filename
     return set(pd.read_csv(path)[name_col].astype(str))
@@ -306,15 +306,15 @@ def _align_to_target_columns(
 
 
 # ---------------------------------------------------------------------------
-# Capacity cap/floor cumulative-scope fix (the carry-forward × per-period-cap
-# seam). The mvp `_capacity_floor` caps/floors (biomass_cap, the storage/nuclear/
-# gas floors) list ONLY the current period's new-entrant variables
+# Capacity cap/floor cumulative-scope fix (the carry-forward x per-period-cap
+# seam). The `capacity_cap` constraints (the biomass cap, the PHES shared-site
+# cap) list ONLY the current period's new-entrant variables
 # (`{base}_{current_year}`), because they expand over config.investment_periods,
 # which is a single year in the myopic chain. Earlier vintages, injected here as
-# `{base}_{earlier_year}`, escape — the leak that let biomass reach ~2x its
+# `{base}_{earlier_year}`, escape -- the leak that let biomass reach ~2x its
 # intended ceiling. We re-impose the cumulative bound by netting the carried
 # (fixed, non-extendable) capacity off the RHS, matched to each constraint by
-# shared base-name. Capacity (`p_nom`/`e_nom`) constraints only — output/flow
+# shared base-name. Capacity (`p_nom`/`e_nom`) constraints only -- output/flow
 # security constraints (attribute `p`) are untouched. Call AFTER injection.
 # ---------------------------------------------------------------------------
 
@@ -325,7 +325,7 @@ def _carried_capacity_rows(
     pypsa_friendly: dict[str, pd.DataFrame], component: str, current_year: int
 ) -> pd.DataFrame:
     """Carried (earlier-vintage, non-extendable) rows of the component a constraint
-    sums — `generators` for Generator terms, `batteries` for StorageUnit terms."""
+    sums -- `generators` for Generator terms, `batteries` for StorageUnit terms."""
     key = "batteries" if component == "StorageUnit" else "generators"
     df = pypsa_friendly.get(key)
     if df is None or df.empty or "build_year" not in df.columns:

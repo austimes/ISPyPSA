@@ -3,6 +3,7 @@ import pytest
 
 from ispypsa.translator.custom_constraints import (
     _create_vre_build_and_resource_limit_constraints,
+    _create_vre_constraint_lhs_rhs,
     _translate_custom_constraints,
     _validate_lhs_rhs_constraints,
 )
@@ -931,3 +932,39 @@ def test_create_vre_build_limit_constraints_no_matching_generators(csv_str_to_df
 
     # Dummy generators should not be returned either:
     assert dummy_generators is None
+
+
+def test_create_vre_constraint_lhs_rhs_without_an_isp_resource_type_column(
+    csv_str_to_df,
+):
+    """A generators table with no new entrants carries no `isp_resource_type` column, so
+    the resource-type hold-out must only be looked up when something is being held out."""
+    build_or_resource_limits = csv_str_to_df("""
+        constraint_name,           rez_id,  carrier,  resource_limit_mw
+        REZ1_wind_resource_limit,  REZ1,    Wind,     1000
+    """)
+    generators = csv_str_to_df("""
+        name,            bus,   carrier,  p_nom,  p_nom_extendable
+        wind_REZ1_2025,  REZ1,  Wind,     0,      True
+        gas_REZ1_2025,   REZ1,  Gas,      0,      True
+    """)
+
+    lhs, rhs = _create_vre_constraint_lhs_rhs(
+        "wind_resource_limits",
+        build_or_resource_limits,
+        generators,
+        "carrier",
+        "resource_limit_mw",
+    )
+
+    expected_lhs = csv_str_to_df("""
+        constraint_name,           variable_name,   component,  attribute,  coefficient
+        REZ1_wind_resource_limit,  wind_REZ1_2025,  Generator,  p_nom,      1
+    """)
+    pd.testing.assert_frame_equal(lhs, expected_lhs)
+
+    expected_rhs = csv_str_to_df("""
+        constraint_name,           rhs,   constraint_type
+        REZ1_wind_resource_limit,  1000,  <=
+    """)
+    pd.testing.assert_frame_equal(rhs, expected_rhs, check_dtype=False)

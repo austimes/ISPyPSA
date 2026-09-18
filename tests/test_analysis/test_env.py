@@ -37,6 +37,17 @@ def test_input_stores_hang_off_io_dir(monkeypatch, tmp_path):
     assert env.run_set("ext41") == tmp_path / "runs" / "ext41"
 
 
+def test_slurm_settings_are_none_when_the_environment_names_none(monkeypatch, tmp_path):
+    monkeypatch.setattr(env_module, "load_dotenv", lambda *args, **kwargs: False)
+    monkeypatch.setenv("IO_DIR", str(tmp_path))
+    monkeypatch.delenv("MSM_SLURM_ACCOUNT", raising=False)
+    monkeypatch.delenv("MSM_SLURM_PARTITION", raising=False)
+
+    env = Env.from_env()
+
+    assert (env.slurm_account, env.slurm_partition) == (None, None)
+
+
 def test_new_run_creates_a_stamped_launch_directory(monkeypatch, tmp_path):
     monkeypatch.setenv("IO_DIR", str(tmp_path))
 
@@ -47,32 +58,13 @@ def test_new_run_creates_a_stamped_launch_directory(monkeypatch, tmp_path):
     assert datetime.strptime(layout.root.name, RUN_STAMP_FORMAT)
 
 
-def test_latest_run_picks_the_newest_stamp(monkeypatch, tmp_path):
-    monkeypatch.setenv("IO_DIR", str(tmp_path))
-    run_set = tmp_path / "runs" / "ext41"
-    for stamp in ["2026-09-16T09.00", "2026-09-17T08.30", "2026-09-17T14.05"]:
-        (run_set / stamp).mkdir(parents=True)
-
-    layout = Env.from_env().latest_run("ext41")
-
-    assert layout.root == run_set / "2026-09-17T14.05"
-
-
-def test_latest_run_raises_when_a_run_set_has_no_launches(monkeypatch, tmp_path):
-    monkeypatch.setenv("IO_DIR", str(tmp_path))
-    (tmp_path / "runs" / "ext41").mkdir(parents=True)
-
-    with pytest.raises(FileNotFoundError, match="No launches under"):
-        Env.from_env().latest_run("ext41")
-
-
 def test_output_layout_paths_hang_off_one_root(tmp_path):
     layout = OutputLayout(tmp_path / "ext41" / "2026-09-17T14.05")
 
     assert layout.config("chain_2030") == layout.root / "configs" / "chain_2030.yaml"
     assert layout.log("chain_2030") == layout.root / "logs" / "chain_2030.log"
     assert layout.record("chain") == layout.root / "records" / "chain.json"
-    assert layout.network("chain_2030", "cost_optimal") == (
+    assert layout.network("chain_2030") == (
         layout.root
         / "runs"
         / "chain_2030__cost_optimal"

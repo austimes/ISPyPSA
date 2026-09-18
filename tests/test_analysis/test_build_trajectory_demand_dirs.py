@@ -127,13 +127,8 @@ def plan_file(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.fixture(params=["copy", "symlink"])
-def vre_mode(request):
-    return request.param
-
-
 @pytest.fixture
-def built(source_store: Path, plan_file: Path, tmp_path: Path, vre_mode: str) -> Path:
+def built(source_store: Path, plan_file: Path, tmp_path: Path) -> Path:
     """Output root after one full build; skipped where the platform refuses to create directory symlinks."""
     out_root = tmp_path / "out"
     try:
@@ -142,10 +137,9 @@ def built(source_store: Path, plan_file: Path, tmp_path: Path, vre_mode: str) ->
             out_root=out_root,
             plan=plan_file,
             reference_year=REFERENCE_YEAR,
-            vre_mode=vre_mode,
         )
     except OSError as error:
-        if vre_mode == "symlink" and getattr(error, "winerror", None) == 1314:
+        if getattr(error, "winerror", None) == 1314:
             pytest.skip(f"directory symlinks unavailable on this platform: {error}")
         raise
     return out_root
@@ -221,7 +215,7 @@ def test_extended_vre_store_gains_an_unscaled_fy2060(built, source_store):
     pd.testing.assert_frame_equal(appended, expected)
 
 
-def test_vre_matches_one_shared_store(built, source_store, vre_mode):
+def test_vre_matches_one_shared_store(built, source_store):
     milestone_links = [
         built / "unit_flat" / "2049" / DATASET_DIR / subdir
         for subdir in ("project", "zone")
@@ -231,27 +225,6 @@ def test_vre_matches_one_shared_store(built, source_store, vre_mode):
         for subdir in ("project", "zone")
     ]
 
-    if vre_mode == "copy":
-        originals = [source_store / subdir for subdir in ("project", "zone")]
-        originals += [
-            built / "_vre_2060" / DATASET_DIR / subdir for subdir in ("project", "zone")
-        ]
-        for copied, original in zip(
-            milestone_links + extension_links, originals, strict=True
-        ):
-            assert not copied.is_symlink()
-            source_files = sorted(
-                path.relative_to(original) for path in original.rglob("*.parquet")
-            )
-            assert (
-                sorted(path.relative_to(copied) for path in copied.rglob("*.parquet"))
-                == source_files
-            )
-            for relative in source_files:
-                assert (copied / relative).read_bytes() == (
-                    original / relative
-                ).read_bytes()
-        return
     assert all(link.is_symlink() for link in milestone_links + extension_links)
     assert [link.resolve() for link in milestone_links] == [
         (source_store / "project").resolve(),
@@ -261,6 +234,32 @@ def test_vre_matches_one_shared_store(built, source_store, vre_mode):
         (built / "_vre_2060" / DATASET_DIR / "project").resolve(),
         (built / "_vre_2060" / DATASET_DIR / "zone").resolve(),
     ]
+
+
+def test_a_later_build_reuses_the_shared_extension_store(
+    built, source_store, plan_file
+):
+    plan = json.loads(plan_file.read_text(encoding="utf-8"))
+    plan["demand_paths_source_twh"]["unit_added"] = {
+        "2049": 0.0096,
+        "2050": 0.0096,
+        "2060": 0.0096,
+    }
+    plan_file.write_text(json.dumps(plan), encoding="utf-8")
+    sentinel = built / "_vre_2060" / DATASET_DIR / "kept.txt"
+    sentinel.write_text("kept", encoding="utf-8")
+
+    build(
+        source=source_store,
+        out_root=built,
+        plan=plan_file,
+        reference_year=REFERENCE_YEAR,
+    )
+
+    assert sentinel.read_text(encoding="utf-8") == "kept"
+    assert (built / "unit_added" / "2060" / DATASET_DIR / "project").resolve() == (
+        built / "_vre_2060" / DATASET_DIR / "project"
+    ).resolve()
 
 
 def test_tracedirs_file_lists_one_token_per_milestone_in_year_order(built):

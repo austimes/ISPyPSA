@@ -1,10 +1,10 @@
 # Reproducing an electricity investment history
 
 The `msm solve` chain carries surviving generation and storage investment forward into later milestone years, applies
-each period's demand and emissions settings, and prices fuel from the campaign's held supply curves. Always run it
-through the `msm` command line: that is the only path that applies the fork-specific model patches under
-`analysis/model/` (see [MODELLING_ASSUMPTIONS.md](MODELLING_ASSUMPTIONS.md)). Calling ISPyPSA's own package builder
-directly skips those patches.
+each period's demand and emissions settings, and prices fuel from the campaign's supply curves. Always run it through
+the `msm` command line: that is the only path that applies the fork-specific model patches under `analysis/model/` (see
+[MODELLING_ASSUMPTIONS.md](MODELLING_ASSUMPTIONS.md)). Calling ISPyPSA's own package builder directly skips those
+patches.
 
 A model reaching its cost optimum does not by itself prove every demand was served. Always check unserved energy and
 solver residuals alongside the reported cost and mix; see "Verify a result" below. Every assumption authored for this
@@ -38,9 +38,6 @@ wind and solar traces are shared unscaled across trajectories. A trajectory whos
 so the build is safe to repeat. The demand plan driving this (trajectories, milestone years, target loads) is
 `analysis/hpc/demand_plan.json` by default; run `msm launch --help` for the option that points it at a different file.
 
-Trace directories only need building once per trajectory; `msm launch` does this automatically before submitting chains,
-or skips it when they exist.
-
 ## Solve a chain
 
 `msm solve` runs one chain: a sequence of single-period solves, one per milestone year, each carrying forward the
@@ -66,7 +63,7 @@ changing its inputs or assumptions: `--resume` trusts that a completed period's 
 By default `msm solve` reads the campaign's central gas and biomass supply curves from
 `analysis/model/data/gas_supply_curve_central_held_to_2060.csv` and
 `analysis/model/data/biomass_supply_curve_central_held_to_2060.csv`. Each records increasing fuel-price premiums and
-quantity limits by tranche, held at their last published year through 2060. Passing `--gas-supply-curve none` or
+quantity limits by tranche, and must cover every period the chain solves. Passing `--gas-supply-curve none` or
 `--biomass-supply-curve none` disables the corresponding curve and returns to unlimited fuel at the IASR's own price - a
 different assumption, not the campaign's reproduction setting.
 

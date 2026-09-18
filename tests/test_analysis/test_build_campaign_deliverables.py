@@ -72,15 +72,9 @@ def test_marginals_drop_both_arcs_touching_a_boundary_cell(csv_str_to_df):
         level_column="trajectory",
     )
 
-    expected = csv_str_to_df("""
-        pressure,  year,  from_level,  to_level
-    """)
-    pd.testing.assert_frame_equal(
-        arcs.reindex(columns=["pressure", "year", "from_level", "to_level"]),
-        expected,
-        check_dtype=False,
-        check_index_type=False,
-    )
+    # Both arcs touch the dropped middle trajectory, so no row is differenced at all
+    # and the frame carries no columns to name.
+    pd.testing.assert_frame_equal(arcs, pd.DataFrame())
 
 
 def test_marginals_difference_adjacent_trajectories_at_one_pressure(csv_str_to_df):
@@ -95,16 +89,11 @@ def test_marginals_difference_adjacent_trajectories_at_one_pressure(csv_str_to_d
     )
 
     expected = csv_str_to_df("""
-        pressure,  year,  from_level,  to_level,  delta_delivered_twh,  marginal_cost_aud_per_mwh,  marginal_co2e_t_per_mwh
-        cap0001,   2050,  low,         central,   50.0,                 140.0,                      0.004
-        cap0001,   2050,  central,     stress,    100.0,                130.0,                      0.003
+        pressure, year, from_level, to_level, from_delivered_twh, to_delivered_twh, delta_delivered_twh, from_total_cost_aud_per_yr, to_total_cost_aud_per_yr, marginal_cost_aud_per_mwh, from_co2e_kt_per_yr, to_co2e_kt_per_yr, marginal_co2e_t_per_mwh, marginal_thermal_twh, marginal_renewable_twh, marginal_thermal_per_delivered_pct, marginal_renewable_per_delivered_pct, marginal_thermal_pct_of_generation, marginal_renewable_pct_of_generation
+        cap0001, 2050, low, central, 300.0, 350.0, 50.0, 3.0e10, 3.7e10, 140.0, 1000.0, 1200.0, 0.004, 2.0, 30.0, 4.0, 60.0, 6.25, 93.75
+        cap0001, 2050, central, stress, 350.0, 450.0, 100.0, 3.7e10, 5.0e10, 130.0, 1200.0, 1500.0, 0.003, 4.0, 70.0, 4.0, 70.0, 5.405405405, 94.594594595
     """)
-    pd.testing.assert_frame_equal(
-        arcs.reindex(columns=list(expected.columns)),
-        expected,
-        check_exact=False,
-        rtol=1e-9,
-    )
+    pd.testing.assert_frame_equal(arcs, expected, check_exact=False, rtol=1e-8)
 
 
 def test_cost_monotone_row_per_year_and_pressure(csv_str_to_df):

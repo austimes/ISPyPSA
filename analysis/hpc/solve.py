@@ -25,7 +25,6 @@ Usage::
 """
 
 import json
-import logging
 import os
 import shutil
 import subprocess
@@ -36,12 +35,10 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Annotated, TypeVar
 
-import pandas as pd
 import psutil
 from cyclopts import Parameter
 
 from analysis.env import MODEL_DATA, REPO_ROOT, Env, OutputLayout
-from analysis.model import ARCHETYPE
 
 T = TypeVar("T")
 
@@ -96,47 +93,6 @@ def _schedule(
 def _curve_or_none(curve_csv: str) -> str | None:
     """Map the ``"none"`` sentinel to ``None``, opting out of a supply curve."""
     return None if curve_csv.lower() == "none" else curve_csv
-
-
-def _hold_curve_to_years(curve: pd.DataFrame, years: list[int]) -> pd.DataFrame:
-    """Append the last published year's rows relabelled to each missing later year.
-
-    Years already inside the published span are left untouched, so the held copy is
-    identical to the source wherever the source has data.
-    """
-    last_year = int(curve["financial_year"].max())
-    held_rows = [
-        curve[curve["financial_year"] == last_year].assign(financial_year=year)
-        for year in sorted(year for year in years if year > last_year)
-    ]
-    return pd.concat([curve, *held_rows], ignore_index=True)
-
-
-def _held_curve_csv(
-    curve_csv: str | None, periods: list[int], configs_dir: Path
-) -> str | None:
-    """Extend a supply curve CSV to cover every period, holding its last published year.
-
-    Returns the original path when the curve already spans the periods, otherwise the
-    path of a held copy written beside the generated configs.
-    """
-    if curve_csv is None:
-        return None
-    curve = pd.read_csv(curve_csv)
-    last_year = int(curve["financial_year"].max())
-    beyond = sorted(year for year in periods if year > last_year)
-    if not beyond:
-        return curve_csv
-    logging.warning(
-        f"Supply curve {Path(curve_csv).name} held at FY{last_year} for investment "
-        f"periods beyond the published data: {beyond}"
-    )
-    held_path = configs_dir / f"{Path(curve_csv).stem}_held.csv"
-    held_path.parent.mkdir(parents=True, exist_ok=True)
-    _hold_curve_to_years(curve, periods).to_csv(
-        held_path, index=False, lineterminator="\n"
-    )
-    return str(held_path)
 
 
 def _chain_state_dir(
@@ -363,14 +319,14 @@ def _run_one_period(
     }
 
 
-def _completed_record(layout: OutputLayout, run_id: str, archetype: str) -> dict | None:
+def _completed_record(layout: OutputLayout, run_id: str) -> dict | None:
     """The saved record for a period that already solved, or None if it must be run.
 
     Used by ``--resume`` so a requeued chain skips periods whose record reports
     ``completed`` and whose solved network is on disk.
     """
     record_path = layout.record(run_id)
-    if not record_path.exists() or not layout.network(run_id, archetype).exists():
+    if not record_path.exists() or not layout.network(run_id).exists():
         return None
     record = json.loads(record_path.read_text())
     return record if record.get("status") == "completed" else None
@@ -390,7 +346,7 @@ def _save_new_built_tranche(
         save_tranche,
     )
 
-    tranche = extract_new_built_tranche(layout.network(run_id, ARCHETYPE), year)
+    tranche = extract_new_built_tranche(layout.network(run_id), year)
     save_tranche(tranche, tranches_dir, year)
     return {
         "generators_rows": int(len(tranche["generators"])),
@@ -413,7 +369,7 @@ def _save_retention_floor(
         save_retention_floor,
     )
 
-    floor = extract_retained_existing(layout.run_dir(run_id, ARCHETYPE), year)
+    floor = extract_retained_existing(layout.run_dir(run_id), year)
     save_retention_floor(floor, retention_dir, year)
     return {
         "existing_units": int(len(floor)),
@@ -442,7 +398,7 @@ def main(
     biomass_supply_curve: str = str(
         MODEL_DATA / "biomass_supply_curve_central_held_to_2060.csv"
     ),
-    ccs_supply_curve: str = str(MODEL_DATA / "ccs_sink_tranches_conservative.csv"),
+    ccs_supply_curve: str = "none",
     ccs_transport_adders: str = str(MODEL_DATA / "ccs_transport_adders.csv"),
     region_filter: Annotated[str | None, Parameter(name="--filter")] = None,
     use_gurobi: bool = False,
@@ -479,12 +435,15 @@ def main(
         mandated biomethane blend.
     :param gas_supply_curve: Gas supply curve CSV (tranche, financial_year, cap_pj,
         adder_$/gj) pricing gas above each tranche boundary; ``none`` for unlimited gas
-        at IASR prices.
+        at IASR prices. The curve must carry a row for every period of the chain.
     :param biomass_supply_curve: Biomass feedstock supply curve CSV in the same shape;
-        ``none`` for flat re-priced feedstock with unlimited volume.
+        ``none`` for flat re-priced feedstock with unlimited volume. The curve must
+        carry a row for every period of the chain.
     :param ccs_supply_curve: CO2 sink injectivity tranche CSV (sink, financial_year,
-        cap_kt, storage_$/t) capping and pricing annual injection per sink; ``none`` for
-        free unlimited disposal, which is AEMO's own ISP treatment.
+        cap_kt, storage_$/t) capping and pricing annual injection per sink; the default
+        ``none`` gives free unlimited disposal, which is AEMO's own ISP treatment. The
+        shipped tranche file stops at FY2055, so a chain reaching further needs a file
+        extended to its last period.
     :param ccs_transport_adders: CO2 transport adder CSV (isp_sub_region_id, sink,
         distance_km, transport_$/t) pricing each sub-region's pipeline to its sink.
     :param region_filter: Single NEM region to solve, e.g. ``NSW``; omit for the full NEM.
@@ -509,12 +468,8 @@ def main(
         periods,
         "--parsed-traces-directory-schedule",
     )
-    gas_curve = _held_curve_csv(
-        _curve_or_none(gas_supply_curve), periods, layout.configs
-    )
-    biomass_curve = _held_curve_csv(
-        _curve_or_none(biomass_supply_curve), periods, layout.configs
-    )
+    gas_curve = _curve_or_none(gas_supply_curve)
+    biomass_curve = _curve_or_none(biomass_supply_curve)
     ccs_curve = _curve_or_none(ccs_supply_curve)
     regions = [region_filter] if region_filter else None
     tranches_dir = (
@@ -545,7 +500,6 @@ def main(
     chain_record = {
         "run_id": run_id,
         "kind": "recursive_dynamic_chain",
-        "archetype": ARCHETYPE,
         "regions_filter": regions,
         "periods": periods,
         "recursive_dynamic": recursive_dynamic,
@@ -590,9 +544,7 @@ def main(
             ccs_transport_csv=ccs_transport_adders,
         )
         period_started = time.time()
-        already_solved = (
-            _completed_record(layout, sub_run_id, ARCHETYPE) if resume else None
-        )
+        already_solved = _completed_record(layout, sub_run_id) if resume else None
         if already_solved is not None:
             print(f"  Period {year} already completed; skipping solve (--resume)")
         record = already_solved or _run_one_period(
@@ -606,7 +558,6 @@ def main(
             ],
         )
         record["per_period_wall_s"] = time.time() - period_started
-        record["per_period_peak_gib"] = record.get("peak_rss_gib", 0)
         if record.get("status") == "completed" and tranches_dir is not None:
             record["tranche_extracted"] = _save_new_built_tranche(
                 layout, sub_run_id, year, tranches_dir

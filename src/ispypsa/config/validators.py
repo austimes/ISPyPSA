@@ -155,9 +155,9 @@ class CarbonPricingConfig(BaseModel):
     `tns_price` is SUPERSEDED by `ccs_supply_curve`, which prices transport per
     generator against its assigned sink and limits injection at the sink. A flat
     scalar cannot express either, because it is blind to where the CO2 has to go
-    and to how much can be injected at all. It is retained so the archived
-    `prod_*` configs carrying `tns_price: 20.0` stay reproducible; setting it
-    alongside a CCS supply curve raises rather than double-counting disposal.
+    and to how much can be injected at all. It is retained so configs that set
+    `tns_price` stay runnable; setting it alongside a CCS supply curve raises
+    rather than double-counting disposal.
     """
 
     carbon_price: float = 0.0  # AUD/tCO2e on residual emissions (post-capture)

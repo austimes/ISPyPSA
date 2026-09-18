@@ -1,6 +1,7 @@
 import json
+import shlex
+from pathlib import Path
 
-import pandas as pd
 import pytest
 import yaml
 from cyclopts import App
@@ -9,11 +10,23 @@ from analysis.env import MODEL_DATA, OutputLayout
 from analysis.hpc import solve
 from analysis.hpc.solve import (
     _completed_record,
-    _held_curve_csv,
-    _hold_curve_to_years,
     _parse_year_schedule,
     _require_schedule_covers_periods,
 )
+
+SLURM_DIR = Path(solve.__file__).parent / "slurm"
+
+# Shell expansions the sbatch scripts rely on, longest first so the command
+# substitution is replaced before the bare variable inside it.
+SBATCH_SUBSTITUTIONS = {
+    '$(cat "$TRACES")': "2030:/io/tracedirs/c/2030 2040:/io/tracedirs/c/2040",
+    "${RESUME:-}": "--resume",
+    "$SLURM_CPUS_PER_TASK": "64",
+    "$RUN_ID": "ext_central_c0",
+    "$RUN_DIR": "/io/runs/ext41/2026-09-18T10.00",
+    "$TRACES": "2030:/io/tracedirs/c/2030 2040:/io/tracedirs/c/2040",
+    "$ARGS": "--carbon-price 0",
+}
 
 
 class StopBeforeSolve(Exception):
@@ -90,83 +103,6 @@ def test_cli_parses_every_period_of_a_chain(monkeypatch, tmp_path):
     assert chain_record["co2_cap_t_schedule"] == {"2030": 6000000.0, "2040": 2000000.0}
 
 
-def test_hold_curve_repeats_last_year_for_each_missing_year(csv_str_to_df):
-    curve = csv_str_to_df("""
-        tranche,   financial_year, cap_pj, adder_$/gj
-        existing,  2054,           100,    0.0
-        existing,  2055,           110,    0.0
-        imports,   2055,           20,     4.5
-    """)
-
-    held = _hold_curve_to_years(curve, [2055, 2060, 2070])
-
-    expected = csv_str_to_df("""
-        tranche,   financial_year, cap_pj, adder_$/gj
-        existing,  2054,           100,    0.0
-        existing,  2055,           110,    0.0
-        imports,   2055,           20,     4.5
-        existing,  2060,           110,    0.0
-        imports,   2060,           20,     4.5
-        existing,  2070,           110,    0.0
-        imports,   2070,           20,     4.5
-    """)
-    pd.testing.assert_frame_equal(held, expected, check_dtype=False)
-
-
-def test_hold_curve_is_identity_inside_published_span(csv_str_to_df):
-    curve = csv_str_to_df("""
-        tranche,   financial_year, cap_pj, adder_$/gj
-        existing,  2050,           100,    0.0
-        existing,  2055,           110,    0.0
-    """)
-
-    held = _hold_curve_to_years(curve, [2050, 2055])
-
-    pd.testing.assert_frame_equal(held, curve)
-
-
-def _write_curve(path, csv_str_to_df) -> None:
-    csv_str_to_df("""
-        tranche,   financial_year, cap_pj, adder_$/gj
-        existing,  2050,           100,    0.0
-        existing,  2055,           110,    0.0
-    """).to_csv(path, index=False, lineterminator="\n")
-
-
-def test_held_curve_csv_writes_a_held_copy_and_warns(tmp_path, csv_str_to_df, caplog):
-    curve_csv = tmp_path / "gas_supply_curve_central.csv"
-    _write_curve(curve_csv, csv_str_to_df)
-
-    with caplog.at_level("WARNING"):
-        held_csv = _held_curve_csv(str(curve_csv), [2050, 2060], tmp_path / "configs")
-
-    assert held_csv == str(tmp_path / "configs" / "gas_supply_curve_central_held.csv")
-    assert (
-        "Supply curve gas_supply_curve_central.csv held at FY2055 for investment "
-        "periods beyond the published data: [2060]"
-    ) in caplog.text
-    expected = csv_str_to_df("""
-        tranche,   financial_year, cap_pj, adder_$/gj
-        existing,  2050,           100,    0.0
-        existing,  2055,           110,    0.0
-        existing,  2060,           110,    0.0
-    """)
-    pd.testing.assert_frame_equal(pd.read_csv(held_csv), expected, check_dtype=False)
-
-
-def test_held_curve_csv_keeps_a_curve_that_already_covers_the_periods(
-    tmp_path, csv_str_to_df, caplog
-):
-    curve_csv = tmp_path / "gas_supply_curve_central.csv"
-    _write_curve(curve_csv, csv_str_to_df)
-
-    with caplog.at_level("WARNING"):
-        held_csv = _held_curve_csv(str(curve_csv), [2030, 2050], tmp_path / "configs")
-
-    assert held_csv == str(curve_csv)
-    assert "Supply curve" not in caplog.text
-
-
 def test_parse_year_schedule_casts_values():
     schedule = _parse_year_schedule(["2030:19984000", "2040:2.672e6"], float)
 
@@ -212,11 +148,11 @@ def _write_record(layout: OutputLayout, run_id: str, status: str) -> None:
 def test_completed_record_returns_record_when_solve_and_network_exist(tmp_path):
     layout = OutputLayout(tmp_path)
     _write_record(layout, "chain_2030", "completed")
-    network = layout.network("chain_2030", "cost_optimal")
+    network = layout.network("chain_2030")
     network.parent.mkdir(parents=True)
     network.write_bytes(b"")
 
-    assert _completed_record(layout, "chain_2030", "cost_optimal") == {
+    assert _completed_record(layout, "chain_2030") == {
         "status": "completed",
         "objective_value": 1.0,
     }
@@ -226,14 +162,41 @@ def test_completed_record_is_none_without_network(tmp_path):
     layout = OutputLayout(tmp_path)
     _write_record(layout, "chain_2030", "completed")
 
-    assert _completed_record(layout, "chain_2030", "cost_optimal") is None
+    assert _completed_record(layout, "chain_2030") is None
 
 
 def test_completed_record_is_none_when_status_not_completed(tmp_path):
     layout = OutputLayout(tmp_path)
     _write_record(layout, "chain_2030", "timed_out")
-    network = layout.network("chain_2030", "cost_optimal")
+    network = layout.network("chain_2030")
     network.parent.mkdir(parents=True)
     network.write_bytes(b"")
 
-    assert _completed_record(layout, "chain_2030", "cost_optimal") is None
+    assert _completed_record(layout, "chain_2030") is None
+
+
+def _sbatch_solve_tokens(script: str) -> list[str]:
+    """The ``msm solve`` argument list one sbatch script runs, with its shell expansions filled in."""
+    text = (SLURM_DIR / script).read_text(encoding="utf-8").replace("\\\n", " ")
+    command = next(
+        line for line in text.splitlines() if "uv run --no-sync msm solve" in line
+    )
+    for name, value in SBATCH_SUBSTITUTIONS.items():
+        command = command.replace(name, value)
+    return shlex.split(command)[len("uv run --no-sync msm".split()) :]
+
+
+@pytest.mark.parametrize(
+    "script, periods",
+    [("chain.sbatch", [2030, 2040, 2050, 2060]), ("smoke.sbatch", [2030, 2040])],
+)
+def test_sbatch_command_lines_bind_to_the_solve_cli(script, periods):
+    app = App()
+    app.command(solve.main, name="solve")
+
+    command, bound, _ = app.parse_args(
+        _sbatch_solve_tokens(script), exit_on_error=False
+    )
+
+    assert command is solve.main
+    assert bound.kwargs["periods"] == periods

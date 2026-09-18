@@ -29,6 +29,7 @@ dependencies = [
     # Campaign tooling under analysis/ (the msm command line); moves with that package.
     "cyclopts>=3",
     "python-dotenv>=1.0",
+    "scipy",
 ]
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
@@ -40,9 +41,6 @@ msm = "analysis.cli:app"
 [project.optional-dependencies]
 solvers = [
     "linopy>=0.4.4",
-]
-dashboard = [
-    "streamlit>=1.30.0",
 ]
 
 [build-system]
@@ -106,9 +104,6 @@ include = [
     "src/ispypsa/data_fetch/manifests/**/*.txt",
     "src/ispypsa/templater/manually_extracted_template_tables/**/*.csv",
     "analysis/**/*.py",
-    "analysis/**/*.csv",
-    "analysis/**/*.json",
-    "analysis/**/*.sbatch",
 ]
 
 [tool.hatch.build.targets.wheel]

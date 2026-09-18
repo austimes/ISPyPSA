@@ -51,7 +51,8 @@ def _add_ccs_supply_curve(
     Args:
         network: The `pypsa.Network` object with its linopy model built.
         ccs_sink_tranches: `pd.DataFrame` with columns 'investment_period',
-            'sink', 'cap_kt' and 'storage_$/t'.
+            'sink', 'cap_kt' and 'storage_$/t', holding exactly one row per sink
+            per investment period (enforced when the table is translated).
         ccs_transport_adders: `pd.DataFrame` with columns 'isp_sub_region_id',
             'sink' and 'transport_$/t', giving each bus its assigned sink.
         generators: `pd.DataFrame` of PyPSA friendly generator definitions, used
@@ -120,7 +121,7 @@ def _add_injection_purchase_variable(
     """One purchase variable (kt/year) for the sink, bounded by its injectivity cap."""
     return model.add_variables(
         lower=0.0,
-        upper=float(tranche["cap_kt"].sum()),
+        upper=float(tranche["cap_kt"].iloc[0]),
         name=f"ccs_injection_purchases_kt_{sink}_{period}",
     )
 

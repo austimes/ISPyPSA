@@ -12,12 +12,12 @@ Methodological notes:
 
   Denominator. "Per unit" is per MWh of electricity delivered to end uses (the
   Pass-2 orchestrator's commodity). We use the modelled system demand (sum of
-  load × snapshot_weighting per period), not generator dispatch. This handles
-  curtailment, storage round-trip losses and transmission losses correctly —
+  load x snapshot_weighting per period), not generator dispatch. This handles
+  curtailment, storage round-trip losses and transmission losses correctly --
   every MWh of fuel/cost shows up in the per-MWh-delivered intensity.
 
   Cost decoupling. ISPyPSA's PyPSA network stores marginal_cost as
-  (fuel_price × heat_rate + VOM) per snapshot. We recover VOM-only by reading
+  (fuel_price x heat_rate + VOM) per snapshot. We recover VOM-only by reading
   the pypsa-friendly generators.csv columns (isp_heat_rate_gj/mwh,
   isp_vom_$/mwh_sent_out, isp_fuel_cost_mapping) plus the IASR fuel-price tables
   (coal_prices, gas_prices, liquid_fuel_prices, biomass_prices, hydrogen_prices,
@@ -32,20 +32,20 @@ Methodological notes:
   fuel-price overrides for capacity decisions to be self-consistent.
 
   Capex bundling. ISPyPSA pre-annuitises CAPEX and adds FOM into capital_cost
-  (translator/generators.py:546-548). We expose capital_cost × p_nom_opt as a
+  (translator/generators.py:546-548). We expose capital_cost x p_nom_opt as a
   single annualised number per period; CAPEX/FOM split is not recovered.
 
-  Transmission cost. Each line/link capital_cost × p_nom_opt is summed into the
-  method's annualised cost in the period it is active — transmission is part of
+  Transmission cost. Each line/link capital_cost x p_nom_opt is summed into the
+  method's annualised cost in the period it is active -- transmission is part of
   delivering electricity to load.
 
-  Storage cost. Storage capital_cost × p_nom_opt and storage VOM (always small
+  Storage cost. Storage capital_cost x p_nom_opt and storage VOM (always small
   in IASR) are summed into the method's cost. Storage charging electricity
   comes from the same generator pool, so no double-counting.
 
   Snapshot weighting. PyPSA's snapshot_weightings.generators (and .stores) is
   the hours-per-snapshot scaler. ISPyPSA's translator sets these so that
-  Σ(weighting) per period ≈ 8760 even when using representative weeks. We
+  sum(weighting) per period ~ 8760 even when using representative weeks. We
   multiply every per-snapshot quantity by this weighting to get annual totals.
 
   Hyblend. Generators on the "Hyblend" carrier consume a gas+H2 mix that varies
@@ -69,7 +69,7 @@ log = logging.getLogger(__name__)
 
 # Carriers classified as renewable for share computation.
 # Water (hydro) IS included: although ISPyPSA models hydro with p_max_pu=1.0 (no
-# availability traces), the *solved dispatch* runs hydro at ~18 TWh/year — squarely
+# availability traces), the *solved dispatch* runs hydro at ~18 TWh/year -- squarely
 # in the realistic 15-18 TWh range, not the ~60 TWh a flat-out run would imply. The
 # CF-inflation concern that originally excluded it does not materialise in dispatch,
 # so excluding it understated the renewable share by ~7 pp. Share is dispatch-based,
@@ -90,7 +90,7 @@ _CARRIER_TO_COMMODITY = {
 }
 
 
-# ---------- helpers (orchestrator pattern: keep each ≤10 lines) ----------
+# ---------- helpers (orchestrator pattern: keep each <=10 lines) ----------
 
 
 def _load_pypsa_friendly_generators(pypsa_friendly_dir: Path) -> pd.DataFrame:
@@ -231,7 +231,7 @@ def _capex_per_period(network: pypsa.Network) -> pd.Series:
 
 
 def _active_capex(df: pd.DataFrame, period: int, sizing_col: str | None) -> float:
-    """Σ capital_cost × sizing for rows active in `period`. Excludes slack
+    """Sum of capital_cost x sizing for rows active in `period`. Excludes slack
     generators attached to bus_for_custom_constraint_gens."""
     if df.empty or sizing_col is None or sizing_col not in df.columns:
         return 0.0
@@ -271,7 +271,7 @@ def _annual_fuel_consumption_gj(
     dispatch_by_gen: pd.Series,
     gens: pd.DataFrame,
 ) -> pd.Series:
-    """For each generator, annual fuel input in GJ = dispatch_MWh × heat_rate."""
+    """For each generator, annual fuel input in GJ = dispatch_MWh x heat_rate."""
     heat_rate = gens.get("isp_heat_rate_gj/mwh", pd.Series(0.0, index=gens.index))
     heat_rate = pd.to_numeric(heat_rate, errors="coerce").fillna(0.0)
     return dispatch_by_gen.mul(heat_rate.reindex(dispatch_by_gen.index).fillna(0.0))
@@ -398,7 +398,7 @@ def extract_method_year_row(
 def _annual_fuel_cost(
     dispatch: pd.Series, gens: pd.DataFrame, fuel_tables: dict, period: int
 ) -> float:
-    """Sum of dispatch × heat_rate × fuel_price across all generators."""
+    """Sum of dispatch x heat_rate x fuel_price across all generators."""
     total = 0.0
     for name, mwh in dispatch.items():
         if mwh <= 0 or name not in gens.index:
@@ -417,7 +417,7 @@ def _annual_carbon_cost(
     gens: pd.DataFrame,
     carbon_price: float,
 ) -> float:
-    """Sum of dispatch × residual_t_per_mwh × carbon_price across all generators.
+    """Sum of dispatch x residual_t_per_mwh x carbon_price across all generators.
 
     Mirrors the carbon adder applied by the translator in marginal cost
     construction. residual_t_per_mwh is pre-computed at translation time and
@@ -527,7 +527,7 @@ def _aggregate_emissions(
         em["N2O_physical_kg"] += (
             float(gj) * factors["n2o_co2e_kg_per_gj"] * residual_share / 265
         )
-    # Convert kg → tonnes per MWh for CO2e; keep physical as kg per MWh.
+    # Convert kg -> tonnes per MWh for CO2e; keep physical as kg per MWh.
     return {
         "CO2": em["CO2"] / annual_mwh / 1000.0,
         "CH4_CO2e": em["CH4_CO2e"] / annual_mwh / 1000.0,
@@ -631,11 +631,11 @@ def _assemble_row(
         "diagnostic_n2o_physical_kg_per_mwh": emissions.get(
             "N2O_physical_kg_per_mwh", 0.0
         ),
-        "diagnostic_co2_kg_per_mwh": emissions["CO2"] * 1000.0,  # tonne → kg
+        "diagnostic_co2_kg_per_mwh": emissions["CO2"] * 1000.0,  # tonne -> kg
         "renewable_share_pct": renewable_share,
         "source_ids": "AEMO IASR 2024 v6.0; NGA Factors 2024; ISPyPSA 0.1.3",
         "confidence_rating": "MVP_prototype",
-        "review_notes": "Pass-1 MVP — fuel cost subtracted post-hoc from ISPyPSA bundled LP.",
+        "review_notes": "Pass-1 MVP -- fuel cost subtracted post-hoc from ISPyPSA bundled LP.",
     }
 
 

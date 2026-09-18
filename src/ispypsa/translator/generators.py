@@ -33,15 +33,15 @@ def _add_carbon_pricing_columns(generators: pd.DataFrame) -> pd.DataFrame:
     """Attach `isp_capture_rate`, `isp_residual_co2_t_per_mwh`, and
     `isp_captured_co2_t_per_mwh` to a translated generators table.
 
-    Capture rate keyed on `isp_technology_type` (translator constant —
-    placeholder until IASR carries per-plant CCS figures). Carrier-level
-    total Scope 1 CO2e factor is the canonical NGER value (mirrors
-    `analysis/postprocess/nger_factors.py`). The two derived columns
-    are physical t/MWh quantities used downstream by:
-      - the dynamic marginal-cost calc: residual × carbon_price (carbon
-        adder) + captured × tns_price (T&S adder)
-      - the postprocess emissions intensity (residual is what's actually
-        emitted by CCS plants at runtime).
+    Capture rate keyed on `isp_technology_type` (a translator constant, standing
+    in until IASR carries per-plant carbon capture and storage figures). The
+    carrier-level total Scope 1 CO2e factor comes from
+    `_CARRIER_TO_TOTAL_CO2E_KG_PER_GJ`. The two derived columns are physical
+    t/MWh quantities used downstream by:
+      - the dynamic marginal-cost calculation: residual x carbon_price (carbon
+        adder) + captured x tns_price (transport and storage adder)
+      - emissions intensity reporting (residual is what a capturing plant
+        actually emits at runtime).
     """
     g = generators.copy()
     g["isp_capture_rate"] = (
@@ -721,7 +721,8 @@ def _calculate_dynamic_marginal_costs_single_generator(
     # where carbon_adder = carbon_price * residual t/MWh
     #       tns_adder    = (tns_price + transport_$/t) * captured t/MWh
     # Residual / captured are pre-computed by _add_carbon_pricing_columns from
-    # heat_rate × carrier_NGER × capture_rate (0 for non-CCS plants → no adder).
+    # heat_rate x carrier CO2e factor x capture_rate (0 for non-CCS plants, so no
+    # adder).
     # `isp_ccs_transport_$/t` is the per-generator cost of piping captured CO2 to
     # its assigned sink, set by the CCS supply curve; the sink's storage cost is
     # priced separately against the injectivity tranche, not here. The scalar

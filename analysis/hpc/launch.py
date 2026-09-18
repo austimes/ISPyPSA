@@ -6,8 +6,8 @@ The array index is the chain's row in ``campaign/chains.tsv``, so the manifest a
 array are written together and never drift apart.
 
 ``submit`` is the single place that knows how a campaign job is handed to Slurm: the
-account, partition, stdout path and the two exported variables (``RUN_DIR`` and
-``REPO``) that the sbatch scripts read. The deliverables builder submits its own
+account, partition, stdout path and the exported variables (``RUN_DIR``, ``REPO`` and
+``RESUME``) that the sbatch scripts read. The deliverables builder submits its own
 extract array through it as well, so the two entry points cannot disagree.
 """
 
@@ -21,7 +21,6 @@ import pandas as pd
 
 from analysis.env import REPO_ROOT, Env, OutputLayout
 from analysis.hpc import manifest, tracedirs
-from analysis.model import ARCHETYPE
 
 SLURM_DIR = Path(__file__).parent / "slurm"
 DEFAULT_PLAN = Path(__file__).parent / "demand_plan.json"
@@ -46,8 +45,8 @@ def sbatch_command(
         f"--array={array}",
         "--export=ALL,"
         + ",".join(f"{name}={value}" for name, value in exported.items()),
-        f"--account={env.slurm_account}",
-        f"--partition={env.slurm_partition}",
+        *([f"--account={env.slurm_account}"] if env.slurm_account else []),
+        *([f"--partition={env.slurm_partition}"] if env.slurm_partition else []),
         f"--output={(layout.campaign / 'slurm').as_posix()}/%x-%A_%a.out",
         *([f"--dependency={dependency}"] if dependency else []),
         script.as_posix(),
@@ -81,7 +80,7 @@ def submit(
 def _chain_is_complete(layout: OutputLayout, run_id: str, last_period: int) -> bool:
     """True when a chain's final period has a completed record or a solved network on disk."""
     final_run = f"{run_id}_{last_period}"
-    if layout.network(final_run, ARCHETYPE).exists():
+    if layout.network(final_run).exists():
         return True
     record = layout.record(final_run)
     if not record.exists():
@@ -121,12 +120,15 @@ def main(
     :param run_set: Name of the run set a new launch is stamped under.
     :param plan: Demand plan JSON holding the trajectories, loads and milestone years.
     :param run: Existing launch directory to submit into, instead of stamping a new one.
-    :param resume: Submit only the chains whose final period has not completed.
+    :param resume: Submit only the chains whose final period has not completed; requires
+        ``run``, because a freshly stamped directory has no chain to resume.
     :param smoke: Submit the single NSW two-period gate chain instead of the campaign.
     :param array: Slurm array specification, overriding the one derived from the manifest.
     :param dry_run: Write the manifest and print the sbatch command, building no trace
         directories and submitting nothing.
     """
+    if resume and run is None:
+        raise ValueError("--resume needs --run: name the launch directory to resume")
     env = Env.from_env()
     layout = OutputLayout(run) if run else env.new_run(run_set)
     if not dry_run:
@@ -143,8 +145,10 @@ def main(
     if array is None:
         array = f"0-{len(chains) - 1}"
     script = SLURM_DIR / ("smoke.sbatch" if smoke else "chain.sbatch")
+    # Only a submission into an existing launch directory may keep carried chain state.
+    export = {"RESUME": "--resume"} if run else {}
     if dry_run:
-        print(" ".join(sbatch_command(script, array, {}, layout, env)))
+        print(" ".join(sbatch_command(script, array, export, layout, env)))
     else:
-        submit(script, array, {}, layout, env)
+        submit(script, array, export, layout, env)
     print(layout.root)

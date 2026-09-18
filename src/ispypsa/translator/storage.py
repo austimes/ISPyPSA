@@ -145,8 +145,8 @@ def _translate_new_entrant_batteries(
     battery_attributes = _NEW_ENTRANT_BATTERY_ATTRIBUTES.copy()
     # Workbook build limits (PHES menu): candidates carrying a finite
     # `build_limit_mw` get it as PyPSA `p_nom_max`; rows without one (all
-    # battery candidates) are filled with inf below, preserving their
-    # unlimited-build behaviour.
+    # battery candidates) keep a NaN limit here and are filled with inf once
+    # the ECAA and new-entrant tables are concatenated.
     if "build_limit_mw" in new_entrant_batteries.columns:
         battery_attributes["build_limit_mw"] = "p_nom_max"
     # Decide which column to rename to be the bus column.
@@ -203,12 +203,6 @@ def _translate_new_entrant_batteries(
     new_entrant_batteries_pypsa_format = battery_df_with_capital_costs.loc[
         :, battery_attributes.keys()
     ].rename(columns=battery_attributes)
-
-    # candidates without a workbook build limit are unlimited
-    if "p_nom_max" in new_entrant_batteries_pypsa_format.columns:
-        new_entrant_batteries_pypsa_format["p_nom_max"] = (
-            new_entrant_batteries_pypsa_format["p_nom_max"].fillna(np.inf)
-        )
 
     # enforce efficiency values are floats between 0-1
     efficiency_cols = [

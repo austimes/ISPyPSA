@@ -65,6 +65,19 @@ _BASE_TRANSLATOR_OUTPUTS = [
 ]
 
 
+def _fill_missing_build_limits_with_inf(batteries: pd.DataFrame) -> pd.DataFrame:
+    """Treat a storage row with no build limit as unlimited.
+
+    ECAA rows have no build-limit column, so the ECAA/new-entrant concat leaves
+    their `p_nom_max` NaN when PHES candidates carry workbook limits; a fixed
+    unit's limit is its `p_nom`, so unlimited is correct. Battery candidates,
+    which the workbook gives no limit, are unlimited by intent.
+    """
+    if "p_nom_max" in batteries.columns:
+        batteries["p_nom_max"] = batteries["p_nom_max"].fillna(np.inf)
+    return batteries
+
+
 def _config_with_transmission_wacc(
     config: ModelConfig, ispypsa_tables: dict[str, pd.DataFrame]
 ) -> ModelConfig:
@@ -176,13 +189,9 @@ def create_pypsa_friendly_inputs(
             axis=0,
             ignore_index=True,
         )
-        # ECAA rows have no build-limit column, so the ECAA/new-entrant concat
-        # leaves their p_nom_max NaN when PHES candidates carry workbook
-        # limits; a fixed unit's limit is its p_nom -> unlimited is correct.
-        if "p_nom_max" in pypsa_inputs["batteries"].columns:
-            pypsa_inputs["batteries"]["p_nom_max"] = pypsa_inputs["batteries"][
-                "p_nom_max"
-            ].fillna(np.inf)
+        pypsa_inputs["batteries"] = _fill_missing_build_limits_with_inf(
+            pypsa_inputs["batteries"]
+        )
     else:
         logging.warning(
             "No battery data returned from translator - no batteries added to model."

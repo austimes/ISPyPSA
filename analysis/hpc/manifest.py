@@ -234,7 +234,7 @@ def _uncapped_chain_rows(plan: dict) -> list[dict]:
     ]
 
 
-def _price_calibration_rows(plan: dict) -> list[dict]:
+def _price_calibration_rows() -> list[dict]:
     """The A$150/300/550 chains, run only on the central and stress trajectories."""
     return [
         _price_chain_row(trajectory, chain)
@@ -276,7 +276,7 @@ def build_chain_table(plan: dict, caps: pd.DataFrame, tracedirs: Path) -> pd.Dat
     """
     rows = (
         _uncapped_chain_rows(plan)
-        + _price_calibration_rows(plan)
+        + _price_calibration_rows()
         + _cap_chain_rows(plan, caps)
     )
     chains = pd.DataFrame(rows)

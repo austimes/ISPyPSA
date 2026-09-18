@@ -25,6 +25,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_ROOT.parent
 MODEL_DATA = PACKAGE_ROOT / "model" / "data"
 RUN_STAMP_FORMAT = "%Y-%m-%dT%H.%M"
+RUN_DIR_SUFFIX = "cost_optimal"
 
 
 @dataclass(frozen=True)
@@ -78,13 +79,13 @@ class OutputLayout:
         """JSON record for one solve or one chain."""
         return self.records / f"{run_id}.json"
 
-    def run_dir(self, run_id: str, archetype: str) -> Path:
+    def run_dir(self, run_id: str) -> Path:
         """ISPyPSA run directory for one solve, named the way ISPyPSA names it."""
-        return self.runs / f"{run_id}__{archetype}"
+        return self.runs / f"{run_id}__{RUN_DIR_SUFFIX}"
 
-    def network(self, run_id: str, archetype: str) -> Path:
+    def network(self, run_id: str) -> Path:
         """Solved capacity-expansion network for one solve."""
-        return self.run_dir(run_id, archetype) / "outputs" / "capacity_expansion.nc"
+        return self.run_dir(run_id) / "outputs" / "capacity_expansion.nc"
 
     def chain_dir(self, chain_id: str) -> Path:
         """Per-chain state directory holding ``tranches/`` and ``retention/``."""
@@ -96,13 +97,15 @@ class Env:
     """The machine-specific settings, read once from ``.env`` and the process environment.
 
     :param io_dir: Root of every input and run product.
-    :param slurm_account: Slurm account for cluster submissions.
-    :param slurm_partition: Slurm partition for cluster submissions.
+    :param slurm_account: Slurm account for cluster submissions, or None to leave the
+        submission's account to the cluster's own default.
+    :param slurm_partition: Slurm partition for cluster submissions, or None to leave
+        the submission's partition to the cluster's own default.
     """
 
     io_dir: Path
-    slurm_account: str
-    slurm_partition: str
+    slurm_account: str | None
+    slurm_partition: str | None
 
     @classmethod
     def from_env(cls) -> Env:
@@ -118,8 +121,8 @@ class Env:
             raise NotADirectoryError(f"IO_DIR={root} does not exist or is not mounted")
         return cls(
             io_dir=root,
-            slurm_account=os.environ.get("MSM_SLURM_ACCOUNT", "OD-241887"),
-            slurm_partition=os.environ.get("MSM_SLURM_PARTITION", "defq"),
+            slurm_account=os.environ.get("MSM_SLURM_ACCOUNT"),
+            slurm_partition=os.environ.get("MSM_SLURM_PARTITION"),
         )
 
     @property
@@ -168,12 +171,3 @@ class Env:
         )
         layout.root.mkdir(parents=True)
         return layout
-
-    def latest_run(self, run_set: str) -> OutputLayout:
-        """The most recently stamped launch directory under ``run_set``."""
-        stamped = sorted(
-            path for path in self.run_set(run_set).iterdir() if path.is_dir()
-        )
-        if not stamped:
-            raise FileNotFoundError(f"No launches under {self.run_set(run_set)}")
-        return OutputLayout(stamped[-1])

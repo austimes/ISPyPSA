@@ -86,8 +86,46 @@ def test_translate_sink_tranches_raises_on_uncovered_investment_period(tmp_path)
         tmp_path, "tranches.csv", _TRANCHE_CSV + "carbonnet,2050,3000.0,18.5\n"
     )
 
-    with pytest.raises(ValueError, match=r"no rows for investment periods: \[2030\]"):
+    with pytest.raises(
+        ValueError, match=r"investment period pairs: \[\('carbonnet', 2030\)\]"
+    ):
         _translate_ccs_sink_tranches(csv, [2030, 2050])
+
+
+def test_translate_sink_tranches_raises_on_a_sink_and_period_gap(tmp_path):
+    """Both periods and both sinks appear, but cooper_hub has no 2030 row. Checking
+    sinks and periods separately would pass this and leave the build with no cap or
+    price for cooper_hub in 2030."""
+    csv = _write(
+        tmp_path,
+        "tranches.csv",
+        _TRANCHE_CSV
+        + "carbonnet,2030,3000.0,18.5\n"
+        + "carbonnet,2050,3000.0,18.5\n"
+        + "cooper_hub,2050,10000.0,18.5\n",
+    )
+
+    with pytest.raises(
+        ValueError, match=r"investment period pairs: \[\('cooper_hub', 2030\)\]"
+    ):
+        _translate_ccs_sink_tranches(csv, [2030, 2050])
+
+
+def test_translate_sink_tranches_raises_on_repeated_sink_and_period(tmp_path):
+    """Two rows for one sink and period would have their caps added together while
+    only one row's storage price was charged."""
+    csv = _write(
+        tmp_path,
+        "tranches.csv",
+        _TRANCHE_CSV + "carbonnet,2050,3000.0,18.5\n" + "carbonnet,2050,1000.0,45.0\n",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"more than one row for these sink and investment period "
+        r"pairs: \[\('carbonnet', 2050\)\]",
+    ):
+        _translate_ccs_sink_tranches(csv, [2050])
 
 
 def test_translate_transport_adders_selects_the_assignment_columns(tmp_path):

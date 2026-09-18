@@ -24,6 +24,7 @@ from ispypsa.pypsa_build.storage import _add_batteries_to_network
 def build_pypsa_network(
     pypsa_friendly_tables: dict[str : pd.DataFrame],
     path_to_pypsa_friendly_timeseries_data: Path,
+    filtered_to_regions: list[str] | None = None,
 ):
     """Creates a `pypsa.Network` based on set of pypsa friendly input tables.
 
@@ -52,6 +53,9 @@ def build_pypsa_network(
             (add link to pypsa friendly format table docs)
         path_to_pypsa_friendly_timeseries_data: `Path` to `PyPSA` friendly time series
             data (add link to timeseries data docs.
+        filtered_to_regions: NEM regions or ISP sub-regions the inputs were filtered
+            to, or None for an unfiltered whole-of-NEM run. Constraints defined as
+            NEM-wide totals are skipped when the run covers only part of the NEM.
 
     Returns:
         pypsa.Network: A PyPSA network object ready for optimisation.
@@ -81,7 +85,7 @@ def build_pypsa_network(
         path_to_pypsa_friendly_timeseries_data,
     )
 
-    _add_hydro_energy_budget_constraint(network)
+    _add_hydro_energy_budget_constraint(network, filtered_to_regions)
 
     if "batteries" in pypsa_friendly_tables.keys():
         _add_batteries_to_network(network, pypsa_friendly_tables["batteries"])

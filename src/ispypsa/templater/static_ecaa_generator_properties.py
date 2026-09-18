@@ -190,7 +190,7 @@ def _merge_and_set_ecaa_generators_static_properties(
         df, iasr_tables["gpg_min_stable_level_existing_generators"]
     )
     df = _zero_renewable_heat_rates(df, "heat_rate_gj/mwh")
-    df = _fill_thermal_heat_rate_and_vom_from_technology_medians(df)
+    df = _fill_missing_heat_rate_and_vom_from_technology_medians(df)
     df = _zero_renewable_minimum_load(df, "minimum_load_mw")
     df = _zero_ocgt_recip_minimum_load(df, "minimum_load_mw")
     df = _zero_solar_wind_h2gt_partial_outage_derating_factor(
@@ -273,7 +273,7 @@ def _zero_renewable_heat_rates(df: pd.DataFrame, heat_rate_col: str) -> pd.DataF
     return df
 
 
-def _fill_thermal_heat_rate_and_vom_from_technology_medians(
+def _fill_missing_heat_rate_and_vom_from_technology_medians(
     ecaa_generators: pd.DataFrame,
 ) -> pd.DataFrame:
     """Fill missing heat rates and variable operating costs from same-technology peers.
@@ -293,6 +293,7 @@ def _fill_thermal_heat_rate_and_vom_from_technology_medians(
         pd.DataFrame: ecaa_generators with fillable gaps replaced by the technology-type
             median. Rows whose technology group has no peer value are left missing.
     """
+    ecaa_generators = ecaa_generators.copy()
     filled_generators = set()
     for col in ("heat_rate_gj/mwh", "vom_$/mwh_sent_out"):
         was_missing = pd.to_numeric(ecaa_generators[col], errors="coerce").isna()

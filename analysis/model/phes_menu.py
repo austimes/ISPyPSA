@@ -1,13 +1,13 @@
-"""PHES menu repair — one of the six model patches (runs after pumped_storage_fix).
+"""PHES menu repair -- one of the five model patches (runs after pumped_storage_fix).
 
 ISPyPSA's templater keeps only battery rows from the IASR storage summaries
-(src/ispypsa/templater/storage.py:56-62), so every pumped-hydro row — the
+(src/ispypsa/templater/storage.py:56-62), so every pumped-hydro row -- the
 new-entrant candidates AEMO enumerates and costs, and two committed/policy
-projects — is silently dropped. `pumped_storage_fix` re-injects four named
+projects -- is silently dropped. `pumped_storage_fix` re-injects four named
 facilities only. This patch restores the rest of the workbook's PHES menu:
 
-  1. New-entrant PHES candidates per sub-region — Pumped Hydro (10hrs/24hrs/
-     48hrs storage) plus the BOTN - Cethana - 20h project option — appended to
+  1. New-entrant PHES candidates per sub-region -- Pumped Hydro (10hrs/24hrs/
+     48hrs storage) plus the BOTN - Cethana - 20h project option -- appended to
      `new_entrant_batteries` so they flow through the SAME translation path as
      battery candidates (build-cost merge by technology_type, LCF, connection
      cost, per-technology WACC annuitisation, FOM).
@@ -68,7 +68,7 @@ Sources (IASR 2026 v7.8 Final workbook, parsed to the workbook cache):
   - Build limits (MW per sub-region per duration class): sheet "Build limits -
     PHES" -> cache `build_limits_phes.csv` (GHD 2025 Pumped Hydro Energy
     Storage Parameter Review basis; notes 1-2: limits exclude Snowy 2.0 and
-    Borumba, which are modelled as specific projects — so these caps are
+    Borumba, which are modelled as specific projects -- so these caps are
     additive with the committed fleet).
   - Locational cost factors: sheet "Technology specific LCFs" -> cache
     `technology_specific_lcfs.csv` (published FINAL multipliers per sub-region
@@ -95,7 +95,7 @@ Sources (IASR 2026 v7.8 Final workbook, parsed to the workbook cache):
 
 The templater's battery-only filter itself is left unchanged: the upstream
 defect (PHES dropped for every ISPyPSA user) stands and is documented in
-analysis/calibration/STORAGE_AUDIT_GAS_COMPOSITION.md §0.
+analysis/calibration/STORAGE_AUDIT_GAS_COMPOSITION.md section 0.
 """
 
 import logging
@@ -104,7 +104,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .capacity_floor import add_capacity_cap
+from .capacity_cap import add_capacity_cap
 from .pumped_storage_fix import (
     _existing_sub_regions,
     _make_battery_row,
@@ -201,7 +201,7 @@ _FIT_AUDIT_COLUMN = "2049_50_$/mw"
 _FIT_R_SQUARED_FLOOR = 0.95
 
 # Fixed committed / policy PHES units dropped by the templater and not in
-# _pumped_storage_fix's four-facility list. Parameter sources in module
+# pumped_storage_fix's four-facility list. Parameter sources in module
 # docstring. round_trip_efficiency_% is the workbook's "Pumping efficiency".
 _ECAA_PHES_SPECS = [
     {
@@ -235,12 +235,12 @@ def apply(ispypsa_tables: dict, config=None) -> dict:
     """Append workbook PHES new-entrant candidates and the two dropped
     committed units. Needs a config carrying the workbook cache path, the
     scenario and a single (myopic) investment period; otherwise the menu is
-    NOT offered and a warning says so — the production myopic chain always
+    NOT offered and a warning says so -- the production myopic chain always
     satisfies all three."""
     cache_path = getattr(getattr(config, "paths", None), "parsed_workbook_cache", None)
     if cache_path is None:
         log.warning(
-            "phes_menu: config carries no parsed_workbook_cache — PHES menu "
+            "phes_menu: config carries no parsed_workbook_cache -- PHES menu "
             "NOT offered (battery-only new-entrant storage, pre-repair "
             "behaviour)."
         )
@@ -248,7 +248,7 @@ def apply(ispypsa_tables: dict, config=None) -> dict:
     periods = list(config.temporal.capacity_expansion.investment_periods)
     if len(periods) != 1:
         log.warning(
-            f"phes_menu: multi-period run (investment_periods={periods}) — "
+            f"phes_menu: multi-period run (investment_periods={periods}) -- "
             "PHES lead-time gating is only implemented for single-period "
             "(myopic) runs, so the PHES menu is NOT offered here."
         )
@@ -283,7 +283,7 @@ def apply(ispypsa_tables: dict, config=None) -> dict:
 def _read_phes_source_tables(cache: Path) -> dict[str, pd.DataFrame]:
     """Load the cached workbook tables the PHES menu is built from.
 
-    Fails loud when a table is missing — a silent skip would quietly restore
+    Fails loud when a table is missing -- a silent skip would quietly restore
     the truncated menu this pre-pass exists to repair."""
     names = [
         "pumped_hydro_new_entrant_properties",
@@ -585,7 +585,7 @@ def _append_ecaa_phes(
     ecaa_batteries: pd.DataFrame | None, available_sub_regions: set[str]
 ) -> pd.DataFrame:
     """Append Kidston and Phoenix as fixed units via the same row builder as
-    the four `_pumped_storage_fix` facilities."""
+    the four `pumped_storage_fix` facilities."""
     specs_in_scope = [
         spec
         for spec in _ECAA_PHES_SPECS

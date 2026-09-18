@@ -3,7 +3,6 @@ import pypsa
 import pytest
 
 from ispypsa.pypsa_build.generators import (
-    _HOURS_PER_YEAR,
     _add_generator_to_network,
     _add_hydro_energy_budget_constraint,
 )
@@ -230,6 +229,28 @@ def test_add_hydro_energy_budget_constraint_adds_one_constraint_per_period():
         ]
         == 12_988_940.0 * 10
     )
+
+
+def test_add_hydro_energy_budget_constraint_skipped_on_region_filtered_run(caplog):
+    """Test the NEM-wide budget is not applied when the run models only a subset
+    of regions, because the modelled fleet is only part of the NEM hydro fleet."""
+    network = pypsa.Network()
+    network.add("Bus", "test_bus")
+    network.add("Generator", "hydro_1", bus="test_bus", carrier="Water", p_nom=100)
+    network.set_investment_periods([2025])
+    network.investment_period_weightings = pd.DataFrame(
+        {"years": [5], "objective": [1.0]}, index=[2025]
+    )
+
+    with caplog.at_level("WARNING"):
+        _add_hydro_energy_budget_constraint(network, ["NSW"])
+
+    assert network.global_constraints.empty
+    assert (
+        "Run is filtered to regions ['NSW'], so the NEM-wide annual "
+        "conventional-hydro energy budget is not applied and hydro is limited "
+        "only by its capacity factor ceiling."
+    ) in caplog.text
 
 
 def test_add_hydro_energy_budget_constraint_no_op_without_water_generators():

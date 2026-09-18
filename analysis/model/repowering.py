@@ -1,4 +1,4 @@
-"""EOL renewable repowering — Pass 1 simplified treatment.
+"""EOL renewable repowering -- Pass 1 simplified treatment.
 
 When wind and solar assets reach end-of-life in the model, repowering is
 available as a defensible alternative to forcing greenfield rebuilds:
@@ -19,17 +19,17 @@ wind farms drops out faster than new entrants build to replace them,
 producing a 2045 wind capacity dip.
 
 Per-fuel parameters (defensible defaults; sources below):
-  Wind:  repowering_capex = 1,000 AUD/kW (≈ 50 % of greenfield ~2,000 AUD/kW)
-  Solar:                =   800 AUD/kW (≈ 50 % of greenfield ~1,400 AUD/kW)
+  Wind:  repowering_capex = 1,000 AUD/kW (~ 50 % of greenfield ~2,000 AUD/kW)
+  Solar:                =   800 AUD/kW (~ 50 % of greenfield ~1,400 AUD/kW)
   Both: life_extension   =    20 yr
 
 Cited sources:
-  - CSIRO GenCost 2024-25 Final (July 2025), §3.5 — greenfield CapEx for
+  - CSIRO GenCost 2024-25 Final (July 2025), section 3.5 -- greenfield CapEx for
     onshore wind (~2,000 AUD/kW) and large-scale solar PV (~1,400 AUD/kW).
-  - IRENA Renewable Power Generation Costs 2023 — global repowering CapEx
+  - IRENA Renewable Power Generation Costs 2023 -- global repowering CapEx
     range typically 40-60 % of greenfield (existing site infrastructure
     preserved).
-  - CSIRO renewable energy work (project EnergyConnect / RACI 2023) —
+  - CSIRO renewable energy work (project EnergyConnect / RACI 2023) --
     typical wind repowering life-extension ~20 yr at modern turbine
     standards.
 
@@ -37,10 +37,10 @@ Documented Pass-1 limitations (the methodology calls for both cost AND
 performance modelling; only the cost side is implemented here):
 
   1. **No capacity-factor uplift.** Modern (2025+) wind turbines deliver
-     2-3× the CF of 2015-vintage units; solar PV CF rises ~10-15 % with
+     2-3x the CF of 2015-vintage units; solar PV CF rises ~10-15 % with
      bifacial / tracking upgrades. ISPyPSA p_max_pu traces are sourced
      per the IASR vintage and cannot be modulated per-asset without
-     trace modification — out of scope for the MVP.
+     trace modification -- out of scope for the MVP.
   2. **Not an LP investment decision.** The simplified treatment makes
      repowering effectively a fleet-wide default rather than an
      LP-chosen option. Pass 3 high-fidelity re-solves should inject

@@ -63,7 +63,6 @@ from analysis.hpc.campaign_grid import (
 from analysis.hpc.launch import submit
 from analysis.sharp.frontier_points import extract_chain
 
-ARCHETYPE = "cost_optimal"
 REPORTING_FLOOR_MW = 1.0
 RENEWABLE_CARRIERS = {"Wind", "Solar", "Water", "Biomass"}
 THERMAL_CARRIERS = {"Gas", "Black Coal", "Brown Coal", "Liquid Fuel"}
@@ -87,11 +86,9 @@ FUEL_BURNING_FLOOR_PCT = 0.5
 # --------------------------------------------------------------- per-chain networks
 
 
-def _network(cell: str, year: int, runs_dir: Path) -> pypsa.Network:
+def _network(cell: str, year: int, layout: OutputLayout) -> pypsa.Network:
     """Solved network for one cell-year, named the way `msm solve` names it."""
-    return pypsa.Network(
-        runs_dir / f"{cell}_{year}__{ARCHETYPE}" / "outputs" / "capacity_expansion.nc"
-    )
+    return pypsa.Network(layout.network(f"{cell}_{year}"))
 
 
 def _annual_mwh(network: pypsa.Network) -> pd.Series:
@@ -104,7 +101,7 @@ def _annual_mwh(network: pypsa.Network) -> pd.Series:
 def _mix_row(
     cell: str,
     year: int,
-    runs_dir: Path,
+    layout: OutputLayout,
     excluded_carriers: frozenset[str] = frozenset(),
 ) -> dict:
     """Generation mix and built capacity for one cell-year.
@@ -114,7 +111,7 @@ def _mix_row(
     shed energy lands in the mix as if it were a generation technology; `use_mwh` is
     still reported from that carrier regardless.
     """
-    network = _network(cell, year, runs_dir)
+    network = _network(cell, year, layout)
     energy = _annual_mwh(network)
     carriers = network.generators.carrier
     kept = ~carriers.isin(excluded_carriers)
@@ -154,9 +151,9 @@ def _duration_class(hours: float) -> str:
     return "6_over24h"
 
 
-def _storage_rows(cell: str, year: int, runs_dir: Path) -> list[dict]:
+def _storage_rows(cell: str, year: int, layout: OutputLayout) -> list[dict]:
     """Storage build by duration class for one cell-year."""
-    network = _network(cell, year, runs_dir)
+    network = _network(cell, year, layout)
     units = network.storage_units
     built = units[units.p_nom_opt > REPORTING_FLOOR_MW].copy()
     built["duration_class"] = built["max_hours"].map(_duration_class)
@@ -275,7 +272,7 @@ def _solved_years(layout: OutputLayout, run_id: str, years: list[int]) -> list[i
         year
         for year in years
         if layout.record(f"{run_id}_{year}").exists()
-        and layout.network(f"{run_id}_{year}", ARCHETYPE).exists()
+        and layout.network(f"{run_id}_{year}").exists()
     ]
 
 
@@ -294,10 +291,8 @@ def _frontier_frame(
         years=years,
         carbon_price=pressure.carbon_price,
         tns_price=TNS_PRICE_AUD_PER_TCO2,
-        runs_dir=layout.runs,
-        records_dir=layout.records,
+        layout=layout,
         workbook_cache=workbook_cache,
-        archetype=ARCHETYPE,
     )
     frame.insert(0, "cell", run_id)
     frame["pressure"] = pressure.key
@@ -326,9 +321,7 @@ def _cap_shadow_price(layout: OutputLayout, run_id: str, year: int) -> float | N
     negation. A solve with no cap constraint writes no duals file.
     """
     duals_path = (
-        layout.run_dir(f"{run_id}_{year}", ARCHETYPE)
-        / "outputs"
-        / "constraint_duals.json"
+        layout.run_dir(f"{run_id}_{year}") / "outputs" / "constraint_duals.json"
     )
     if not duals_path.exists():
         return None
@@ -380,7 +373,7 @@ def _manifest_row(
         "solve_s": record.get("solve_s"),
         "wall_clock_s": record.get("wall_clock_s"),
         "peak_rss_gib": record.get("peak_rss_gib"),
-        "network_path": str(layout.network(f"{run_id}_{year}", ARCHETYPE)),
+        "network_path": str(layout.network(f"{run_id}_{year}")),
         "record_path": str(layout.record(f"{run_id}_{year}")),
     }
 
@@ -402,15 +395,17 @@ def extract_chain_products(
     :return: The milestone years actually extracted.
     """
     solved = _solved_years(layout, run_id, years)
+    if not solved:
+        return []
     per_chain_dir.mkdir(parents=True, exist_ok=True)
     frontier = _frontier_frame(
         run_id, pressure, trajectory.key, solved, layout, workbook_cache
     )
     mix = pd.DataFrame(
-        [_mix_row(run_id, year, layout.runs, EXCLUDED_MIX_CARRIERS) for year in solved]
+        [_mix_row(run_id, year, layout, EXCLUDED_MIX_CARRIERS) for year in solved]
     )
     storage = pd.DataFrame(
-        [row for year in solved for row in _storage_rows(run_id, year, layout.runs)]
+        [row for year in solved for row in _storage_rows(run_id, year, layout)]
     )
     manifest = pd.DataFrame(
         [_manifest_row(run_id, pressure, trajectory, year, layout) for year in solved]
@@ -570,7 +565,6 @@ def _intensity_monotone_rows(
 
 def assemble(
     per_chain_dir: Path,
-    exports_dir: Path,
     years: list[int],
     trajectories: list[Trajectory],
 ) -> dict[str, pd.DataFrame]:
@@ -648,7 +642,6 @@ def _run_assemble(plan: dict, exports: Path) -> None:
     """Build and write the six deliverable tables."""
     tables = assemble(
         exports / "per_chain",
-        exports,
         plan["milestone_years"],
         trajectories_from_plan(plan),
     )
@@ -667,12 +660,17 @@ def _run_assemble(plan: dict, exports: Path) -> None:
     )
 
 
-def _submit_extract(layout: OutputLayout, n_chains: int) -> None:
-    """Read the networks on compute nodes: one array task per chain, then one assemble task."""
+def _submit_extract(layout: OutputLayout, n_chains: int, assemble_after: bool) -> None:
+    """Read the networks on compute nodes: one array task per chain, then one assemble task.
+
+    The assemble task is submitted only when this invocation owns both stages; a
+    ``--stage extract`` run leaves assembly to a later ``--stage assemble`` call.
+    """
     env = Env.from_env()
     script = Path(__file__).resolve().parents[1] / "hpc" / "slurm" / "extract.sbatch"
     array_job = submit(script, f"0-{n_chains - 1}", {"STAGE": "extract"}, layout, env)
-    submit(script, "0", {"STAGE": "assemble"}, layout, env, f"afterok:{array_job}")
+    if assemble_after:
+        submit(script, "0", {"STAGE": "assemble"}, layout, env, f"afterok:{array_job}")
 
 
 def main(
@@ -684,7 +682,8 @@ def main(
     """Build the extension campaign deliverables for one stamped run directory.
 
     :param run: Stamped run directory, ``$IO_DIR/runs/<run_set>/<stamp>``.
-    :param only: Extract just this chain, for parallel extraction.
+    :param only: Extract just this chain, for parallel extraction. A single chain is
+        always read in-process: it is the unit one array task already covers.
     :param stage: Which half to run: per-chain extraction, assembly, or both.
     :param local: Read solved networks in-process even when Slurm is available.
         Otherwise, when the extraction stage needs to run and Slurm is present,
@@ -696,8 +695,8 @@ def main(
         (layout.campaign / "demand_plan.json").read_text(encoding="utf-8")
     )
     needs_networks = stage in ("extract", "all")
-    if needs_networks and not local and shutil.which("sbatch"):
-        _submit_extract(layout, len(_chain_ids(chains)))
+    if needs_networks and not only and not local and shutil.which("sbatch"):
+        _submit_extract(layout, len(_chain_ids(chains)), assemble_after=stage == "all")
         return
     if needs_networks:
         workbook_cache = Env.from_env().workbook_cache

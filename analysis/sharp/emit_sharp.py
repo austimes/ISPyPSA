@@ -4,10 +4,10 @@ Usage:
     uv run msm sharp --run <run dir>
 
 Produces:
-    methods.csv        — one row per archetype
-    method_years.csv   — one row per (archetype, milestone year)
-    nger_factor_table.csv — provenance of the emission cross-walk
-    diagnostics.csv    — bundled vs decoupled cost, fuel cost share, demand,
+    methods.csv        -- one row per archetype
+    method_years.csv   -- one row per (archetype, milestone year)
+    nger_factor_table.csv -- provenance of the emission cross-walk
+    diagnostics.csv    -- bundled vs decoupled cost, fuel cost share, demand,
                          physical-mass CH4/N2O/CO2 intensities
 """
 
@@ -26,7 +26,7 @@ from .nger_factors import nger_factor_table
 
 log = logging.getLogger(__name__)
 
-# Production archetype catalogue: the six archetypes used in Pass 1 runs.
+# The campaign's one method: least-cost expansion, shaped by the run's carbon pressure.
 # Bounds are author-supplied intent values, not derived from ISPyPSA outputs.
 ARCHETYPE_CATALOGUE = {
     "cost_optimal": {
@@ -37,49 +37,7 @@ ARCHETYPE_CATALOGUE = {
         "default_min_share": 0.0,
         "default_max_activity": None,
     },
-    "rapid_coal_phaseout": {
-        "method_id": "electricity__grid_supply__rapid_coal_phaseout",
-        "short_name": "Rapid coal phaseout",
-        "description": "All coal retired by 2030; gas remains available; LP decides on cost.",
-        "default_max_share": 1.0,
-        "default_min_share": 0.0,
-        "default_max_activity": None,
-    },
-    "gas_fleet_maintained": {
-        "method_id": "electricity__grid_supply__gas_fleet_maintained",
-        "short_name": "Gas fleet maintained",
-        "description": "Coal retired by 2030; gas held ≥ 12,500 MW at 2030 and 2035.",
-        "default_max_share": 1.0,
-        "default_min_share": 0.0,
-        "default_max_activity": None,
-    },
-    "storage_led": {
-        "method_id": "electricity__grid_supply__storage_led",
-        "short_name": "Storage-led",
-        "description": "Coal by 2035; no new gas (incl. CCS); storage ≥ 1.25× AEMO trajectory per year.",
-        "default_max_share": 1.0,
-        "default_min_share": 0.0,
-        "default_max_activity": None,
-    },
-    "fossil_incumbent": {
-        "method_id": "electricity__grid_supply__fossil_incumbent",
-        "short_name": "Fossil-incumbent",
-        "description": "Capped wind+solar build; existing thermal lifetime-extended where allowed.",
-        "default_max_share": 1.0,
-        "default_min_share": 0.0,
-        "default_max_activity": None,
-    },
-    "nuclear_baseload": {
-        "method_id": "electricity__grid_supply__nuclear_baseload",
-        "short_name": "Nuclear baseload",
-        "description": "Coalition 2024 phased nuclear: ≥ 2,000 MW @ 2045, ≥ 4,000 MW @ 2050.",
-        "default_max_share": 1.0,
-        "default_min_share": 0.0,
-        "default_max_activity": None,
-    },
 }
-
-_ALL_KNOWN_ARCHETYPES = ARCHETYPE_CATALOGUE
 
 
 def _find_archetype_runs(
@@ -89,10 +47,10 @@ def _find_archetype_runs(
 
     Myopic runs produce one directory per period per archetype; this collects all
     of them. Single-run directories (one directory covering all periods) are also
-    handled — they appear as a one-element list.
+    handled -- they appear as a one-element list.
 
     Pass `run_id_prefix` (e.g. "20260526_161705") to filter to a specific
-    production run when multiple are present in the same `runs_dir` —
+    production run when multiple are present in the same `runs_dir` --
     otherwise this function would aggregate across all runs and produce
     inflated or duplicated counts.
     """
@@ -102,7 +60,7 @@ def _find_archetype_runs(
             continue
         if run_id_prefix is not None and not d.name.startswith(run_id_prefix):
             continue
-        for arch_id in _ALL_KNOWN_ARCHETYPES:
+        for arch_id in ARCHETYPE_CATALOGUE:
             if d.name.endswith(f"__{arch_id}"):
                 if (d / "outputs" / "capacity_expansion.nc").exists():
                     runs.setdefault(arch_id, []).append(d)
@@ -204,8 +162,8 @@ def _emit_provenance_csv(out_dir: Path) -> Path:
 # Canonical fuel ordering for flat energy-intensity output.
 _ALL_FUELS = ["coal", "natural_gas", "diesel", "biomass", "hydrogen", "biomethane"]
 
-# Reverse lookup: method_id → arch_id key used in granular CSVs (e.g. "cost_optimal").
-_METHOD_ID_TO_ARCH = {v["method_id"]: k for k, v in _ALL_KNOWN_ARCHETYPES.items()}
+# Reverse lookup: method_id -> arch_id key used in granular CSVs (e.g. "cost_optimal").
+_METHOD_ID_TO_ARCH = {v["method_id"]: k for k, v in ARCHETYPE_CATALOGUE.items()}
 
 
 def _emit_energy_intensity_csv(rows: list[dict], granular_dir: Path) -> Path:
@@ -256,7 +214,7 @@ def main(run: Path, out: Path | None = None, run_id_prefix: str | None = None) -
 
     all_rows: list[dict] = []
     for arch_id, run_dirs in runs.items():
-        catalog = _ALL_KNOWN_ARCHETYPES[arch_id]
+        catalog = ARCHETYPE_CATALOGUE[arch_id]
         bounds = dict(
             max_share=catalog["default_max_share"],
             min_share=catalog["default_min_share"],

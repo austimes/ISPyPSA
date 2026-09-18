@@ -1058,7 +1058,11 @@ def _create_vre_constraint_lhs_rhs(
             + f" for constraint group type {constraint_group_type}"
         )
 
-    in_scope = ~generators["isp_resource_type"].isin(exclude_resource_types)
+    # Only look for `isp_resource_type` when something is actually held out: a
+    # generators table with no new entrants does not carry that column.
+    in_scope = pd.Series(True, index=generators.index)
+    if exclude_resource_types:
+        in_scope = ~generators["isp_resource_type"].isin(exclude_resource_types)
 
     lhs = []
     rhs = []

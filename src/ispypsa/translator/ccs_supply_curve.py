@@ -16,12 +16,13 @@ def _translate_ccs_sink_tranches(
     'sink' column of the transport adder CSV), 'financial_year' (int, financial
     year ending, matching investment period labels), 'cap_kt' (float, kt CO2 per
     year available to NEM power generation) and 'storage_$/t' (float, real AUD
-    per tonne injected).
+    per tonne injected). Exactly one row per sink per modelled investment period
+    is required, so that every sink has one cap and one price to charge it at.
 
     Unlike the fuel supply curves there is no uncapped backstop tranche: a sink
     that has not been appraised cannot be bought at any price, so the curve
     terminates. A variant in which every `cap_kt` is zero is therefore a valid
-    and meaningful curve — it states that no injection is available — and forces
+    and meaningful curve - it states that no injection is available - and forces
     captured tonnes to zero.
 
     Args:
@@ -36,7 +37,8 @@ def _translate_ccs_sink_tranches(
     _validate_columns(tranches, _SINK_TRANCHE_COLUMNS, sink_tranches_csv)
     tranches = tranches[tranches["financial_year"].isin(investment_periods)]
     tranches = tranches.rename(columns={"financial_year": "investment_period"})
-    _validate_period_coverage(tranches, investment_periods, sink_tranches_csv)
+    _validate_sink_period_coverage(tranches, investment_periods, sink_tranches_csv)
+    _validate_one_tranche_per_sink_period(tranches, sink_tranches_csv)
     columns = ["investment_period", "sink", "cap_kt", "storage_$/t"]
     return tranches[columns].reset_index(drop=True)
 
@@ -142,16 +144,44 @@ def _validate_columns(table: pd.DataFrame, expected: list[str], csv: str) -> Non
         raise ValueError(f"CCS supply curve CSV ({csv}) is missing columns: {missing}")
 
 
-def _validate_period_coverage(
+def _validate_sink_period_coverage(
     tranches: pd.DataFrame, investment_periods: list[int], csv: str
 ) -> None:
-    covered = set(tranches["investment_period"])
-    missing = [year for year in investment_periods if year not in covered]
+    """Every sink in the table needs a row in every modelled investment period.
+
+    Checking sinks and periods separately would let a single sink and period gap
+    through, and the build then has no cap or price to read for that sink in that
+    period.
+    """
+    covered = _sink_period_pairs(tranches)
+    missing = [
+        (sink, year)
+        for sink in sorted(set(tranches["sink"]))
+        for year in sorted(investment_periods)
+        if (sink, year) not in covered
+    ]
     if missing:
         raise ValueError(
-            f"CCS sink tranche CSV ({csv}) has no rows for investment periods: "
-            f"{sorted(missing)}"
+            f"CCS sink tranche CSV ({csv}) has no rows for these sink and "
+            f"investment period pairs: {missing}"
         )
+
+
+def _validate_one_tranche_per_sink_period(tranches: pd.DataFrame, csv: str) -> None:
+    """A sink's cap and the price charged on it must come from the same single row."""
+    repeated = tranches.duplicated(subset=["sink", "investment_period"])
+    pairs = _sink_period_pairs(tranches[repeated])
+    if pairs:
+        raise ValueError(
+            f"CCS sink tranche CSV ({csv}) has more than one row for these sink "
+            f"and investment period pairs: {sorted(pairs)}. Each sink takes "
+            f"exactly one cap and one storage price per investment period."
+        )
+
+
+def _sink_period_pairs(tranches: pd.DataFrame) -> set[tuple[str, int]]:
+    """Sink and investment period pairs as plain tuples, so messages read cleanly."""
+    return set(zip(tranches["sink"], map(int, tranches["investment_period"])))
 
 
 def _validate_unique_sub_regions(adders: pd.DataFrame, csv: str) -> None:

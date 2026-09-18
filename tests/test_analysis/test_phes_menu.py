@@ -16,6 +16,9 @@ from analysis.model.phes_menu import apply as phes_menu_apply
 from analysis.model.recursive_dynamic import (
     adjust_phes_build_limits_for_carried,
 )
+from ispypsa.translator.create_pypsa_friendly import (
+    _fill_missing_build_limits_with_inf,
+)
 from ispypsa.translator.storage import _translate_new_entrant_batteries
 
 
@@ -463,7 +466,9 @@ def _translator_input_tables():
 def test_translator_maps_build_limit_to_p_nom_max_and_fills_batteries_inf():
     tables = _translator_input_tables()
 
-    result = _translate_new_entrant_batteries(tables, [2050], wacc=0.07)
+    translated = _translate_new_entrant_batteries(tables, [2050], wacc=0.07)
+
+    result = _fill_missing_build_limits_with_inf(translated)
 
     result = result.set_index("name")
     assert result.loc["phes_24h_nnsw_2050", "p_nom_max"] == 9400.0

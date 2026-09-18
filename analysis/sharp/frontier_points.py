@@ -29,24 +29,24 @@ into capital_cost at the source (translator/generators.py:
 capital_cost = annuitised_capex + fom_$/kw/annum x 1000), and the pypsa-friendly
 generators.csv exposes no separable FOM column. The recursive-dynamic write-back
 zeroes capital_cost on carried rows by design (they must not re-bill capex inside
-the next year's LP) — which silently zeroes their FOM too. A year-t-incremental
+the next year's LP) -- which silently zeroes their FOM too. A year-t-incremental
 column therefore omits the FOM of the entire carried fleet, so it cannot be the
 contract intensity. Disaggregating capex from FOM is impossible with current
 inputs (the IASR data does not carry the split) and is left as a known refinement
 for a future IASR vintage that splits them.
 
 The re-attribution reads the ORIGINAL capital_cost from each prior year's
-solved network — the tranche parquets cannot supply it because the write-back
+solved network -- the tranche parquets cannot supply it because the write-back
 zeroes capital_cost by design. Vintage-y rows are isolated in the year-y network
 by (p_nom_extendable & build_year == y & p_nom_opt > 1 MW): carried rows in a
 chained year-y network are non-extendable, so the filter never double-counts
 earlier vintages. Note this re-attributes only the chain's OWN vintages
 (2030..t-1), never ISPyPSA's native pre-2030 existing fleet (capital_cost=0,
-genuinely sunk) — a common constant across trajectories that cancels in any
+genuinely sunk) -- a common constant across trajectories that cancels in any
 cross-trajectory comparison.
 
 Emissions and fuel intensities are physical quantities of the price-shaped
-dispatch (CCS at residual = gross x (1 - capture_rate)) — single column each,
+dispatch (CCS at residual = gross x (1 - capture_rate)) -- single column each,
 no accounting ambiguity.
 
 Compositions (capacity by carrier) are emitted to a SEPARATE diagnostics file
@@ -59,14 +59,12 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import pandas as pd
 import pypsa
 
+from analysis.env import OutputLayout
 from analysis.sharp.method_years import extract_method_year_row
 
 log = logging.getLogger(__name__)
@@ -104,7 +102,7 @@ def extract_frontier_point(
 ) -> tuple[dict, pd.DataFrame]:
     """One (sweep_id, year) coordinate row + its composition diagnostic.
 
-    prior_year_ncs maps each PRIOR chain year to its solved NetCDF — the
+    prior_year_ncs maps each PRIOR chain year to its solved NetCDF -- the
     source of original vintage capex for the full-fleet re-attribution.
     ispypsa_inputs_dir supplies the ECAA roster (fom_$/kw/annum per existing
     unit) for the existing-fleet FOM re-attribution.
@@ -143,7 +141,7 @@ def _existing_fleet_fom(
     """Annual FOM of the inherited (ECAA) fleet still active at at_year.
 
     ISPyPSA sets ECAA capital_cost=0 (sunk) at translation, which also zeroes the
-    FOM that the new-entrant path bundles into capital_cost — so the existing
+    FOM that the new-entrant path bundles into capital_cost -- so the existing
     fleet's fixed O&M is absent from the LP objective AND from every cost column.
     Because ECAA capacity is non-extendable and retires on a deterministic
     closure_year (not an economic decision), zeroing its FOM left the solves
@@ -215,7 +213,7 @@ def _roster_fom(
     name_col: str,
     at_year: int,
 ) -> tuple[float, float]:
-    """Σ fom_$/kw/annum × active MW × 1000 for one ECAA roster (gens or storage)."""
+    """Sum of fom_$/kw/annum x active MW x 1000 for one ECAA roster (gens or storage)."""
     if not roster_path.exists():
         return 0.0, 0.0
     fom = pd.read_csv(roster_path).set_index(name_col)["fom_$/kw/annum"]
@@ -286,7 +284,7 @@ def _solve_diagnostics(record_path: Path) -> dict:
     against `_TOLERANCE`) and Gurobi-barrier records (`ipm_final_*` absolute
     metrics + `gurobi_barrier_iterations`). For the Gurobi production frontier
     `tolerance_robust` is set from primal+dual infeasibility < `_GUROBI_DUAL_INF_TOL`
-    — this flags the 2050 LPs (dually-non-converged, corrupted objective field,
+    -- this flags the 2050 LPs (dually-non-converged, corrupted objective field,
     primal-sane) as not-robust while passing 2030-2045. The `solve_*_rel` column
     names are retained across both solvers; for Gurobi they carry the barrier's
     absolute primal/dual infeasibility and complementarity gap.
@@ -337,23 +335,23 @@ def _assemble_frontier_row(
 ) -> dict:
     """Tidy frontier row: the contract cost column first, diagnostics after.
 
-    PRIMARY CONTRACT COLUMN — `cost_per_mwh_excl_fuel_carbon`. This is the
+    PRIMARY CONTRACT COLUMN -- `cost_per_mwh_excl_fuel_carbon`. This is the
     full-fleet intensity: year-t spend PLUS the annuitised capex+FOM of every
     surviving prior vintage, re-attributed from each vintage's original
-    capital_cost (which bundles capex+FOM at the source — see
-    translator/generators.py: capital_cost = annuitised_capex + fom×1000), with
+    capital_cost (which bundles capex+FOM at the source -- see
+    translator/generators.py: capital_cost = annuitised_capex + fomx1000), with
     fuel and carbon stripped, T&S retained. It is the only column valid for the
     menu's actual use (cross-trajectory and cross-year selection) because it
     carries the operating cost of the WHOLE fleet, not just year-t's new build.
 
-    DIAGNOSTIC — `cost_per_mwh_year_t_incremental`. The carbon-and-fuel-stripped
+    DIAGNOSTIC -- `cost_per_mwh_year_t_incremental`. The carbon-and-fuel-stripped
     year-t LP spend: carried brownfield rows entered the year-t LP at
     capital_cost=0.0, so their capex AND FOM are attributed to their build-year,
     not billed here. Useful trajectory-internal bookkeeping if simple-msm ever
     wants the build-year allocation; it is NOT the cost intensity, because it
     excludes the operating cost of the carried fleet (~86% of capacity by 2050).
 
-    INHERITED-FLEET FOM — added to the primary only when the LP charged nothing
+    INHERITED-FLEET FOM -- added to the primary only when the LP charged nothing
     for keeping the inherited (ECAA) fleet. A FOM-keeping run writes each ECAA
     unit's FOM into `capital_cost`, so the year-t incremental already carries the
     retention charge and re-adding the roster figure would bill the whole
@@ -428,7 +426,7 @@ def _retention_charge_counted_once(
 def _composition_diagnostic(
     network: pypsa.Network, sweep_id: str, year: int
 ) -> pd.DataFrame:
-    """Capacity by carrier (GW) — NON-CONTRACT diagnostic. Compositions are
+    """Capacity by carrier (GW) -- NON-CONTRACT diagnostic. Compositions are
     within-margin soft at the certified tolerance; coordinates are the
     certified quantity."""
     gens = network.generators
@@ -452,28 +450,18 @@ def extract_chain(
     years: list[int],
     carbon_price: float,
     tns_price: float,
-    runs_dir: Path,
-    records_dir: Path,
+    layout: OutputLayout,
     workbook_cache: Path,
-    archetype: str = "cost_optimal",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """All frontier rows + composition diagnostics for one chained sweep.
 
-    Uses the `msm solve` naming convention: each year's run directory is
-    runs_dir/{run_id}_{year}__{archetype}/ and its solver record is
-    records_dir/{run_id}_{year}.json.
+    Every path follows the `msm solve` naming convention through `layout`: one run
+    directory and one solver record per `{run_id}_{year}`.
     """
     rows, compositions = [], []
     for year in years:
-        run_root = runs_dir / f"{run_id}_{year}__{archetype}"
-        prior_ncs = {
-            y: runs_dir
-            / f"{run_id}_{y}__{archetype}"
-            / "outputs"
-            / "capacity_expansion.nc"
-            for y in years
-            if y < year
-        }
+        run_root = layout.run_dir(f"{run_id}_{year}")
+        prior_ncs = {y: layout.network(f"{run_id}_{y}") for y in years if y < year}
         row, composition = extract_frontier_point(
             sweep_id,
             year,
@@ -482,7 +470,7 @@ def extract_chain(
             pypsa_friendly_dir=run_root / "pypsa_friendly",
             ispypsa_inputs_dir=run_root / "ispypsa_inputs",
             workbook_cache=workbook_cache,
-            record_path=records_dir / f"{run_id}_{year}.json",
+            record_path=layout.record(f"{run_id}_{year}"),
             carbon_price=carbon_price,
             tns_price=tns_price,
         )

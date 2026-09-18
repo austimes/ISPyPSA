@@ -1,4 +1,4 @@
-"""Pumped storage re-modelling fix — applied to ALL archetypes.
+"""Pumped storage re-modelling fix -- applied to ALL archetypes.
 
 Default ISPyPSA / IASR routing:
   - "Pumped Hydro" technology_type rows are split into the storage path by
@@ -16,16 +16,16 @@ capacity + round-trip efficiency + state-of-charge dynamics).
 
 Sources for parameters:
   - Wivenhoe (570 MW): CS Energy facility profile; AEMO Generation Information
-    NEM. Energy capacity 5.1 GWh ≈ 9 h at full power. RTE ~76% (industry
+    NEM. Energy capacity 5.1 GWh ~ 9 h at full power. RTE ~76% (industry
     average for large reversible-Francis pumped hydro).
   - Shoalhaven (247 MW): Origin Energy facility profile; AEMO Generation
-    Information NEM. Energy capacity ~1.5 GWh ≈ 6 h at full power. RTE ~76%.
+    Information NEM. Energy capacity ~1.5 GWh ~ 6 h at full power. RTE ~76%.
   - Borumba (1998 MW): Queensland Hydro project briefs; AEMO IASR 2024 v6.0
     anticipated_projects_summary (commissioning 2031-09-01). Energy capacity
-    48 GWh ≈ 24 h at full power. RTE ~78%.
+    48 GWh ~ 24 h at full power. RTE ~78%.
   - Snowy 2.0 (2200 MW): Snowy Hydro project documentation; AEMO IASR 2024
     v6.0 committed_generators_summary (commissioning 2028-12-01). Energy
-    capacity 350 GWh ≈ 159 h at full power. RTE ~76%.
+    capacity 350 GWh ~ 159 h at full power. RTE ~76%.
 
 PyPSA's StorageUnit takes per-direction efficiencies; charge_eff = discharge_eff
 = sqrt(RTE) preserves the specified round-trip efficiency under nominal
@@ -110,7 +110,7 @@ def apply(ispypsa_tables: dict, config=None) -> dict:
     Generator, so its LHS row would invalidate SWQLD1 wholesale. Dropping
     just Borumba's row
     keeps SWQLD1 alive with its remaining terms (Tarong, Kogan Creek, etc.);
-    the lost 0.5×Borumba_output term slightly relaxes the SWQLD1 transmission
+    the lost 0.5xBorumba_output term slightly relaxes the SWQLD1 transmission
     group limit in 2031+ periods. This is a known methodological caveat for
     the MVP Pass 1 deliverable."""
     available_sub_regions = _existing_sub_regions(ispypsa_tables)
@@ -132,7 +132,7 @@ def _existing_sub_regions(ispypsa_tables: dict) -> set[str]:
     """Collect the sub_region_id set from whichever input tables are populated.
 
     Used to skip pumped-storage rows whose sub-region was filtered out upstream
-    (e.g. filter_by_nem_regions=['NSW'] drops SQ → Wivenhoe and Borumba should
+    (e.g. filter_by_nem_regions=['NSW'] drops SQ -> Wivenhoe and Borumba should
     not be re-added, otherwise PyPSA warns 'bus not defined')."""
     regions: set[str] = set()
     for table_name in ("ecaa_generators", "ecaa_batteries", "new_entrant_generators"):

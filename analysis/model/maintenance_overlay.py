@@ -1,6 +1,6 @@
 """Option B: ageing-fleet maintenance cost overlay.
 
-PyPSA's convention is to treat existing-plant capital cost as zero — sunk
+PyPSA's convention is to treat existing-plant capital cost as zero -- sunk
 capex is not in the LP objective. That understates real cash flows in the
 final years of plant life when refurbishment and life-extension spending
 ramps up to keep ageing thermal units operating reliably. This overlay
@@ -28,19 +28,19 @@ Sources:
     The 50 AUD/kW/yr coal max_premium sits below this as a fleet-average
     representation (Bayswater is at the upper end of refurb intensity).
   - CSIRO GenCost 2024-25 Final (July 2025), Table 4.1: coal O&M ranges
-    of 50-100 AUD/kW/yr for late-life black coal — used as upper-bound
+    of 50-100 AUD/kW/yr for late-life black coal -- used as upper-bound
     sanity check on the +50 AUD/kW/yr premium.
   - CSIRO Coal Plant Working Paper 2024: documents aged-fleet opex
     multipliers in the 1.3-1.6x range for >40-yr-old units, consistent
     with the linear ramp parametrization.
-  - GenCost 2024-25 §3.3: gas O&M ranges; the +20 AUD/kW/yr gas premium
+  - GenCost 2024-25 section 3.3: gas O&M ranges; the +20 AUD/kW/yr gas premium
     represents the upper-bound aged-CCGT cost relative to fleet average.
 
 Magnitude calibration:
   At year T, a 2,000 MW coal unit closing in T+2 years gets premium
   = (10 - 2)/10 * 50 = 40 AUD/kW/yr = $80M/yr additional fixed cost.
   Across the NEM coal fleet (~22 GW at peak retirement window) this is
-  ~$800M/yr in late-2020s — material relative to the LP's annual cost
+  ~$800M/yr in late-2020s -- material relative to the LP's annual cost
   scale.
 
 Documented limitation: the linear ramp is a simplification. Real

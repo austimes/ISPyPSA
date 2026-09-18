@@ -35,13 +35,13 @@ Cross-walk decisions for ISPyPSA's carrier set:
     a carbon fuel; upstream fuel-cycle emissions are out of scope here (same
     treatment as Hydrogen).
   - "Wind", "Solar", "Water" -> zero combustion EF.
-  - "Storage" (BESS, pumped hydro): not a combustion fuel — no Scope 1.
+  - "Storage" (BESS, pumped hydro): not a combustion fuel -- no Scope 1.
     Round-trip losses are an internal-to-electricity inefficiency, accounted
     in the source method's per-MWh-delivered cost.
 
-N2O — electricity generation vs other stationary combustion: The NGER
+N2O -- electricity generation vs other stationary combustion: The NGER
 Measurement Determination 2008 has been amended several times. Early editions
-(pre-2015) carried separate columns for "electricity generation" (N2O ≈ 1.4
+(pre-2015) carried separate columns for "electricity generation" (N2O ~ 1.4
 kg CO2-e/GJ for bituminous coal) and "other stationary combustion" (N2O = 0.2
 kg CO2-e/GJ). Those columns were consolidated in a later amendment.
 The current Determination 2008 Compilation No. 18 (31/08/2024, F2024C00833)
@@ -50,7 +50,7 @@ The NGA 2024 Table 4 mirrors this single-factor structure. The values below
 (bituminous coal N2O = 0.2; natural gas N2O = 0.03) are therefore the correct
 current NGER values regardless of application.
 Frameworks that still use the pre-2015 electricity-generation-specific factors
-(N2O ≈ 1.4 for bituminous coal) will report N2O intensities ~7× higher than
+(N2O ~ 1.4 for bituminous coal) will report N2O intensities ~7x higher than
 these numbers; that is a known framework divergence, not a code error here.
 
 Process emissions for electricity: NGA has no separate process-emission factor
@@ -90,15 +90,15 @@ _NGER_FACTORS_KG_CO2E_PER_GJ = {
     "Gas": (51.4, 0.1, 0.03, "Table 5", "Natural gas distributed in a pipeline"),
     "Liquid Fuel": (69.9, 0.1, 0.2, "Table 8", "Diesel oil"),
     "Biomass": (0.0, 0.8, 1.0, "Table 4", "Primary solid biomass fuels"),
-    "Hydrogen": (0.0, 0.0, 0.0, "—", "Pure H2 combustion (zero Scope 1)"),
+    "Hydrogen": (0.0, 0.0, 0.0, "n/a", "Pure H2 combustion (zero Scope 1)"),
     "Biomethane": (0.0, 0.1, 0.03, "Table 5", "Biomethane"),
-    "Nuclear": (0.0, 0.0, 0.0, "—", "Nuclear fission (zero Scope 1 combustion)"),
-    # Hyblend handled separately — composed of Gas + Hydrogen in per-year ratio.
+    "Nuclear": (0.0, 0.0, 0.0, "n/a", "Nuclear fission (zero Scope 1 combustion)"),
+    # Hyblend handled separately -- composed of Gas + Hydrogen in per-year ratio.
     # Renewables / hydro / storage default to zero across all pollutants.
-    "Wind": (0.0, 0.0, 0.0, "—", "Non-combustion"),
-    "Solar": (0.0, 0.0, 0.0, "—", "Non-combustion"),
-    "Water": (0.0, 0.0, 0.0, "—", "Non-combustion"),
-    "Storage": (0.0, 0.0, 0.0, "—", "No primary fuel"),
+    "Wind": (0.0, 0.0, 0.0, "n/a", "Non-combustion"),
+    "Solar": (0.0, 0.0, 0.0, "n/a", "Non-combustion"),
+    "Water": (0.0, 0.0, 0.0, "n/a", "Non-combustion"),
+    "Storage": (0.0, 0.0, 0.0, "n/a", "No primary fuel"),
 }
 
 

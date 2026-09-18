@@ -18,6 +18,9 @@ set -euo pipefail
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 cd "$REPO"
 IFS=$'\t' read -r RUN_ID TRACES ARGS < <(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" "$RUN_DIR/campaign/chains.tsv")
+# RESUME is "--resume" only when msm launch submits into an existing launch directory:
+# it keeps a chain's carried state and skips periods that already solved, so a run
+# directory must never be reused once its inputs change; stamp a new launch instead.
 # $ARGS and the trace-token file are deliberately unquoted: $ARGS is either
 # "--carbon-price N" or a "--co2-cap-t-schedule 2030:T 2040:T ..." token list, and the
 # token file holds one "YEAR:DIR" token per milestone. Both must word-split.
@@ -27,4 +30,4 @@ uv run --no-sync msm solve --run-id "$RUN_ID" --output-root "$RUN_DIR" \
   --rep-weeks 1 6 10 14 19 22 26 32 35 39 41 45 50 --no-named-weeks \
   --tns-price 89.93 --ccs-supply-curve none --gas-unblended \
   --use-gurobi --gurobi-method 2 --gurobi-bar-conv-tol 1e-8 --gurobi-threads $SLURM_CPUS_PER_TASK \
-  --highs-threads $SLURM_CPUS_PER_TASK --budget-min 600 --resume $ARGS
+  --highs-threads $SLURM_CPUS_PER_TASK --budget-min 600 ${RESUME:-} $ARGS

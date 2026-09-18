@@ -235,46 +235,30 @@ The sections above are upstream ISPyPSA coding style preferences. This section i
 This fork runs a National Electricity Market (NEM) capacity-expansion campaign - a grid of chained yearly solves across
 demand trajectories and carbon-pressure settings - and turns the results into CSV deliverables for ShARP, the
 whole-of-economy optimisation model those results feed. It wraps `src/ispypsa/`, the Australian Energy Market
-Operator's (AEMO) capacity-expansion model for its Integrated System Plan (ISP), with campaign-specific model patches, a Slurm cluster workflow, the ShARP emitters, and a
-plotly dashboard.
+Operator's (AEMO) capacity-expansion model for its Integrated System Plan (ISP), with campaign-specific model patches, a
+Slurm cluster workflow, the ShARP emitters, and a plotly dashboard.
 
 ## What's in this fork
 
-Everything fork-specific lives under `analysis/`, in four sub-packages, run through one command line, `msm`
-(`uv run msm --help`):
+Everything fork-specific lives under `analysis/`, in four sub-packages, and the whole campaign runs as five `msm`
+commands; [`analysis/README.md`](analysis/README.md) holds the sub-package map, the `IO_DIR` input and output layout and
+the command-by-command workflow. Read it first, then
+[`analysis/MODELLING_ASSUMPTIONS.md`](analysis/MODELLING_ASSUMPTIONS.md) for every way this fork's model differs from
+upstream ISPyPSA and from AEMO's published inputs, and [`analysis/REPRODUCING.md`](analysis/REPRODUCING.md) for how to
+reproduce an electricity investment history end to end.
 
-| Sub-package | Purpose |
-| --- | --- |
-| `analysis/model/` | Fork-specific patches to the templated ISPyPSA input tables, plus the myopic chain's roll-forward machinery |
-| `analysis/hpc/` | Prepares a campaign launch, submits and resumes it on the cluster, and reads solved networks back into per-chain CSVs |
-| `analysis/sharp/` | Turns solved networks into the CSV deliverables ShARP consumes |
-| `analysis/dashboard/` | Builds one self-contained HTML dashboard from the exported CSVs |
+## Rules for work in this fork
 
-Upstream-contributable corrections to the model itself live in `src/ispypsa/`, alongside and unchanged in style from the
-rest of that package. **Nothing fork-specific goes under `src/` or `docs/`**: every campaign addition, code and
-documentation alike, stays inside `analysis/`.
-
-Start with [`analysis/README.md`](analysis/README.md) for the sub-package map and the `IO_DIR` input and output layout,
-then [`analysis/MODELLING_ASSUMPTIONS.md`](analysis/MODELLING_ASSUMPTIONS.md) for every way this fork's model differs
-from upstream ISPyPSA and from AEMO's published inputs, and [`analysis/REPRODUCING.md`](analysis/REPRODUCING.md) for how
-to reproduce an electricity investment history end to end.
-
-## `IO_DIR`
-
-Every input and run product - the IASR workbook, parsed caches, demand and weather traces, and every launch's generated
-configs, logs, records, solved networks and exported CSVs - lives under one directory, `$IO_DIR`, set in `.env` (copy
-`.example.env`) and mounted at the same path on the workstation and on the cluster. See
-[`analysis/README.md`](analysis/README.md) for the full layout.
-
-## Workflow: the five `msm` commands
-
-| Step | Where | Command | What it produces |
-| --- | --- | --- | --- |
-| 1 | Cluster login node | `msm launch --run-set ext41` | Stamps a run directory under `$IO_DIR`, builds any missing demand trace directories, and submits the campaign's chains to Slurm |
-| 2 | Cluster compute nodes (automatic) | `msm solve --run-id ... --output-root ...` | One chain of single-period solves, one call per Slurm array task |
-| 3 | Cluster login node | `msm extract --run <dir>` | Reads the solved networks into the run's `exports/` CSVs |
-| 4 | Anywhere `IO_DIR` is mounted | `msm sharp --run <dir>` | The ShARP deliverable CSVs |
-| 5 | Anywhere `IO_DIR` is mounted | `msm dashboard --run <dir> --show` | A self-contained `dashboard.html` |
-
-Slurm is the cluster's job scheduler; steps 1 to 3 need it, steps 4 and 5 do not. Run `uv run msm <command> --help` for
-every command's full set of flags.
+- **Nothing fork-specific goes under `src/` or `docs/`**: every campaign addition, code and documentation alike, stays
+  inside `analysis/`. Corrections to the model itself belong in `src/ispypsa/`, in that package's own style, and must
+  make sense to any ISPyPSA user.
+- Every model difference from upstream ISPyPSA or from AEMO's published inputs is recorded in
+  [`analysis/MODELLING_ASSUMPTIONS.md`](analysis/MODELLING_ASSUMPTIONS.md), under one of its four headings: upstream
+  fixes, fork input patches, authored assumptions with no AEMO source, and campaign method.
+- Every input and run product lives under one directory, `$IO_DIR`, set in `.env` (copy `.example.env`) and mounted at
+  the same path on the workstation and on the cluster. Never write a run product anywhere else, and never hard-code a
+  path that `analysis.env` can resolve.
+- Run every step through the `msm` command line (`uv run msm --help`), never by calling a script path or ISPyPSA's own
+  package builder: `msm` is the only path that applies the fork's model patches.
+- Write the laziest code that works - shortest diff, standard library and existing helpers before anything new - and
+  leave no commentary in the code about the change itself.

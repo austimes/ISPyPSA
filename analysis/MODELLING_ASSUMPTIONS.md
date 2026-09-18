@@ -8,11 +8,11 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
 
 - **Pumped hydro candidates restored** - upstream's workbook parser reads the wrong header row range for pumped hydro
   storage properties, silently dropping every pumped hydro candidate and committed row before the fork's own
-  pumped-storage patches ever see them; this fork reads the correct row range.
+  pumped-storage patches ever see them; this fork reads the correct row range, so workbook build limits are carried
+  through, with unlimited build for candidates that have none.
 - **Hydro annual energy budget from the 2026 ISP** - the cap on total annual conventional-hydro dispatch follows AEMO's
   own year-by-year 2026 ISP Step Change generation trajectory; upstream applies a flat capacity-factor estimate instead.
-- **Existing battery build-limit fill** - an existing battery with no workbook build limit gets an unlimited PyPSA
-  build ceiling; upstream leaves the limit undefined, which PyPSA cannot solve.
+  The budget is a NEM-wide annual figure and is not scaled down for a run filtered to fewer regions.
 - **Numeric-strip regex for 4+ digit values** - upstream's workbook-cell cleaning rule truncates every plain
   four-or-more-digit number to its first three digits (for example, 1660 reads as 166); this fork's regex matches the
   whole number.
@@ -23,9 +23,10 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
   renewable and hydro generators joins on a technology-class label the workbook's FOM table never carries, silently
   leaving most of the fleet without a fixed cost; this fork joins by station name instead, the same way thermal plant
   does.
-- **Carbon capture and storage (CCS) transport-and-storage supply curve, config-gated and disabled in the campaign** - an
-  optional model of CO2 transport pricing and per-sink injection limits; switched off by default (free, unlimited
-  disposal, matching AEMO's own ISP treatment) and left off for this campaign in favour of a flat transport-and-storage
+- **Carbon capture and storage (CCS) transport-and-storage supply curve, config-gated** - an optional model of CO2
+  transport pricing and per-sink injection limits, defaulting to off in `msm solve` (free, unlimited disposal, matching
+  AEMO's own ISP treatment). The shipped tranche file carries zero injectivity caps for every sink and year, so enabling
+  it pins CCS output to zero. The campaign's CCS treatment is instead the flat A$89.93 per tonne transport-and-storage
   charge.
 - **2060 trajectory hold** - an investment period beyond a trajectory table's published horizon (for example, build
   costs or connection costs) carries forward the last published year's values instead of being left unpriced.
@@ -50,8 +51,6 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
   premium, from CSIRO GenCost 2024-25 and IRENA's Renewable Power Generation Costs 2023.
 - **Biomass availability cap** - a National Electricity Market (NEM)-wide new-entrant biomass capacity ceiling by
   milestone year, from the ARENA Bioenergy Roadmap 2021 and AEMO's ISP 2024 Step Change technology projections.
-- **Biomass feedstock cost** - re-prices new-entrant biomass feedstock from the IASR's residue-tier price to a
-  scale-appropriate delivered cost, from IRENA's locally-collected feedstock cost tier.
 
 ## Authored assumptions with no AEMO source
 

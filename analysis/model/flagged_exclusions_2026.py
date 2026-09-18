@@ -9,19 +9,19 @@ These helpers fix the data-determined parts; `instrumented_runner` applies them 
 gated on 2026 so they never touch the 2024 store.
 
 `normalize_2026_rez_ids` resolves the data-determined crosswalk (read from AEMO's
-own 2026 trace filenames — `REZ_Q8a_Darling_Downs`, `Q8b_..._Southern_Downs`,
+own 2026 trace filenames -- `REZ_Q8a_Darling_Downs`, `Q8b_..._Southern_Downs`,
 `Q8c_..._Western_Downs`) plus two source typos, and connects the split Q8 sub-zones
 to SQ (inherited from the un-split parent `Q8 -> SQ` in the REZ table).
 
 `exclude_flagged_new_entrants` drops only the candidates that genuinely have no
-2026 trace (N10/N11 fixed-offshore — 2026 ships floating-only for those coasts).
+2026 trace (N10/N11 fixed-offshore -- 2026 ships floating-only for those coasts).
 The Q8 VRE candidates are not excluded: `normalize_2026_rez_ids` maps them to
 `Q8a`, which has real traces, so they are legitimately buildable.
 
 STILL PENDING (topology, not data-determined): the SWQLD1 network constraint's
 `Q8-SQ` link term (in the 7.4 manual custom-constraints table). Whether the split
 makes it three terms (Q8a/b/c-SQ) or one shared term is a 2026-ISP transmission
-definition, not a filename — resolve against the workbook before relying on the run.
+definition, not a filename -- resolve against the workbook before relying on the run.
 """
 
 import logging
@@ -69,25 +69,25 @@ FLAGGED_NO_TRACE_VRE_CANDIDATES = {
     ): "fixed-offshore candidate, only floating WFL trace published (Illawarra Coast)",
 }
 
-# Whole REZs with NO VRE zone trace at all (no solar, no wind) — AEMO models
+# Whole REZs with NO VRE zone trace at all (no solar, no wind) -- AEMO models
 # these new "DN" distribution REZs as storage-only, so VRE has no trace because
 # AEMO doesn't model VRE there. The v7.5 templater over-generated solar/wind
 # candidates for them; the total trace-absence is the wrong-candidate signal
 # (cf. N10/N11 fixed-offshore). Exclude their VRE new entrants (this acts on
 # new_entrant_generators, so storage candidates in other tables are untouched).
 # Flag pending final-ISP confirmation DN zones stay storage-only (very likely
-# permanent — distribution REZs host storage, not utility-scale VRE).
+# permanent -- distribution REZs host storage, not utility-scale VRE).
 FLAGGED_NO_TRACE_VRE_REZS = {"DN1", "DN2", "DN3"}
 
 # AEMO's "Non REZ <state>" rows (REZ IDs V0=Victoria, N0=NSW) are accounting
-# placeholders for generation NOT in any named REZ — not connectable zones. They
+# placeholders for generation NOT in any named REZ -- not connectable zones. They
 # appear in `initial_resource_limits` but have NO `initial_transmission_limits`
 # row, so the templater leaves their `isp_sub_region_id` blank, then builds a
 # REZ->subregion link with `isp_name=NaN` (bus1 is the missing subregion). That
 # float NaN later breaks `sorted(results["isp_name"].unique())` in
 # extract_transmission_expansion_results. They also carry zero new-VRE generation
 # limits, so dropping them removes only non-buildable candidates. Sourced from the
-# REZ Name ("Non REZ Victoria"/"Non REZ NSW"), not inferred — distinct from the
+# REZ Name ("Non REZ Victoria"/"Non REZ NSW"), not inferred -- distinct from the
 # Q8a/b/c orphans, which are real zones reconnected to SQ in normalize_2026_rez_ids.
 NON_REZ_PLACEHOLDER_IDS = {"V0", "N0"}
 
@@ -101,7 +101,7 @@ GENERATOR_NAME_2026_NORMALIZATION = {
     # FINAL 2026 ECAA lists this anticipated wind farm as "Goyder North Wind Farm 1";
     # the parsed trace store names it "Goyder North Wind Farm" (no " 1" suffix, and
     # there is no "...Farm 2", so the suffix is redundant). Rename so its trace
-    # resolves — applied before the ECAA no-trace filter so it is matched, not dropped.
+    # resolves -- applied before the ECAA no-trace filter so it is matched, not dropped.
     "Goyder North Wind Farm 1": "Goyder North Wind Farm",
 }
 
@@ -155,7 +155,7 @@ def _reconcile_split_rez_connection_cost_region(ispypsa_tables):
     case) but its `connection_cost_region_id` is not, key by `rez_id`. Q8 is
     deliberately untouched: its `rez_id` (Q8a) is not a cost key, so the parent
     (Q8) is kept, matching the un-split Q8 cost row. The cost table's own REZ-ID
-    set decides — no inference.
+    set decides -- no inference.
     """
     new_entrants = ispypsa_tables.get("new_entrant_generators")
     costs = ispypsa_tables.get("new_entrant_wind_and_solar_connection_costs")
@@ -176,7 +176,7 @@ def exclude_flagged_new_entrants(new_entrant_generators):
     """Drop VRE new entrants that cannot build, logging each reason separately.
 
     Three flag sources: specific (rez_id, resource_type) candidates (N10/N11
-    fixed-offshore) and whole storage-only REZs (DN1/2/3) — both genuinely lacking
+    fixed-offshore) and whole storage-only REZs (DN1/2/3) -- both genuinely lacking
     a 2026 trace; and candidates sited in AEMO 'Non REZ' placeholder zones (V0/N0),
     which have no subregion and zero VRE limits. All act only on
     new_entrant_generators (VRE); storage candidates in other tables are untouched.
@@ -214,7 +214,7 @@ def exclude_ecaa_without_trace(ecaa_generators, trace_store_dir):
     subset), so it is the full-coverage filter, not a targeted patch. Must run AFTER
     `GENERATOR_NAME_2026_NORMALIZATION` (Goyder North Wind Farm 1 -> Goyder North
     Wind Farm) so a name-mismatched generator is matched against its trace, not
-    dropped — the filter matches by exact name.
+    dropped -- the filter matches by exact name.
     """
     trace_projects = _trace_store_project_names(trace_store_dir)
     is_vre = ecaa_generators["fuel_type"].str.contains(

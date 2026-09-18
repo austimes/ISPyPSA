@@ -4,6 +4,7 @@ import re
 import pandas as pd
 import pytest
 
+from ispypsa.translator.helpers import _annuitised_investment_costs
 from ispypsa.translator.links import (
     _translate_existing_flow_path_capacity_to_links,
     _translate_expansion_costs_to_links,
@@ -139,9 +140,12 @@ def test_translate_expansion_costs_to_links_beyond_published_years(csv_str_to_df
     """
     expected_result = csv_str_to_df(expected_result_csv)
 
-    # The 2032 link is priced from the last published year (2026_27), so both
-    # links annuitise to the same capital cost.
-    assert result["capital_cost"].nunique() == 1
+    # The 2032 link is priced from the last published year (2026_27, $1,500/MW),
+    # so both links annuitise to that year's cost.
+    last_published_cost = _annuitised_investment_costs(1500.0, 0.07, 30)
+    assert result["capital_cost"].to_list() == pytest.approx(
+        [last_published_cost, last_published_cost]
+    )
     pd.testing.assert_frame_equal(
         result.drop(columns="capital_cost").sort_values("name").reset_index(drop=True),
         expected_result.sort_values("name").reset_index(drop=True),

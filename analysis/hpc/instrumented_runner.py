@@ -8,6 +8,10 @@ Wraps the standard run_workflow pipeline with:
 Writes a JSON record summarising the run to <output-root>/records/<run_id>.json and
 the solver log to <output-root>/logs/<run_id>.log.
 
+This is an internal entry point: `msm solve` launches it as a subprocess, one per
+period, and is its only caller. Its flags are therefore argparse rather than cyclopts,
+and they carry only what `msm solve` passes.
+
 Usage:
     uv run python -m analysis.hpc.instrumented_runner \
         --config <run dir>/configs/<run_id>.yaml \
@@ -18,7 +22,6 @@ Usage:
 import argparse
 import hashlib
 import json
-import logging
 import os
 import random
 import re
@@ -31,17 +34,17 @@ from pathlib import Path
 
 import psutil
 
-from analysis.env import OutputLayout
+from analysis.env import RUN_DIR_SUFFIX, OutputLayout
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # ----- Gurobi license-retry ----------------------------------------------
 
-# The CSIRO Gurobi token server (sc-license1-cdc.it.csiro.au) allows only 2
-# concurrent seats. When more chains run at once, Gurobi raises "use limit (2)
-# exceeded"; a seat frees at a running chain's next period boundary, so a
-# bounded retry lets surplus chains queue on the 2 seats instead of halting the
-# recursive-dynamic chain. Kept under `msm solve`'s --budget-min wall-clock cap.
+# The CSIRO Gurobi token server carries thousands of seats, so every chain of a
+# campaign runs concurrently. A seat can still be refused ("use limit exceeded")
+# when the server is saturated or briefly unreachable, so a bounded retry lets a
+# chain wait for a seat instead of halting. Kept under `msm solve`'s --budget-min
+# wall-clock cap.
 _LICENSE_RETRY_MAX_WAIT_S = 36000  # 10 h
 
 
@@ -83,7 +86,7 @@ def _solve_with_license_retry(network, kwargs) -> bool:
 
     Returns True on success, False on a genuine solve failure or once the retry
     budget (`_LICENSE_RETRY_MAX_WAIT_S`) is exhausted. Any non-license exception
-    is reported and returned as a failure immediately — never retried.
+    is reported and returned as a failure immediately - never retried.
     """
     deadline = time.perf_counter() + _LICENSE_RETRY_MAX_WAIT_S
     while True:
@@ -279,20 +282,14 @@ def _parse_highs_log(log_text: str) -> dict:
 
 def _run_staged_pipeline(
     config_path: Path,
-    archetype: str,
-    log_path: Path,
     solver_options: dict | None = None,
     solver_name_override: str | None = None,
     carried_tranches_dir: Path | None = None,
     current_year: int | None = None,
     reducible_existing: bool = False,
     retention_floor_dir: Path | None = None,
-    existing_keeping_cost: float = 0.0,
     existing_fom_keeping: bool = False,
-    span_weight_years: int | None = None,
-    disestablishment_cost: float = 0.0,
     co2_cap_t: float | None = None,
-    renewable_share_min: float | None = None,
 ) -> dict:
     """Run the ISPyPSA pipeline with per-stage timing. Returns timings dict.
 
@@ -302,8 +299,6 @@ def _run_staged_pipeline(
     translation and timeseries generation. This makes year-(t+1)'s solve see
     the accumulated brownfield stock built across the chain.
     """
-    import contextlib
-    from io import StringIO
 
     from analysis.model import apply_model_patches
     from analysis.model.flagged_exclusions_2026 import (
@@ -332,8 +327,9 @@ def _run_staged_pipeline(
     configure_logging()
     config = load_config(config_path)
 
-    archetype_run_name = f"{config.paths.ispypsa_run_name}__{archetype}"
-    run_root = Path(config.paths.run_directory) / archetype_run_name
+    run_root = Path(config.paths.run_directory) / (
+        f"{config.paths.ispypsa_run_name}__{RUN_DIR_SUFFIX}"
+    )
     ispypsa_inputs_dir = run_root / "ispypsa_inputs"
     pypsa_inputs_dir = run_root / "pypsa_friendly"
     ce_ts_dir = pypsa_inputs_dir / "capacity_expansion_timeseries"
@@ -418,7 +414,6 @@ def _run_staged_pipeline(
     # economics; the monotone retention floor caps this period at the prior
     # period's retained level. Runs before timeseries so the extendable rows
     # still get their p_max_pu / marginal_cost wiring downstream unchanged.
-    reducible_existing_names: list = []
     if reducible_existing:
         from analysis.model.retirement import (
             load_retention_floor,
@@ -430,7 +425,6 @@ def _run_staged_pipeline(
             floor = load_retention_floor(retention_floor_dir, current_year)
         ecaa = ispypsa_tables["ecaa_generators"]
         existing_names = ecaa["generator"].tolist()
-        reducible_existing_names = existing_names
         if existing_fom_keeping:
             # Per-unit FOM ($/kW/yr -> $/MW/yr) becomes capital_cost on the
             # reducible existing units: the recurring keeping cost retirement
@@ -440,7 +434,7 @@ def _run_staged_pipeline(
                 ecaa.set_index("generator")["fom_$/kw/annum"] * 1000.0
             ).to_dict()
         else:
-            keeping_cost = existing_keeping_cost
+            keeping_cost = 0.0
         timings["retirement"] = make_existing_reducible(
             pypsa_friendly["generators"], existing_names, floor, keeping_cost
         )
@@ -464,7 +458,7 @@ def _run_staged_pipeline(
         timings["recursive_dynamic"] = inject_carried_tranches(pypsa_friendly, carried)
         # Net the carried capacity off any per-period capacity cap/floor RHS so the
         # constraint bounds the cumulative active fleet (carried + new), not just
-        # the current vintage — fixes the recursive-dynamic × per-period-cap leak
+        # the current vintage - fixes the recursive-dynamic x per-period-cap leak
         # (biomass cap reaching ~2x its ceiling; the storage/nuclear/gas floors).
         timings["capacity_cap_carried_adjust"] = adjust_capacity_caps_for_carried(
             pypsa_friendly, current_year
@@ -505,29 +499,6 @@ def _run_staged_pipeline(
     # AEMO values remain in the data, just not enforced as a hard LP floor here.
     pypsa_friendly["generators"]["p_min_pu"] = 0.0
 
-    # Span-weighting (retirement accounting fix). The myopic single-period config
-    # makes the investment period 1 year long, so each milestone weights as 1 year.
-    # A milestone represents ~span_weight_years; weighting it as its (discounted)
-    # span makes the recurring FOM keeping-cost count over the span (so it can
-    # outweigh the one-off disestablishment), WITHOUT changing the new-build optimum
-    # (a uniform objective scalar for a single-period solve). PyPSA multiplies this
-    # objective weight onto BOTH capital and operational costs (optimize.py:151,181).
-    # MUST be applied to pypsa_friendly["investment_period_weights"] BEFORE
-    # build_pypsa_network -- build.py:92 calls create_model() at build time, so a
-    # post-build override of network.investment_period_weightings never reaches the LP.
-    if span_weight_years is not None:
-        r = config.discount_rate
-        obj_w = sum(1.0 / (1.0 + r) ** yr for yr in range(span_weight_years))
-        ipw = pypsa_friendly["investment_period_weights"]
-        ipw["years"] = span_weight_years
-        ipw["objective"] = obj_w
-        timings["span_weighting"] = {"years": span_weight_years, "objective": obj_w}
-        print(
-            f"\n=== SPAN-WEIGHTING (pre-build) === years={span_weight_years} "
-            f"objective={obj_w:.3f}",
-            flush=True,
-        )
-
     pypsa_friendly["snapshots"] = create_pypsa_friendly_timeseries_inputs(
         config,
         "capacity_expansion",
@@ -540,57 +511,29 @@ def _run_staged_pipeline(
     timings["translation_s"] = time.perf_counter() - t
 
     t = time.perf_counter()
-    network = build_pypsa_network(pypsa_friendly, ce_ts_dir)
+    network = build_pypsa_network(
+        pypsa_friendly,
+        ce_ts_dir,
+        config.filter_by_nem_regions or config.filter_by_isp_sub_regions,
+    )
     timings["pypsa_build_s"] = time.perf_counter() - t
 
-    # One-off disestablishment cost. The economic cost of retiring is
-    # D*(floor - p_nom): a one-off, paid when capacity is shed. Its variable part
-    # is -D*p_nom (the D*floor constant doesn't affect the per-period retirement
-    # decision and is dropped). Added at x1 -- NOT span-weighted -- so a unit
-    # retires only when the span-weighted FOM saving (FOM*span, in capital_cost)
-    # exceeds the one-off D. Added directly to the linopy model built by
-    # build_pypsa_network (build.py:92), the same seam _add_custom_constraints
-    # uses. Sign: -D*p_nom rewards higher p_nom (discourages retiring), so the net
-    # coefficient on p_nom is (FOM*span - D); the LP sheds iff FOM*span > D.
-    if disestablishment_cost and reducible_existing_names:
-        m = network.model
-        # Only the reducible existing units that are actually extendable in the
-        # model carry a Generator-p_nom variable. Vectorised .loc[...].sum() gives
-        # a LinearExpression (a scalar .at[] loop yields a ScalarLinearExpression,
-        # which Objective.__add__ rejects).
-        ext = set(network.generators.index[network.generators["p_nom_extendable"]])
-        names_present = [n for n in reducible_existing_names if n in ext]
-        if names_present:
-            sub = m.variables.Generator_p_nom.loc[names_present]
-            m.objective = m.objective + (-float(disestablishment_cost)) * sub.sum()
-            timings["disestablishment"] = {
-                "cost_per_mw": float(disestablishment_cost),
-                "units": len(names_present),
-            }
-            print(
-                f"\n=== DISESTABLISHMENT === D={disestablishment_cost}/MW "
-                f"on {len(names_present)} reducible existing units",
-                flush=True,
-            )
-
-    # Intensity-x-demand map constraints. Both are added straight to the linopy
-    # model built by build_pypsa_network — the same seam the fuel supply curve
-    # and the disestablishment term use — so no model code changes. Coefficient
-    # construction mirrors _constrain_fuel_burn_to_purchases (outer product of
-    # snapshot weights and per-generator coefficients, built on the variable's
-    # own coords so xarray aligns with linopy's snapshot MultiIndex).
-    if co2_cap_t is not None or renewable_share_min is not None:
-        import numpy as np
-        import pandas as pd
-        import xarray as xr
-
-        weights = network.snapshot_weightings["generators"].to_numpy()
-
+    # Intensity-x-demand map constraint, added straight to the linopy model built
+    # by build_pypsa_network - the same seam the fuel supply curve uses - so no
+    # model code changes. Coefficient construction mirrors
+    # _constrain_fuel_burn_to_purchases (outer product of snapshot weights and
+    # per-generator coefficients, built on the variable's own coords so xarray
+    # aligns with linopy's snapshot MultiIndex).
     if co2_cap_t is not None:
         # Absolute annual CO2e cap on generation combustion. Coefficients are the
         # translator's isp_residual_co2_t_per_mwh (carrier total Scope-1 CO2e
         # factor x heat rate x (1 - capture_rate)), so CCS residual emissions at
         # the configured capture rate are INSIDE the cap and captured CO2 is not.
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        weights = network.snapshot_weightings["generators"].to_numpy()
         gens_pf = pypsa_friendly["generators"].set_index("name")
         resid = pd.to_numeric(
             gens_pf["isp_residual_co2_t_per_mwh"], errors="coerce"
@@ -611,31 +554,8 @@ def _run_staged_pipeline(
             flush=True,
         )
 
-    if renewable_share_min is not None:
-        # Minimum renewable share of real generation (the wedge comparator):
-        # sum_renew(w p) >= r x sum_real(w p), i.e. renewables weighted (1 - r)
-        # and non-renewable real generators weighted -r, >= 0. Slack generators
-        # and unserved energy are excluded from both sides, matching r_total.
-        g = network.generators
-        real = (g["bus"] != "bus_for_custom_constraint_gens") & (
-            g["carrier"] != "Unserved Energy"
-        )
-        renewable = g["carrier"].isin({"Wind", "Solar", "Water", "Biomass"})
-        names = list(g.index[real])
-        share = float(renewable_share_min)
-        coeff = np.where(renewable[real].to_numpy(), 1.0 - share, -share)
-        p = network.model.variables.Generator_p.loc[:, names]
-        share_coeff = xr.DataArray(
-            np.outer(weights, coeff), coords=p.coords, dims=p.dims
-        )
-        network.model.add_constraints(
-            (p * share_coeff).sum() >= 0.0, name="renewable_share_min"
-        )
-        timings["renewable_share_min"] = share
-        print(f"\n=== RENEWABLE SHARE MIN === {share:.4f}", flush=True)
-
     # HiGHS C++ writes directly to OS fd 1. When this runner is launched by
-    # run_chain.py, fd 1 is the per-run log file — so HiGHS output is captured
+    # `msm solve`, fd 1 is the per-run log file - so HiGHS output is captured
     # without any in-process redirect. When run standalone, HiGHS output goes
     # to the terminal and the log parser will simply not find an LP-size line.
     print("\n=== SOLVE START ===", flush=True)
@@ -657,9 +577,9 @@ def _run_staged_pipeline(
     save_pypsa_network(network, outputs_dir, "capacity_expansion")
     timings["save_network_s"] = time.perf_counter() - t
 
-    # Realised residual CO2e and constraint duals. The linopy model is not
-    # persisted with the NetCDF, so the cap/share duals must be read here,
-    # in-process, and written both into the record and outputs/ for extraction.
+    # Realised residual CO2e and the cap dual. The linopy model is not persisted
+    # with the NetCDF, so the dual must be read here, in-process, and written both
+    # into the record and outputs/ for extraction.
     import pandas as pd
 
     pf_gens = pypsa_friendly["generators"].set_index("name")
@@ -676,23 +596,21 @@ def _run_staged_pipeline(
     )
     timings["annual_residual_co2e_t"] = float((dispatch_mwh * resid_full).sum())
 
-    if co2_cap_t is not None or renewable_share_min is not None:
+    if co2_cap_t is not None:
         constraint_report = {
             "objective_weight": float(
                 network.investment_period_weightings["objective"].iloc[0]
             ),
             "annual_residual_co2e_t": timings["annual_residual_co2e_t"],
         }
-        for cname in ("co2_cap_annual_t", "renewable_share_min"):
-            if cname not in network.model.constraints:
-                continue
-            try:
-                constraint_report[f"{cname}_dual"] = float(
-                    network.model.constraints[cname].dual
-                )
-            except Exception as e:  # dual genuinely unavailable — report, not drop
-                constraint_report[f"{cname}_dual"] = None
-                constraint_report[f"{cname}_dual_error"] = f"{type(e).__name__}: {e}"
+        cname = "co2_cap_annual_t"
+        try:
+            constraint_report[f"{cname}_dual"] = float(
+                network.model.constraints[cname].dual
+            )
+        except Exception as e:  # dual genuinely unavailable - report, not drop
+            constraint_report[f"{cname}_dual"] = None
+            constraint_report[f"{cname}_dual_error"] = f"{type(e).__name__}: {e}"
         timings["constraint_report"] = constraint_report
         (outputs_dir / "constraint_duals.json").write_text(
             json.dumps(constraint_report, indent=2, default=str)
@@ -730,36 +648,12 @@ def _run_staged_pipeline(
         period_snaps = [s for s in network.snapshots if s[0] == period]
         if not period_snaps:
             continue
-        df_p = gen_dispatch[gen_dispatch["investment_period"] == period]
         # Weight each dispatch_mw by snapshot weighting (h/snapshot)
         gen_t = network.generators_t.p
         period_p = gen_t.loc[period_snaps].clip(lower=0).sum(axis=1)
         weighted_mwh = (period_p * weightings.loc[period_snaps]).sum()
         by_period[int(period)] = float(weighted_mwh)
     timings["annual_generation_mwh_by_period"] = by_period
-
-    # Disestablishment cost reporting. The objective term added a
-    # variable-only -D*p_nom and DROPPED the +D*cap constant (it doesn't affect
-    # the retirement decision). So the solved objective UNDERSTATES the true
-    # system cost by D*sum(cap). Recover both the actually-incurred one-off
-    # (D*(cap - retained), the cost of capacity shed THIS period) and the
-    # constant add-back so the reported cost is right. cap = p_nom_max (the
-    # floor-or-installed cap make_existing_reducible set); retained = p_nom_opt.
-    if disestablishment_cost and reducible_existing_names:
-        g = network.generators
-        red = g[
-            g.index.astype(str).isin(set(map(str, reducible_existing_names)))
-            & g["p_nom_extendable"].astype(bool)
-        ]
-        cap = red["p_nom_max"].clip(upper=1e12)  # guard against inf on any stray row
-        retired_mw = float((cap - red["p_nom_opt"]).clip(lower=0).sum())
-        D = float(disestablishment_cost)
-        timings["disestablishment_cost_report"] = {
-            "retired_mw": retired_mw,
-            "incurred_one_off_cost": D * retired_mw,
-            "objective_constant_add_back_DxCap": D * float(cap.sum()),
-            "note": "true_objective = solved_objective + objective_constant_add_back_DxCap",
-        }
 
     return timings
 
@@ -842,16 +736,6 @@ def main():
     ap.add_argument("--config", required=True, type=Path)
     ap.add_argument("--run-id", required=True)
     ap.add_argument(
-        "--use-ipm",
-        action="store_true",
-        help="Use HiGHS interior-point method instead of simplex",
-    )
-    ap.add_argument(
-        "--no-crossover",
-        action="store_true",
-        help="Disable IPM crossover (returns interior solution)",
-    )
-    ap.add_argument(
         "--use-pdlp",
         action="store_true",
         help="Use HiGHS PDLP (primal-dual hybrid gradient) solver",
@@ -873,18 +757,6 @@ def main():
         type=float,
         default=None,
         help="Set Gurobi BarConvTol (default 1e-8); e.g. 1e-3 for relaxed run",
-    )
-    ap.add_argument(
-        "--gurobi-opt-tol",
-        type=float,
-        default=None,
-        help="Set Gurobi OptimalityTol (default 1e-6); reduced-cost / dual tolerance",
-    )
-    ap.add_argument(
-        "--gurobi-feas-tol",
-        type=float,
-        default=None,
-        help="Set Gurobi FeasibilityTol (default 1e-6); primal feasibility tolerance",
     )
     ap.add_argument(
         "--gurobi-threads",
@@ -914,47 +786,7 @@ def main():
         type=int,
         default=None,
         help="Set Gurobi Method (0=primal simplex, 1=dual simplex, 2=barrier, "
-        "3=concurrent, 4=det concurrent). For barrier-only solves "
-        "(no crossover), pair --gurobi-method 2 with --gurobi-crossover 0.",
-    )
-    ap.add_argument(
-        "--gurobi-crossover",
-        type=int,
-        default=None,
-        help="Set Gurobi Crossover (-1=auto, 0=disabled, 1-4=specific strategies). "
-        "0 keeps Gurobi at the barrier interior solution and avoids the "
-        "superlinear crossover scaling that becomes impractical at full "
-        "8760-snapshot resolution.",
-    )
-    ap.add_argument(
-        "--gurobi-numeric-focus",
-        type=int,
-        default=None,
-        help="Set Gurobi NumericFocus (0=auto, 1-3=increasing numerical care). "
-        "Buildable new-entrant storage widens the objective coefficient range "
-        "(~[1, 1e7]); Gurobi then terminates the barrier Sub-optimal with a "
-        "'set NumericFocus' warning. 2-3 trades speed for numerical robustness.",
-    )
-    ap.add_argument(
-        "--gurobi-bar-homogeneous",
-        type=int,
-        default=None,
-        help="Set Gurobi BarHomogeneous (-1=auto, 0=off, 1=on). 1 forces the "
-        "homogeneous self-dual barrier algorithm, more robust to "
-        "ill-conditioning and infeasibility detection: Gurobi barrier with "
-        "crossover off and default BarHomogeneous=auto stalls identically "
-        "at iteration 178 for two BarConvTol settings on the full "
-        "8760-snapshot LP, so the homogeneous self-dual algorithm is the "
-        "next barrier variant to try.",
-    )
-    ap.add_argument(
-        "--gurobi-obj-scale",
-        type=float,
-        default=None,
-        help="Set Gurobi ObjScale (>0 divides objective by this value, -1=auto, "
-        "0=off). This LP has cost range 4e0-3e6 and RHS down to 3e-5; "
-        "both HiGHS and Gurobi flagged 'consider scaling the objective by "
-        "1e-1'. ObjScale=10 implements that suggestion (divides obj by 10).",
+        "3=concurrent, 4=det concurrent).",
     )
     ap.add_argument(
         "--carried-tranches-dir",
@@ -988,37 +820,11 @@ def main():
         "prior retained level (monotone retirement). Requires --current-year.",
     )
     ap.add_argument(
-        "--existing-keeping-cost",
-        type=float,
-        default=0.0,
-        help="Per-MW cost of KEEPING existing capacity each period, set as "
-        "capital_cost on the reducible existing generators. 0 gives a "
-        "strict mechanism with no economics; pass the AEMO fixed-OPEX to "
-        "price retention.",
-    )
-    ap.add_argument(
         "--existing-fom-keeping",
         action="store_true",
         help="Route each existing unit's OWN FOM (ecaa fom_$/kw/annum "
-        "-> $/MW/yr) as its capital_cost keeping-cost, instead of the scalar "
-        "--existing-keeping-cost. This is the recurring cost retirement saves.",
-    )
-    ap.add_argument(
-        "--span-weight-years",
-        type=int,
-        default=None,
-        help="Weight the (1-year) myopic investment period as an N-year "
-        "milestone span, so recurring FOM counts over the span vs "
-        "the one-off disestablishment. Does NOT change the new-build optimum "
-        "(uniform objective scalar for a single-period solve). Default: off.",
-    )
-    ap.add_argument(
-        "--disestablishment-cost",
-        type=float,
-        default=0.0,
-        help="One-off disestablishment/decommissioning cost ($/MW) on "
-        "retired existing capacity, added as -D*p_nom to the objective (x1, NOT "
-        "span-weighted). A unit sheds only when FOM*span > D. Default 0 (off).",
+        "-> $/MW/yr) as its capital_cost keeping-cost, instead of keeping the "
+        "unit for free. This is the recurring cost retirement saves.",
     )
     ap.add_argument(
         "--co2-cap-t",
@@ -1030,15 +836,6 @@ def main():
         "captured CO2 outside). The constraint's dual is recorded in the run "
         "record and outputs/constraint_duals.json. Default: no cap.",
     )
-    ap.add_argument(
-        "--renewable-share-min",
-        type=float,
-        default=None,
-        help="Minimum renewable share (0-1) of real generation (Wind/Solar/"
-        "Water/Biomass over all non-slack, non-unserved generation), added as "
-        "a linear constraint. Used for the intensity-vs-share wedge subset. "
-        "Default: no constraint.",
-    )
     args = ap.parse_args()
     if args.carried_tranches_dir is not None and args.current_year is None:
         ap.error("--carried-tranches-dir requires --current-year.")
@@ -1046,11 +843,7 @@ def main():
         ap.error("--retention-floor-dir requires --current-year.")
     solver_options = None
     solver_name_override = None
-    if args.use_ipm:
-        solver_options = {"solver": "ipm"}
-        if args.no_crossover:
-            solver_options["run_crossover"] = "off"
-    elif args.use_pdlp:
+    if args.use_pdlp:
         solver_options = {"solver": "pdlp"}
         if args.pdlp_tolerance is not None:
             solver_options["pdlp_optimality_tolerance"] = args.pdlp_tolerance
@@ -1061,22 +854,10 @@ def main():
         gurobi_opts = {}
         if args.gurobi_bar_conv_tol is not None:
             gurobi_opts["BarConvTol"] = args.gurobi_bar_conv_tol
-        if args.gurobi_opt_tol is not None:
-            gurobi_opts["OptimalityTol"] = args.gurobi_opt_tol
-        if args.gurobi_feas_tol is not None:
-            gurobi_opts["FeasibilityTol"] = args.gurobi_feas_tol
         if args.gurobi_threads is not None:
             gurobi_opts["Threads"] = args.gurobi_threads
         if args.gurobi_method is not None:
             gurobi_opts["Method"] = args.gurobi_method
-        if args.gurobi_crossover is not None:
-            gurobi_opts["Crossover"] = args.gurobi_crossover
-        if args.gurobi_numeric_focus is not None:
-            gurobi_opts["NumericFocus"] = args.gurobi_numeric_focus
-        if args.gurobi_bar_homogeneous is not None:
-            gurobi_opts["BarHomogeneous"] = args.gurobi_bar_homogeneous
-        if args.gurobi_obj_scale is not None:
-            gurobi_opts["ObjScale"] = args.gurobi_obj_scale
         if gurobi_opts:
             solver_options = gurobi_opts
     if args.highs_threads is not None and not args.use_gurobi:
@@ -1088,19 +869,16 @@ def main():
     record_path = layout.record(args.run_id)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     record_path.parent.mkdir(parents=True, exist_ok=True)
-    # Do NOT truncate the log file: when this runner is invoked from
-    # run_chain.py, the parent has already opened the log for append and
-    # rebinding the inode here would orphan the parent's file descriptor.
+    # `msm solve` opened this log and redirected this process's stdout into it, so
+    # the file is never opened here for writing; it is only read back after the
+    # solve to parse the solver's own lines out of it.
 
     poller = MemoryPoller(interval_s=2.0)
     poller.start()
 
-    from analysis.model import ARCHETYPE
-
     record = {
         "run_id": args.run_id,
         "config": str(args.config),
-        "archetype": ARCHETYPE,
         "solver_options": solver_options,
         "started_at": time.time(),
         "started_at_iso": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -1115,20 +893,14 @@ def main():
     try:
         timings = _run_staged_pipeline(
             args.config,
-            ARCHETYPE,
-            log_path,
             solver_options=solver_options,
             solver_name_override=solver_name_override,
             carried_tranches_dir=args.carried_tranches_dir,
             current_year=args.current_year,
             reducible_existing=args.reducible_existing,
             retention_floor_dir=args.retention_floor_dir,
-            existing_keeping_cost=args.existing_keeping_cost,
             existing_fom_keeping=args.existing_fom_keeping,
-            span_weight_years=args.span_weight_years,
-            disestablishment_cost=args.disestablishment_cost,
             co2_cap_t=args.co2_cap_t,
-            renewable_share_min=args.renewable_share_min,
         )
         record.update(timings)
         record["wall_clock_s"] = time.perf_counter() - t_total

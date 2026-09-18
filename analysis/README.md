@@ -55,17 +55,21 @@ output, laid out by `analysis.env.OutputLayout`.
 
 ## `.env` setup
 
-Copy `.example.env` to `.env` and set `IO_DIR` for the machine you are on:
+Copy `.example.env` to `.env` and set each variable for the machine you are on:
 
-| Machine | `IO_DIR` |
+| Variable | What it sets |
 | --- | --- |
-| Workstation | `\\fs1-cbr.nexus.csiro.au\{en-pathways}\work\AusTIMES2\data\ispypsa` |
-| Cluster (petrichor) | `/datasets/work/en-pathways/work/AusTIMES2/data/ispypsa` |
+| `IO_DIR` | Root of every input and run product: `\\fs1-cbr.nexus.csiro.au\{en-pathways}\work\AusTIMES2\data\ispypsa` on the workstation, `/datasets/work/en-pathways/work/AusTIMES2/data/ispypsa` on the cluster |
+| `MSM_SLURM_ACCOUNT` | Slurm account the campaign's jobs are charged to |
+| `MSM_SLURM_PARTITION` | Slurm partition the campaign's jobs are submitted to |
+| `GRB_LICENSE_FILE` | Gurobi licence file on the cluster |
+| `UV_CACHE_DIR` | `uv` package cache, kept on the cluster's local scratch filesystem |
 
-Both paths point at the same network-mounted storage, so nothing is copied between the workstation and the cluster.
-petrichor's own `/scratch3` filesystem is flushed periodically and holds nothing that is not disposable: only the
-repository clone, the `uv` package cache, and, if solving directly against `$IO_DIR` proves too slow (see "Solving
-over network-mounted storage" below), transient solver files that are copied to `$IO_DIR` once a chain finishes.
+The two `IO_DIR` paths point at the same network-mounted storage, so nothing is copied between the workstation and the
+cluster. The last four variables matter on the cluster only.
+
+petrichor's `/scratch3` is flushed periodically, so it holds only the repository clone and the `uv` cache; every run
+product and export lives under `IO_DIR`.
 
 ## Workflow
 
@@ -84,25 +88,10 @@ milestone has not completed. Run `uv run msm <command> --help` for every flag.
 
 ## Importing run products produced outside `IO_DIR`
 
-A campaign run produced on local or scratch storage, rather than solved directly against `$IO_DIR`, is brought onto
-`$IO_DIR` with an `rsync`, run manually rather than by any command in this package:
-
-- Run products - `configs/`, `logs/`, `records/`, `runs/`, `campaign/`, `exports/` - go under
-  `$IO_DIR/runs/<run_set>/<stamp>/`.
-- Shared input stores - the IASR workbook, its parsed workbook cache, and the parsed trace store - go under
-  `$IO_DIR/inputs/`, at the paths given in "`IO_DIR` layout" above.
-
-For example, from a cluster scratch filesystem such as petrichor's `/scratch3` (paths illustrative):
-
-```text
-rsync -a /scratch3/<user>/<path>/outputs/{configs,logs,records,runs,campaign,exports} \
-    "$IO_DIR/runs/<run_set>/<stamp>/"
-rsync -a "<source>/2026 ISP Final" "$IO_DIR/inputs/iasr/"
-rsync -a <source>/workbook_cache_final "$IO_DIR/inputs/"
-rsync -a <source>/isp_2026 "$IO_DIR/inputs/traces/"
-```
-
-The source files are never deleted by this import.
+A run solved on local or scratch storage is brought onto `$IO_DIR` by hand, with no command in this package involved:
+`rsync` the run products (`configs/`, `logs/`, `records/`, `runs/`, `campaign/`, `exports/`) into
+`$IO_DIR/runs/<run_set>/<stamp>/`, and any shared input store into `$IO_DIR/inputs/` at the paths given in "`IO_DIR`
+layout" above.
 
 ## Moving to its own repository
 
@@ -128,12 +117,12 @@ resolves as a package-relative path rather than an absolute one, its tests are s
   | `exports/acceptance_per_cell.csv`, `acceptance_per_grid.csv` | `msm extract` | The campaign's acceptance tests, per cell-period and per grid |
   | `exports/sharp/methods.csv` | `msm sharp` | One row per archetype: method identifier, short name, description, role |
   | `exports/sharp/method_years.csv` | `msm sharp` | One row per (archetype, milestone year): cost per unit excluding fuel and carbon, input fuel commodities and coefficients, energy and process emissions by pollutant, activity bounds |
+  | `exports/sharp/energy_intensity_by_fuel.csv` | `msm sharp` | One row per (archetype, milestone year, fuel): fuel use in gigajoules per MWh delivered, carrying a zero row for every fuel an archetype-year does not burn |
   | `exports/sharp/nger_factor_table.csv` | `msm sharp` | Provenance of the National Greenhouse and Energy Reporting (NGER) emission cross-walk |
   | `exports/sharp/diagnostics.csv` | `msm sharp` | Bundled vs decoupled cost, fuel cost share, delivered demand, physical-mass CH4/N2O/CO2 intensities |
 
 ## Solving over network-mounted storage
 
-Solved networks and logs are written to the network-mounted `$IO_DIR` rather than to local cluster storage. Gurobi
-and PyPSA read and write many small files per solve, and that traffic is slower over a network mount than on local
-disk. When a smoke solve shows this matters in practice, the fallback is to point `RUN_DIR` at local scratch storage
-for the solve itself and `rsync` only the finished `exports/` directory back to `$IO_DIR`.
+Solved networks and logs are written to the network-mounted `$IO_DIR`, where Gurobi's and PyPSA's many small file reads
+and writes are slower than on local disk. Where that cost matters, point `RUN_DIR` at local scratch storage for the
+solve and import the finished run products afterwards.
