@@ -67,10 +67,18 @@ def _run(command: list[str]) -> None:
 
 def _refresh_on_cluster(settings: _Settings) -> None:
     """Pull, collect and extract on petrichor by running the remote half of the workflow."""
-    remote_script = (
-        f"{settings.remote_repo}/analysis/extension_campaign/refresh_remote.sh"
+    # Pull before invoking the script, since the script itself may be what just changed.
+    branch = os.environ.get("ISPYPSA_BRANCH", "extension-campaign")
+    _run(
+        [
+            "ssh",
+            "-o",
+            "BatchMode=yes",
+            settings.host,
+            f"cd {settings.remote_repo} && git pull -q --ff-only origin {branch} "
+            "&& bash analysis/extension_campaign/refresh_remote.sh",
+        ]
     )
-    _run(["ssh", "-o", "BatchMode=yes", settings.host, "bash", remote_script])
 
 
 def _fetch_products(settings: _Settings) -> None:
