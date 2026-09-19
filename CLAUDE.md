@@ -256,8 +256,9 @@ reproduce an electricity investment history end to end.
   [`analysis/MODELLING_ASSUMPTIONS.md`](analysis/MODELLING_ASSUMPTIONS.md), under one of its four headings: upstream
   fixes, fork input patches, authored assumptions with no AEMO source, and campaign method.
 - Every input and run product lives under one directory, `$IO_DIR`, set in `.env` (copy `.example.env`) and mounted at
-  the same path on the workstation and on the cluster. Never write a run product anywhere else, and never hard-code a
-  path that `analysis.env` can resolve.
+  the same path on the workstation and on the cluster. Inputs and launches are both timestamp-versioned directories,
+  `<YYYY-MM-DDTHH.MM>_<name>`, flat under `$IO_DIR/inputs/` and `$IO_DIR/outputs/`. Never write a run product anywhere
+  else, and never hard-code a path that `analysis.env` can resolve.
 - Run every step through the `msm` command line (`uv run msm --help`), never by calling a script path or ISPyPSA's own
   package builder: `msm` is the only path that applies the fork's model patches.
 - Write the laziest code that works - shortest diff, standard library and existing helpers before anything new - and

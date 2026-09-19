@@ -197,7 +197,7 @@ def _emit_energy_intensity_csv(rows: list[dict], granular_dir: Path) -> Path:
 def main(run: Path, out: Path | None = None, run_id_prefix: str | None = None) -> None:
     """Emit the ShARP deliverable CSVs from every solved archetype run in one run set.
 
-    :param run: Stamped run directory, ``$IO_DIR/runs/<run_set>/<stamp>``; archetype
+    :param run: Stamped run directory, ``$IO_DIR/outputs/<stamp>_<run_set>``; archetype
         runs are found under its ``runs/`` subdirectory.
     :param out: Directory the CSVs are written to (default ``<run>/exports/sharp``).
     :param run_id_prefix: Filter run dirs to those starting with this prefix, when

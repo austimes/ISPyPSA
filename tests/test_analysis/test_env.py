@@ -26,15 +26,47 @@ def test_from_env_requires_io_dir_to_exist(monkeypatch, tmp_path):
         Env.from_env()
 
 
-def test_input_stores_hang_off_io_dir(monkeypatch, tmp_path):
+def test_input_stores_hang_off_the_newest_input_package(monkeypatch, tmp_path):
     monkeypatch.setenv("IO_DIR", str(tmp_path))
+    monkeypatch.setattr(env_module, "load_dotenv", lambda *args, **kwargs: False)
+    monkeypatch.delenv("MSM_INPUTS", raising=False)
+    (tmp_path / "inputs" / "2026-09-17T13.54_isp2026_final").mkdir(parents=True)
+    newest = tmp_path / "inputs" / "2026-09-18T09.00_isp2026_revised"
+    newest.mkdir()
 
     env = Env.from_env()
 
-    assert env.workbook_cache == tmp_path / "inputs" / "workbook_cache_final"
-    assert env.traces == tmp_path / "inputs" / "traces" / "isp_2026"
-    assert env.tracedirs == tmp_path / "inputs" / "tracedirs"
-    assert env.run_set("ext41") == tmp_path / "runs" / "ext41"
+    assert env.inputs == newest
+    assert env.workbook_cache == newest / "workbook_cache_final"
+    assert env.traces == newest / "traces" / "isp_2026"
+    assert env.tracedirs == newest / "tracedirs"
+    assert env.outputs == tmp_path / "outputs"
+
+
+def test_msm_inputs_names_the_input_package_by_directory_name(monkeypatch, tmp_path):
+    monkeypatch.setenv("IO_DIR", str(tmp_path))
+    monkeypatch.setenv("MSM_INPUTS", "2026-09-17T13.54_isp2026_final")
+    (tmp_path / "inputs" / "2026-09-18T09.00_isp2026_revised").mkdir(parents=True)
+
+    assert (
+        Env.from_env().inputs == tmp_path / "inputs" / "2026-09-17T13.54_isp2026_final"
+    )
+
+
+def test_msm_inputs_accepts_an_absolute_path(monkeypatch, tmp_path):
+    monkeypatch.setenv("IO_DIR", str(tmp_path))
+    monkeypatch.setenv("MSM_INPUTS", str(tmp_path / "elsewhere" / "scratch_inputs"))
+
+    assert Env.from_env().inputs == tmp_path / "elsewhere" / "scratch_inputs"
+
+
+def test_missing_input_package_is_refused(monkeypatch, tmp_path):
+    monkeypatch.setenv("IO_DIR", str(tmp_path))
+    monkeypatch.setattr(env_module, "load_dotenv", lambda *args, **kwargs: False)
+    monkeypatch.delenv("MSM_INPUTS", raising=False)
+
+    with pytest.raises(FileNotFoundError, match="no stamped input package under"):
+        Env.from_env().inputs
 
 
 def test_slurm_settings_are_none_when_the_environment_names_none(monkeypatch, tmp_path):
@@ -54,12 +86,14 @@ def test_new_run_creates_a_stamped_launch_directory(monkeypatch, tmp_path):
     layout = Env.from_env().new_run("ext41")
 
     assert layout.root.is_dir()
-    assert layout.root.parent == tmp_path / "runs" / "ext41"
-    assert datetime.strptime(layout.root.name, RUN_STAMP_FORMAT)
+    assert layout.root.parent == tmp_path / "outputs"
+    stamp, _, run_set = layout.root.name.partition("_")
+    assert run_set == "ext41"
+    assert datetime.strptime(stamp, RUN_STAMP_FORMAT)
 
 
 def test_output_layout_paths_hang_off_one_root(tmp_path):
-    layout = OutputLayout(tmp_path / "ext41" / "2026-09-17T14.05")
+    layout = OutputLayout(tmp_path / "outputs" / "2026-09-17T14.05_ext41")
 
     assert layout.config("chain_2030") == layout.root / "configs" / "chain_2030.yaml"
     assert layout.log("chain_2030") == layout.root / "logs" / "chain_2030.log"

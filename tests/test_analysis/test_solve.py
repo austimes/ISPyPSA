@@ -23,7 +23,7 @@ SBATCH_SUBSTITUTIONS = {
     "${RESUME:-}": "--resume",
     "$SLURM_CPUS_PER_TASK": "64",
     "$RUN_ID": "ext_central_c0",
-    "$RUN_DIR": "/io/runs/ext41/2026-09-18T10.00",
+    "$RUN_DIR": "/io/outputs/2026-09-18T10.00_ext41",
     "$TRACES": "2030:/io/tracedirs/c/2030 2040:/io/tracedirs/c/2040",
     "$ARGS": "--carbon-price 0",
 }
@@ -33,8 +33,14 @@ class StopBeforeSolve(Exception):
     """Raised by a stubbed period runner so a test stops at the generated config."""
 
 
-def test_chain_keeps_fuel_curves_with_ccs_opted_out(monkeypatch, tmp_path):
+def _point_io_dir_at(monkeypatch, tmp_path: Path) -> None:
+    """Point ``IO_DIR`` at ``tmp_path``, holding the one stamped input package a solve reads."""
     monkeypatch.setenv("IO_DIR", str(tmp_path))
+    (tmp_path / "inputs" / "2026-09-17T13.54_test_inputs").mkdir(parents=True)
+
+
+def test_chain_keeps_fuel_curves_with_ccs_opted_out(monkeypatch, tmp_path):
+    _point_io_dir_at(monkeypatch, tmp_path)
 
     def inspect_config(cfg, *args, **kwargs):
         inputs = yaml.safe_load(cfg.read_text())
@@ -63,7 +69,7 @@ def test_chain_keeps_fuel_curves_with_ccs_opted_out(monkeypatch, tmp_path):
 
 
 def test_cli_parses_every_period_of_a_chain(monkeypatch, tmp_path):
-    monkeypatch.setenv("IO_DIR", str(tmp_path))
+    _point_io_dir_at(monkeypatch, tmp_path)
     solved = []
 
     def record_period(cfg, run_id, *args, **kwargs):

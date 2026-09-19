@@ -27,17 +27,18 @@ to this campaign and is not expected to move upstream.
 ## `IO_DIR` layout
 
 Every input and run product lives under one directory, `$IO_DIR`, mounted at the same path on the workstation and on the
-cluster:
+cluster. Both input packages and launches are timestamp-versioned directories, `<YYYY-MM-DDTHH.MM>_<name>`, sitting flat
+under `inputs/` and `outputs/`:
 
 ```text
 $IO_DIR/
-  inputs/
+  inputs/<YYYY-MM-DDTHH.MM>_<label>/
     iasr/2026 ISP Final/2026-isp-inputs-and-assumptions-workbook.xlsm
     workbook_cache_final/
     traces/isp_2026/
     tracedirs/<trajectory>/<year>/isp_2026/, <trajectory>.txt
-  runs/<run_set>/<YYYY-MM-DDTHH.MM>/
-    campaign/   chains.tsv, chains_index.csv, caps.csv, demand_plan.json, slurm/*.out
+  outputs/<YYYY-MM-DDTHH.MM>_<run_set>/
+    campaign/   chains.tsv, chains_index.csv, caps.csv, demand_plan.json, inputs.txt, slurm/*.out
     configs/    generated per-period ISPyPSA YAML configs
     logs/       solver stdout, one file per solve
     records/    JSON records, one per solve plus one per chain
@@ -50,8 +51,9 @@ $IO_DIR/
 The Inputs, Assumptions and Scenarios Report (IASR) is AEMO's published workbook of National Electricity Market (NEM)
 modelling inputs; `workbook_cache_final/` is its parsed cache and `traces/isp_2026/` is the parsed demand and weather
 trace store. `tracedirs/` holds one rewritten demand trace directory per (trajectory, milestone year), built by
-`msm launch` the first time a trajectory is used. Each `runs/<run_set>/<stamp>/` directory is one launch's complete
-output, laid out by `analysis.env.OutputLayout`.
+`msm launch` the first time a trajectory is used. A run reads the newest input package unless `MSM_INPUTS` names another
+one, and records the package it read in `campaign/inputs.txt`. Each `outputs/<stamp>_<run_set>/` directory is one
+launch's complete output, laid out by `analysis.env.OutputLayout`.
 
 ## `.env` setup
 
@@ -60,6 +62,7 @@ Copy `.example.env` to `.env` and set each variable for the machine you are on:
 | Variable | What it sets |
 | --- | --- |
 | `IO_DIR` | Root of every input and run product: `\\fs1-cbr.nexus.csiro.au\{en-pathways}\work\AusTIMES2\data\ispypsa` on the workstation, `/datasets/work/en-pathways/work/AusTIMES2/data/ispypsa` on the cluster |
+| `MSM_INPUTS` | Optional. Input package to read instead of the newest one, as a directory name under `$IO_DIR/inputs` or an absolute path |
 | `MSM_SLURM_ACCOUNT` | Slurm account the campaign's jobs are charged to |
 | `MSM_SLURM_PARTITION` | Slurm partition the campaign's jobs are submitted to |
 | `GRB_LICENSE_FILE` | Gurobi licence file on the cluster |
@@ -77,7 +80,7 @@ Running the campaign is five `msm` commands, in order:
 
 | Step | Where | Command | What it produces |
 | --- | --- | --- | --- |
-| 1 | Cluster login node | `msm launch --run-set ext41` | Stamps `$IO_DIR/runs/ext41/<stamp>/`, builds any missing trace directories, writes the chain manifest, and submits the chains to Slurm |
+| 1 | Cluster login node | `msm launch --run-set ext41` | Stamps `$IO_DIR/outputs/<stamp>_ext41/`, builds any missing trace directories, writes the chain manifest and the input package it read, and submits the chains to Slurm |
 | 2 | Cluster compute nodes (automatic) | `msm solve --run-id ... --output-root ...` | One chain of single-period solves, one call per Slurm array task |
 | 3 | Cluster login node | `msm extract --run <dir>` | Reads the solved networks and writes the `exports/` CSVs (submits itself as a Slurm array job when Slurm is present, or pass `--local` to run in-process) |
 | 4 | Anywhere `IO_DIR` is mounted | `msm sharp --run <dir>` | The ShARP deliverable CSVs under `exports/sharp/` |
@@ -86,12 +89,16 @@ Running the campaign is five `msm` commands, in order:
 Steps 1 to 3 need Slurm; steps 4 and 5 do not. `msm launch --run <dir> --resume` re-submits only the chains whose final
 milestone has not completed. Run `uv run msm <command> --help` for every flag.
 
-## Importing run products produced outside `IO_DIR`
+## Importing inputs and run products produced outside `IO_DIR`
 
-A run solved on local or scratch storage is brought onto `$IO_DIR` by hand, with no command in this package involved:
-`rsync` the run products (`configs/`, `logs/`, `records/`, `runs/`, `campaign/`, `exports/`) into
-`$IO_DIR/runs/<run_set>/<stamp>/`, and any shared input store into `$IO_DIR/inputs/` at the paths given in "`IO_DIR`
-layout" above.
+Inputs and run products are brought onto `$IO_DIR` by hand, with no command in this package involved:
+
+- A new set of input stores goes into one stamped package directory, `$IO_DIR/inputs/<stamp>_<label>/`, holding `iasr/`,
+  `workbook_cache_final/`, `traces/isp_2026/` and `tracedirs/` at the paths given in "`IO_DIR` layout" above. Later runs
+  pick up the newest package, so an earlier one stays readable by any run that names it with `MSM_INPUTS`.
+- A run solved on local or scratch storage is `rsync`ed into one stamped launch directory,
+  `$IO_DIR/outputs/<stamp>_<run_set>/`, carrying its `configs/`, `logs/`, `records/`, `runs/`, `campaign/` and
+  `exports/` subdirectories.
 
 ## Moving to its own repository
 

@@ -1,12 +1,14 @@
 """Tests for the launch command's Slurm array selection."""
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
-from analysis.env import Env, OutputLayout
+from analysis import env as env_module
+from analysis.env import RUN_STAMP_FORMAT, Env, OutputLayout
 from analysis.hpc.launch import incomplete_array, main, sbatch_command
 
 LAST_PERIOD = 2060
@@ -64,14 +66,37 @@ def test_resume_without_a_run_directory_is_refused(monkeypatch, tmp_path):
     with pytest.raises(ValueError, match="--resume needs --run"):
         main(resume=True)
 
-    assert not (tmp_path / "runs").exists()
+    assert not (tmp_path / "outputs").exists()
+
+
+def test_dry_run_stamps_a_launch_directory_and_records_the_inputs_it_read(
+    monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setattr(env_module, "load_dotenv", lambda *args, **kwargs: False)
+    monkeypatch.setenv("IO_DIR", str(tmp_path))
+    monkeypatch.delenv("MSM_INPUTS", raising=False)
+    package = tmp_path / "inputs" / "2026-09-17T13.54_isp2026_final"
+    package.mkdir(parents=True)
+
+    main(run_set="ext41", dry_run=True)
+
+    (launch,) = (tmp_path / "outputs").iterdir()
+    stamp, _, run_set = launch.name.partition("_")
+    assert (run_set, bool(datetime.strptime(stamp, RUN_STAMP_FORMAT))) == (
+        "ext41",
+        True,
+    )
+    assert (launch / "campaign" / "inputs.txt").read_text(
+        encoding="utf-8"
+    ) == f"{package.as_posix()}\n"
+    assert launch.as_posix() in capsys.readouterr().out
 
 
 def test_sbatch_command_omits_the_account_and_partition_the_environment_leaves_unset(
     tmp_path,
 ):
     env = Env(io_dir=tmp_path, slurm_account=None, slurm_partition=None)
-    layout = OutputLayout(tmp_path / "ext41" / "2026-09-18T10.00")
+    layout = OutputLayout(tmp_path / "outputs" / "2026-09-18T10.00_ext41")
 
     command = sbatch_command(Path("chain.sbatch"), "0-2", {}, layout, env)
 
@@ -84,7 +109,7 @@ def test_sbatch_command_passes_the_account_and_partition_the_environment_names(
     tmp_path,
 ):
     env = Env(io_dir=tmp_path, slurm_account="OD-1", slurm_partition="defq")
-    layout = OutputLayout(tmp_path / "ext41" / "2026-09-18T10.00")
+    layout = OutputLayout(tmp_path / "outputs" / "2026-09-18T10.00_ext41")
 
     command = sbatch_command(Path("chain.sbatch"), "0-2", {}, layout, env)
 

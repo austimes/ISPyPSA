@@ -681,7 +681,7 @@ def main(
 ) -> None:
     """Build the extension campaign deliverables for one stamped run directory.
 
-    :param run: Stamped run directory, ``$IO_DIR/runs/<run_set>/<stamp>``.
+    :param run: Stamped run directory, ``$IO_DIR/outputs/<stamp>_<run_set>``.
     :param only: Extract just this chain, for parallel extraction. A single chain is
         always read in-process: it is the unit one array task already covers.
     :param stage: Which half to run: per-chain extraction, assembly, or both.

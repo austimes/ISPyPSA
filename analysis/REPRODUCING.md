@@ -20,20 +20,23 @@ commit, whether the working tree had uncommitted changes, and the SHA-256 of eac
 every solve; existing records are not backfilled, and a later branch head is not evidence of the version behind a solve
 made before it.
 
-`analysis.env.Env.from_env()` resolves the shared input stores from `$IO_DIR`:
+`analysis.env.Env.from_env()` picks the newest timestamp-versioned input package under `$IO_DIR/inputs/`, or the one
+`MSM_INPUTS` names, and resolves the input stores inside it:
 
 - the National Electricity Market (NEM) IASR workbook at
-  `$IO_DIR/inputs/iasr/2026 ISP Final/2026-isp-inputs-and-assumptions-workbook.xlsm`
-- its parsed workbook cache at `$IO_DIR/inputs/workbook_cache_final/`
-- the parsed demand and weather trace store at `$IO_DIR/inputs/traces/isp_2026/`
+  `<package>/iasr/2026 ISP Final/2026-isp-inputs-and-assumptions-workbook.xlsm`
+- its parsed workbook cache at `<package>/workbook_cache_final/`
+- the parsed demand and weather trace store at `<package>/traces/isp_2026/`
+
+Each launch writes the package it read to `campaign/inputs.txt`, so a result always names its inputs.
 
 Build the workbook cache from the tracked v7.8 parser metadata: an older cache can be missing the restored pumped hydro
 energy storage (PHES) rows described in MODELLING_ASSUMPTIONS.md.
 
 ## Prepare demand trace directories
 
-`msm launch` builds one rewritten demand trace directory per (trajectory, milestone year) under
-`$IO_DIR/inputs/tracedirs/`, scaling the source trace so that year delivers the trajectory's target source NEM load;
+`msm launch` builds one rewritten demand trace directory per (trajectory, milestone year) under the input package's
+`tracedirs/`, scaling the source trace so that year delivers the trajectory's target source NEM load;
 wind and solar traces are shared unscaled across trajectories. A trajectory whose trace directories exist is left alone,
 so the build is safe to repeat. The demand plan driving this (trajectories, milestone years, target loads) is
 `analysis/hpc/demand_plan.json` by default; run `msm launch --help` for the option that points it at a different file.
@@ -53,8 +56,8 @@ uv run msm solve --run-id ext_central_c0 --output-root "$RUN_DIR" \
   --co2-cap-t-schedule 2030:<tonnes> 2040:<tonnes> 2050:<tonnes> 2060:<tonnes>
 ```
 
-Replace each `<dir>` with a milestone's trace directory (from the trajectory's token file under
-`$IO_DIR/inputs/tracedirs/`) and each `<tonnes>` with its approved absolute annual cap; the uncapped baseline omits
+Replace each `<dir>` with a milestone's trace directory (from the trajectory's token file under the input package's
+`tracedirs/`) and each `<tonnes>` with its approved absolute annual cap; the uncapped baseline omits
 `--co2-cap-t-schedule` and uses `--carbon-price 0` instead. Do not reuse a run identifier, or resume a chain, after
 changing its inputs or assumptions: `--resume` trusts that a completed period's inputs have not moved.
 

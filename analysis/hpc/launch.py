@@ -1,9 +1,10 @@
 """Stamp a launch directory, write its manifest and submit the campaign to Slurm.
 
-One launch is one stamped directory under ``$IO_DIR/runs/<run_set>/``, holding the
+One launch is one stamped directory, ``$IO_DIR/outputs/<stamp>_<run_set>``, holding the
 manifest that decides what each Slurm array task solves and every product of the run.
 The array index is the chain's row in ``campaign/chains.tsv``, so the manifest and the
-array are written together and never drift apart.
+array are written together and never drift apart. ``campaign/inputs.txt`` names the input
+package the launch read, so a run's results can always be traced back to its inputs.
 
 ``submit`` is the single place that knows how a campaign job is handed to Slurm: the
 account, partition, stdout path and the exported variables (``RUN_DIR``, ``REPO`` and
@@ -117,7 +118,7 @@ def main(
 ) -> None:
     """Prepare a campaign launch and submit its chains to Slurm.
 
-    :param run_set: Name of the run set a new launch is stamped under.
+    :param run_set: Name a new launch directory is stamped with, under ``$IO_DIR/outputs``.
     :param plan: Demand plan JSON holding the trajectories, loads and milestone years.
     :param run: Existing launch directory to submit into, instead of stamping a new one.
     :param resume: Submit only the chains whose final period has not completed; requires
@@ -134,6 +135,9 @@ def main(
     if not dry_run:
         tracedirs.build(env.traces, env.tracedirs, plan)
     chains = manifest.build(plan, layout, env.tracedirs)
+    (layout.campaign / "inputs.txt").write_text(
+        f"{env.inputs.as_posix()}\n", encoding="utf-8"
+    )
     if array is None and smoke:
         array = "0"
     if array is None and resume:
