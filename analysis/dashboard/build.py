@@ -146,6 +146,7 @@ SECTIONS = {
     "Cost frontier, years overlaid": figures.figure_cost_frontier_overlaid,
     "Cost against emissions intensity": figures.figure_cost_families,
     "Cost surface over demand and marginal intensity": figures.figure_cost_contours,
+    "Cost surface as heatmap": figures.figure_cost_heatmap,
     "Cost pathway over time": figures.figure_cost_pathway,
     "Implied carbon price of each cap": figures.figure_implied_carbon_price,
     "Marginal cost and intensity of demand": figures.figure_demand_marginals,
@@ -159,11 +160,15 @@ SECTIONS = {
 }
 
 
-#: Each section sits in a fixed-height box, which the divider below it drags taller or shorter.
-SECTION_WRAPPER = '<div style="overflow: auto; height: {height}px">{body}</div>'
+#: Each section sits in a box of its own height, which the divider below it drags taller or shorter.
+SECTION_WRAPPER = (
+    '<div class="box" style="overflow: auto; height: {height}px">{body}</div>'
+)
 
-#: Height for a section that sets none of its own, in pixels.
+#: Height for a section that sets none of its own, in pixels, and the room a box leaves around a
+#: figure for the plotly modebar above it.
 DEFAULT_SECTION_HEIGHT = 500
+SECTION_PADDING = 40
 
 #: Full-width grab bar under one figure's box, dragged to set that box's height.
 DIVIDER = (
@@ -171,14 +176,19 @@ DIVIDER = (
     'cursor: row-resize"></div>'
 )
 
-#: Drags the box above a bar while the mouse is held, redrawing its plot as it goes.
-DIVIDER_SCRIPT = """<script>
+#: Everything the page does once it is open: drag a divider to resize the box above it, click a grid
+#: heading to sort on that column, and click a plot's fullscreen button to blow its box up. The
+#: button's icon is four corner brackets drawn inline, at text size to match the modebar beside it.
+PAGE_SCRIPT = """<script>
+const fit = box => {
+  const plot = box.querySelector(".js-plotly-plot");
+  if (plot) Plotly.Plots.resize(plot);
+};
 document.querySelectorAll(".divider").forEach(bar => bar.addEventListener("mousedown", start => {
   const box = bar.previousElementSibling, height = box.offsetHeight;
   const drag = move => {
     box.style.height = `${height + move.clientY - start.clientY}px`;
-    const plot = box.querySelector(".js-plotly-plot");
-    if (plot) Plotly.Plots.resize(plot);
+    fit(box);
   };
   const stop = () => {
     document.removeEventListener("mousemove", drag);
@@ -187,17 +197,45 @@ document.querySelectorAll(".divider").forEach(bar => bar.addEventListener("mouse
   document.addEventListener("mousemove", drag);
   document.addEventListener("mouseup", stop);
 }));
+document.querySelectorAll("#grid th").forEach((head, column) => head.addEventListener("click", () => {
+  const body = head.closest("table").querySelector("tbody"), rows = [...body.rows];
+  const text = row => row.cells[column].textContent;
+  const sign = head.dataset.descending ? -1 : 1;
+  rows.sort((left, right) => {
+    const numeric = parseFloat(text(left)) - parseFloat(text(right));
+    return sign * (isNaN(numeric) ? text(left).localeCompare(text(right)) : numeric);
+  });
+  head.dataset.descending = head.dataset.descending ? "" : "yes";
+  rows.forEach(row => body.appendChild(row));
+}));
+window.addEventListener("load", () => document.querySelectorAll(".js-plotly-plot").forEach(plot => {
+  const button = document.createElement("a");
+  button.className = "modebar-btn";
+  button.dataset.title = "Fullscreen";
+  button.innerHTML = '<svg height="1em" width="1em" viewBox="0 0 24 24" fill="none"'
+    + ' stroke="currentColor" stroke-width="2">'
+    + '<path d="M3 9V3h6M15 3h6v6M3 15v6h6M15 21h6v-6"/></svg>';
+  button.onclick = () => plot.closest(".box").requestFullscreen();
+  plot.querySelector(".modebar-group").appendChild(button);
+}));
+document.addEventListener("fullscreenchange", () => (document.fullscreenElement
+  ? [document.fullscreenElement] : [...document.querySelectorAll(".box")]).forEach(fit));
 </script>"""
 
 
 def _section_box(body: go.Figure | str) -> str:
-    """Box one section at its own height: html a builder wrote, or a figure rendered to html."""
+    """Box one section at its own height: html a builder wrote, or a figure stretched to fill the box.
+
+    A figure carrying its own ``layout.height`` would keep that height however far the box is
+    dragged, so the box takes the height over and the figure is left to autosize into it.
+    """
     if isinstance(body, str):
         return SECTION_WRAPPER.format(height=DEFAULT_SECTION_HEIGHT, body=body)
+    height = int(body.layout.height or DEFAULT_SECTION_HEIGHT) + SECTION_PADDING
+    body.update_layout(height=None, width=None, autosize=True)
     html = body.to_html(
         full_html=False, include_plotlyjs=False, config={"responsive": True}
     )
-    height = int(body.layout.height or DEFAULT_SECTION_HEIGHT) + 40
     return SECTION_WRAPPER.format(height=height, body=html)
 
 
@@ -229,7 +267,7 @@ def main(run: Path, show: bool = False) -> Path:
         sections.append(f"<h2>{heading}</h2>")
         sections.append(_section_box(body))
         sections.append(DIVIDER)
-    sections.append(DIVIDER_SCRIPT)
+    sections.append(PAGE_SCRIPT)
     page = layout.root / "dashboard.html"
     page.write_text("\n".join(sections), encoding="utf-8")
     if show:

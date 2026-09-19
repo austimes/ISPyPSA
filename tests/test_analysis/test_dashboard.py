@@ -9,12 +9,14 @@ import pytest
 from analysis.dashboard.build import SECTIONS, main, tidy_frame
 from analysis.dashboard.figures import (
     COST_COMPONENTS,
+    GRID_SIZE,
     HATCH_NOTE,
     figure_cap_tracking,
     figure_cost_decomposition,
     figure_cost_frontier,
     figure_cost_frontier_animated,
     figure_cost_frontier_overlaid,
+    figure_cost_heatmap,
     figure_cost_pathway,
     figure_demand_marginals,
     figure_implied_carbon_price,
@@ -237,6 +239,21 @@ def test_cost_frontier_overlaid_draws_every_year_in_one_panel(exports):
     ]
 
 
+def test_cost_heatmap_bins_the_interpolated_surface_onto_one_colour_axis(exports):
+    figure = figure_cost_heatmap(tidy_frame(exports))
+
+    # Only 2030 holds enough solved cells to interpolate, so the figure is a single panel.
+    assert [(trace.nbinsx, trace.nbinsy, trace.coloraxis) for trace in figure.data] == [
+        (GRID_SIZE, GRID_SIZE, "coloraxis")
+    ]
+    assert figure.layout.coloraxis.colorbar.title.text == "Average cost (A$/MWh)"
+    assert figure.layout.yaxis.title.text == "Demand-marginal intensity (t CO2e/MWh)"
+
+
+def test_cost_heatmap_is_dropped_when_no_year_holds_enough_cells(two_cell_exports):
+    assert figure_cost_heatmap(tidy_frame(two_cell_exports)) is None
+
+
 def test_cost_pathway_draws_one_line_per_pressure_and_trajectory(exports):
     figure = figure_cost_pathway(tidy_frame(exports))
 
@@ -354,9 +371,22 @@ def test_main_writes_one_html_page(exports):
     assert text.count('querySelectorAll(".divider")') == 1
 
 
+def test_main_leaves_every_figure_to_fill_its_own_box(exports):
+    page = main(exports.parent)
+
+    # Everything past plotly's bundle: the figures, the boxes holding them and the page script.
+    text = page.read_text(encoding="utf-8").partition("</script>")[2]
+    assert '"height":' not in text
+    assert text.count('<div class="box" style="overflow: auto; height:') == len(
+        SECTIONS
+    )
+    assert text.count('"Fullscreen"') == 1
+
+
 def test_main_renders_a_run_too_small_to_interpolate(two_cell_exports):
     page = main(two_cell_exports.parent)
 
     text = page.read_text(encoding="utf-8")
     assert "<h2>Cost surface over demand and marginal intensity</h2>" not in text
+    assert "<h2>Cost surface as heatmap</h2>" not in text
     assert "<h2>Technology mix</h2>" in text

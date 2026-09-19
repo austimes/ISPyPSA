@@ -82,6 +82,9 @@ GRID_AXES = ["delivered_twh", "marginal_intensity"]
 #: Fewest solved cells a year needs before its cost surface can be interpolated.
 MIN_GRID_CELLS = 4
 
+#: Points along each axis of the interpolated cost surface, and so bins in the heatmap drawing it.
+GRID_SIZE = 40
+
 #: The one trajectory the cost decomposition is drawn for. Every trajectory and pressure at once
 #: would be fifty panels, too many to read.
 CENTRAL_TRAJECTORY = "central"
@@ -485,34 +488,54 @@ def figure_cost_families(frame: pd.DataFrame) -> go.Figure:
     return add_axis_scale_buttons(_strip_facet_titles(figure))
 
 
+#: Axes, measure and faceting the two cost-surface figures share, so both read the same grid alike.
+COST_SURFACE_ARGS = {
+    "x": "delivered_twh",
+    "y": "marginal_intensity",
+    "z": "avg_cost",
+    "histfunc": "avg",
+    "facet_col": "year",
+    "labels": LABELS,
+    "height": CONTOUR_HEIGHT,
+}
+
+
 def figure_cost_contours(frame: pd.DataFrame) -> go.Figure | None:
     """Average cost interpolated over delivered energy and marginal intensity, per year.
 
     Interpolation needs at least ``MIN_GRID_CELLS`` solved cells in a year, so a year with fewer
-    is left out and a run with no such year gets no figure at all. Every year shares one colour
-    axis, so the surfaces are directly comparable and the page carries a single colour bar. Neither
-    the demand nor the intensity axis is shared, because both reachable ranges move year on year.
+    is left out and a run with no such year gets no figure at all.
     """
     grid = _interpolated_cost_grid(frame)
     if grid.empty:
         return None
-    figure = px.density_contour(
-        grid,
-        x="delivered_twh",
-        y="marginal_intensity",
-        z="avg_cost",
-        histfunc="avg",
-        facet_col="year",
-        labels=LABELS,
-        height=CONTOUR_HEIGHT,
+    figure = px.density_contour(grid, **COST_SURFACE_ARGS)
+    return _colour_cost_surface(figure.update_traces(contours_coloring="heatmap"))
+
+
+def figure_cost_heatmap(frame: pd.DataFrame) -> go.Figure | None:
+    """The same interpolated cost surface as filled bins rather than contours, per year.
+
+    One bin per interpolated grid point, so the heatmap shows the interpolation itself instead of
+    smoothing it again. It is left out on the same too-few-cells rule as the contour figure.
+    """
+    grid = _interpolated_cost_grid(frame)
+    if grid.empty:
+        return None
+    figure = px.density_heatmap(
+        grid, nbinsx=GRID_SIZE, nbinsy=GRID_SIZE, **COST_SURFACE_ARGS
     )
-    # Cleared bin groups let each year bin, and so scale, over its own reachable range.
-    figure.update_traces(
-        contours_coloring="heatmap",
-        coloraxis="coloraxis",
-        xbingroup=None,
-        ybingroup=None,
-    )
+    return _colour_cost_surface(figure)
+
+
+def _colour_cost_surface(figure: go.Figure) -> go.Figure:
+    """Put every year of a cost surface on one colour axis but on its own pair of ranges.
+
+    A shared colour axis makes the years directly comparable and leaves the page one colour bar.
+    Neither the demand nor the intensity axis is shared, because both reachable ranges move year on
+    year; clearing the bin groups too lets each year bin, and so scale, over its own range.
+    """
+    figure.update_traces(coloraxis="coloraxis", xbingroup=None, ybingroup=None)
     figure.update_layout(
         coloraxis={
             "colorscale": "Viridis",
@@ -524,7 +547,7 @@ def figure_cost_contours(frame: pd.DataFrame) -> go.Figure | None:
     return _strip_facet_titles(figure)
 
 
-def _interpolated_cost_grid(frame: pd.DataFrame, size: int = 40) -> pd.DataFrame:
+def _interpolated_cost_grid(frame: pd.DataFrame, size: int = GRID_SIZE) -> pd.DataFrame:
     """Interpolate cost onto a regular grid over ``GRID_AXES``, one block per year with enough cells."""
     solved = _accepted(frame).dropna(subset=[*GRID_AXES, "avg_cost"])
     years = solved.groupby("year")
@@ -802,30 +825,16 @@ GRID_STYLE = f"""<style>
 {" ".join(f".{name} {{ background: {fill} }}" for name, fill in STATUS_COLOURS.items())}
 </style>"""
 
-#: Sorts the grid on the clicked heading's column, numerically where both cells read as numbers.
-GRID_SORT_SCRIPT = """<script>
-document.querySelectorAll("#grid th").forEach((head, column) => head.addEventListener("click", () => {
-  const body = head.closest("table").querySelector("tbody"), rows = [...body.rows];
-  const text = row => row.cells[column].textContent;
-  const sign = head.dataset.descending ? -1 : 1;
-  rows.sort((left, right) => {
-    const numeric = parseFloat(text(left)) - parseFloat(text(right));
-    return sign * (isNaN(numeric) ? text(left).localeCompare(text(right)) : numeric);
-  });
-  head.dataset.descending = head.dataset.descending ? "" : "yes";
-  rows.forEach(row => body.appendChild(row));
-}));
-</script>"""
-
 
 def html_search_grid(frame: pd.DataFrame) -> str:
     """Average cost for every searched cell as a sortable table, each cell filled by solve status.
 
     Delivered energy is the same across a row's pressure columns, so it gets a column of its own
     and each cell carries the cost instead. Combinations the campaign plan never covered stay
-    white; grey marks a planned combination missing from the exports.
+    white; grey marks a planned combination missing from the exports. The page script in
+    ``build.py`` sorts the table when a heading is clicked.
 
-    :return: A style block, the table itself and the script that sorts it on a heading click.
+    :return: A style block and the table itself.
     """
     keys = ["trajectory", "year"]
     costs = (
@@ -838,7 +847,7 @@ def html_search_grid(frame: pd.DataFrame) -> str:
     energy = frame.pivot_table(index=keys, values="delivered_twh", aggfunc="first")
     cells = energy.round(1).join(spans).reset_index().rename(columns=_grid_heading)
     table = cells.to_html(index=False, escape=False, classes="grid", table_id="grid")
-    return GRID_STYLE + table + GRID_SORT_SCRIPT
+    return GRID_STYLE + table
 
 
 def _grid_status(frame: pd.DataFrame, costs: pd.DataFrame) -> pd.DataFrame:
