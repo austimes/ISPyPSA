@@ -3,6 +3,7 @@
 import re
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -239,13 +240,18 @@ def test_cost_frontier_overlaid_draws_every_year_in_one_panel(exports):
     ]
 
 
-def test_cost_heatmap_bins_the_interpolated_surface_onto_one_colour_axis(exports):
+def test_cost_heatmap_blanks_the_cells_the_interpolation_could_not_reach(exports):
     figure = figure_cost_heatmap(tidy_frame(exports))
 
     # Only 2030 holds enough solved cells to interpolate, so the figure is a single panel.
-    assert [(trace.nbinsx, trace.nbinsy, trace.coloraxis) for trace in figure.data] == [
-        (GRID_SIZE, GRID_SIZE, "coloraxis")
-    ]
+    (cells,) = figure.data
+    assert (cells.type, cells.z.shape, cells.coloraxis) == (
+        "heatmap",
+        (GRID_SIZE, GRID_SIZE),
+        "coloraxis",
+    )
+    # Grid points outside the solved cells' hull stay NaN, which plotly draws as a gap.
+    assert np.isnan(cells.z).any()
     assert figure.layout.coloraxis.colorbar.title.text == "Average cost (A$/MWh)"
     assert figure.layout.yaxis.title.text == "Demand-marginal intensity (t CO2e/MWh)"
 
@@ -338,14 +344,24 @@ def test_tech_mix_hatches_unaccepted_cells_and_renames_water(grid_exports):
         ("Hydro (conventional)", "/"),
         ("Wind", ""),
         ("Wind", "/"),
+        ("Unserved", ""),
+        ("Unserved", "/"),
     }
 
 
-def test_tech_mix_lists_each_carrier_in_the_legend_once(grid_exports):
+def test_tech_mix_lists_each_carrier_in_the_legend_once_then_unserved(grid_exports):
     figure = figure_tech_mix(tidy_frame(grid_exports))
 
     listed = [trace.name for trace in figure.data if trace.showlegend]
-    assert listed == ["Hydro (conventional)", "Wind"]
+    assert listed == ["Hydro (conventional)", "Wind", "Unserved"]
+
+
+def test_tech_mix_rebases_carrier_shares_onto_demand(exports):
+    figure = figure_tech_mix(tidy_frame(exports))
+
+    # The ``high`` trajectory's one cell: 0.4 of generation from wind, 0.2% of demand unserved.
+    high = [(trace.name, list(trace.y)) for trace in figure.data if trace.xaxis == "x"]
+    assert high == [("Wind", [0.4 * 0.998]), ("Unserved", [0.2])]
 
 
 def test_tech_mix_labels_facets_with_the_manifest_pressure_names(grid_exports):

@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from scipy.interpolate import griddata
 
 from analysis.hpc.campaign_grid import CAP_KIND, order_pressures, parse_pressure
@@ -29,6 +30,11 @@ CARRIER_COLOURS = {
 
 #: Carrier columns whose CSV name reads differently on the page.
 CARRIER_LABELS = {"Water": "Hydro (conventional)"}
+
+#: The technology mix's last stack segment, and its colour: demand no generation served. It is not a
+#: carrier, so it sits outside ``CARRIER_COLOURS`` and after every carrier in the stack.
+UNSERVED_CARRIER = "Unserved"
+UNSERVED_COLOUR = "#d62728"
 
 #: Fill colours for the searched-parameter grid table. A combination the campaign plan never
 #: covered is left white; grey means planned but absent from the exports.
@@ -144,7 +150,7 @@ LABELS = {
     "pressure_short": "Pressure (A$/t priced, or cap in t CO2e/MWh)",
     "pressure_value": "Cap target intensity in 2050 (t CO2e/MWh)",
     "series": "Series",
-    "share": "Share of generation",
+    "share": "Share of demand (%)",
     "trajectory": "Trajectory",
     "value": "",
     "year": "Year",
@@ -488,44 +494,65 @@ def figure_cost_families(frame: pd.DataFrame) -> go.Figure:
     return add_axis_scale_buttons(_strip_facet_titles(figure))
 
 
-#: Axes, measure and faceting the two cost-surface figures share, so both read the same grid alike.
-COST_SURFACE_ARGS = {
-    "x": "delivered_twh",
-    "y": "marginal_intensity",
-    "z": "avg_cost",
-    "histfunc": "avg",
-    "facet_col": "year",
-    "labels": LABELS,
-    "height": CONTOUR_HEIGHT,
-}
-
-
 def figure_cost_contours(frame: pd.DataFrame) -> go.Figure | None:
     """Average cost interpolated over delivered energy and marginal intensity, per year.
 
-    Interpolation needs at least ``MIN_GRID_CELLS`` solved cells in a year, so a year with fewer
-    is left out and a run with no such year gets no figure at all.
+    Only the grid points the interpolation reached are binned. A contour fill still paints the empty
+    bins around them at the bottom of its colour scale, which reads as a cheap region rather than as
+    no data, so the heatmap figure is the one to trust outside the contoured island. Interpolation
+    needs at least ``MIN_GRID_CELLS`` solved cells in a year, so a year with fewer is left out and a
+    run with no such year gets no figure at all.
     """
-    grid = _interpolated_cost_grid(frame)
+    grid = _interpolated_cost_grid(frame).dropna(subset=["avg_cost"])
     if grid.empty:
         return None
-    figure = px.density_contour(grid, **COST_SURFACE_ARGS)
-    return _colour_cost_surface(figure.update_traces(contours_coloring="heatmap"))
+    figure = px.density_contour(
+        grid,
+        x="delivered_twh",
+        y="marginal_intensity",
+        z="avg_cost",
+        histfunc="avg",
+        facet_col="year",
+        labels=LABELS,
+        height=CONTOUR_HEIGHT,
+    )
+    # Each year is binned over its own reachable ranges, which the shared bin groups would tie together.
+    figure.update_traces(contours_coloring="heatmap", xbingroup=None, ybingroup=None)
+    return _colour_cost_surface(figure)
 
 
 def figure_cost_heatmap(frame: pd.DataFrame) -> go.Figure | None:
-    """The same interpolated cost surface as filled bins rather than contours, per year.
+    """The same interpolated cost surface as filled cells rather than contours, one panel per year.
 
-    One bin per interpolated grid point, so the heatmap shows the interpolation itself instead of
+    One cell per interpolated grid point, so the heatmap shows the interpolation itself instead of
     smoothing it again. It is left out on the same too-few-cells rule as the contour figure.
     """
     grid = _interpolated_cost_grid(frame)
     if grid.empty:
         return None
-    figure = px.density_heatmap(
-        grid, nbinsx=GRID_SIZE, nbinsy=GRID_SIZE, **COST_SURFACE_ARGS
+    years = sorted(grid["year"].unique())
+    figure = make_subplots(
+        rows=1, cols=len(years), subplot_titles=[str(y) for y in years]
     )
-    return _colour_cost_surface(figure)
+    for column, year in enumerate(years, start=1):
+        figure.add_trace(_year_heatmap(grid[grid["year"].eq(year)]), row=1, col=column)
+    figure.update_xaxes(title_text=LABELS["delivered_twh"])
+    figure.update_yaxes(title_text=LABELS["marginal_intensity"], col=1)
+    return _colour_cost_surface(figure.update_layout(height=CONTOUR_HEIGHT))
+
+
+def _year_heatmap(block: pd.DataFrame) -> go.Heatmap:
+    """One year's interpolated grid as heatmap cells, blank where the interpolation gave no cost.
+
+    Plotly draws nothing for a NaN cell, which is what a grid point outside the solved cells' hull
+    deserves; binning the points instead would colour those gaps as if they were the cheapest.
+    """
+    cells = block.pivot(
+        index="marginal_intensity", columns="delivered_twh", values="avg_cost"
+    )
+    return go.Heatmap(
+        x=cells.columns, y=cells.index, z=cells.to_numpy(), hoverongaps=False
+    )
 
 
 def _colour_cost_surface(figure: go.Figure) -> go.Figure:
@@ -533,9 +560,9 @@ def _colour_cost_surface(figure: go.Figure) -> go.Figure:
 
     A shared colour axis makes the years directly comparable and leaves the page one colour bar.
     Neither the demand nor the intensity axis is shared, because both reachable ranges move year on
-    year; clearing the bin groups too lets each year bin, and so scale, over its own range.
+    year.
     """
-    figure.update_traces(coloraxis="coloraxis", xbingroup=None, ybingroup=None)
+    figure.update_traces(coloraxis="coloraxis")
     figure.update_layout(
         coloraxis={
             "colorscale": "Viridis",
@@ -548,7 +575,11 @@ def _colour_cost_surface(figure: go.Figure) -> go.Figure:
 
 
 def _interpolated_cost_grid(frame: pd.DataFrame, size: int = GRID_SIZE) -> pd.DataFrame:
-    """Interpolate cost onto a regular grid over ``GRID_AXES``, one block per year with enough cells."""
+    """Interpolate cost onto a regular grid over ``GRID_AXES``, one block per year with enough cells.
+
+    Grid points the interpolation could not reach keep their NaN cost, so a caller can either blank
+    them or drop them.
+    """
     solved = _accepted(frame).dropna(subset=[*GRID_AXES, "avg_cost"])
     years = solved.groupby("year")
     grids = [
@@ -556,7 +587,7 @@ def _interpolated_cost_grid(frame: pd.DataFrame, size: int = GRID_SIZE) -> pd.Da
     ]
     if not grids:
         return pd.DataFrame(columns=["year", *GRID_AXES, "avg_cost"])
-    return pd.concat(grids).dropna(subset=["avg_cost"])
+    return pd.concat(grids)
 
 
 def _year_grid(block: pd.DataFrame, size: int) -> pd.DataFrame:
@@ -878,18 +909,14 @@ def _cell_labels(frame: pd.DataFrame) -> pd.Series:
 
 
 def figure_tech_mix(frame: pd.DataFrame) -> go.Figure:
-    """Stacked generation share by carrier, one facet per trajectory and pressure.
+    """Stacked share of demand by carrier, one facet per trajectory and pressure.
 
-    Cells that failed acceptance are drawn hatched rather than dropped, so a reader sees where the
-    campaign has a mix it cannot stand behind instead of an unexplained gap.
+    The stack is shares of demand rather than of generation, so the unserved slice a deep cap leaves
+    is the visible red segment on top instead of being scaled away. Cells that failed acceptance are
+    drawn hatched rather than dropped, so a reader sees where the campaign has a mix it cannot stand
+    behind instead of an unexplained gap.
     """
-    long = frame.melt(
-        id_vars=["trajectory", "pressure", "year", "status"],
-        value_vars=list(frame.filter(regex=r"^share_")),
-        var_name="carrier",
-        value_name="share",
-    )
-    long["carrier"] = long["carrier"].str.removeprefix("share_").replace(CARRIER_LABELS)
+    long = _demand_shares(frame)
     figure = px.bar(
         long.astype({"year": str}),
         x="year",
@@ -899,8 +926,11 @@ def figure_tech_mix(frame: pd.DataFrame) -> go.Figure:
         pattern_shape_map=STATUS_PATTERNS,
         facet_row="trajectory",
         facet_col="pressure",
-        category_orders=_orders(frame),
-        color_discrete_map=CARRIER_COLOURS,
+        category_orders={
+            **_orders(frame),
+            "carrier": [*CARRIER_COLOURS, UNSERVED_CARRIER],
+        },
+        color_discrete_map={**CARRIER_COLOURS, UNSERVED_CARRIER: UNSERVED_COLOUR},
         labels=LABELS,
         height=TECH_MIX_ROW_HEIGHT * frame["trajectory"].nunique(),
     )
@@ -909,6 +939,24 @@ def figure_tech_mix(frame: pd.DataFrame) -> go.Figure:
     _colour_legend_entries(figure)
     figure.for_each_annotation(lambda note: note.update(text=_facet_label(note.text)))
     return _pattern_note(figure, HATCH_NOTE, long["carrier"].nunique())
+
+
+def _demand_shares(frame: pd.DataFrame) -> pd.DataFrame:
+    """Melt the per-carrier generation shares onto a share-of-demand base, unserved energy last.
+
+    The exported shares are percentages of generation, which sum to 100 however much demand went
+    unserved; each is scaled by the served fraction so the carriers and the unserved slice together
+    make up the year's demand.
+    """
+    keys = ["trajectory", "pressure", "year", "status"]
+    served = 1 - frame["use_pct_of_demand"] / 100
+    carriers = frame[keys].join(frame.filter(regex=r"^share_").mul(served, axis=0))
+    long = carriers.melt(id_vars=keys, var_name="carrier", value_name="share")
+    long["carrier"] = long["carrier"].str.removeprefix("share_").replace(CARRIER_LABELS)
+    unserved = frame[keys].assign(
+        carrier=UNSERVED_CARRIER, share=frame["use_pct_of_demand"]
+    )
+    return pd.concat([long, unserved], ignore_index=True)
 
 
 def figure_storage_build(frame: pd.DataFrame) -> go.Figure:

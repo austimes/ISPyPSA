@@ -178,7 +178,8 @@ DIVIDER = (
 
 #: Everything the page does once it is open: drag a divider to resize the box above it, click a grid
 #: heading to sort on that column, and click a plot's fullscreen button to blow its box up. The
-#: button's icon is four corner brackets drawn inline, at text size to match the modebar beside it.
+#: button is added by re-rendering each plot with plotly's own modebar hook, which drops the plot's
+#: animation frames, so the animated figure's frames are put back and it keeps its year slider.
 PAGE_SCRIPT = """<script>
 const fit = box => {
   const plot = box.querySelector(".js-plotly-plot");
@@ -209,14 +210,12 @@ document.querySelectorAll("#grid th").forEach((head, column) => head.addEventLis
   rows.forEach(row => body.appendChild(row));
 }));
 window.addEventListener("load", () => document.querySelectorAll(".js-plotly-plot").forEach(plot => {
-  const button = document.createElement("a");
-  button.className = "modebar-btn";
-  button.dataset.title = "Fullscreen";
-  button.innerHTML = '<svg height="1em" width="1em" viewBox="0 0 24 24" fill="none"'
-    + ' stroke="currentColor" stroke-width="2">'
-    + '<path d="M3 9V3h6M15 3h6v6M3 15v6h6M15 21h6v-6"/></svg>';
-  button.onclick = () => plot.closest(".box").requestFullscreen();
-  plot.querySelector(".modebar-group").appendChild(button);
+  const button = {name: "fullscreen", title: "Fullscreen", icon: Plotly.Icons.autoscale,
+    click: gd => document.fullscreenElement
+      ? document.exitFullscreen() : gd.closest(".box").requestFullscreen()};
+  const frames = ((plot._transitionData || {})._frames || []).slice();
+  Plotly.react(plot, plot.data, plot.layout, {responsive: true, modeBarButtonsToAdd: [button]})
+    .then(() => frames.length ? Plotly.addFrames(plot, frames) : null);
 }));
 document.addEventListener("fullscreenchange", () => (document.fullscreenElement
   ? [document.fullscreenElement] : [...document.querySelectorAll(".box")]).forEach(fit));
