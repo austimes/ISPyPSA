@@ -170,6 +170,19 @@ def _build_required_tables(iasr_workbook_version: str = "6.0") -> list[str]:
             "technology_specific_lcfs",
         ] + _GENERATOR_PROPERTY_TABLES
         _BATTERY_REQUIRED_PROPERTY_TABLES = ["battery_properties"]
+        if iasr_workbook_version == "7.8":
+            # Cache the pumped-hydro property tables the workbook publishes on
+            # the same "Storage properties" sheet, plus the GHD-based
+            # sub-regional pumped-hydro build limits. Caching them does not by
+            # itself put pumped hydro in the model: the templater's storage
+            # filter keeps batteries only. Gated to 7.8, the only version whose
+            # `storage_properties` parser config has corrected header rows for
+            # these tables; the 7.4 layout is unverified.
+            _BATTERY_REQUIRED_PROPERTY_TABLES += [
+                "pumped_hydro_existing_committed_anticipated_additional_properties",
+                "pumped_hydro_new_entrant_properties",
+                "build_limits_phes",
+            ]
         if is_v7:
             # v7.x restructured the policy table set: renamed several to
             # `_target` form (dropped `_trajectory`), split NSW roadmap storage

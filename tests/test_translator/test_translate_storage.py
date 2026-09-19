@@ -300,6 +300,33 @@ def test_add_new_entrant_build_costs(csv_str_to_df, sample_ispypsa_tables):
     )
 
 
+def test_add_new_entrant_build_costs_beyond_published_years(
+    csv_str_to_df, sample_ispypsa_tables
+):
+    """Test that a build year beyond the published table holds the last published cost."""
+    batteries_csv = """
+    storage_name,   technology_type,                     build_year
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2029
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2035
+    Battery_2h,     Battery__Storage__(2hrs__storage),   2035
+    """
+    batteries_df = csv_str_to_df(batteries_csv)
+
+    build_costs_df = sample_ispypsa_tables["new_entrant_build_costs"]
+
+    result = _add_new_entrant_battery_build_costs(batteries_df, build_costs_df)
+
+    expected_result_csv = """
+    storage_name,   technology_type,                     build_year,    build_cost_$/mw
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2029,          3500000
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2035,          3500000
+    Battery_2h,     Battery__Storage__(2hrs__storage),   2035,          2500000
+    """
+    expected_result = csv_str_to_df(expected_result_csv)
+
+    pd.testing.assert_frame_equal(result, expected_result, check_dtype=False)
+
+
 def test_add_new_entrant_build_costs_missing_build_year(
     csv_str_to_df, sample_ispypsa_tables
 ):

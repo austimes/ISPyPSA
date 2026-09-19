@@ -3,14 +3,13 @@
 import pandas as pd
 import pytest
 
-from analysis.postprocess.nger_factors import (
+from analysis.sharp.nger_factors import (
     GWP_AR5_NGER,
     GWP_AR6_IPCC,
     co2e_per_mwh,
     hyblend_factor,
     nger_factor_table,
 )
-
 
 # ---------------------------------------------------------------------------
 # nger_factor_table()
@@ -21,8 +20,18 @@ def test_nger_factor_table_contains_all_expected_carriers():
     df = nger_factor_table()
 
     expected_carriers = {
-        "Black Coal", "Brown Coal", "Gas", "Liquid Fuel", "Biomass",
-        "Hydrogen", "Biomethane", "Nuclear", "Wind", "Solar", "Water", "Storage",
+        "Black Coal",
+        "Brown Coal",
+        "Gas",
+        "Liquid Fuel",
+        "Biomass",
+        "Hydrogen",
+        "Biomethane",
+        "Nuclear",
+        "Wind",
+        "Solar",
+        "Water",
+        "Storage",
     }
     assert set(df["carrier"]) == expected_carriers
 
@@ -31,9 +40,15 @@ def test_nger_factor_table_has_required_columns():
     df = nger_factor_table()
 
     expected_columns = {
-        "carrier", "co2_kg_per_gj", "ch4_co2e_kg_per_gj", "n2o_co2e_kg_per_gj",
-        "total_co2e_kg_per_gj", "ch4_physical_kg_per_gj", "n2o_physical_kg_per_gj",
-        "nga_table", "nga_fuel_name",
+        "carrier",
+        "co2_kg_per_gj",
+        "ch4_co2e_kg_per_gj",
+        "n2o_co2e_kg_per_gj",
+        "total_co2e_kg_per_gj",
+        "ch4_physical_kg_per_gj",
+        "n2o_physical_kg_per_gj",
+        "nga_table",
+        "nga_fuel_name",
     }
     assert set(df.columns) == expected_columns
 
@@ -43,7 +58,10 @@ def test_nger_factor_table_total_co2e_equals_sum_of_components():
 
     computed = df["co2_kg_per_gj"] + df["ch4_co2e_kg_per_gj"] + df["n2o_co2e_kg_per_gj"]
     pd.testing.assert_series_equal(
-        df["total_co2e_kg_per_gj"], computed, check_names=False, rtol=1e-10,
+        df["total_co2e_kg_per_gj"],
+        computed,
+        check_names=False,
+        rtol=1e-10,
     )
 
 

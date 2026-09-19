@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from analysis.postprocess.extract_method_years import (
+from analysis.sharp.method_years import (
     _annual_fuel_cost,
     _fuel_price_per_mwh,
     _load_fuel_price_tables,
@@ -37,8 +37,7 @@ def _write_v74_price_tables(cache: Path) -> None:
     )
     # Gas: split into existing + new entrants, "Gas price scenario" column.
     (cache / "gas_prices_existing_generators.csv").write_text(
-        "Generator,Gas price scenario,2029-30,2049-50\n"
-        "Torrens,Step Change,10.0,12.0\n"
+        "Generator,Gas price scenario,2029-30,2049-50\nTorrens,Step Change,10.0,12.0\n"
     )
     (cache / "gas_prices_new_entrants.csv").write_text(
         "Generator,Gas price scenario,2029-30,2049-50\n"
@@ -46,8 +45,7 @@ def _write_v74_price_tables(cache: Path) -> None:
     )
     # Biomass: single label col, Scenario column.
     (cache / "biomass_fuel_price.csv").write_text(
-        "Biomass price,Scenario,2029-30,2049-50\n"
-        "Biomass,Step Change,0.62,0.62\n"
+        "Biomass price,Scenario,2029-30,2049-50\nBiomass,Step Change,0.62,0.62\n"
     )
 
 

@@ -40,11 +40,10 @@ import re
 import shutil
 from pathlib import Path
 
-import yaml
-
 import isp_trace_parser.demand_traces as demand_traces
 import isp_trace_parser.solar_traces as solar_traces
 import isp_trace_parser.wind_traces as wind_traces
+import yaml
 from isp_trace_parser import (
     DemandMetadataFilter,
     SolarMetadataFilter,
@@ -70,7 +69,9 @@ FLAT = REPO / "data" / "trace_data" / "_flat_2026"  # transient per-type parsed 
 TARGET_REFERENCE_YEAR = 2018  # relabel the synthetic VRE RefYear5000 onto this year
 SYNTHETIC_VRE_YEAR = 5000
 
-MAPPING_DIR = Path(solar_traces.__file__).parent.parent / "isp_trace_name_mapping_configs"
+MAPPING_DIR = (
+    Path(solar_traces.__file__).parent.parent / "isp_trace_name_mapping_configs"
+)
 
 # 2026 trace-name overrides applied on top of the bundled 2024 maps (decision 3).
 SOLAR_PROJECT_OVERRIDES = {
@@ -126,26 +127,26 @@ SOLAR_ZONE_OVERRIDES = {
     # New 2026 REZ zones with VRE candidates but absent from the bundled zone
     # map (solar SAT/CST traces exist as REZ_<code>_<name>). V9 is offshore
     # (wind-only) so it has no solar zone trace and is not listed here.
-    "N13": "N13",   # South Cobar
-    "Q10": "Q10",   # Collinsville
+    "N13": "N13",  # South Cobar
+    "Q10": "Q10",  # Collinsville
     # Q8 split zones (now parseable via the split-aware extractor). Only Q8a has
     # VRE candidates today, but map all three — the raw traces exist and this is
     # the clean closure of the Q8-split.
-    "Q8a": "Q8a",   # Darling Downs
-    "Q8b": "Q8b",   # Southern Downs
-    "Q8c": "Q8c",   # Western Downs
+    "Q8a": "Q8a",  # Darling Downs
+    "Q8b": "Q8b",  # Southern Downs
+    "Q8c": "Q8c",  # Western Downs
 }
 # Wind zone map is flat (code -> code), like solar zone. The parse script did
 # not previously override it; the new 2026 REZ zones below need wind-zone entries
 # (their WH/WM, and V9's offshore WFL/WFX, traces exist but the bundled map
 # lacks the codes). Mechanism mirrors SOLAR_ZONE_OVERRIDES (nested=False).
 WIND_ZONE_OVERRIDES = {
-    "N13": "N13",   # South Cobar (WH/WM)
-    "Q10": "Q10",   # Collinsville (WH/WM)
-    "Q8a": "Q8a",   # Darling Downs (WH/WM)
-    "Q8b": "Q8b",   # Southern Downs (WH/WM)
-    "Q8c": "Q8c",   # Western Downs (WH/WM)
-    "V9": "V9",     # Southern Ocean offshore (WFL/WFX)
+    "N13": "N13",  # South Cobar (WH/WM)
+    "Q10": "Q10",  # Collinsville (WH/WM)
+    "Q8a": "Q8a",  # Darling Downs (WH/WM)
+    "Q8b": "Q8b",  # Southern Downs (WH/WM)
+    "Q8c": "Q8c",  # Western Downs (WH/WM)
+    "V9": "V9",  # Southern Ocean offshore (WFL/WFX)
 }
 # Wind project overrides set the nested CSVFile (the trace stem). Goyder South WF
 # 1A/1B are EXISTING generators that lost their trace: 2026 ships only Goyder_North,
@@ -207,14 +208,30 @@ def _parse_vre_split_by_filetype():
     them); likewise for zones. We parse with a file_type filter so the parser tags
     each parquet with the right `project`/`zone` column.
     """
-    parse_solar_traces(SOLAR_CSV, FLAT / "project", use_concurrency=False,
-                       filters=SolarMetadataFilter(file_type=["project"]))
-    parse_wind_traces(WIND_CSV, FLAT / "project", use_concurrency=False,
-                      filters=WindMetadataFilter(file_type=["project"]))
-    parse_solar_traces(SOLAR_CSV, FLAT / "zone", use_concurrency=False,
-                       filters=SolarMetadataFilter(file_type=["zone"]))
-    parse_wind_traces(WIND_CSV, FLAT / "zone", use_concurrency=False,
-                      filters=WindMetadataFilter(file_type=["zone"]))
+    parse_solar_traces(
+        SOLAR_CSV,
+        FLAT / "project",
+        use_concurrency=False,
+        filters=SolarMetadataFilter(file_type=["project"]),
+    )
+    parse_wind_traces(
+        WIND_CSV,
+        FLAT / "project",
+        use_concurrency=False,
+        filters=WindMetadataFilter(file_type=["project"]),
+    )
+    parse_solar_traces(
+        SOLAR_CSV,
+        FLAT / "zone",
+        use_concurrency=False,
+        filters=SolarMetadataFilter(file_type=["zone"]),
+    )
+    parse_wind_traces(
+        WIND_CSV,
+        FLAT / "zone",
+        use_concurrency=False,
+        filters=WindMetadataFilter(file_type=["zone"]),
+    )
 
 
 def _parse_step_change_demand():
@@ -222,18 +239,28 @@ def _parse_step_change_demand():
     folders = sorted(INPUTS.glob("2026 ISP Demand Traces * Step Change"))
     demand_filter = DemandMetadataFilter(poe=["POE50"], demand_type=["OPSO_MODELLING"])
     for folder in folders:
-        parse_demand_traces(folder, FLAT / "demand", use_concurrency=False,
-                            filters=demand_filter)
+        parse_demand_traces(
+            folder, FLAT / "demand", use_concurrency=False, filters=demand_filter
+        )
 
 
 def _optimise_into_get_data_layout():
     """Combine flat per-trace parquet into the hive-partitioned store get_data reads."""
-    partition_traces_by_columns(f"{FLAT / 'project'}/*.parquet", str(OUT / "project"),
-                                partition_cols=["reference_year"])
-    partition_traces_by_columns(f"{FLAT / 'zone'}/*.parquet", str(OUT / "zone"),
-                                partition_cols=["reference_year"])
-    partition_traces_by_columns(f"{FLAT / 'demand'}/*.parquet", str(OUT / "demand"),
-                                partition_cols=["scenario", "reference_year"])
+    partition_traces_by_columns(
+        f"{FLAT / 'project'}/*.parquet",
+        str(OUT / "project"),
+        partition_cols=["reference_year"],
+    )
+    partition_traces_by_columns(
+        f"{FLAT / 'zone'}/*.parquet",
+        str(OUT / "zone"),
+        partition_cols=["reference_year"],
+    )
+    partition_traces_by_columns(
+        f"{FLAT / 'demand'}/*.parquet",
+        str(OUT / "demand"),
+        partition_cols=["scenario", "reference_year"],
+    )
 
 
 def _remove_transient_flat_files():
@@ -241,6 +268,7 @@ def _remove_transient_flat_files():
 
 
 # --- context managers: non-invasive workarounds (restored on exit) ----------------
+
 
 def _extract_solar_trace_metadata_split_aware(filename):
     """isp_trace_parser's solar extractor, broadened to recognize trailing-letter
@@ -258,10 +286,16 @@ def _extract_solar_trace_metadata_split_aware(filename):
     )
     m2 = pattern2.match(filename)
     if m2:
-        d = m2.groupdict(); d["file_type"] = "zone"; d["reference_year"] = int(d["reference_year"]); return d
+        d = m2.groupdict()
+        d["file_type"] = "zone"
+        d["reference_year"] = int(d["reference_year"])
+        return d
     m1 = pattern1.match(filename)
     if m1:
-        d = m1.groupdict(); d["file_type"] = "project"; d["reference_year"] = int(d["reference_year"]); return d
+        d = m1.groupdict()
+        d["file_type"] = "project"
+        d["reference_year"] = int(d["reference_year"])
+        return d
     raise ValueError(f"Filename '{filename}' does not match the expected pattern")
 
 
@@ -278,10 +312,17 @@ def _extract_wind_trace_metadata_split_aware(filename):
     )
     m2 = pattern2.match(filename)
     if m2:
-        d = m2.groupdict(); d["file_type"] = "zone"; d["reference_year"] = int(d["reference_year"]); return d
+        d = m2.groupdict()
+        d["file_type"] = "zone"
+        d["reference_year"] = int(d["reference_year"])
+        return d
     m1 = pattern1.match(filename)
     if m1:
-        d = m1.groupdict(); d["file_type"] = "project"; d["resource_type"] = "WIND"; d["reference_year"] = int(d["reference_year"]); return d
+        d = m1.groupdict()
+        d["file_type"] = "project"
+        d["resource_type"] = "WIND"
+        d["reference_year"] = int(d["reference_year"])
+        return d
     raise ValueError(f"Filename '{filename}' does not match the expected pattern")
 
 
@@ -298,8 +339,12 @@ class _vre_relabelled_to:
     def __enter__(self):
         self._orig_solar = solar_traces.extract_solar_trace_metadata
         self._orig_wind = wind_traces.extract_wind_trace_metadata
-        solar_traces.extract_solar_trace_metadata = self._relabel(_extract_solar_trace_metadata_split_aware)
-        wind_traces.extract_wind_trace_metadata = self._relabel(_extract_wind_trace_metadata_split_aware)
+        solar_traces.extract_solar_trace_metadata = self._relabel(
+            _extract_solar_trace_metadata_split_aware
+        )
+        wind_traces.extract_wind_trace_metadata = self._relabel(
+            _extract_wind_trace_metadata_split_aware
+        )
         return self
 
     def __exit__(self, *exc):
@@ -323,7 +368,9 @@ class _demand_region_prefix_stripped:
 
     def __enter__(self):
         self._orig = demand_traces.extract_demand_trace_metadata
-        demand_traces.extract_demand_trace_metadata = self._strip(extract_demand_trace_metadata)
+        demand_traces.extract_demand_trace_metadata = self._strip(
+            extract_demand_trace_metadata
+        )
         return self
 
     def __exit__(self, *exc):
