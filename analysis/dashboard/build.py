@@ -255,7 +255,10 @@ def figure_cost_families(frame: pd.DataFrame) -> go.Figure:
         color="trajectory",
         facet_col="year",
         facet_row="measure",
-        category_orders={"year": sorted(frame["year"].unique())},
+        category_orders={
+            "year": sorted(frame["year"].unique()),
+            "measure": list(MEASURE_LABELS.values()),
+        },
         custom_data=["symbol"],
         markers=True,
         log_x=True,
