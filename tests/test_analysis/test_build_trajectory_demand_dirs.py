@@ -262,6 +262,33 @@ def test_a_later_build_reuses_the_shared_extension_store(
     ).resolve()
 
 
+def test_a_later_build_repairs_a_vre_link_left_behind_by_a_moved_store(
+    built, source_store, plan_file
+):
+    milestone_link = built / "unit_flat" / "2049" / DATASET_DIR / "project"
+    extension_link = built / "unit_flat" / "2060" / DATASET_DIR / "project"
+    for link in (milestone_link, extension_link):
+        link.unlink()
+        link.symlink_to(built / "gone" / "project", target_is_directory=True)
+
+    build(
+        source=source_store,
+        out_root=built,
+        plan=plan_file,
+        reference_year=REFERENCE_YEAR,
+    )
+
+    assert milestone_link.resolve() == (source_store / "project").resolve()
+    assert (
+        extension_link.resolve()
+        == (built / "_vre_2060" / DATASET_DIR / "project").resolve()
+    )
+    assert (
+        len(list(milestone_link.glob(f"reference_year={REFERENCE_YEAR}/*.parquet")))
+        == 1
+    )
+
+
 def test_tracedirs_file_lists_one_token_per_milestone_in_year_order(built):
     tokens = (built / "unit_scaled.txt").read_text(encoding="utf-8").split()
 

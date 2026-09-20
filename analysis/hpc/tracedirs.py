@@ -22,8 +22,9 @@ Outputs under the output root:
 * ``annual_demand_series.csv`` - the yearly source-TWh path behind each trajectory.
 * ``manifest_demand_dirs.csv`` - the scalar and the energies behind every directory built by the last call.
 
-A build is idempotent per trajectory: a trajectory whose token file already exists is left alone, so the store grows
-as new trajectories are added and an interrupted build can simply be re-run.
+A build is idempotent per trajectory: a trajectory whose directory already exists keeps its data, and only its token
+file and shared-VRE links are rewritten, so the store grows as new trajectories are added and an interrupted build
+can simply be re-run.
 """
 
 import json
@@ -65,14 +66,12 @@ class TraceStores:
     :param out_root: Directory the rewritten trace directories and their reports are written under.
     :param reference_year: Weather reference year partition that is rewritten.
     :param source_fy_mwh: Source-store demand energy in MWh behind each milestone year.
-    :param extended_vre: Shared VRE store carrying a relabelled FY2060, or None when no milestone needs one.
     """
 
     source: Path
     out_root: Path
     reference_year: int
     source_fy_mwh: dict[int, float]
-    extended_vre: Path | None
 
     @property
     def dataset_dir(self) -> str:
@@ -184,33 +183,54 @@ def _append_relabelled_vre(
 
 def _build_extended_vre_store(
     source: Path, out_root: Path, reference_year: int, milestone_years: list[int]
-) -> Path | None:
-    """One shared VRE store carrying a relabelled FY2060, or None when no milestone reaches past the parsed store.
+) -> None:
+    """Build the one shared VRE store carrying a relabelled FY2060, unless no milestone reaches past the parsed store.
 
     The store is written once and then reused: every trajectory's 2060 directory links into it, so a later build that
     adds a trajectory finds the store already populated and leaves its parquets alone.
     """
     if EXTENSION_YEAR not in milestone_years:
-        return None
+        return
     built = out_root / EXTENDED_VRE_DIR / source.name
     if all((built / subdir).is_dir() for subdir in LINKED_SUBDIRS):
-        return built
+        return
     dataset_dir = _reset_dataset_dir(out_root / EXTENDED_VRE_DIR, source.name, out_root)
     for subdir in LINKED_SUBDIRS:
         _append_relabelled_vre(source, dataset_dir, subdir, reference_year)
-    return dataset_dir
 
 
-def _link_vre(stores: TraceStores, dataset_dir: Path, milestone_year: int) -> None:
-    """Link the shared wind and solar store into one output directory without changing its data."""
-    vre_store = (
-        stores.extended_vre if milestone_year == EXTENSION_YEAR else stores.source
-    )
+def _vre_store(source: Path, out_root: Path, milestone_year: int) -> Path:
+    """Store one output directory's wind and solar link into; 2060 links into the shared relabelled store."""
+    if milestone_year == EXTENSION_YEAR:
+        return out_root / EXTENDED_VRE_DIR / source.name
+    return source
+
+
+def _link_vre(
+    source: Path, out_root: Path, dataset_dir: Path, milestone_year: int
+) -> None:
+    """Link the shared wind and solar store into one output directory, replacing any link already there.
+
+    The links hold absolute paths, so like the schedule-token files they are rewritten on every build. Moving an
+    input package leaves them naming the old location, where the glob for VRE parquets then quietly finds nothing.
+    """
     for subdir in LINKED_SUBDIRS:
+        link = dataset_dir / subdir
+        link.unlink(missing_ok=True)
         os.symlink(
-            (vre_store / subdir).resolve(),
-            dataset_dir / subdir,
+            (_vre_store(source, out_root, milestone_year) / subdir).resolve(),
+            link,
             target_is_directory=True,
+        )
+
+
+def _relink_trajectory_vre(
+    source: Path, out_root: Path, trajectory: str, milestone_years: list[int]
+) -> None:
+    """Rewrite the shared-VRE links of an already-built trajectory, so a moved input package repairs itself."""
+    for year in milestone_years:
+        _link_vre(
+            source, out_root, out_root / trajectory / str(year) / source.name, year
         )
 
 
@@ -226,7 +246,7 @@ def _build_demand_dir(
     source_fy_mwh = stores.source_fy_mwh[milestone_year]
     scalar = target_twh * MWH_PER_TWH / source_fy_mwh
     _write_scaled_demand(stores, dataset_dir, scalar, milestone_year == EXTENSION_YEAR)
-    _link_vre(stores, dataset_dir, milestone_year)
+    _link_vre(stores.source, stores.out_root, dataset_dir, milestone_year)
     return {
         "trajectory": trajectory,
         "year": milestone_year,
@@ -360,24 +380,27 @@ def build(
     plan_data = json.loads(plan.read_text(encoding="utf-8"))
     out_root.mkdir(parents=True, exist_ok=True)
     pending = _pending_trajectories(out_root, plan_data)
-    # Token files hold absolute paths, so they are rewritten from the directories on every
-    # build: an input package that has been moved then repairs itself on the next launch.
+    # Token files and shared-VRE links hold absolute paths, so both are rewritten from the
+    # directories on every build: an input package that has been moved then repairs itself.
     for trajectory in plan_data["demand_paths_source_twh"]:
         if trajectory not in pending:
             _write_tracedirs_file(out_root, trajectory, plan_data["milestone_years"])
+            _relink_trajectory_vre(
+                source, out_root, trajectory, plan_data["milestone_years"]
+            )
     if not pending:
         print(f"trace directories already built for every trajectory in {out_root}")
         return
     _write_annual_demand_series(out_root, plan_data)
+    _build_extended_vre_store(
+        source, out_root, reference_year, plan_data["milestone_years"]
+    )
     stores = TraceStores(
         source=source,
         out_root=out_root,
         reference_year=reference_year,
         source_fy_mwh=_measure_source_energy(
             source, reference_year, plan_data["milestone_years"]
-        ),
-        extended_vre=_build_extended_vre_store(
-            source, out_root, reference_year, plan_data["milestone_years"]
         ),
     )
     records = []

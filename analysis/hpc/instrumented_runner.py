@@ -922,6 +922,9 @@ def main():
         record["exception"] = f"{type(e).__name__}: {e}"
         record["traceback"] = traceback.format_exc()
         record["wall_clock_s"] = time.perf_counter() - t_total
+        # The JSON summary below drops the traceback to stay readable, so print it
+        # here: without it the log says what failed but never where.
+        print(f"\n=== PIPELINE EXCEPTION ===\n{record['traceback']}", flush=True)
     finally:
         poller.stop()
         record["peak_rss_bytes"] = poller.peak_rss_bytes

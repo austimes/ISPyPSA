@@ -232,5 +232,10 @@ def exclude_ecaa_without_trace(ecaa_generators, trace_store_dir):
 def _trace_store_project_names(trace_store_dir):
     """Project names present in the parsed trace store's project partition."""
     files = sorted(Path(trace_store_dir).glob("project/reference_year=*/*.parquet"))
+    if not files:
+        raise FileNotFoundError(
+            f"No project VRE traces under {Path(trace_store_dir) / 'project'}: the trace directory is wrong "
+            "or its shared-VRE link points at a store that has moved"
+        )
     frames = [pd.read_parquet(f, columns=["project"]) for f in files]
     return set(pd.concat(frames, ignore_index=True)["project"].astype(str))
