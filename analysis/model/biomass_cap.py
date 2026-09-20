@@ -7,7 +7,7 @@ production runs. NEM-wide multi-region diversity does not mitigate this: the pre
 even when new-entrant biomass is spread across every sub-region.
 
 This module adds an Australian-scale biomass availability cap as a PyPSA custom_constraint,
-applied as one of the five model patches in :func:`analysis.model.apply_model_patches`. The cap
+applied as one of the model patches in :func:`analysis.model.apply_model_patches`. The cap
 represents the real biomass fuel supply chain constraint that the IASR baseline doesn't enforce.
 
 Caps (NEM-wide biomass new-entrant capacity, MW):

@@ -290,6 +290,7 @@ def _run_staged_pipeline(
     retention_floor_dir: Path | None = None,
     existing_fom_keeping: bool = False,
     co2_cap_t: float | None = None,
+    rez_limit_factor: float | None = None,
 ) -> dict:
     """Run the ISPyPSA pipeline with per-stage timing. Returns timings dict.
 
@@ -377,7 +378,9 @@ def _run_staged_pipeline(
         config.filter_by_nem_regions,
         config.filter_by_isp_sub_regions,
     )
-    ispypsa_tables = apply_model_patches(ispypsa_tables, config)
+    ispypsa_tables = apply_model_patches(
+        ispypsa_tables, config, rez_limit_factor=rez_limit_factor
+    )
     # REQUIRED for the Draft 2026 trace store: drop VRE new entrants whose
     # (rez_id, isp_resource_type) has no 2026 trace (Q8 split; N10/N11 fixed
     # offshore). Left in, each crashes create_pypsa_friendly_timeseries at
@@ -836,6 +839,14 @@ def main():
         "captured CO2 outside). The constraint's dual is recorded in the run "
         "record and outputs/constraint_duals.json. Default: no cap.",
     )
+    ap.add_argument(
+        "--rez-limit-factor",
+        type=float,
+        default=None,
+        help="Relax every renewable energy zone (REZ) transmission, expansion and "
+        "resource limit by this factor, as a sensitivity against the IASR limits. "
+        "Interconnector flow paths are not scaled. Default: IASR limits unchanged.",
+    )
     args = ap.parse_args()
     if args.carried_tranches_dir is not None and args.current_year is None:
         ap.error("--carried-tranches-dir requires --current-year.")
@@ -901,6 +912,7 @@ def main():
             retention_floor_dir=args.retention_floor_dir,
             existing_fom_keeping=args.existing_fom_keeping,
             co2_cap_t=args.co2_cap_t,
+            rez_limit_factor=args.rez_limit_factor,
         )
         record.update(timings)
         record["wall_clock_s"] = time.perf_counter() - t_total

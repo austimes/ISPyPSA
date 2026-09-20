@@ -4,7 +4,9 @@ One launch is one stamped directory, ``$IO_DIR/outputs/<stamp>_<run_set>``, hold
 manifest that decides what each Slurm array task solves and every product of the run.
 The array index is the chain's row in ``campaign/chains.tsv``, so the manifest and the
 array are written together and never drift apart. ``campaign/inputs.txt`` names the input
-package the launch read, so a run's results can always be traced back to its inputs.
+package the launch read, so a run's results can always be traced back to its inputs, and
+``campaign/assumptions.json`` names what this launch varies -- its REZ limit factor, its cap
+depth cut-off, its chain count and that input package -- so two run sets can be compared.
 
 ``submit`` is the single place that knows how a campaign job is handed to Slurm: the
 account, partition, stdout path and the exported variables (``RUN_DIR``, ``REPO`` and
@@ -107,6 +109,29 @@ def incomplete_array(
     return ",".join(str(row) for row in rows)
 
 
+def write_assumptions(
+    layout: OutputLayout,
+    inputs: Path,
+    chains: int,
+    max_cap: float | None,
+    rez_limit_factor: float | None,
+) -> None:
+    """Record what this launch varies, so two run sets can be compared without reading their manifests."""
+    (layout.campaign / "assumptions.json").write_text(
+        json.dumps(
+            {
+                "rez_limit_factor": rez_limit_factor,
+                "max_cap": max_cap,
+                "chains": chains,
+                "inputs": inputs.as_posix(),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def main(
     run_set: str = "ext41",
     plan: Path = DEFAULT_PLAN,
@@ -114,6 +139,8 @@ def main(
     resume: bool = False,
     smoke: bool = False,
     array: str | None = None,
+    max_cap: float | None = None,
+    rez_limit_factor: float | None = None,
     dry_run: bool = False,
 ) -> None:
     """Prepare a campaign launch and submit its chains to Slurm.
@@ -125,6 +152,12 @@ def main(
         ``run``, because a freshly stamped directory has no chain to resume.
     :param smoke: Submit the single NSW two-period gate chain instead of the campaign.
     :param array: Slurm array specification, overriding the one derived from the manifest.
+    :param max_cap: Launch only the cap chains whose 2050 target intensity in t CO2e/MWh
+        delivered is at or below this value, dropping the price chains and the shallower
+        caps; omit to launch the whole campaign.
+    :param rez_limit_factor: Relax every renewable energy zone (REZ) transmission,
+        expansion and resource limit by this factor in every chain of the launch, as a
+        sensitivity against the IASR limits; omit for the IASR limits.
     :param dry_run: Write the manifest and print the sbatch command, building no trace
         directories and submitting nothing.
     """
@@ -134,10 +167,11 @@ def main(
     layout = OutputLayout(run) if run else env.new_run(run_set)
     if not dry_run:
         tracedirs.build(env.traces, env.tracedirs, plan)
-    chains = manifest.build(plan, layout, env.tracedirs)
+    chains = manifest.build(plan, layout, env.tracedirs, max_cap, rez_limit_factor)
     (layout.campaign / "inputs.txt").write_text(
         f"{env.inputs.as_posix()}\n", encoding="utf-8"
     )
+    write_assumptions(layout, env.inputs, len(chains), max_cap, rez_limit_factor)
     if array is None and smoke:
         array = "0"
     if array is None and resume:

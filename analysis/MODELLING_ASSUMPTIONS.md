@@ -51,6 +51,9 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
   premium, from CSIRO GenCost 2024-25 and IRENA's Renewable Power Generation Costs 2023.
 - **Biomass availability cap** - a National Electricity Market (NEM)-wide new-entrant biomass capacity ceiling by
   milestone year, from the ARENA Bioenergy Roadmap 2021 and AEMO's ISP 2024 Step Change technology projections.
+- **Renewable energy zone (REZ) limit relaxation** - off unless a run passes `--rez-limit-factor`, in which case every
+  REZ transmission limit, REZ transmission expansion headroom and REZ wind, solar and land-use resource limit is
+  multiplied by that factor.
 
 ## Authored assumptions with no AEMO source
 
@@ -61,6 +64,8 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
 - The ageing-fleet maintenance cost premium.
 - The 20-year renewable repowering life extension.
 - The biomass capacity cap.
+- The REZ limit relaxation factor of a sensitivity run set: AEMO publishes no relaxed REZ limits, so the factor is a
+  chosen test of how much of a deep-cap chain's cost sits in the REZ ceilings, not a forecast of buildable headroom.
 
 ## Campaign method
 

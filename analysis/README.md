@@ -38,7 +38,8 @@ $IO_DIR/
     traces/isp_2026/
     tracedirs/<trajectory>/<year>/isp_2026/, <trajectory>.txt
   outputs/<YYYY-MM-DDTHH.MM>_<run_set>/
-    campaign/   chains.tsv, chains_index.csv, caps.csv, demand_plan.json, inputs.txt, slurm/*.out
+    campaign/   chains.tsv, chains_index.csv, caps.csv, demand_plan.json, inputs.txt,
+                assumptions.json, slurm/*.out
     configs/    generated per-period ISPyPSA YAML configs
     logs/       solver stdout, one file per solve
     records/    JSON records, one per solve plus one per chain
@@ -88,6 +89,16 @@ Running the campaign is five `msm` commands, in order:
 
 Steps 1 to 3 need Slurm; steps 4 and 5 do not. `msm launch --run <dir> --resume` re-submits only the chains whose final
 milestone has not completed. Run `uv run msm <command> --help` for every flag.
+
+Two launch flags turn the same campaign into a comparison run set. `--max-cap N` launches only the cap chains whose 2050
+target intensity is at or below `N` tonnes of carbon dioxide equivalent (CO2e) per MWh delivered, dropping the carbon
+price chains and the shallower caps; `--rez-limit-factor N` relaxes every renewable energy zone (REZ) transmission,
+expansion and resource limit by `N` in each chain of the launch, leaving the interconnector flow paths and every
+published cost alone. So `msm launch --run-set ext41_rezx2 --rez-limit-factor 2.0 --max-cap 0.005` re-runs the twenty
+deepest cap chains with twice the REZ headroom, and the difference against the base run set is the deep-cap cost that
+sits in the REZ ceilings rather than in the generation technologies. Every launch writes
+`campaign/assumptions.json` - its REZ limit factor, cap depth cut-off, chain count and input package - so the dashboard
+can state what separates two run sets.
 
 ## Importing inputs and run products produced outside `IO_DIR`
 

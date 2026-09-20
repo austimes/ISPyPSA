@@ -92,6 +92,54 @@ def test_dry_run_stamps_a_launch_directory_and_records_the_inputs_it_read(
     assert launch.as_posix() in capsys.readouterr().out
 
 
+def _stamped_inputs_package(monkeypatch, tmp_path) -> Path:
+    """An empty stamped input package, the newest one a launch into ``tmp_path`` will read."""
+    monkeypatch.setattr(env_module, "load_dotenv", lambda *args, **kwargs: False)
+    monkeypatch.setenv("IO_DIR", str(tmp_path))
+    monkeypatch.delenv("MSM_INPUTS", raising=False)
+    package = tmp_path / "inputs" / "2026-09-17T13.54_isp2026_final"
+    package.mkdir(parents=True)
+    return package
+
+
+def _assumptions(tmp_path) -> dict:
+    """The one launch's ``campaign/assumptions.json``, parsed."""
+    (launch,) = (tmp_path / "outputs").iterdir()
+    return json.loads(
+        (launch / "campaign" / "assumptions.json").read_text(encoding="utf-8")
+    )
+
+
+def test_a_plain_launch_records_null_sensitivity_settings_and_the_whole_campaign(
+    monkeypatch, tmp_path
+):
+    package = _stamped_inputs_package(monkeypatch, tmp_path)
+
+    main(run_set="ext41", dry_run=True)
+
+    assert _assumptions(tmp_path) == {
+        "rez_limit_factor": None,
+        "max_cap": None,
+        "chains": 41,
+        "inputs": package.as_posix(),
+    }
+
+
+def test_a_relaxed_deep_cap_launch_records_the_factor_and_its_narrowed_chain_count(
+    monkeypatch, tmp_path
+):
+    package = _stamped_inputs_package(monkeypatch, tmp_path)
+
+    main(run_set="ext41_rezx2", max_cap=0.005, rez_limit_factor=2.0, dry_run=True)
+
+    assert _assumptions(tmp_path) == {
+        "rez_limit_factor": 2.0,
+        "max_cap": 0.005,
+        "chains": 20,
+        "inputs": package.as_posix(),
+    }
+
+
 def test_sbatch_command_omits_the_account_and_partition_the_environment_leaves_unset(
     tmp_path,
 ):

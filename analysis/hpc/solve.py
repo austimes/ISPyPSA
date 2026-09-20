@@ -391,6 +391,7 @@ def main(
     carbon_price: float = 0.0,
     co2_cap_t_schedule: OptionalSchedule = None,
     tns_price: float = 0.0,
+    rez_limit_factor: float | None = None,
     gas_unblended: bool = False,
     gas_supply_curve: str = str(
         MODEL_DATA / "gas_supply_curve_central_held_to_2060.csv"
@@ -431,6 +432,9 @@ def main(
     :param co2_cap_t_schedule: ``YEAR:TONNES`` absolute annual CO2e cap per period, one
         entry per period; the cap's dual is recorded.
     :param tns_price: AUD/tCO2 transport and storage cost on tonnes captured by CCS.
+    :param rez_limit_factor: Relax every renewable energy zone (REZ) transmission,
+        expansion and resource limit by this factor, as a sensitivity against the IASR
+        limits; interconnector flow paths are not scaled. Omit for the IASR limits.
     :param gas_unblended: Price gas from the IASR gas table alone, leaving out AEMO's
         mandated biomethane blend.
     :param gas_supply_curve: Gas supply curve CSV (tranche, financial_year, cap_pj,
@@ -494,6 +498,7 @@ def main(
         reducible_existing=reducible_existing,
         existing_fom_keeping=existing_fom_keeping,
         retention_floor_dir=retention_dir,
+        rez_limit_factor=rez_limit_factor,
     )
 
     layout.records.mkdir(parents=True, exist_ok=True)
@@ -509,6 +514,7 @@ def main(
         "co2_cap_t_schedule": cap_schedule or None,
         "parsed_traces_directory_schedule": traces_schedule or None,
         "tns_price": tns_price,
+        "rez_limit_factor": rez_limit_factor,
         "gas_supply_curve": gas_curve,
         "gas_unblended": gas_unblended,
         "biomass_supply_curve": biomass_curve,

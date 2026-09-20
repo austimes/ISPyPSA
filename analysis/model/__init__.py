@@ -8,7 +8,7 @@ Design choice: patches act at the ISPyPSA-input layer (CSVs between templater an
 rather than the PyPSA-friendly layer. This keeps mutations expressed in ISP-domain units
 (technology names, REZ ids, financial-year shares) rather than PyPSA bus/generator names.
 
-:func:`apply_model_patches` applies five patches, in order, to every run:
+:func:`apply_model_patches` applies six patches, in order, to every run:
 
   1. Pumped-storage fix -- re-route Wivenhoe / Shoalhaven / Borumba / Snowy 2.0 from
      ecaa_generators to ecaa_batteries so they are modelled as PyPSA StorageUnits, not
@@ -33,6 +33,10 @@ rather than the PyPSA-friendly layer. This keeps mutations expressed in ISP-doma
      PyPSA custom_constraint, anchored on the ARENA Bioenergy Roadmap 2021 and the AEMO ISP 2024
      baseline. See ``biomass_cap.py``.
 
+  6. REZ limit relaxation -- a sensitivity switch, off unless a run passes a factor: multiplies every
+     renewable energy zone (REZ) transmission, expansion and resource limit by that factor, leaving
+     interconnector flow paths alone. See ``rez_limits.py``.
+
 Biomass feedstock beyond the residue tier is priced by the configured biomass supply curve
 (``config.biomass_supply_curve.curve_csv``), which every campaign run sets, so the patches leave
 the IASR residue-tier price in place as that curve's baseline.
@@ -43,13 +47,16 @@ from .maintenance_overlay import apply as _apply_maintenance_overlay
 from .phes_menu import apply as _apply_phes_menu
 from .pumped_storage_fix import apply as _apply_pumped_storage_fix
 from .repowering import apply as _apply_repowering
+from .rez_limits import apply as _apply_rez_limits
 
 
-def apply_model_patches(ispypsa_tables, config):
-    """Apply the five fork-specific model patches, in order, to templated ISPyPSA tables.
+def apply_model_patches(ispypsa_tables, config, rez_limit_factor: float | None = None):
+    """Apply the six fork-specific model patches, in order, to templated ISPyPSA tables.
 
     :param ispypsa_tables: Templated ISPyPSA input tables, keyed by table name.
     :param config: The run's ISPyPSA configuration.
+    :param rez_limit_factor: Factor the REZ limit relaxation sensitivity multiplies every REZ limit by;
+        ``None`` leaves the IASR limits in place.
     :return: The patched tables.
     """
     ispypsa_tables = _apply_pumped_storage_fix(ispypsa_tables, config)
@@ -57,4 +64,5 @@ def apply_model_patches(ispypsa_tables, config):
     ispypsa_tables = _apply_maintenance_overlay(ispypsa_tables, config)
     ispypsa_tables = _apply_repowering(ispypsa_tables, config)
     ispypsa_tables = _apply_biomass_cap(ispypsa_tables, config)
+    ispypsa_tables = _apply_rez_limits(ispypsa_tables, config, rez_limit_factor)
     return ispypsa_tables

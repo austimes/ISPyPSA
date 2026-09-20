@@ -107,6 +107,35 @@ def test_chains_tsv_orders_price_chains_before_cap_chains(plan, tmp_path):
     )
 
 
+def test_max_cap_keeps_only_the_cap_chains_at_or_below_the_target_intensity(plan):
+    caps = build_caps_table(plan, GIT_COMMIT)
+
+    chains = build_chain_table(plan, caps, TRACEDIRS, max_cap=0.005)
+
+    # The four deepest schedules on both trajectories; no price chains.
+    assert list(chains["chain"].unique()) == [
+        "cap0005",
+        "cap0002",
+        "cap0001",
+        "cap00005",
+    ]
+    assert list(chains["row"]) == list(range(8))
+
+
+def test_rez_limit_factor_is_appended_to_every_chain_of_the_launch(plan):
+    caps = build_caps_table(plan, GIT_COMMIT)
+
+    chains = build_chain_table(
+        plan, caps, TRACEDIRS, max_cap=0.002, rez_limit_factor=2.0
+    )
+
+    assert chains["args"].str.endswith(" --rez-limit-factor 2.0").all()
+    assert chains.loc[0, "args"] == (
+        "--co2-cap-t-schedule 2030:19983600 2040:3778173 2050:664300 2060:784420 "
+        "--rez-limit-factor 2.0"
+    )
+
+
 def test_chain_args_carry_every_milestone_tonnage(plan, csv_str_to_df):
     caps = build_caps_table(plan, GIT_COMMIT)
 
