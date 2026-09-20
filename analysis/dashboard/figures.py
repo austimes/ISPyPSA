@@ -152,6 +152,7 @@ LABELS = {
     "series": "Series",
     "share": "Share of demand (%)",
     "trajectory": "Trajectory",
+    "run_set": "Run",
     "value": "",
     "year": "Year",
 }
@@ -942,6 +943,8 @@ def html_search_grid(frame: pd.DataFrame) -> str:
     :return: A style block and the table itself.
     """
     keys = ["trajectory", "year"]
+    if frame["run_set"].nunique() > 1:
+        keys = ["run_set", *keys]
     costs = (
         frame.assign(label=_cell_labels(frame))
         .pivot_table(index=keys, columns="pressure", values="label", aggfunc="first")
