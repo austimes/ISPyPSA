@@ -331,11 +331,11 @@ def _print_summary(records: list[dict]) -> None:
 
 
 def _pending_trajectories(out_root: Path, plan: dict) -> list[str]:
-    """Trajectories of the plan whose schedule-token file has not been written yet."""
+    """Trajectories of the plan whose trace directories have not been built yet."""
     return [
         trajectory
         for trajectory in plan["demand_paths_source_twh"]
-        if not (out_root / f"{trajectory}.txt").exists()
+        if not (out_root / trajectory).is_dir()
     ]
 
 
@@ -360,6 +360,11 @@ def build(
     plan_data = json.loads(plan.read_text(encoding="utf-8"))
     out_root.mkdir(parents=True, exist_ok=True)
     pending = _pending_trajectories(out_root, plan_data)
+    # Token files hold absolute paths, so they are rewritten from the directories on every
+    # build: an input package that has been moved then repairs itself on the next launch.
+    for trajectory in plan_data["demand_paths_source_twh"]:
+        if trajectory not in pending:
+            _write_tracedirs_file(out_root, trajectory, plan_data["milestone_years"])
     if not pending:
         print(f"trace directories already built for every trajectory in {out_root}")
         return
