@@ -1,11 +1,13 @@
-"""Turn one campaign run's export CSVs into a single self-contained ``dashboard.html``.
+"""Turn one or more campaign runs' export CSVs into a single self-contained ``dashboard.html``.
 
 Five CSVs are read from ``<run>/exports/``: ``results.csv`` (one row per cell and year),
 ``marginals.csv`` (the cost and emissions consequence of stepping from one demand trajectory to
 the next), ``manifest.csv`` and ``acceptance_per_cell.csv`` (caps, shadow prices and solve status)
 and ``storage.csv`` (installed power by carrier and duration class). They are joined into one tidy
-frame, one row per cell-year, and every figure in :mod:`analysis.dashboard.figures` reads it. The
-source commit shown in the page heading is read from the run's solve records, ``<run>/records/*.json``.
+frame, one row per cell-year, and every figure in :mod:`analysis.dashboard.figures` reads it. Given
+several runs, their frames are stacked and the run set each row came from names the run directory it
+was read from. The source commit shown in the page heading is read from each run's solve records,
+``<run>/records/*.json``, and the assumptions table from its ``<run>/campaign/``.
 
 The page carries plotly's javascript inline, so it opens straight off the data share with no
 server and no build step.
@@ -17,16 +19,21 @@ import json
 import logging
 import webbrowser
 from pathlib import Path
+from typing import Annotated
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from cyclopts import Parameter
 from plotly.offline import get_plotlyjs
 
 from analysis.dashboard import figures
 from analysis.env import OutputLayout
 
 log = logging.getLogger(__name__)
+
+#: One or more run directories, so the page can compare runs.
+Runs = Annotated[list[Path], Parameter(consume_multiple=True)]
 
 #: Results columns carried through unchanged, and the ones renamed for the figures.
 RESULT_KEYS = [
@@ -77,9 +84,10 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     """Join the five export CSVs into one row per cell and milestone year.
 
     :param exports: The run's ``exports/`` directory.
-    :return: Trajectory and pressure keys, delivered energy, both emissions intensities, cost and
-        its components, the cap and its shadow price, boundary flag, solve status and the
-        per-carrier generation shares and storage power.
+    :return: The run set the rows came from, named after the run directory, then trajectory and
+        pressure keys, delivered energy, both emissions intensities, cost and its components, the
+        cap and its shadow price, boundary flag, solve status and the per-carrier generation shares
+        and storage power.
     """
     results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
     marginals = pd.read_csv(exports / "marginals.csv").rename(columns=MARGINAL_MEASURES)
@@ -104,6 +112,7 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
         .merge(storage, on=["cell", "year"], how="left")
     )
     return frame.assign(
+        run_set=exports.parent.name,
         status=_status_label(frame),
         pressure_name=frame["pressure"].map(figures.pressure_label),
     )
@@ -159,6 +168,14 @@ SECTIONS = {
     "Storage build": figures.figure_storage_build,
 }
 
+#: The run-assumptions table, which reads the runs themselves rather than the tidy frame, and so
+#: sits outside ``SECTIONS``. It is shown under the section it follows.
+ASSUMPTIONS_HEADING = "Assumptions by run"
+ASSUMPTIONS_FOLLOWS = "Technology mix"
+
+#: Columns of the assumptions table, in the order it lists them.
+ASSUMPTION_KEYS = ["run_set", "rez_limit_factor", "max_cap", "chains", "inputs"]
+
 
 #: Each section sits in a box of its own height, which the divider below it drags taller or shorter.
 SECTION_WRAPPER = (
@@ -176,17 +193,20 @@ DIVIDER = (
     'cursor: row-resize"></div>'
 )
 
-#: Everything the page does once it is open: drag a divider to resize the box above it, click a grid
-#: heading to sort on that column, and click a plot's fullscreen button to blow its box up. The
-#: button is added by re-rendering each plot with plotly's own modebar hook, which drops the plot's
-#: animation frames, so the animated figure's frames are put back and it keeps its year slider.
+#: Everything the page does once it is open: drag a divider to resize the box above it, click a
+#: table heading to sort on that column, and click a plot's fullscreen button to blow its box up.
+#: The button is added by re-rendering each plot with plotly's own modebar hook, which drops the
+#: plot's animation frames, so the animated figure's frames are put back and it keeps its year
+#: slider. Each divider is paired with its box by position, because plotly parks a hidden measuring
+#: svg in the body next to the first plot, which leaves the first divider no box as a previous sibling.
 PAGE_SCRIPT = """<script>
 const fit = box => {
   const plot = box.querySelector(".js-plotly-plot");
   if (plot) Plotly.Plots.resize(plot);
 };
-document.querySelectorAll(".divider").forEach(bar => bar.addEventListener("mousedown", start => {
-  const box = bar.previousElementSibling, height = box.offsetHeight;
+const bars = document.querySelectorAll(".divider");
+document.querySelectorAll(".box").forEach((box, section) => bars[section].addEventListener("mousedown", start => {
+  const height = box.offsetHeight;
   const drag = move => {
     box.style.height = `${height + move.clientY - start.clientY}px`;
     fit(box);
@@ -198,9 +218,9 @@ document.querySelectorAll(".divider").forEach(bar => bar.addEventListener("mouse
   document.addEventListener("mousemove", drag);
   document.addEventListener("mouseup", stop);
 }));
-document.querySelectorAll("#grid th").forEach((head, column) => head.addEventListener("click", () => {
+document.querySelectorAll(".grid th").forEach(head => head.addEventListener("click", () => {
   const body = head.closest("table").querySelector("tbody"), rows = [...body.rows];
-  const text = row => row.cells[column].textContent;
+  const text = row => row.cells[head.cellIndex].textContent;
   const sign = head.dataset.descending ? -1 : 1;
   rows.sort((left, right) => {
     const numeric = parseFloat(text(left)) - parseFloat(text(right));
@@ -238,36 +258,78 @@ def _section_box(body: go.Figure | str) -> str:
     return SECTION_WRAPPER.format(height=height, body=html)
 
 
-def _provenance(layout: OutputLayout) -> str:
-    """Name the run directory and the source commit recorded by the run's solves."""
+def _drawn_sections(
+    frame: pd.DataFrame, layouts: list[OutputLayout]
+) -> list[tuple[str, go.Figure | str | None]]:
+    """Every section in page order, with the run-assumptions table under the technology mix."""
+    drawn = [(heading, build(frame)) for heading, build in SECTIONS.items()]
+    under = list(SECTIONS).index(ASSUMPTIONS_FOLLOWS) + 1
+    assumptions = (ASSUMPTIONS_HEADING, _html_assumptions(layouts))
+    return [*drawn[:under], assumptions, *drawn[under:]]
+
+
+def _html_assumptions(layouts: list[OutputLayout]) -> str:
+    """The assumptions each run was launched under, one row per run, styled like the searched grid."""
+    rows = pd.DataFrame(
+        [_assumptions_row(layout) for layout in layouts], columns=ASSUMPTION_KEYS
+    )
+    return figures.GRID_STYLE + rows.fillna("").to_html(index=False, classes="grid")
+
+
+def _assumptions_row(layout: OutputLayout) -> dict[str, object]:
+    """One run's recorded assumptions, or the inputs package it named instead, or neither."""
+    recorded = layout.campaign / "assumptions.json"
+    inputs = layout.campaign / "inputs.txt"
+    if recorded.exists():
+        return {
+            "run_set": layout.root.name,
+            **json.loads(recorded.read_text(encoding="utf-8")),
+        }
+    named = inputs.read_text(encoding="utf-8").strip() if inputs.exists() else ""
+    return {"run_set": layout.root.name, "inputs": named}
+
+
+def _provenance(layouts: list[OutputLayout]) -> str:
+    """Name every run directory the page draws, and the source commit each one's solves recorded."""
+    named = [f"{layout.root}: {_commits(layout)}" for layout in layouts]
+    return (
+        f"<h1>Campaign dashboard: {', '.join(layout.root.name for layout in layouts)}</h1>"
+        f"<p>Run directory and source commit<br>{'<br>'.join(named)}</p>"
+    )
+
+
+def _commits(layout: OutputLayout) -> str:
+    """The source commits one run's solve records name."""
     records = (
         json.loads(path.read_text(encoding="utf-8"))
         for path in layout.records.glob("*.json")
     )
     commits = sorted({record.get("source_git_commit") for record in records} - {None})
-    return (
-        f"<h1>Campaign dashboard: {layout.root.name}</h1>"
-        f"<p>Run directory: {layout.root}<br>Source commit: {', '.join(commits) or 'not recorded'}</p>"
-    )
+    return ", ".join(commits) or "not recorded"
 
 
-def main(run: Path, show: bool = False) -> Path:
-    """Write ``<run>/dashboard.html`` from the run's exports.
+def main(run: Runs, show: bool = False) -> Path:
+    """Write ``dashboard.html`` into the first run directory, from every named run's exports.
 
-    :param run: A stamped run directory holding an ``exports/`` sub-directory.
+    :param run: One or more stamped run directories, each holding an ``exports/`` sub-directory.
+        Named more than one, the page compares them: the figures that can carry a run set
+        distinguish the runs, and the assumptions table lists what each was launched under.
     :param show: Open the finished page in the default browser.
     :return: The path written.
     """
-    layout = OutputLayout(run)
-    frame = tidy_frame(layout.exports)
-    drawn = [(heading, build(frame)) for heading, build in SECTIONS.items()]
-    sections = [_provenance(layout), f"<script>{get_plotlyjs()}</script>"]
-    for heading, body in ((h, b) for h, b in drawn if b is not None):
+    layouts = [OutputLayout(path) for path in run]
+    frame = pd.concat(
+        [tidy_frame(layout.exports) for layout in layouts], ignore_index=True
+    )
+    sections = [_provenance(layouts), f"<script>{get_plotlyjs()}</script>"]
+    for heading, body in _drawn_sections(frame, layouts):
+        if body is None:
+            continue
         sections.append(f"<h2>{heading}</h2>")
         sections.append(_section_box(body))
         sections.append(DIVIDER)
     sections.append(PAGE_SCRIPT)
-    page = layout.root / "dashboard.html"
+    page = layouts[0].root / "dashboard.html"
     page.write_text("\n".join(sections), encoding="utf-8")
     if show:
         webbrowser.open(page.as_uri())

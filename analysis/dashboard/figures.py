@@ -229,6 +229,27 @@ def _orders(frame: pd.DataFrame) -> dict[str, list]:
     }
 
 
+def _label_runs(frame: pd.DataFrame, column: str) -> pd.Series:
+    """``column`` as text with each row's run set appended, or unchanged for a single-run page.
+
+    Comparing runs needs the run set on an axis or in a facet title; with one run drawn it would
+    only repeat the same name in every label.
+    """
+    labels = frame[column].astype(str)
+    if frame["run_set"].nunique() < 2:
+        return labels
+    return labels + ", " + frame["run_set"]
+
+
+def _facet_runs(frame: pd.DataFrame) -> dict[str, str]:
+    """``facet_col`` keyword drawing each run in a panel of its own, or nothing for a single run.
+
+    This is for a figure whose colour and symbol are both already spoken for, where naming the run
+    set in a legend entry instead would double a legend that is already long.
+    """
+    return {"facet_col": "run_set"} if frame["run_set"].nunique() > 1 else {}
+
+
 def _accepted(frame: pd.DataFrame) -> pd.DataFrame:
     """The cell-years that solved and passed both acceptance tests."""
     return frame[frame["status"].eq("solved")]
@@ -292,25 +313,18 @@ def _strip_facet_titles(figure: go.Figure) -> go.Figure:
     )
 
 
-def add_axis_scale_buttons(figure: go.Figure, axes: str = "x") -> go.Figure:
-    """Add a linear/log button pair above the figure, switching every one of its axes at once.
+def _axis_names(figure: go.Figure, axes: str) -> list[str]:
+    """Every axis the figure's layout holds for the named letters, e.g. ``xaxis``, ``xaxis2``.
 
-    A faceted figure has an axis per panel, so a single ``log_x`` toggle has to name them all.
-
-    :param figure: The figure to add the buttons to, edited in place.
-    :param axes: Which axes the buttons retype, ``x``, ``y`` or ``xy``.
-    :return: The same figure.
+    A faceted figure has an axis per panel, so a button that retypes or ties axes has to name
+    them all.
     """
     prefixes = tuple(f"{axis}axis" for axis in axes)
-    names = [key for key in figure.layout.to_plotly_json() if key.startswith(prefixes)]
-    buttons = [
-        {
-            "label": scale.capitalize(),
-            "method": "relayout",
-            "args": [{f"{name}.type": scale for name in names}],
-        }
-        for scale in ("linear", "log")
-    ]
+    return [key for key in figure.layout.to_plotly_json() if key.startswith(prefixes)]
+
+
+def _button_row(figure: go.Figure, buttons: list[dict]) -> go.Figure:
+    """Put one row of relayout buttons above the top left of the figure, edited in place."""
     return figure.update_layout(
         margin_t=SCALE_BUTTON_MARGIN,
         updatemenus=[
@@ -328,16 +342,68 @@ def add_axis_scale_buttons(figure: go.Figure, axes: str = "x") -> go.Figure:
     )
 
 
+def add_axis_scale_buttons(figure: go.Figure, axes: str = "x") -> go.Figure:
+    """Add a linear/log button pair above the figure, switching every one of its axes at once.
+
+    :param figure: The figure to add the buttons to, edited in place.
+    :param axes: Which axes the buttons retype, ``x``, ``y`` or ``xy``.
+    :return: The same figure.
+    """
+    names = _axis_names(figure, axes)
+    buttons = [
+        {
+            "label": scale.capitalize(),
+            "method": "relayout",
+            "args": [{f"{name}.type": scale for name in names}],
+        }
+        for scale in ("linear", "log")
+    ]
+    return _button_row(figure, buttons)
+
+
+def add_axis_match_buttons(figure: go.Figure) -> go.Figure:
+    """Add a shared/independent axes button pair above the figure, for panels drawn on their own ranges.
+
+    Sharing ties every panel to the first one's axes, which compares the panels directly; freeing
+    them again gives each panel back the range its own data covers. The figure is left as it
+    arrived, on independent axes.
+
+    :param figure: The figure to add the buttons to, edited in place.
+    :return: The same figure.
+    """
+    # The first axis of each letter is the one the others are tied to, so it matches nothing itself.
+    followers = {
+        name: name[0] for name in _axis_names(figure, "xy") if not name.endswith("axis")
+    }
+    buttons = [
+        {
+            "label": label,
+            "method": "relayout",
+            "args": [
+                {
+                    f"{name}.matches": anchor if shared else None
+                    for name, anchor in followers.items()
+                }
+            ],
+        }
+        for label, shared in (("Shared axes", True), ("Independent axes", False))
+    ]
+    return _button_row(figure, buttons)
+
+
 def figure_cost_frontier(frame: pd.DataFrame) -> go.Figure:
     """Average cost against fleet-average intensity, sized by delivered energy and faceted by year.
 
     This is the headline view: each trajectory's pressure ladder traced from its uncapped cell out
     to its deepest cap, where cost turns up sharply for the last tonnes removed. The thin line
     joins one trajectory's cells in intensity order; the markers carry boundary and acceptance
-    status as they do in the cost-family figure.
+    status as they do in the cost-family figure. Drawing more than one run splits each trajectory
+    into a line and a colour per run.
     """
-    points = frame.assign(symbol=_cell_symbols(frame)).sort_values("fleet_intensity")
-    orders = _orders(frame)
+    points = frame.assign(
+        trajectory=_label_runs(frame, "trajectory"), symbol=_cell_symbols(frame)
+    ).sort_values("fleet_intensity")
+    orders = _orders(points)
     figure = px.scatter(
         points,
         x="fleet_intensity",
@@ -391,16 +457,16 @@ def figure_cost_frontier_animated(frame: pd.DataFrame) -> go.Figure:
     the frontier is seen to shift rather than the axes moving under it, and each cell keeps its
     identity across frames so its marker travels instead of jumping.
     """
-    points = frame.assign(symbol=_cell_symbols(frame)).sort_values(
-        ["year", "trajectory", "fleet_intensity"]
-    )
+    points = frame.assign(
+        trajectory=_label_runs(frame, "trajectory"), symbol=_cell_symbols(frame)
+    ).sort_values(["year", "trajectory", "fleet_intensity"])
     shared = {
         "x": "fleet_intensity",
         "y": "avg_cost",
         "color": "trajectory",
         "animation_frame": "year",
         "animation_group": "cell",
-        "category_orders": _orders(frame),
+        "category_orders": _orders(points),
         "range_x": _padded_range(points["fleet_intensity"]),
         "range_y": _padded_range(points["avg_cost"]),
         "labels": LABELS,
@@ -428,6 +494,7 @@ def figure_cost_frontier_overlaid(frame: pd.DataFrame) -> go.Figure:
     Cost and intensity both fall year on year, so the four frontiers sit apart and the whole run's
     drift is read off one pair of axes. Here the marker shape carries the trajectory, which the
     faceted figure spends colour on; boundary and acceptance status are left to the other views.
+    Both encodings are taken, so drawing more than one run gives each run a panel of its own.
     """
     points = frame.assign(year=frame["year"].astype(str)).sort_values("fleet_intensity")
     shared = {
@@ -436,10 +503,11 @@ def figure_cost_frontier_overlaid(frame: pd.DataFrame) -> go.Figure:
         "color": "year",
         "color_discrete_sequence": YEAR_COLOURS,
         "category_orders": {
-            **_orders(frame),
+            **_orders(points),
             "year": sorted(points["year"].unique()),
         },
         "labels": LABELS,
+        **_facet_runs(points),
     }
     figure = px.scatter(
         points,
@@ -455,7 +523,7 @@ def figure_cost_frontier_overlaid(frame: pd.DataFrame) -> go.Figure:
     # A year-by-trajectory legend runs to twenty entries, too tall a column for the panel to show;
     # under the axis it wraps across the width instead.
     figure.update_layout(legend={"orientation": "h", "y": -0.18, "title_text": ""})
-    return add_axis_scale_buttons(figure)
+    return add_axis_scale_buttons(_strip_facet_titles(figure))
 
 
 def figure_cost_families(frame: pd.DataFrame) -> go.Figure:
@@ -571,7 +639,7 @@ def _colour_cost_surface(figure: go.Figure) -> go.Figure:
     )
     figure.update_xaxes(matches=None, showticklabels=True)
     figure.update_yaxes(matches=None, showticklabels=True)
-    return _strip_facet_titles(figure)
+    return add_axis_match_buttons(_strip_facet_titles(figure))
 
 
 def _interpolated_cost_grid(frame: pd.DataFrame, size: int = GRID_SIZE) -> pd.DataFrame:
@@ -610,15 +678,19 @@ def _year_grid(block: pd.DataFrame, size: int) -> pd.DataFrame:
 
 
 def figure_cost_pathway(frame: pd.DataFrame) -> go.Figure:
-    """Average cost over the milestone years, one line per pressure and one facet per trajectory."""
+    """Average cost over the milestone years, one line per pressure and one facet per trajectory.
+
+    Drawing more than one run gives each trajectory a facet per run.
+    """
+    by_run = frame.assign(trajectory=_label_runs(frame, "trajectory"))
     figure = px.line(
-        frame.sort_values("year"),
+        by_run.sort_values("year"),
         x="year",
         y="avg_cost",
         color="pressure_name",
         facet_col="trajectory",
         markers=True,
-        category_orders=_orders(frame),
+        category_orders=_orders(by_run),
         color_discrete_map=_pressure_colours(frame),
         labels=LABELS,
         height=PATHWAY_HEIGHT,
@@ -752,17 +824,19 @@ def figure_cap_tracking(frame: pd.DataFrame) -> go.Figure:
 
     The dashed line in the top row is the cap the chain was solved under, so a solid line sitting
     on its dashed twin is a binding cap. The dotted line in the bottom row is the unserved-energy
-    limit a cell has to stay under to be accepted.
+    limit a cell has to stay under to be accepted. Drawing more than one run gives each trajectory
+    a facet per run, which leaves the line dash to the cap.
     """
-    modelled = frame.melt(
+    by_run = frame.assign(trajectory=_label_runs(frame, "trajectory"))
+    modelled = by_run.melt(
         id_vars=["trajectory", "pressure_name", "year"],
         value_vars=list(TRACKING_LABELS),
         var_name="measure",
         value_name="value",
     ).assign(series="modelled")
-    caps = frame.dropna(subset=["co2_cap_annual_t"]).assign(
+    caps = by_run.dropna(subset=["co2_cap_annual_t"]).assign(
         measure=list(TRACKING_LABELS)[0],
-        value=frame["co2_cap_annual_t"] / 1000,
+        value=by_run["co2_cap_annual_t"] / 1000,
         series="cap",
     )
     long = pd.concat([modelled, caps[modelled.columns]]).replace(
@@ -778,7 +852,7 @@ def figure_cap_tracking(frame: pd.DataFrame) -> go.Figure:
         facet_col="trajectory",
         markers=True,
         category_orders={
-            **_orders(frame),
+            **_orders(by_run),
             "measure": list(TRACKING_LABELS.values()),
             "series": ["modelled", "cap"],
         },
@@ -845,14 +919,14 @@ def _tick_year_axis(figure: go.Figure, years: list[int]) -> None:
     axis.update(tickvals=years)
 
 
-#: Styling for the grid: full page width, small text, one fill per status. Each cell's span is
-#: pulled out over its padding so the status fill reaches the cell's borders.
+#: Styling shared by every table on the page: full page width, small text, one fill per status.
+#: Each cell's span is pulled out over its padding so the status fill reaches the cell's borders.
 GRID_STYLE = f"""<style>
-#grid {{ width: 100%; border-collapse: collapse; font-size: 12px; text-align: left }}
-#grid th {{ cursor: pointer; text-align: left; border-bottom: 1px solid #bbb }}
-#grid th::after {{ content: " ^" }}
-#grid td {{ padding: 2px 4px; border: 1px solid #eee }}
-#grid td span {{ display: block; margin: -2px -4px; padding: 2px 4px }}
+.grid {{ width: 100%; border-collapse: collapse; font-size: 12px; text-align: left }}
+.grid th {{ cursor: pointer; text-align: left; border-bottom: 1px solid #bbb }}
+.grid th::after {{ content: " ^" }}
+.grid td {{ padding: 2px 4px; border: 1px solid #eee }}
+.grid td span {{ display: block; margin: -2px -4px; padding: 2px 4px }}
 {" ".join(f".{name} {{ background: {fill} }}" for name, fill in STATUS_COLOURS.items())}
 </style>"""
 
@@ -877,7 +951,7 @@ def html_search_grid(frame: pd.DataFrame) -> str:
     spans = '<span class="' + status + '">' + costs.fillna("") + "</span>"
     energy = frame.pivot_table(index=keys, values="delivered_twh", aggfunc="first")
     cells = energy.round(1).join(spans).reset_index().rename(columns=_grid_heading)
-    table = cells.to_html(index=False, escape=False, classes="grid", table_id="grid")
+    table = cells.to_html(index=False, escape=False, classes="grid")
     return GRID_STYLE + table
 
 
@@ -914,11 +988,12 @@ def figure_tech_mix(frame: pd.DataFrame) -> go.Figure:
     The stack is shares of demand rather than of generation, so the unserved slice a deep cap leaves
     is the visible red segment on top instead of being scaled away. Cells that failed acceptance are
     drawn hatched rather than dropped, so a reader sees where the campaign has a mix it cannot stand
-    behind instead of an unexplained gap.
+    behind instead of an unexplained gap. Drawing more than one run pairs each year on the x axis
+    with the run it came from, which keeps the facets one per trajectory and pressure.
     """
-    long = _demand_shares(frame)
+    long = _demand_shares(frame).sort_values(["year", "run_set"])
     figure = px.bar(
-        long.astype({"year": str}),
+        long.assign(year=_label_runs(long, "year")),
         x="year",
         y="share",
         color="carrier",
@@ -948,7 +1023,7 @@ def _demand_shares(frame: pd.DataFrame) -> pd.DataFrame:
     unserved; each is scaled by the served fraction so the carriers and the unserved slice together
     make up the year's demand.
     """
-    keys = ["trajectory", "pressure", "year", "status"]
+    keys = ["trajectory", "pressure", "year", "status", "run_set"]
     served = 1 - frame["use_pct_of_demand"] / 100
     carriers = frame[keys].join(frame.filter(regex=r"^share_").mul(served, axis=0))
     long = carriers.melt(id_vars=keys, var_name="carrier", value_name="share")
@@ -963,11 +1038,12 @@ def figure_storage_build(frame: pd.DataFrame) -> go.Figure:
     """Installed storage power by duration class, one facet per trajectory and pressure.
 
     Battery and pumped hydro share the duration colours and are told apart by hatching, so the
-    figure reads as one storage stack rather than two.
+    figure reads as one storage stack rather than two. Drawing more than one run pairs each year on
+    the x axis with the run it came from, as the technology mix does.
     """
-    long = _storage_rows(frame)
+    long = _storage_rows(frame).sort_values(["year", "run_set"])
     figure = px.bar(
-        long.astype({"year": str}),
+        long.assign(year=_label_runs(long, "year")),
         x="year",
         y="power_gw",
         color="duration_class",
@@ -995,7 +1071,7 @@ def figure_storage_build(frame: pd.DataFrame) -> go.Figure:
 def _storage_rows(frame: pd.DataFrame) -> pd.DataFrame:
     """Melt the per-carrier, per-duration storage power columns back into one row each."""
     long = frame.melt(
-        id_vars=["trajectory", "pressure", "year"],
+        id_vars=["trajectory", "pressure", "year", "run_set"],
         value_vars=list(frame.filter(regex=r"^storage_")),
         var_name="key",
         value_name="power_gw",
