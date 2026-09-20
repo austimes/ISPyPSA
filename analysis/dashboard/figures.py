@@ -183,8 +183,8 @@ TRACKING_LABELS = {
 MATRIX_LABELS = {
     **LABELS,
     "delivered_twh": "Demand (TWh)",
-    "marginal_intensity": "Marginal t/MWh",
-    "fleet_intensity": "Fleet t/MWh",
+    "marginal_intensity": "Demand-marginal t/MWh",
+    "fleet_intensity": "Fleet-average t/MWh",
     "avg_cost": "Cost A$/MWh",
 }
 
