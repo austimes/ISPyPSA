@@ -7,14 +7,19 @@ too little to draw. Page assembly, and the order the sections appear in, live in
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy.interpolate import griddata
+from scipy.spatial import QhullError
 
 from analysis.hpc.campaign_grid import CAP_KIND, order_pressures, parse_pressure
+
+log = logging.getLogger(__name__)
 
 #: Conventional hues for generation carriers, shared by every figure.
 CARRIER_COLOURS = {
@@ -152,7 +157,6 @@ LABELS = {
     "series": "Series",
     "share": "Share of demand (%)",
     "trajectory": "Trajectory",
-    "run_set": "Run",
     "value": "",
     "year": "Year",
 }
@@ -228,27 +232,6 @@ def _orders(frame: pd.DataFrame) -> dict[str, list]:
         "pressure_name": [pressure_label(key) for key in ladder],
         "pressure_short": [pressure_short(key) for key in ladder],
     }
-
-
-def _label_runs(frame: pd.DataFrame, column: str) -> pd.Series:
-    """``column`` as text with each row's run set appended, or unchanged for a single-run page.
-
-    Comparing runs needs the run set on an axis or in a facet title; with one run drawn it would
-    only repeat the same name in every label.
-    """
-    labels = frame[column].astype(str)
-    if frame["run_set"].nunique() < 2:
-        return labels
-    return labels + ", " + frame["run_set"]
-
-
-def _facet_runs(frame: pd.DataFrame) -> dict[str, str]:
-    """``facet_col`` keyword drawing each run in a panel of its own, or nothing for a single run.
-
-    This is for a figure whose colour and symbol are both already spoken for, where naming the run
-    set in a legend entry instead would double a legend that is already long.
-    """
-    return {"facet_col": "run_set"} if frame["run_set"].nunique() > 1 else {}
 
 
 def _accepted(frame: pd.DataFrame) -> pd.DataFrame:
@@ -398,13 +381,10 @@ def figure_cost_frontier(frame: pd.DataFrame) -> go.Figure:
     This is the headline view: each trajectory's pressure ladder traced from its uncapped cell out
     to its deepest cap, where cost turns up sharply for the last tonnes removed. The thin line
     joins one trajectory's cells in intensity order; the markers carry boundary and acceptance
-    status as they do in the cost-family figure. Drawing more than one run splits each trajectory
-    into a line and a colour per run.
+    status as they do in the cost-family figure.
     """
-    points = frame.assign(
-        trajectory=_label_runs(frame, "trajectory"), symbol=_cell_symbols(frame)
-    ).sort_values("fleet_intensity")
-    orders = _orders(points)
+    points = frame.assign(symbol=_cell_symbols(frame)).sort_values("fleet_intensity")
+    orders = _orders(frame)
     figure = px.scatter(
         points,
         x="fleet_intensity",
@@ -458,16 +438,16 @@ def figure_cost_frontier_animated(frame: pd.DataFrame) -> go.Figure:
     the frontier is seen to shift rather than the axes moving under it, and each cell keeps its
     identity across frames so its marker travels instead of jumping.
     """
-    points = frame.assign(
-        trajectory=_label_runs(frame, "trajectory"), symbol=_cell_symbols(frame)
-    ).sort_values(["year", "trajectory", "fleet_intensity"])
+    points = frame.assign(symbol=_cell_symbols(frame)).sort_values(
+        ["year", "trajectory", "fleet_intensity"]
+    )
     shared = {
         "x": "fleet_intensity",
         "y": "avg_cost",
         "color": "trajectory",
         "animation_frame": "year",
         "animation_group": "cell",
-        "category_orders": _orders(points),
+        "category_orders": _orders(frame),
         "range_x": _padded_range(points["fleet_intensity"]),
         "range_y": _padded_range(points["avg_cost"]),
         "labels": LABELS,
@@ -495,7 +475,6 @@ def figure_cost_frontier_overlaid(frame: pd.DataFrame) -> go.Figure:
     Cost and intensity both fall year on year, so the four frontiers sit apart and the whole run's
     drift is read off one pair of axes. Here the marker shape carries the trajectory, which the
     faceted figure spends colour on; boundary and acceptance status are left to the other views.
-    Both encodings are taken, so drawing more than one run gives each run a panel of its own.
     """
     points = frame.assign(year=frame["year"].astype(str)).sort_values("fleet_intensity")
     shared = {
@@ -504,11 +483,10 @@ def figure_cost_frontier_overlaid(frame: pd.DataFrame) -> go.Figure:
         "color": "year",
         "color_discrete_sequence": YEAR_COLOURS,
         "category_orders": {
-            **_orders(points),
+            **_orders(frame),
             "year": sorted(points["year"].unique()),
         },
         "labels": LABELS,
-        **_facet_runs(points),
     }
     figure = px.scatter(
         points,
@@ -524,7 +502,7 @@ def figure_cost_frontier_overlaid(frame: pd.DataFrame) -> go.Figure:
     # A year-by-trajectory legend runs to twenty entries, too tall a column for the panel to show;
     # under the axis it wraps across the width instead.
     figure.update_layout(legend={"orientation": "h", "y": -0.18, "title_text": ""})
-    return add_axis_scale_buttons(_strip_facet_titles(figure))
+    return add_axis_scale_buttons(figure)
 
 
 def figure_cost_families(frame: pd.DataFrame) -> go.Figure:
@@ -569,8 +547,8 @@ def figure_cost_contours(frame: pd.DataFrame) -> go.Figure | None:
     Only the grid points the interpolation reached are binned. A contour fill still paints the empty
     bins around them at the bottom of its colour scale, which reads as a cheap region rather than as
     no data, so the heatmap figure is the one to trust outside the contoured island. Interpolation
-    needs at least ``MIN_GRID_CELLS`` solved cells in a year, so a year with fewer is left out and a
-    run with no such year gets no figure at all.
+    needs at least ``MIN_GRID_CELLS`` solved cells spread over an area, so a year with fewer, or
+    with its cells on a line, is left out and a run with no such year gets no figure at all.
     """
     grid = _interpolated_cost_grid(frame).dropna(subset=["avg_cost"])
     if grid.empty:
@@ -644,33 +622,47 @@ def _colour_cost_surface(figure: go.Figure) -> go.Figure:
 
 
 def _interpolated_cost_grid(frame: pd.DataFrame, size: int = GRID_SIZE) -> pd.DataFrame:
-    """Interpolate cost onto a regular grid over ``GRID_AXES``, one block per year with enough cells.
+    """Interpolate cost onto a regular grid over ``GRID_AXES``, one block per year it can be drawn for.
 
     Grid points the interpolation could not reach keep their NaN cost, so a caller can either blank
     them or drop them.
     """
     solved = _accepted(frame).dropna(subset=[*GRID_AXES, "avg_cost"])
     years = solved.groupby("year")
-    grids = [
+    drawn = [
         _year_grid(block, size) for _, block in years if len(block) >= MIN_GRID_CELLS
     ]
+    grids = [grid for grid in drawn if grid is not None]
     if not grids:
         return pd.DataFrame(columns=["year", *GRID_AXES, "avg_cost"])
     return pd.concat(grids)
 
 
-def _year_grid(block: pd.DataFrame, size: int) -> pd.DataFrame:
-    """Interpolate one year's solved cells onto a regular grid."""
+def _year_grid(block: pd.DataFrame, size: int) -> pd.DataFrame | None:
+    """Interpolate one year's solved cells onto a regular grid, or ``None`` if they cannot be triangulated.
+
+    Cells that fall on a line, every cap reaching the same marginal intensity say, leave qhull no
+    area to triangulate however many of them there are, so that year is left off the surface.
+    """
+    year = block["year"].iloc[0]
     axes = [
         np.linspace(block[axis].min(), block[axis].max(), size) for axis in GRID_AXES
     ]
     demand, intensity = np.meshgrid(*axes)
-    cost = griddata(
-        block[GRID_AXES].to_numpy(), block["avg_cost"].to_numpy(), (demand, intensity)
-    )
+    try:
+        cost = griddata(
+            block[GRID_AXES].to_numpy(),
+            block["avg_cost"].to_numpy(),
+            (demand, intensity),
+        )
+    except QhullError:
+        log.warning(
+            f"No cost surface for {year}: its accepted cells cannot be triangulated"
+        )
+        return None
     return pd.DataFrame(
         {
-            "year": block["year"].iloc[0],
+            "year": year,
             "delivered_twh": demand.ravel(),
             "marginal_intensity": intensity.ravel(),
             "avg_cost": cost.ravel(),
@@ -679,19 +671,15 @@ def _year_grid(block: pd.DataFrame, size: int) -> pd.DataFrame:
 
 
 def figure_cost_pathway(frame: pd.DataFrame) -> go.Figure:
-    """Average cost over the milestone years, one line per pressure and one facet per trajectory.
-
-    Drawing more than one run gives each trajectory a facet per run.
-    """
-    by_run = frame.assign(trajectory=_label_runs(frame, "trajectory"))
+    """Average cost over the milestone years, one line per pressure and one facet per trajectory."""
     figure = px.line(
-        by_run.sort_values("year"),
+        frame.sort_values("year"),
         x="year",
         y="avg_cost",
         color="pressure_name",
         facet_col="trajectory",
         markers=True,
-        category_orders=_orders(by_run),
+        category_orders=_orders(frame),
         color_discrete_map=_pressure_colours(frame),
         labels=LABELS,
         height=PATHWAY_HEIGHT,
@@ -825,19 +813,17 @@ def figure_cap_tracking(frame: pd.DataFrame) -> go.Figure:
 
     The dashed line in the top row is the cap the chain was solved under, so a solid line sitting
     on its dashed twin is a binding cap. The dotted line in the bottom row is the unserved-energy
-    limit a cell has to stay under to be accepted. Drawing more than one run gives each trajectory
-    a facet per run, which leaves the line dash to the cap.
+    limit a cell has to stay under to be accepted.
     """
-    by_run = frame.assign(trajectory=_label_runs(frame, "trajectory"))
-    modelled = by_run.melt(
+    modelled = frame.melt(
         id_vars=["trajectory", "pressure_name", "year"],
         value_vars=list(TRACKING_LABELS),
         var_name="measure",
         value_name="value",
     ).assign(series="modelled")
-    caps = by_run.dropna(subset=["co2_cap_annual_t"]).assign(
+    caps = frame.dropna(subset=["co2_cap_annual_t"]).assign(
         measure=list(TRACKING_LABELS)[0],
-        value=by_run["co2_cap_annual_t"] / 1000,
+        value=frame["co2_cap_annual_t"] / 1000,
         series="cap",
     )
     long = pd.concat([modelled, caps[modelled.columns]]).replace(
@@ -853,7 +839,7 @@ def figure_cap_tracking(frame: pd.DataFrame) -> go.Figure:
         facet_col="trajectory",
         markers=True,
         category_orders={
-            **_orders(by_run),
+            **_orders(frame),
             "measure": list(TRACKING_LABELS.values()),
             "series": ["modelled", "cap"],
         },
@@ -943,8 +929,6 @@ def html_search_grid(frame: pd.DataFrame) -> str:
     :return: A style block and the table itself.
     """
     keys = ["trajectory", "year"]
-    if frame["run_set"].nunique() > 1:
-        keys = ["run_set", *keys]
     costs = (
         frame.assign(label=_cell_labels(frame))
         .pivot_table(index=keys, columns="pressure", values="label", aggfunc="first")
@@ -991,12 +975,11 @@ def figure_tech_mix(frame: pd.DataFrame) -> go.Figure:
     The stack is shares of demand rather than of generation, so the unserved slice a deep cap leaves
     is the visible red segment on top instead of being scaled away. Cells that failed acceptance are
     drawn hatched rather than dropped, so a reader sees where the campaign has a mix it cannot stand
-    behind instead of an unexplained gap. Drawing more than one run pairs each year on the x axis
-    with the run it came from, which keeps the facets one per trajectory and pressure.
+    behind instead of an unexplained gap.
     """
-    long = _demand_shares(frame).sort_values(["year", "run_set"])
+    long = _demand_shares(frame)
     figure = px.bar(
-        long.assign(year=_label_runs(long, "year")),
+        long.astype({"year": str}),
         x="year",
         y="share",
         color="carrier",
@@ -1026,7 +1009,7 @@ def _demand_shares(frame: pd.DataFrame) -> pd.DataFrame:
     unserved; each is scaled by the served fraction so the carriers and the unserved slice together
     make up the year's demand.
     """
-    keys = ["trajectory", "pressure", "year", "status", "run_set"]
+    keys = ["trajectory", "pressure", "year", "status"]
     served = 1 - frame["use_pct_of_demand"] / 100
     carriers = frame[keys].join(frame.filter(regex=r"^share_").mul(served, axis=0))
     long = carriers.melt(id_vars=keys, var_name="carrier", value_name="share")
@@ -1041,12 +1024,11 @@ def figure_storage_build(frame: pd.DataFrame) -> go.Figure:
     """Installed storage power by duration class, one facet per trajectory and pressure.
 
     Battery and pumped hydro share the duration colours and are told apart by hatching, so the
-    figure reads as one storage stack rather than two. Drawing more than one run pairs each year on
-    the x axis with the run it came from, as the technology mix does.
+    figure reads as one storage stack rather than two.
     """
-    long = _storage_rows(frame).sort_values(["year", "run_set"])
+    long = _storage_rows(frame)
     figure = px.bar(
-        long.assign(year=_label_runs(long, "year")),
+        long.astype({"year": str}),
         x="year",
         y="power_gw",
         color="duration_class",
@@ -1074,7 +1056,7 @@ def figure_storage_build(frame: pd.DataFrame) -> go.Figure:
 def _storage_rows(frame: pd.DataFrame) -> pd.DataFrame:
     """Melt the per-carrier, per-duration storage power columns back into one row each."""
     long = frame.melt(
-        id_vars=["trajectory", "pressure", "year", "run_set"],
+        id_vars=["trajectory", "pressure", "year"],
         value_vars=list(frame.filter(regex=r"^storage_")),
         var_name="key",
         value_name="power_gw",

@@ -9,7 +9,6 @@ import pytest
 from plotly.subplots import make_subplots
 
 from analysis.dashboard.build import (
-    ASSUMPTION_KEYS,
     ASSUMPTIONS_HEADING,
     SECTIONS,
     main,
@@ -136,6 +135,49 @@ def two_cell_exports(tmp_path, csv_str_to_df) -> Path:
 
 
 @pytest.fixture
+def collinear_exports(tmp_path, csv_str_to_df) -> Path:
+    """Write four accepted cells that share one marginal intensity, so their points lie on a line."""
+    tables = {
+        "results": """
+            cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, share_Wind
+            a,    low,        c0,       price,         0.0,            2030, 80.0,          False,    0.30,                 25.0,                 2000.0,                24000.0,              0.0,               20.0,                          4.0,                          1.0,                            800000000.0,              160000000.0,                      0.5
+            b,    central,    c0,       price,         0.0,            2030, 90.0,          False,    0.35,                 30.0,                 2700.0,                31500.0,              0.0,               25.0,                          4.0,                          1.0,                            900000000.0,              180000000.0,                      0.5
+            c,    high,       c0,       price,         0.0,            2030, 100.0,         False,    0.40,                 35.0,                 3500.0,                40000.0,              0.0,               30.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.5
+            d,    very_high,  c0,       price,         0.0,            2030, 110.0,         False,    0.45,                 40.0,                 4400.0,                49500.0,              0.0,               35.0,                          4.0,                          1.0,                            1100000000.0,             220000000.0,                      0.5
+        """,
+        "marginals": """
+            pressure, year, from_level,  to_level,   marginal_cost_aud_per_mwh, marginal_co2e_t_per_mwh
+            c0,       2030, low_bracket, low,        50.0,                      0.50
+            c0,       2030, low,         central,    60.0,                      0.50
+            c0,       2030, central,     high,       70.0,                      0.50
+            c0,       2030, high,        very_high,  80.0,                      0.50
+        """,
+        "manifest": """
+            cell, year, model_status, co2_cap_annual_t, implied_carbon_price_aud_per_t
+            a,    2030, Optimal,      ,                 0.0
+            b,    2030, Optimal,      ,                 0.0
+            c,    2030, Optimal,      ,                 0.0
+            d,    2030, Optimal,      ,                 0.0
+        """,
+        "acceptance_per_cell": """
+            cell, year, test1_serves_demand, test4_termination
+            a,    2030, True,                True
+            b,    2030, True,                True
+            c,    2030, True,                True
+            d,    2030, True,                True
+        """,
+        "storage": """
+            cell, year, carrier, duration_class, power_gw
+            a,    2030, Battery, 2_2to4h,        0.8
+            b,    2030, Battery, 2_2to4h,        0.9
+            c,    2030, Battery, 2_2to4h,        1.0
+            d,    2030, Battery, 2_2to4h,        1.1
+        """,
+    }
+    return _write_exports(tmp_path / "run_line" / "exports", tables, csv_str_to_df)
+
+
+@pytest.fixture
 def grid_exports(tmp_path, csv_str_to_df) -> Path:
     """Write exports where ``c150`` is planned for ``central`` only, and absent there in 2040."""
     tables = {
@@ -183,36 +225,15 @@ def test_tidy_frame_joins_every_export(exports, csv_str_to_df):
     result = tidy_frame(exports)
 
     expected = csv_str_to_df("""
-        cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, fleet_intensity, avg_cost, total_cost, share_Wind, marginal_cost, marginal_intensity, model_status, co2_cap_annual_t, implied_carbon_price_aud_per_t, test1_serves_demand, test4_termination, storage_Battery_2_2to4h, storage_Water_6_over24h, run_set, status,     pressure_name
-        a,    central,    c0,       price,         0.0,            2030, 100.0,         False,    40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.40,            30.0,     3000.0,     0.5,        60.0,          0.80,               Optimal,      ,                 0.0,                            True,                True,              1.0,                     , run_a,   solved,     uncapped__(A$0/t)
-        b,    high,       c0,       price,         0.0,            2030, 120.0,         True,     60000.0,              0.2,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                      0.50,            35.0,     4200.0,     0.4,        70.0,          0.90,               Optimal,      ,                 0.0,                            True,                True,              1.2,                     , run_a,   solved,     uncapped__(A$0/t)
-        c,    low,        c0,       price,         0.0,            2030, 80.0,          False,    24000.0,              0.0,               34.0,                          5.0,                          1.0,                            800000000.0,              160000000.0,                      0.30,            40.0,     3200.0,     0.6,        50.0,          0.60,               Optimal,      ,                 0.0,                            True,                True,              0.8,                     , run_a,   solved,     uncapped__(A$0/t)
-        d,    low,        c0,       price,         0.0,            2040, 90.0,          False,    22500.0,              3.0,               39.0,                          5.0,                          1.0,                            900000000.0,              180000000.0,                      0.25,            45.0,     4050.0,     0.7,        ,              ,                   Infeasible,   ,                 0.0,                            False,               True,              0.9,                     , run_a,   unaccepted, uncapped__(A$0/t)
-        e,    central,    cap0005,  cap,           0.005,          2030, 105.0,         False,    10500.0,              0.0,               48.0,                          4.0,                          3.0,                            1500000000.0,             210000000.0,                      0.10,            55.0,     5775.0,     0.8,        90.0,          0.50,               Optimal,      10500.0,          120.0,                          True,                True,              2.0,                     0.5,     run_a,   solved,     cap__0.005__t__CO2e/MWh__by__2050
-        f,    central,    cap0005,  cap,           0.005,          2040, 110.0,         False,    5500.0,               0.0,               58.0,                          4.0,                          3.0,                            1700000000.0,             220000000.0,                      0.05,            65.0,     7150.0,     0.9,        ,              ,                   Optimal,      5500.0,           900.0,                          True,                True,              2.4,                     0.5,     run_a,   solved,     cap__0.005__t__CO2e/MWh__by__2050
+        cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, fleet_intensity, avg_cost, total_cost, share_Wind, marginal_cost, marginal_intensity, model_status, co2_cap_annual_t, implied_carbon_price_aud_per_t, test1_serves_demand, test4_termination, storage_Battery_2_2to4h, storage_Water_6_over24h, status,     pressure_name
+        a,    central,    c0,       price,         0.0,            2030, 100.0,         False,    40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.40,            30.0,     3000.0,     0.5,        60.0,          0.80,               Optimal,      ,                 0.0,                            True,                True,              1.0,                     ,                        solved,     uncapped__(A$0/t)
+        b,    high,       c0,       price,         0.0,            2030, 120.0,         True,     60000.0,              0.2,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                      0.50,            35.0,     4200.0,     0.4,        70.0,          0.90,               Optimal,      ,                 0.0,                            True,                True,              1.2,                     ,                        solved,     uncapped__(A$0/t)
+        c,    low,        c0,       price,         0.0,            2030, 80.0,          False,    24000.0,              0.0,               34.0,                          5.0,                          1.0,                            800000000.0,              160000000.0,                      0.30,            40.0,     3200.0,     0.6,        50.0,          0.60,               Optimal,      ,                 0.0,                            True,                True,              0.8,                     ,                        solved,     uncapped__(A$0/t)
+        d,    low,        c0,       price,         0.0,            2040, 90.0,          False,    22500.0,              3.0,               39.0,                          5.0,                          1.0,                            900000000.0,              180000000.0,                      0.25,            45.0,     4050.0,     0.7,        ,              ,                   Infeasible,   ,                 0.0,                            False,               True,              0.9,                     ,                        unaccepted, uncapped__(A$0/t)
+        e,    central,    cap0005,  cap,           0.005,          2030, 105.0,         False,    10500.0,              0.0,               48.0,                          4.0,                          3.0,                            1500000000.0,             210000000.0,                      0.10,            55.0,     5775.0,     0.8,        90.0,          0.50,               Optimal,      10500.0,          120.0,                          True,                True,              2.0,                     0.5,                     solved,     cap__0.005__t__CO2e/MWh__by__2050
+        f,    central,    cap0005,  cap,           0.005,          2040, 110.0,         False,    5500.0,               0.0,               58.0,                          4.0,                          3.0,                            1700000000.0,             220000000.0,                      0.05,            65.0,     7150.0,     0.9,        ,              ,                   Optimal,      5500.0,           900.0,                          True,                True,              2.4,                     0.5,                     solved,     cap__0.005__t__CO2e/MWh__by__2050
     """)
     pd.testing.assert_frame_equal(result, expected)
-
-
-def test_tidy_frame_names_the_run_each_row_came_from(
-    exports, two_cell_exports, csv_str_to_df
-):
-    result = pd.concat(
-        [tidy_frame(exports), tidy_frame(two_cell_exports)], ignore_index=True
-    )
-
-    expected = csv_str_to_df("""
-        cell, run_set
-        a,    run_a
-        b,    run_a
-        c,    run_a
-        d,    run_a
-        e,    run_a
-        f,    run_a
-        a,    run_b
-        b,    run_b
-    """)
-    pd.testing.assert_frame_equal(result[["cell", "run_set"]], expected)
 
 
 def test_tidy_frame_logs_cell_years_with_no_marginal(exports, caplog):
@@ -320,6 +341,23 @@ def test_axis_match_buttons_tie_every_panel_to_the_first():
 
 def test_cost_heatmap_is_dropped_when_no_year_holds_enough_cells(two_cell_exports):
     assert figure_cost_heatmap(tidy_frame(two_cell_exports)) is None
+
+
+def test_cost_heatmap_skips_a_year_whose_cells_lie_on_a_line(collinear_exports, caplog):
+    with caplog.at_level("WARNING"):
+        figure = figure_cost_heatmap(tidy_frame(collinear_exports))
+
+    assert figure is None
+    assert (
+        "No cost surface for 2030: its accepted cells cannot be triangulated"
+    ) in caplog.text
+
+
+def test_cost_heatmap_logs_nothing_when_every_year_interpolates(exports, caplog):
+    with caplog.at_level("WARNING"):
+        figure_cost_heatmap(tidy_frame(exports))
+
+    assert "No cost surface" not in caplog.text
 
 
 def test_cost_pathway_draws_one_line_per_pressure_and_trajectory(exports):
@@ -439,7 +477,7 @@ def test_tech_mix_labels_facets_with_the_manifest_pressure_names(grid_exports):
 
 
 def test_main_writes_one_html_page(exports):
-    page = main([exports.parent])
+    page = main(exports.parent)
 
     text = page.read_text(encoding="utf-8")
     assert page == exports.parent / "dashboard.html"
@@ -451,7 +489,7 @@ def test_main_writes_one_html_page(exports):
 
 
 def test_main_leaves_every_figure_to_fill_its_own_box(exports):
-    page = main([exports.parent])
+    page = main(exports.parent)
 
     # Everything past plotly's bundle: the figures, the boxes holding them and the page script.
     text = page.read_text(encoding="utf-8").partition("</script>")[2]
@@ -464,7 +502,7 @@ def test_main_leaves_every_figure_to_fill_its_own_box(exports):
 
 
 def test_main_renders_a_run_too_small_to_interpolate(two_cell_exports):
-    page = main([two_cell_exports.parent])
+    page = main(two_cell_exports.parent)
 
     text = page.read_text(encoding="utf-8")
     assert "<h2>Cost surface over demand and marginal intensity</h2>" not in text
@@ -472,30 +510,46 @@ def test_main_renders_a_run_too_small_to_interpolate(two_cell_exports):
     assert "<h2>Technology mix</h2>" in text
 
 
-def test_main_lists_what_each_run_was_launched_under(exports, two_cell_exports):
+def _assumptions_table(page: Path) -> list[str]:
+    """Every heading and cell of the page's assumptions table, in reading order."""
+    text = page.read_text(encoding="utf-8")
+    table = text.partition(f"<h2>{ASSUMPTIONS_HEADING}</h2>")[2].partition("</table>")[
+        0
+    ]
+    return re.findall(r"<t[hd]>(.*?)</t[hd]>", table)
+
+
+def test_main_lists_what_the_run_was_launched_under(exports):
     _write_campaign(
         exports.parent,
         "assumptions.json",
         '{"rez_limit_factor": 1.5, "max_cap": 20, "chains": 4}',
     )
+
+    page = main(exports.parent)
+
+    assert _assumptions_table(page) == [
+        "assumption",
+        "value",
+        "rez_limit_factor",
+        "1.5",
+        "max_cap",
+        "20.0",
+        "chains",
+        "4.0",
+    ]
+
+
+def test_main_names_the_input_package_a_run_recorded_no_assumptions_for(
+    two_cell_exports,
+):
     _write_campaign(two_cell_exports.parent, "inputs.txt", "2026-01-01T00.00_final\n")
 
-    page = main([exports.parent, two_cell_exports.parent])
+    page = main(two_cell_exports.parent)
 
-    text = page.read_text(encoding="utf-8")
-    table = text.partition(f"<h2>{ASSUMPTIONS_HEADING}</h2>")[2].partition("</table>")[
-        0
-    ]
-    assert re.findall(r"<t[hd]>(.*?)</t[hd]>", table) == [
-        *ASSUMPTION_KEYS,
-        "run_a",
-        "1.5",
-        "20.0",
-        "4.0",
-        "",
-        "run_b",
-        "",
-        "",
-        "",
+    assert _assumptions_table(page) == [
+        "assumption",
+        "value",
+        "inputs",
         "2026-01-01T00.00_final",
     ]

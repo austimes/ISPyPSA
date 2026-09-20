@@ -97,8 +97,8 @@ expansion and resource limit by `N` in each chain of the launch, leaving the int
 published cost alone. So `msm launch --run-set ext41_rezx2 --rez-limit-factor 2.0 --max-cap 0.005` re-runs the twenty
 deepest cap chains with twice the REZ headroom, and the difference against the base run set is the deep-cap cost that
 sits in the REZ ceilings rather than in the generation technologies. Every launch writes
-`campaign/assumptions.json` - its REZ limit factor, cap depth cut-off, chain count and input package - so the dashboard
-can state what separates two run sets.
+`campaign/assumptions.json` - its REZ limit factor, cap depth cut-off, chain count and input package - which the
+dashboard lists in its assumptions table, so each page states what its own run was launched under.
 
 ## Importing inputs and run products produced outside `IO_DIR`
 

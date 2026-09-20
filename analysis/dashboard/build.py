@@ -1,12 +1,11 @@
-"""Turn one or more campaign runs' export CSVs into a single self-contained ``dashboard.html``.
+"""Turn one campaign run's export CSVs into a single self-contained ``dashboard.html``.
 
 Five CSVs are read from ``<run>/exports/``: ``results.csv`` (one row per cell and year),
 ``marginals.csv`` (the cost and emissions consequence of stepping from one demand trajectory to
 the next), ``manifest.csv`` and ``acceptance_per_cell.csv`` (caps, shadow prices and solve status)
 and ``storage.csv`` (installed power by carrier and duration class). They are joined into one tidy
-frame, one row per cell-year, and every figure in :mod:`analysis.dashboard.figures` reads it. Given
-several runs, their frames are stacked and the run set each row came from names the run directory it
-was read from. The source commit shown in the page heading is read from each run's solve records,
+frame, one row per cell-year, and every figure in :mod:`analysis.dashboard.figures` reads it. The
+source commit shown in the page heading is read from the run's solve records,
 ``<run>/records/*.json``, and the assumptions table from its ``<run>/campaign/``.
 
 The page carries plotly's javascript inline, so it opens straight off the data share with no
@@ -19,21 +18,16 @@ import json
 import logging
 import webbrowser
 from pathlib import Path
-from typing import Annotated
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from cyclopts import Parameter
 from plotly.offline import get_plotlyjs
 
 from analysis.dashboard import figures
 from analysis.env import OutputLayout
 
 log = logging.getLogger(__name__)
-
-#: One or more run directories, so the page can compare runs.
-Runs = Annotated[list[Path], Parameter(consume_multiple=True)]
 
 #: Results columns carried through unchanged, and the ones renamed for the figures.
 RESULT_KEYS = [
@@ -84,10 +78,9 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     """Join the five export CSVs into one row per cell and milestone year.
 
     :param exports: The run's ``exports/`` directory.
-    :return: The run set the rows came from, named after the run directory, then trajectory and
-        pressure keys, delivered energy, both emissions intensities, cost and its components, the
-        cap and its shadow price, boundary flag, solve status and the per-carrier generation shares
-        and storage power.
+    :return: Trajectory and pressure keys, delivered energy, both emissions intensities, cost and
+        its components, the cap and its shadow price, boundary flag, solve status and the
+        per-carrier generation shares and storage power.
     """
     results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
     marginals = pd.read_csv(exports / "marginals.csv").rename(columns=MARGINAL_MEASURES)
@@ -112,7 +105,6 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
         .merge(storage, on=["cell", "year"], how="left")
     )
     return frame.assign(
-        run_set=exports.parent.name,
         status=_status_label(frame),
         pressure_name=frame["pressure"].map(figures.pressure_label),
     )
@@ -168,13 +160,10 @@ SECTIONS = {
     "Storage build": figures.figure_storage_build,
 }
 
-#: The run-assumptions table, which reads the runs themselves rather than the tidy frame, and so
-#: sits outside ``SECTIONS``. It is shown under the section it follows.
-ASSUMPTIONS_HEADING = "Assumptions by run"
+#: The run-assumptions table, which reads the run directory itself rather than the tidy frame, and
+#: so sits outside ``SECTIONS``. It is shown under the section it follows.
+ASSUMPTIONS_HEADING = "Assumptions"
 ASSUMPTIONS_FOLLOWS = "Technology mix"
-
-#: Columns of the assumptions table, in the order it lists them.
-ASSUMPTION_KEYS = ["run_set", "rez_limit_factor", "max_cap", "chains", "inputs"]
 
 
 #: Each section sits in a box of its own height, which the divider below it drags taller or shorter.
@@ -259,77 +248,62 @@ def _section_box(body: go.Figure | str) -> str:
 
 
 def _drawn_sections(
-    frame: pd.DataFrame, layouts: list[OutputLayout]
+    frame: pd.DataFrame, layout: OutputLayout
 ) -> list[tuple[str, go.Figure | str | None]]:
     """Every section in page order, with the run-assumptions table under the technology mix."""
     drawn = [(heading, build(frame)) for heading, build in SECTIONS.items()]
     under = list(SECTIONS).index(ASSUMPTIONS_FOLLOWS) + 1
-    assumptions = (ASSUMPTIONS_HEADING, _html_assumptions(layouts))
+    assumptions = (ASSUMPTIONS_HEADING, _html_assumptions(layout))
     return [*drawn[:under], assumptions, *drawn[under:]]
 
 
-def _html_assumptions(layouts: list[OutputLayout]) -> str:
-    """The assumptions each run was launched under, one row per run, styled like the searched grid."""
-    rows = pd.DataFrame(
-        [_assumptions_row(layout) for layout in layouts], columns=ASSUMPTION_KEYS
-    )
-    return figures.GRID_STYLE + rows.fillna("").to_html(index=False, classes="grid")
+def _html_assumptions(layout: OutputLayout) -> str:
+    """The assumptions the run was launched under, one row per assumption, styled like the searched grid."""
+    rows = pd.DataFrame(_assumptions(layout).items(), columns=["assumption", "value"])
+    return figures.GRID_STYLE + rows.to_html(index=False, classes="grid")
 
 
-def _assumptions_row(layout: OutputLayout) -> dict[str, object]:
-    """One run's recorded assumptions, or the inputs package it named instead, or neither."""
+def _assumptions(layout: OutputLayout) -> dict[str, object]:
+    """The run's recorded assumptions, or the inputs package it named instead, or neither."""
     recorded = layout.campaign / "assumptions.json"
-    inputs = layout.campaign / "inputs.txt"
     if recorded.exists():
-        return {
-            "run_set": layout.root.name,
-            **json.loads(recorded.read_text(encoding="utf-8")),
-        }
+        return json.loads(recorded.read_text(encoding="utf-8"))
+    inputs = layout.campaign / "inputs.txt"
     named = inputs.read_text(encoding="utf-8").strip() if inputs.exists() else ""
-    return {"run_set": layout.root.name, "inputs": named}
+    return {"inputs": named}
 
 
-def _provenance(layouts: list[OutputLayout]) -> str:
-    """Name every run directory the page draws, and the source commit each one's solves recorded."""
-    named = [f"{layout.root}: {_commits(layout)}" for layout in layouts]
-    return (
-        f"<h1>Campaign dashboard: {', '.join(layout.root.name for layout in layouts)}</h1>"
-        f"<p>Run directory and source commit<br>{'<br>'.join(named)}</p>"
-    )
-
-
-def _commits(layout: OutputLayout) -> str:
-    """The source commits one run's solve records name."""
+def _provenance(layout: OutputLayout) -> str:
+    """Name the run directory and the source commit recorded by the run's solves."""
     records = (
         json.loads(path.read_text(encoding="utf-8"))
         for path in layout.records.glob("*.json")
     )
     commits = sorted({record.get("source_git_commit") for record in records} - {None})
-    return ", ".join(commits) or "not recorded"
+    return (
+        f"<h1>Campaign dashboard: {layout.root.name}</h1>"
+        f"<p>Run directory: {layout.root}<br>Source commit: {', '.join(commits) or 'not recorded'}</p>"
+    )
 
 
-def main(run: Runs, show: bool = False) -> Path:
-    """Write ``dashboard.html`` into the first run directory, from every named run's exports.
+def main(run: Path, show: bool = False) -> Path:
+    """Write ``<run>/dashboard.html`` from the run's exports.
 
-    :param run: One or more stamped run directories, each holding an ``exports/`` sub-directory.
-        Named more than one, the page compares them: the figures that can carry a run set
-        distinguish the runs, and the assumptions table lists what each was launched under.
+    :param run: A stamped run directory holding an ``exports/`` sub-directory.
     :param show: Open the finished page in the default browser.
     :return: The path written.
     """
-    layouts = [OutputLayout(path) for path in run]
-    frame = pd.concat(
-        [tidy_frame(layout.exports) for layout in layouts], ignore_index=True
-    )
-    sections = [_provenance(layouts), f"<script>{get_plotlyjs()}</script>"]
-    for heading, body in _drawn_sections(frame, layouts):
+    layout = OutputLayout(run)
+    frame = tidy_frame(layout.exports)
+    sections = [_provenance(layout), f"<script>{get_plotlyjs()}</script>"]
+    for heading, body in _drawn_sections(frame, layout):
         if body is None:
             continue
         sections.append(f"<h2>{heading}</h2>")
         sections.append(_section_box(body))
         sections.append(DIVIDER)
     sections.append(PAGE_SCRIPT)
-    page = layouts[0].root / "dashboard.html"
+    page = layout.root / "dashboard.html"
     page.write_text("\n".join(sections), encoding="utf-8")
     if show:
         webbrowser.open(page.as_uri())
