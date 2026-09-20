@@ -418,7 +418,7 @@ def test_search_grid_heads_each_column_with_its_spelled_out_name(grid_exports):
 
     headings = re.findall(r"<th>(.*?)</th>", html)
     assert headings == [
-        "Trajectory",
+        "Demand trajectory",
         "Year",
         "Delivered energy (TWh)",
         "uncapped (A$0/t)",
