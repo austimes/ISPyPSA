@@ -156,7 +156,7 @@ LABELS = {
     "pressure_value": "Cap target intensity in 2050 (t CO2e/MWh)",
     "series": "Series",
     "share": "Share of demand (%)",
-    "trajectory": "Trajectory",
+    "trajectory": "Demand trajectory",
     "value": "",
     "year": "Year",
 }
@@ -291,10 +291,17 @@ def _scale_rows_apart(figure: go.Figure) -> go.Figure:
 
 
 def _strip_facet_titles(figure: go.Figure) -> go.Figure:
-    """Drop the ``column=`` prefix plotly express puts in front of every facet title."""
+    """Replace plotly express's ``column=value`` facet titles with the value alone, except that a
+    trajectory facet says what it is: ``demand central``."""
     return figure.for_each_annotation(
-        lambda note: note.update(text=note.text.split("=")[-1])
+        lambda note: note.update(text=_facet_text(note.text))
     )
+
+
+def _facet_text(text: str) -> str:
+    """Facet title for one ``column=value`` annotation."""
+    column, _, value = text.partition("=")
+    return f"demand {value}" if column == "trajectory" else value
 
 
 def _axis_names(figure: go.Figure, axes: str) -> list[str]:
@@ -1107,4 +1114,6 @@ def _pattern_note(figure: go.Figure, text: str, entries: int) -> go.Figure:
 def _facet_label(text: str) -> str:
     """One facet title without its ``column=`` prefix, with a pressure key spelled out in full."""
     column, _, value = text.partition("=")
-    return pressure_label(value, "<br>") if column == "pressure" else value
+    if column == "pressure":
+        return pressure_label(value, "<br>")
+    return _facet_text(text)
