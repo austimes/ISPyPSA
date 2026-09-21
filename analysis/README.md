@@ -100,6 +100,10 @@ deepest cap chains with twice the REZ headroom, and the difference against the b
 sits in the REZ ceilings rather than in the generation technologies. Every launch writes
 `campaign/assumptions.json` - its REZ limit factor, cap depth cut-off, chain count and input package - which the
 dashboard lists in its assumptions table, so each page states what its own run was launched under.
+`--flow-path-limit-factor N` relaxes the interconnector and intra-region flow-path expansion limits the same way, and
+`--solve-flags` appends extra `msm solve` tokens to every chain (for example `--solve-flags="--gurobi-crossover 0"` for
+a barrier-only feasibility screen; the equals form is needed because the value starts with a dash), both recorded in
+`assumptions.json`.
 
 ## Importing inputs and run products produced outside `IO_DIR`
 
