@@ -268,6 +268,6 @@ reproduce an electricity investment history end to end.
   a table of the numbers, and a `confidence: high|medium|low` line with a one-line rationale per derivation),
   `source_data.md` (numbered sources with a link or file path and a verbatim quote where the document is available;
   never invent a quote or page number, say so when none exists), `source_ledger.csv` and `assumptions_ledger.csv` with
-  the fixed column sets, and a `plot_*.py` that writes html and png with plotly wherever a plot earns its place. Tables
-  over prose; cite files by path; keep every research doc stateless. Update the topic folder in the same change as the
+  the fixed column sets, and a `plot_*.py` that writes html and png with plotly showing the values the model actually
+  uses (every topic has one). Tables over prose; cite files by path; keep every research doc stateless. Update the topic folder in the same change as the
   code or data it describes, and add new topics to `analysis/research/README.md`.
