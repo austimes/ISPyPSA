@@ -117,8 +117,6 @@ INPUT_COST_LABELS = {
     "fuel_adder": "Supply-curve tranche adder (A$/GJ)",
 }
 
-#: Most technologies the build-cost panel draws. A run templates a couple of dozen, more lines than
-#: one set of axes can be read on, so only the dearest this many in the earliest year are drawn.
 
 #: Hues for the cost inputs that are not generation carriers. The default ten-colour sequence
 #: repeats itself several times over a run's technologies, fuels and tranches, which puts two lines
