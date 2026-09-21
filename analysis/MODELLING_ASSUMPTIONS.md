@@ -54,6 +54,9 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
 - **Renewable energy zone (REZ) limit relaxation** - off unless a run passes `--rez-limit-factor`, in which case every
   REZ transmission limit, REZ transmission expansion headroom and REZ wind, solar and land-use resource limit is
   multiplied by that factor.
+- **Transmission corridor limit relaxation** - off unless a run passes `--flow-path-limit-factor`, in which case the
+  expansion headroom of every flow path between sub-regions is multiplied by that factor; REZ-to-sub-region
+  connections and REZ group constraints belong to the REZ factor, so the two levers are independent.
 
 ## Authored assumptions with no AEMO source
 

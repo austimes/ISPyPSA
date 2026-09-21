@@ -136,6 +136,20 @@ def test_rez_limit_factor_is_appended_to_every_chain_of_the_launch(plan):
     )
 
 
+def test_flow_path_limit_factor_is_appended_to_every_chain_of_the_launch(plan):
+    caps = build_caps_table(plan, GIT_COMMIT)
+
+    chains = build_chain_table(
+        plan, caps, TRACEDIRS, max_cap=0.002, flow_path_limit_factor=1.5
+    )
+
+    assert chains["args"].str.endswith(" --flow-path-limit-factor 1.5").all()
+    assert chains.loc[0, "args"] == (
+        "--co2-cap-t-schedule 2030:19983600 2040:3778173 2050:664300 2060:784420 "
+        "--flow-path-limit-factor 1.5"
+    )
+
+
 def test_chain_args_carry_every_milestone_tonnage(plan, csv_str_to_df):
     caps = build_caps_table(plan, GIT_COMMIT)
 

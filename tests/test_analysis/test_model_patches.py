@@ -6,6 +6,7 @@ import pandas as pd
 
 from analysis.model import apply_model_patches
 from analysis.model.biomass_cap import apply as biomass_cap_apply
+from analysis.model.flow_path_limits import apply as flow_path_limits_apply
 from analysis.model.maintenance_overlay import apply as maintenance_overlay_apply
 from analysis.model.pumped_storage_fix import apply as pumped_storage_fix_apply
 from analysis.model.repowering import apply as repowering_apply
@@ -196,6 +197,67 @@ def test_rez_limits_leaves_the_iasr_limits_in_place_without_a_factor(
 
     pd.testing.assert_frame_equal(result["renewable_energy_zones"], untouched)
     assert "rez_limits" not in caplog.text
+
+
+def _corridor_tables(csv_str_to_df) -> dict[str, pd.DataFrame]:
+    """Two flow paths, and two REZ expansion options of which only ``Q1`` names a REZ connection."""
+    return {
+        "flow_path_expansion_costs": csv_str_to_df("""
+            flow_path,   option,     additional_network_capacity_mw,  2024_25_$/mw
+            CQ-NQ,       Option__3,  500.0,                           413868.0
+            CNSW-NNSW,   Option__6,  1500.0,                          295713.0
+        """),
+        "rez_transmission_expansion_costs": csv_str_to_df("""
+            rez_constraint_id,  option,     additional_network_capacity_mw,  2024_25_$/mw
+            Q1,                 Option__1,  2580.0,                          328962.0
+            NQ1,                Option__2,  3000.0,                          1585005.0
+        """),
+        "renewable_energy_zones": csv_str_to_df("""
+            rez_id,  isp_sub_region_id
+            Q1,      NQ
+            Q2,      NQ
+        """),
+    }
+
+
+def test_flow_path_limits_doubles_flow_path_headroom_and_leaves_prices_and_rez_tables_alone(
+    csv_str_to_df, caplog
+):
+    tables = _corridor_tables(csv_str_to_df)
+
+    with caplog.at_level("WARNING"):
+        result = flow_path_limits_apply(tables, _config([2030]), 2.0)
+
+    expected_flow_paths = csv_str_to_df("""
+        flow_path,   option,     additional_network_capacity_mw,  2024_25_$/mw
+        CQ-NQ,       Option__3,  1000.0,                          413868.0
+        CNSW-NNSW,   Option__6,  3000.0,                          295713.0
+    """)
+    pd.testing.assert_frame_equal(
+        result["flow_path_expansion_costs"], expected_flow_paths
+    )
+
+    pd.testing.assert_frame_equal(
+        result["rez_transmission_expansion_costs"],
+        tables["rez_transmission_expansion_costs"],
+    )
+    assert (
+        "flow_path_limits: scaled ['flow_path_expansion_costs'] corridor expansion "
+        "limits by 2.0"
+    ) in caplog.text
+
+
+def test_flow_path_limits_leaves_the_iasr_limits_in_place_without_a_factor(
+    csv_str_to_df, caplog
+):
+    tables = _corridor_tables(csv_str_to_df)
+    untouched = tables["flow_path_expansion_costs"].copy()
+
+    with caplog.at_level("WARNING"):
+        result = flow_path_limits_apply(tables, _config([2030]))
+
+    pd.testing.assert_frame_equal(result["flow_path_expansion_costs"], untouched)
+    assert "flow_path_limits" not in caplog.text
 
 
 def test_apply_model_patches_returns_every_table_the_patches_touch(csv_str_to_df):

@@ -5,8 +5,9 @@ manifest that decides what each Slurm array task solves and every product of the
 The array index is the chain's row in ``campaign/chains.tsv``, so the manifest and the
 array are written together and never drift apart. ``campaign/inputs.txt`` names the input
 package the launch read, so a run's results can always be traced back to its inputs, and
-``campaign/assumptions.json`` names what this launch varies -- its REZ limit factor, its cap
-depth cut-off, its chain count and that input package -- so two run sets can be compared.
+``campaign/assumptions.json`` names what this launch varies -- its REZ limit factor, its
+corridor limit factor, its cap depth cut-off, its chain count and that input package -- so two
+run sets can be compared.
 
 ``submit`` is the single place that knows how a campaign job is handed to Slurm: the
 account, partition, stdout path and the exported variables (``RUN_DIR``, ``REPO`` and
@@ -115,12 +116,14 @@ def write_assumptions(
     chains: int,
     max_cap: float | None,
     rez_limit_factor: float | None,
+    flow_path_limit_factor: float | None,
 ) -> None:
     """Record what this launch varies, so two run sets can be compared without reading their manifests."""
     (layout.campaign / "assumptions.json").write_text(
         json.dumps(
             {
                 "rez_limit_factor": rez_limit_factor,
+                "flow_path_limit_factor": flow_path_limit_factor,
                 "max_cap": max_cap,
                 "chains": chains,
                 "inputs": inputs.as_posix(),
@@ -141,6 +144,7 @@ def main(
     array: str | None = None,
     max_cap: float | None = None,
     rez_limit_factor: float | None = None,
+    flow_path_limit_factor: float | None = None,
     dry_run: bool = False,
 ) -> None:
     """Prepare a campaign launch and submit its chains to Slurm.
@@ -158,6 +162,9 @@ def main(
     :param rez_limit_factor: Relax every renewable energy zone (REZ) transmission,
         expansion and resource limit by this factor in every chain of the launch, as a
         sensitivity against the IASR limits; omit for the IASR limits.
+    :param flow_path_limit_factor: Relax the expansion headroom of every sub-region flow path
+        and every REZ-to-sub-region connection by this factor in every chain of the launch, as
+        a sensitivity against the IASR limits; omit for the IASR limits.
     :param dry_run: Write the manifest and print the sbatch command, building no trace
         directories and submitting nothing.
     """
@@ -167,11 +174,20 @@ def main(
     layout = OutputLayout(run) if run else env.new_run(run_set)
     if not dry_run:
         tracedirs.build(env.traces, env.tracedirs, plan)
-    chains = manifest.build(plan, layout, env.tracedirs, max_cap, rez_limit_factor)
+    chains = manifest.build(
+        plan, layout, env.tracedirs, max_cap, rez_limit_factor, flow_path_limit_factor
+    )
     (layout.campaign / "inputs.txt").write_text(
         f"{env.inputs.as_posix()}\n", encoding="utf-8"
     )
-    write_assumptions(layout, env.inputs, len(chains), max_cap, rez_limit_factor)
+    write_assumptions(
+        layout,
+        env.inputs,
+        len(chains),
+        max_cap,
+        rez_limit_factor,
+        flow_path_limit_factor,
+    )
     if array is None and smoke:
         array = "0"
     if array is None and resume:

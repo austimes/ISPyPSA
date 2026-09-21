@@ -291,6 +291,7 @@ def _run_staged_pipeline(
     existing_fom_keeping: bool = False,
     co2_cap_t: float | None = None,
     rez_limit_factor: float | None = None,
+    flow_path_limit_factor: float | None = None,
 ) -> dict:
     """Run the ISPyPSA pipeline with per-stage timing. Returns timings dict.
 
@@ -379,7 +380,10 @@ def _run_staged_pipeline(
         config.filter_by_isp_sub_regions,
     )
     ispypsa_tables = apply_model_patches(
-        ispypsa_tables, config, rez_limit_factor=rez_limit_factor
+        ispypsa_tables,
+        config,
+        rez_limit_factor=rez_limit_factor,
+        flow_path_limit_factor=flow_path_limit_factor,
     )
     # REQUIRED for the Draft 2026 trace store: drop VRE new entrants whose
     # (rez_id, isp_resource_type) has no 2026 trace (Q8 split; N10/N11 fixed
@@ -847,6 +851,15 @@ def main():
         "resource limit by this factor, as a sensitivity against the IASR limits. "
         "Interconnector flow paths are not scaled. Default: IASR limits unchanged.",
     )
+    ap.add_argument(
+        "--flow-path-limit-factor",
+        type=float,
+        default=None,
+        help="Relax the expansion headroom of every sub-region flow path and every "
+        "REZ-to-sub-region connection by this factor, as a sensitivity against the IASR "
+        "limits. AEMO's REZ group constraints are not scaled. Default: IASR limits "
+        "unchanged.",
+    )
     args = ap.parse_args()
     if args.carried_tranches_dir is not None and args.current_year is None:
         ap.error("--carried-tranches-dir requires --current-year.")
@@ -913,6 +926,7 @@ def main():
             existing_fom_keeping=args.existing_fom_keeping,
             co2_cap_t=args.co2_cap_t,
             rez_limit_factor=args.rez_limit_factor,
+            flow_path_limit_factor=args.flow_path_limit_factor,
         )
         record.update(timings)
         record["wall_clock_s"] = time.perf_counter() - t_total

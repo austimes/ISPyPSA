@@ -33,11 +33,12 @@ Naming:
   ``cap00005``. The retained leading zero keeps every key the same shape, so
   the six read as one family in run ids, log names and Slurm job listings.
 
-Two flags narrow and vary a launch without touching the ladder above: ``max_cap`` keeps
+Three flags narrow and vary a launch without touching the ladder above: ``max_cap`` keeps
 only the cap chains whose 2050 target intensity is at or below the value given, dropping
-the price chains and the shallower caps, and ``rez_limit_factor`` appends
-``--rez-limit-factor N`` to every remaining chain, so a relaxed-REZ run set differs from
-the base one in that one number.
+the price chains and the shallower caps, and ``rez_limit_factor`` and
+``flow_path_limit_factor`` append ``--rez-limit-factor N`` and
+``--flow-path-limit-factor N`` to every remaining chain, so a relaxed-REZ or
+relaxed-corridor run set differs from the base one in that one number.
 
 Outputs in one launch's ``campaign/`` directory:
 
@@ -287,6 +288,7 @@ def build_chain_table(
     tracedirs: Path,
     max_cap: float | None = None,
     rez_limit_factor: float | None = None,
+    flow_path_limit_factor: float | None = None,
 ) -> pd.DataFrame:
     """Every chain of the campaign in Slurm array order, numbered from zero.
 
@@ -298,6 +300,8 @@ def build_chain_table(
         delivered is at or below this value; omit to launch the whole campaign.
     :param rez_limit_factor: Relax every renewable energy zone (REZ) limit by this
         factor in every chain of the launch; omit for the IASR limits.
+    :param flow_path_limit_factor: Relax every flow-path and REZ-connection expansion
+        limit by this factor in every chain of the launch; omit for the IASR limits.
     """
     rows = (
         _uncapped_chain_rows(plan)
@@ -309,6 +313,8 @@ def build_chain_table(
         chains = _keep_caps_at_or_below(chains, max_cap)
     if rez_limit_factor is not None:
         chains["args"] += f" --rez-limit-factor {rez_limit_factor}"
+    if flow_path_limit_factor is not None:
+        chains["args"] += f" --flow-path-limit-factor {flow_path_limit_factor}"
     chains.insert(0, "row", range(len(chains)))
     chains["traces"] = [
         (tracedirs / f"{trajectory}.txt").as_posix()
@@ -338,6 +344,7 @@ def build(
     tracedirs: Path,
     max_cap: float | None = None,
     rez_limit_factor: float | None = None,
+    flow_path_limit_factor: float | None = None,
 ) -> pd.DataFrame:
     """Write one launch's manifest and return its chain table.
 
@@ -346,11 +353,15 @@ def build(
     :param tracedirs: Directory of per-trajectory trace-directory token files.
     :param max_cap: Keep only the cap chains at or below this 2050 target intensity.
     :param rez_limit_factor: Relax every REZ limit by this factor in every chain.
+    :param flow_path_limit_factor: Relax every corridor expansion limit by this factor in
+        every chain.
     :return: Every chain of the campaign in Slurm array order.
     """
     plan_data = json.loads(plan.read_text(encoding="utf-8"))
     caps = build_caps_table(plan_data, _read_git_commit())
-    chains = build_chain_table(plan_data, caps, tracedirs, max_cap, rez_limit_factor)
+    chains = build_chain_table(
+        plan_data, caps, tracedirs, max_cap, rez_limit_factor, flow_path_limit_factor
+    )
     write_manifest(caps, chains, layout.campaign, plan)
     print(f"plan version: {plan_data['version']}; chains: {len(chains)}")
     return chains

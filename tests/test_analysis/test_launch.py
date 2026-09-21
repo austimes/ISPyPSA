@@ -119,6 +119,7 @@ def test_a_plain_launch_records_null_sensitivity_settings_and_the_whole_campaign
 
     assert _assumptions(tmp_path) == {
         "rez_limit_factor": None,
+        "flow_path_limit_factor": None,
         "max_cap": None,
         "chains": 41,
         "inputs": package.as_posix(),
@@ -130,10 +131,17 @@ def test_a_relaxed_deep_cap_launch_records_the_factor_and_its_narrowed_chain_cou
 ):
     package = _stamped_inputs_package(monkeypatch, tmp_path)
 
-    main(run_set="ext41_rezx2", max_cap=0.005, rez_limit_factor=2.0, dry_run=True)
+    main(
+        run_set="ext41_rezx2",
+        max_cap=0.005,
+        rez_limit_factor=2.0,
+        flow_path_limit_factor=1.5,
+        dry_run=True,
+    )
 
     assert _assumptions(tmp_path) == {
         "rez_limit_factor": 2.0,
+        "flow_path_limit_factor": 1.5,
         "max_cap": 0.005,
         "chains": 20,
         "inputs": package.as_posix(),
