@@ -117,6 +117,7 @@ def write_assumptions(
     max_cap: float | None,
     rez_limit_factor: float | None,
     flow_path_limit_factor: float | None,
+    solve_flags: str | None,
 ) -> None:
     """Record what this launch varies, so two run sets can be compared without reading their manifests."""
     (layout.campaign / "assumptions.json").write_text(
@@ -124,6 +125,7 @@ def write_assumptions(
             {
                 "rez_limit_factor": rez_limit_factor,
                 "flow_path_limit_factor": flow_path_limit_factor,
+                "solve_flags": solve_flags,
                 "max_cap": max_cap,
                 "chains": chains,
                 "inputs": inputs.as_posix(),
@@ -145,6 +147,7 @@ def main(
     max_cap: float | None = None,
     rez_limit_factor: float | None = None,
     flow_path_limit_factor: float | None = None,
+    solve_flags: str | None = None,
     dry_run: bool = False,
 ) -> None:
     """Prepare a campaign launch and submit its chains to Slurm.
@@ -165,6 +168,8 @@ def main(
     :param flow_path_limit_factor: Relax the expansion headroom of every sub-region flow path
         and every REZ-to-sub-region connection by this factor in every chain of the launch, as
         a sensitivity against the IASR limits; omit for the IASR limits.
+    :param solve_flags: Extra ``msm solve`` tokens appended to every chain, e.g.
+        ``--gurobi-crossover 0`` for a barrier-only feasibility screen.
     :param dry_run: Write the manifest and print the sbatch command, building no trace
         directories and submitting nothing.
     """
@@ -187,6 +192,7 @@ def main(
         max_cap,
         rez_limit_factor,
         flow_path_limit_factor,
+        solve_flags,
     )
     if array is None and smoke:
         array = "0"
@@ -201,6 +207,8 @@ def main(
     script = SLURM_DIR / ("smoke.sbatch" if smoke else "chain.sbatch")
     # Only a submission into an existing launch directory may keep carried chain state.
     export = {"RESUME": "--resume"} if run else {}
+    if solve_flags:
+        export["SOLVE_FLAGS"] = solve_flags
     if dry_run:
         print(" ".join(sbatch_command(script, array, export, layout, env)))
     else:

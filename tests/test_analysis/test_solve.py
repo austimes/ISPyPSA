@@ -21,6 +21,7 @@ SLURM_DIR = Path(solve.__file__).parent / "slurm"
 SBATCH_SUBSTITUTIONS = {
     '$(cat "$TRACES")': "2030:/io/tracedirs/c/2030 2040:/io/tracedirs/c/2040",
     "${RESUME:-}": "--resume",
+    "${SOLVE_FLAGS:-}": "",
     "$SLURM_CPUS_PER_TASK": "64",
     "$RUN_ID": "ext_central_c0",
     "$RUN_DIR": "/io/outputs/2026-09-18T10.00_ext41",

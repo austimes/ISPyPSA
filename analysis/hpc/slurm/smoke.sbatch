@@ -28,5 +28,5 @@ uv run --no-sync msm solve --run-id smoke_nsw_capped --output-root "$RUN_DIR" \
   --rep-weeks 1 6 10 14 19 22 26 32 35 39 41 45 50 --no-named-weeks \
   --tns-price 89.93 --ccs-supply-curve none --gas-unblended \
   --use-pdlp --pdlp-tolerance 3e-3 --highs-threads $SLURM_CPUS_PER_TASK \
-  --budget-min 90 ${RESUME:-} \
+  --budget-min 90 ${RESUME:-} ${SOLVE_FLAGS:-} \
   --co2-cap-t-schedule 2030:6000000 2040:2000000

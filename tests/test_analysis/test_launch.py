@@ -120,6 +120,7 @@ def test_a_plain_launch_records_null_sensitivity_settings_and_the_whole_campaign
     assert _assumptions(tmp_path) == {
         "rez_limit_factor": None,
         "flow_path_limit_factor": None,
+        "solve_flags": None,
         "max_cap": None,
         "chains": 41,
         "inputs": package.as_posix(),
