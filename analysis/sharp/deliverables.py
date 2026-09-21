@@ -14,6 +14,10 @@ trajectories by ten pressure settings, at the milestones 2030/2040/2050/2060:
                        settings, termination status, residuals, wall time, paths
   acceptance_*.csv     the campaign's acceptance tests, per cell-period and per grid
 
+A seventh table, input_costs.csv, reports the cost inputs the solves were templated from rather
+than anything they produced: new-entrant build cost per technology, fuel price per fuel, and the
+supply-curve tranche adders, each against the financial year it applies to.
+
 Two rules the sweep did not need.
 
   Load shedding. Deep caps can leave demand unserved at the A$10,000/MWh emergency
@@ -43,14 +47,16 @@ Usage:
 """
 
 import json
+import logging
 import shutil
 from pathlib import Path
 from typing import Literal
 
 import pandas as pd
 import pypsa
+import yaml
 
-from analysis.env import Env, OutputLayout
+from analysis.env import MODEL_DATA, Env, OutputLayout
 from analysis.hpc.campaign_grid import (
     CAP_KIND,
     Pressure,
@@ -420,6 +426,117 @@ def extract_chain_products(
     return solved
 
 
+# -------------------------------------------------------------------- cost inputs
+
+#: Long-form columns of ``input_costs.csv``.
+INPUT_COST_COLUMNS = ["category", "name", "year", "value", "unit", "source_table"]
+
+#: Templated fuel-price tables, as the page names each fuel. Coal and gas are priced per generator,
+#: so a table's mean across its generators is the fuel's price; the other four price one fuel each.
+FUEL_PRICE_TABLES = {
+    "coal_prices": "Coal",
+    "gas_prices": "Gas",
+    "biomass_prices": "Biomass",
+    "liquid_fuel_prices": "Liquid Fuel",
+    "hydrogen_prices": "Hydrogen",
+    "biomethane_prices": "Biomethane",
+}
+
+
+def _melt_financial_years(
+    table: pd.DataFrame, category: str, unit: str, source_table: str
+) -> pd.DataFrame:
+    """One templated cost table, indexed by name with a column per financial year, in long form.
+
+    A templated year column is named ``2029_30_$/mw``, and ISPyPSA refers to a financial year by the
+    calendar year it ends in, so that column is 2030.
+    """
+    years = {name: int(name[:4]) + 1 for name in table.columns if name[:4].isdigit()}
+    long = table[list(years)].rename(columns=years).rename_axis("name")
+    return (
+        long.melt(ignore_index=False, var_name="year", value_name="value")
+        .reset_index()
+        .assign(category=category, unit=unit, source_table=source_table)
+    )
+
+
+def _templated_cost_rows(inputs: Path) -> pd.DataFrame:
+    """New-entrant build cost and fuel price from one solve's templated ``ispypsa_inputs``."""
+    builds = pd.read_csv(inputs / "new_entrant_build_costs.csv").set_index("technology")
+    fuels = [
+        _melt_financial_years(
+            pd.read_csv(inputs / f"{stem}.csv")
+            .mean(numeric_only=True)
+            .to_frame(fuel)
+            .T,
+            "fuel_price",
+            "A$/GJ",
+            stem,
+        )
+        for stem, fuel in FUEL_PRICE_TABLES.items()
+    ]
+    build_cost = _melt_financial_years(
+        builds, "build_cost", "A$/MW", "new_entrant_build_costs"
+    )
+    return pd.concat([build_cost, *fuels], ignore_index=True)
+
+
+def _tranche_adder_rows(config: Path) -> pd.DataFrame:
+    """Supply-curve tranche adders: what each tranche charges above the IASR fuel price, A$/GJ.
+
+    A solve's config names its curves by absolute path on the host that solved it, so each curve is
+    resolved by file name against the authored curves this package versions.
+    """
+    settings = yaml.safe_load(config.read_text(encoding="utf-8"))
+    rows = []
+    for fuel in ("gas", "biomass"):
+        named = settings.get(f"{fuel}_supply_curve", {}).get("curve_csv")
+        curve = pd.read_csv(MODEL_DATA / Path(named).name) if named else None
+        if curve is not None:
+            rows.append(
+                curve.rename(
+                    columns={"financial_year": "year", "adder_$/gj": "value"}
+                ).assign(
+                    category="fuel_adder",
+                    name=f"{fuel} " + curve["tranche"],
+                    unit="A$/GJ adder",
+                    source_table=Path(named).name,
+                )
+            )
+    if not rows:
+        return pd.DataFrame(columns=INPUT_COST_COLUMNS)
+    return pd.concat(rows, ignore_index=True)
+
+
+def _write_input_costs(layout: OutputLayout, chain: str, years: list[int]) -> None:
+    """Write the cost inputs one chain's solves were templated from, as ``input_costs.csv``.
+
+    Every milestone of a chain is templated from the same IASR tables, so the first milestone whose
+    templated inputs are still on disk carries the whole series. A campaign whose run directories
+    live elsewhere, or have been cleared away, exports no cost inputs at all.
+    """
+    on_disk = [
+        year
+        for year in years
+        if (layout.run_dir(f"{chain}_{year}") / "ispypsa_inputs").is_dir()
+    ]
+    if not on_disk:
+        logging.info(
+            f"No templated inputs under {layout.runs} for {chain}: no input_costs.csv"
+        )
+        return
+    run_id = f"{chain}_{on_disk[0]}"
+    rows = pd.concat(
+        [
+            _templated_cost_rows(layout.run_dir(run_id) / "ispypsa_inputs"),
+            _tranche_adder_rows(layout.config(run_id)),
+        ],
+        ignore_index=True,
+    )[INPUT_COST_COLUMNS]
+    rows.to_csv(layout.exports / "input_costs.csv", index=False)
+    print(f"  wrote input_costs.csv  ({len(rows)} rows, templated from {run_id})")
+
+
 # ---------------------------------------------------------------------- assembly
 
 
@@ -638,8 +755,9 @@ def _run_extract(
         print(f"  extracted {run_id}  ({len(solved)} milestones: {solved})")
 
 
-def _run_assemble(plan: dict, exports: Path) -> None:
-    """Build and write the six deliverable tables."""
+def _run_assemble(plan: dict, layout: OutputLayout, chain: str) -> None:
+    """Build and write the deliverable tables, and the cost inputs ``chain`` was templated from."""
+    exports = layout.exports
     tables = assemble(
         exports / "per_chain",
         plan["milestone_years"],
@@ -658,6 +776,7 @@ def _run_assemble(plan: dict, exports: Path) -> None:
         "  cells with unpriced fuel (milestone beyond the IASR price tables): "
         f"{results['fuel_unpriced'].sum()}"
     )
+    _write_input_costs(layout, chain, plan["milestone_years"])
 
 
 def _submit_extract(layout: OutputLayout, n_chains: int, assemble_after: bool) -> None:
@@ -703,4 +822,4 @@ def main(
         run_ids = [only] if only else _chain_ids(chains)
         _run_extract(layout, plan_data, run_ids, workbook_cache, layout.exports)
     if stage in ("assemble", "all"):
-        _run_assemble(plan_data, layout.exports)
+        _run_assemble(plan_data, layout, _chain_ids(chains)[0])

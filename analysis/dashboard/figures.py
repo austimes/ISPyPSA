@@ -109,6 +109,22 @@ COST_COMPONENTS = [
     "carbon",
 ]
 
+#: Cost-input categories of ``input_costs.csv``, in panel order, titled with the unit each is
+#: priced in. A category the run's inputs do not cover gets no panel.
+INPUT_COST_LABELS = {
+    "build_cost": "New-entrant build cost (A$/MW)",
+    "fuel_price": "Fuel price (A$/GJ)",
+    "fuel_adder": "Supply-curve tranche adder (A$/GJ)",
+}
+
+#: Most technologies the build-cost panel draws. A run templates a couple of dozen, more lines than
+#: one set of axes can be read on, so only the dearest this many in the earliest year are drawn.
+
+#: Hues for the cost inputs that are not generation carriers. The default ten-colour sequence
+#: repeats itself several times over a run's technologies, fuels and tranches, which puts two lines
+#: of one panel in the same colour; this one is long enough not to.
+INPUT_COST_COLOURS = px.colors.qualitative.Dark24
+
 #: Unserved energy a cell has to stay under to pass acceptance, as a percentage of demand.
 USE_ACCEPTANCE_PCT = 0.1
 
@@ -127,6 +143,8 @@ IMPLIED_PRICE_HEIGHT = 450
 MARGINALS_HEIGHT = 620
 DECOMPOSITION_HEIGHT = 520
 CAP_TRACKING_HEIGHT = 700
+#: Tall enough for the cost-input legend, which runs to one entry per technology, fuel and tranche.
+INPUT_COSTS_HEIGHT = 760
 
 #: Top margin a figure needs to clear the linear/log buttons drawn above it, in pixels.
 SCALE_BUTTON_MARGIN = 110
@@ -813,6 +831,47 @@ def _cost_components(frame: pd.DataFrame) -> pd.DataFrame:
         var_name="component",
         value_name="cost_per_mwh",
     )
+
+
+def figure_input_costs(costs: pd.DataFrame) -> go.Figure:
+    """The cost inputs the run's solves were templated from, over the financial years they cover.
+
+    One panel per cost category, each on its own y scale because the categories are priced in
+    different units. Build cost spans more than an order of magnitude across the technologies, so
+    that panel is drawn logarithmically; the buttons above switch every panel between the two
+    scales. A cost input named after a generation carrier takes that carrier's colour, so biomass,
+    gas and wind read here as they do everywhere else on the page.
+
+    :param costs: The run's ``input_costs.csv``, one row per category, name and year.
+    """
+    drawn = costs.dropna(subset=["value"])
+    panels = [name for name in INPUT_COST_LABELS if name in set(drawn["category"])]
+    figure = px.line(
+        drawn.replace({"category": INPUT_COST_LABELS}).sort_values(["name", "year"]),
+        x="year",
+        y="value",
+        color="name",
+        facet_col="category",
+        category_orders={"category": [INPUT_COST_LABELS[name] for name in panels]},
+        color_discrete_map=_carrier_named_colours(drawn["name"]),
+        color_discrete_sequence=INPUT_COST_COLOURS,
+        labels=LABELS,
+        height=INPUT_COSTS_HEIGHT,
+    )
+    figure.update_yaxes(matches=None, showticklabels=True)
+    if "build_cost" in panels:
+        figure.update_yaxes(type="log", col=panels.index("build_cost") + 1)
+    figure.update_layout(legend_title_text="Cost input")
+    return add_axis_scale_buttons(_strip_facet_titles(figure), axes="y")
+
+
+def _carrier_named_colours(names: pd.Series) -> dict[str, str]:
+    """Pin the cost inputs named after a generation carrier to that carrier's colour."""
+    return {
+        name: CARRIER_COLOURS[name]
+        for name in names.unique()
+        if name in CARRIER_COLOURS
+    }
 
 
 def figure_cap_tracking(frame: pd.DataFrame) -> go.Figure:

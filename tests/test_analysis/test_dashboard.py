@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 from plotly.subplots import make_subplots
 
+from analysis.dashboard import figures
 from analysis.dashboard.build import (
     ASSUMPTIONS_HEADING,
     SECTIONS,
@@ -15,9 +16,11 @@ from analysis.dashboard.build import (
     tidy_frame,
 )
 from analysis.dashboard.figures import (
+    CARRIER_COLOURS,
     COST_COMPONENTS,
     GRID_SIZE,
     HATCH_NOTE,
+    INPUT_COST_LABELS,
     add_axis_match_buttons,
     figure_cap_tracking,
     figure_cost_decomposition,
@@ -28,6 +31,7 @@ from analysis.dashboard.figures import (
     figure_cost_pathway,
     figure_demand_marginals,
     figure_implied_carbon_price,
+    figure_input_costs,
     figure_storage_build,
     figure_tech_mix,
     html_search_grid,
@@ -411,6 +415,39 @@ def test_storage_build_lists_each_duration_once_across_both_carriers(exports):
         "2 to 4 h",
         "over 24 h",
     ]
+
+
+@pytest.fixture
+def input_costs(csv_str_to_df) -> pd.DataFrame:
+    """Two technologies, two fuels and one tranche adder, over two years."""
+    return csv_str_to_df("""
+        category,    name,                 year,  value,      unit,          source_table
+        build_cost,  Wind,                 2030,  2745000.0,  A$/MW,         new_entrant_build_costs
+        build_cost,  Wind,                 2040,  2100000.0,  A$/MW,         new_entrant_build_costs
+        build_cost,  CCGT,                 2030,  2250000.0,  A$/MW,         new_entrant_build_costs
+        build_cost,  CCGT,                 2040,  2000000.0,  A$/MW,         new_entrant_build_costs
+        fuel_price,  Gas,                  2030,  13.0,       A$/GJ,         gas_prices
+        fuel_price,  Gas,                  2040,  13.5,       A$/GJ,         gas_prices
+        fuel_price,  Biomass,              2030,  0.6,        A$/GJ,         biomass_prices
+        fuel_price,  Biomass,              2040,  0.7,        A$/GJ,         biomass_prices
+        fuel_adder,  gas__lng__imports,    2030,  6.0,        A$/GJ__adder,  gas_supply_curve.csv
+        fuel_adder,  gas__lng__imports,    2040,  6.0,        A$/GJ__adder,  gas_supply_curve.csv
+    """)
+
+
+def test_input_costs_draws_one_panel_per_category_with_build_cost_on_a_log_axis(
+    input_costs,
+):
+    figure = figure_input_costs(input_costs)
+
+    assert [note.text for note in figure.layout.annotations] == list(
+        INPUT_COST_LABELS.values()
+    )
+    assert (figure.layout.yaxis.type, figure.layout.yaxis2.type) == ("log", None)
+    # Gas and biomass are generation carriers, so they keep the colours the mix figures give them.
+    coloured = {trace.name: trace.line.color for trace in figure.data}
+    assert coloured["Gas"] == CARRIER_COLOURS["Gas"]
+    assert coloured["Biomass"] == CARRIER_COLOURS["Biomass"]
 
 
 def test_search_grid_heads_each_column_with_its_spelled_out_name(grid_exports):

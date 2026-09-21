@@ -8,6 +8,10 @@ frame, one row per cell-year, and every figure in :mod:`analysis.dashboard.figur
 source commit shown in the page heading is read from the run's solve records,
 ``<run>/records/*.json``, and the assumptions table from its ``<run>/campaign/``.
 
+Two sections read the run directory rather than the tidy frame: the assumptions table, and the
+technology cost inputs, which come from ``exports/input_costs.csv`` where the assemble stage found
+templated inputs on disk to read them from.
+
 The page carries plotly's javascript inline, so it opens straight off the data share with no
 server and no build step.
 """
@@ -160,10 +164,8 @@ SECTIONS = {
     "Storage build": figures.figure_storage_build,
 }
 
-#: The run-assumptions table, which reads the run directory itself rather than the tidy frame, and
-#: so sits outside ``SECTIONS``. It is shown under the section it follows.
+#: Heading of the run-assumptions table, which the tests name.
 ASSUMPTIONS_HEADING = "Assumptions"
-ASSUMPTIONS_FOLLOWS = "Technology mix"
 
 
 #: Each section sits in a box of its own height, which the divider below it drags taller or shorter.
@@ -250,11 +252,22 @@ def _section_box(body: go.Figure | str) -> str:
 def _drawn_sections(
     frame: pd.DataFrame, layout: OutputLayout
 ) -> list[tuple[str, go.Figure | str | None]]:
-    """Every section in page order, with the run-assumptions table under the technology mix."""
-    drawn = [(heading, build(frame)) for heading, build in SECTIONS.items()]
-    under = list(SECTIONS).index(ASSUMPTIONS_FOLLOWS) + 1
-    assumptions = (ASSUMPTIONS_HEADING, _html_assumptions(layout))
-    return [*drawn[:under], assumptions, *drawn[under:]]
+    """Every section in page order, each run-directory section spliced under the one it follows."""
+    drawn = []
+    for heading, build_from_frame in SECTIONS.items():
+        drawn.append((heading, build_from_frame(frame)))
+        if heading in RUN_SECTIONS:
+            title, build_from_run = RUN_SECTIONS[heading]
+            drawn.append((title, build_from_run(layout)))
+    return drawn
+
+
+def _figure_input_costs(layout: OutputLayout) -> go.Figure | None:
+    """The run's cost inputs, or nothing where the assemble stage found no templated inputs to read."""
+    costs = layout.exports / "input_costs.csv"
+    if not costs.exists():
+        return None
+    return figures.figure_input_costs(pd.read_csv(costs))
 
 
 def _html_assumptions(layout: OutputLayout) -> str:
@@ -271,6 +284,17 @@ def _assumptions(layout: OutputLayout) -> dict[str, object]:
     inputs = layout.campaign / "inputs.txt"
     named = inputs.read_text(encoding="utf-8").strip() if inputs.exists() else ""
     return {"inputs": named}
+
+
+#: Sections built from the run directory rather than the tidy frame, each keyed on the ``SECTIONS``
+#: heading it is shown under, and holding its own heading and builder.
+RUN_SECTIONS = {
+    "Cost decomposition, central trajectory": (
+        "Technology cost inputs",
+        _figure_input_costs,
+    ),
+    "Technology mix": (ASSUMPTIONS_HEADING, _html_assumptions),
+}
 
 
 def _provenance(layout: OutputLayout) -> str:

@@ -1,11 +1,14 @@
 import pandas as pd
 
+from analysis.env import OutputLayout
 from analysis.hpc.campaign_grid import order_pressures
 from analysis.sharp.deliverables import (
     _add_load_shedding,
     _add_unpriced_fuel,
     _cost_monotone_rows,
     _marginals,
+    _templated_cost_rows,
+    _write_input_costs,
 )
 
 _TRAJECTORY_ORDER = ["low", "central", "stress"]
@@ -117,3 +120,66 @@ def test_cost_monotone_row_per_year_and_pressure(csv_str_to_df):
         2050,  cap002,    False,                          3
     """)
     pd.testing.assert_frame_equal(pd.DataFrame(rows), expected)
+
+
+def test_templated_cost_rows_melts_build_costs_and_averages_each_fuel_table(
+    tmp_path, csv_str_to_df
+):
+    tables = {
+        "new_entrant_build_costs": """
+            technology,  2029_30_$/mw,  2039_40_$/mw
+            Wind,        2745000.0,     2100000.0
+            CCGT,        2250000.0,     2000000.0
+        """,
+        "coal_prices": """
+            generator,  2029_30_$/gj,  2039_40_$/gj
+            Bayswater,  4.0,           3.0
+            Eraring,    6.0,           5.0
+        """,
+        "gas_prices": """
+            generator,   2029_30_$/gj,  2039_40_$/gj
+            Bairnsdale,  13.0,          13.5
+        """,
+        "biomass_prices": "2029_30_$/gj, 2039_40_$/gj\n0.6, 0.7",
+        "liquid_fuel_prices": "2029_30_$/gj, 2039_40_$/gj\n29.7, 24.9",
+        "hydrogen_prices": "2029_30_$/gj, 2039_40_$/gj\n37.7, 24.7",
+        "biomethane_prices": "2029_30_$/gj, 2039_40_$/gj\n23.5, 21.7",
+    }
+    inputs = tmp_path / "ispypsa_inputs"
+    inputs.mkdir()
+    for stem, csv in tables.items():
+        csv_str_to_df(csv).to_csv(inputs / f"{stem}.csv", index=False)
+
+    result = _templated_cost_rows(inputs)
+
+    expected = csv_str_to_df("""
+        name,          year,  value,      category,    unit,   source_table
+        Wind,          2030,  2745000.0,  build_cost,  A$/MW,  new_entrant_build_costs
+        CCGT,          2030,  2250000.0,  build_cost,  A$/MW,  new_entrant_build_costs
+        Wind,          2040,  2100000.0,  build_cost,  A$/MW,  new_entrant_build_costs
+        CCGT,          2040,  2000000.0,  build_cost,  A$/MW,  new_entrant_build_costs
+        Coal,          2030,  5.0,        fuel_price,  A$/GJ,  coal_prices
+        Coal,          2040,  4.0,        fuel_price,  A$/GJ,  coal_prices
+        Gas,           2030,  13.0,       fuel_price,  A$/GJ,  gas_prices
+        Gas,           2040,  13.5,       fuel_price,  A$/GJ,  gas_prices
+        Biomass,       2030,  0.6,        fuel_price,  A$/GJ,  biomass_prices
+        Biomass,       2040,  0.7,        fuel_price,  A$/GJ,  biomass_prices
+        Liquid__Fuel,  2030,  29.7,       fuel_price,  A$/GJ,  liquid_fuel_prices
+        Liquid__Fuel,  2040,  24.9,       fuel_price,  A$/GJ,  liquid_fuel_prices
+        Hydrogen,      2030,  37.7,       fuel_price,  A$/GJ,  hydrogen_prices
+        Hydrogen,      2040,  24.7,       fuel_price,  A$/GJ,  hydrogen_prices
+        Biomethane,    2030,  23.5,       fuel_price,  A$/GJ,  biomethane_prices
+        Biomethane,    2040,  21.7,       fuel_price,  A$/GJ,  biomethane_prices
+    """)
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_input_costs_are_skipped_when_no_templated_inputs_are_on_disk(tmp_path, caplog):
+    with caplog.at_level("INFO"):
+        _write_input_costs(OutputLayout(tmp_path), "ext_central_c0", [2030, 2040])
+
+    assert (
+        f"No templated inputs under {tmp_path / 'runs'} for ext_central_c0: "
+        "no input_costs.csv"
+    ) in caplog.text
+    assert not (tmp_path / "exports").exists()
