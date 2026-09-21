@@ -36,9 +36,10 @@ energy storage (PHES) rows described in MODELLING_ASSUMPTIONS.md.
 ## Prepare demand trace directories
 
 `msm launch` builds one rewritten demand trace directory per (trajectory, milestone year) under the input package's
-`tracedirs/`, scaling the source trace so that year delivers the trajectory's target source NEM load;
-wind and solar traces are shared unscaled across trajectories. A trajectory whose trace directories exist is left alone,
-so the build is safe to repeat. The demand plan driving this (trajectories, milestone years, target loads) is
+`tracedirs/`, scaling the source trace so that year delivers the trajectory's target source NEM load; wind and solar
+traces are shared unscaled across trajectories. A trajectory whose trace directories exist is left alone unless the
+plan's authored knots for it have changed, in which case they are rebuilt, so the build is safe to repeat and picks up
+an edited plan. The demand plan driving this (trajectories, milestone years, target loads) is
 `analysis/hpc/demand_plan.json` by default; run `msm launch --help` for the option that points it at a different file.
 
 ## Solve a chain

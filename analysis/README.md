@@ -52,9 +52,10 @@ $IO_DIR/
 The Inputs, Assumptions and Scenarios Report (IASR) is AEMO's published workbook of National Electricity Market (NEM)
 modelling inputs; `workbook_cache_final/` is its parsed cache and `traces/isp_2026/` is the parsed demand and weather
 trace store. `tracedirs/` holds one rewritten demand trace directory per (trajectory, milestone year), built by
-`msm launch` the first time a trajectory is used. A run reads the newest input package unless `MSM_INPUTS` names another
-one, and records the package it read in `campaign/inputs.txt`. Each `outputs/<stamp>_<run_set>/` directory is one
-launch's complete output, laid out by `analysis.env.OutputLayout`.
+`msm launch` the first time a trajectory is used, and rebuilt whenever the demand plan's authored knots for that
+trajectory change, so an edited plan is never served from directories scaled to the knots it replaced. A run reads the
+newest input package unless `MSM_INPUTS` names another one, and records the package it read in `campaign/inputs.txt`.
+Each `outputs/<stamp>_<run_set>/` directory is one launch's complete output, laid out by `analysis.env.OutputLayout`.
 
 ## `.env` setup
 

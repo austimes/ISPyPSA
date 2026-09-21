@@ -19,15 +19,20 @@ Outputs under the output root:
 
 * ``<trajectory>/<year>/isp_<dataset year>/`` - the trace directories themselves.
 * ``<trajectory>.txt`` - the ``YEAR:DIR`` tokens for ``msm solve --parsed-traces-directory-schedule``.
-* ``annual_demand_series.csv`` - the yearly source-TWh path behind each trajectory.
+* ``annual_demand_series.csv`` - the yearly source-TWh path behind each trajectory, and the record of the authored
+  knots every built trajectory was scaled to.
 * ``manifest_demand_dirs.csv`` - the scalar and the energies behind every directory built by the last call.
 
-A build is idempotent per trajectory: a trajectory whose directory already exists keeps its data, and only its token
-file and shared-VRE links are rewritten, so the store grows as new trajectories are added and an interrupted build
-can simply be re-run.
+A build is idempotent per trajectory: a trajectory whose directory already exists and whose plan knots still match the
+demand series keeps its data, and only its token file and shared-VRE links are rewritten, so the store grows as new
+trajectories are added and an interrupted build can simply be re-run. A trajectory whose plan knots have changed is
+stale: its directory is deleted and rebuilt, so an edited demand plan cannot go on being served from trace directories
+scaled to the knots it replaced. The demand series is written after the directories it describes, so an interrupted
+build leaves the previous knots on record and the trajectories it had started are detected as stale again.
 """
 
 import json
+import logging
 import os
 import shutil
 from dataclasses import dataclass
@@ -350,13 +355,48 @@ def _print_summary(records: list[dict]) -> None:
         )
 
 
+def _recorded_knots(out_root: Path) -> dict[str, dict[str, float]]:
+    """Authored knots each built trajectory was scaled to, read back from the last build's demand series.
+
+    A trajectory absent from the series is treated as having no knots on record, so it is rebuilt.
+    """
+    series_file = out_root / "annual_demand_series.csv"
+    if not series_file.exists():
+        return {}
+    series = pd.read_csv(series_file)
+    authored = series[series["kind"] == "authored"]
+    return {
+        trajectory: dict(
+            zip(rows["financial_year"].astype(str), rows["source_twh"].astype(float))
+        )
+        for trajectory, rows in authored.groupby("trajectory")
+    }
+
+
 def _pending_trajectories(out_root: Path, plan: dict) -> list[str]:
-    """Trajectories of the plan whose trace directories have not been built yet."""
+    """Trajectories of the plan whose trace directories are missing, or were built from knots the plan has since changed."""
+    recorded = _recorded_knots(out_root)
     return [
         trajectory
-        for trajectory in plan["demand_paths_source_twh"]
+        for trajectory, targets in plan["demand_paths_source_twh"].items()
         if not (out_root / trajectory).is_dir()
+        or recorded.get(trajectory)
+        != {year: float(twh) for year, twh in targets.items()}
     ]
+
+
+def _discard_stale_trajectories(out_root: Path, pending: list[str]) -> None:
+    """Delete the trace directories of pending trajectories that already exist, so their changed knots are rebuilt."""
+    stale = sorted(
+        trajectory for trajectory in pending if (out_root / trajectory).is_dir()
+    )
+    if not stale:
+        return
+    logging.warning(
+        f"Rebuilding trace directories whose demand plan knots no longer match the built ones: {stale}"
+    )
+    for trajectory in stale:
+        shutil.rmtree(out_root / trajectory)
 
 
 def build(
@@ -380,6 +420,7 @@ def build(
     plan_data = json.loads(plan.read_text(encoding="utf-8"))
     out_root.mkdir(parents=True, exist_ok=True)
     pending = _pending_trajectories(out_root, plan_data)
+    _discard_stale_trajectories(out_root, pending)
     # Token files and shared-VRE links hold absolute paths, so both are rewritten from the
     # directories on every build: an input package that has been moved then repairs itself.
     for trajectory in plan_data["demand_paths_source_twh"]:
@@ -391,7 +432,6 @@ def build(
     if not pending:
         print(f"trace directories already built for every trajectory in {out_root}")
         return
-    _write_annual_demand_series(out_root, plan_data)
     _build_extended_vre_store(
         source, out_root, reference_year, plan_data["milestone_years"]
     )
@@ -411,5 +451,6 @@ def build(
             plan_data["demand_paths_source_twh"][trajectory],
             plan_data["milestone_years"],
         )
+    _write_annual_demand_series(out_root, plan_data)
     _write_manifest(out_root, records, plan_data["version"])
     _print_summary(records)

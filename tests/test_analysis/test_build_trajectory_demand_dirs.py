@@ -289,6 +289,64 @@ def test_a_later_build_repairs_a_vre_link_left_behind_by_a_moved_store(
     )
 
 
+def _rewrite_knot(plan_file: Path, trajectory: str, year: str, twh: float) -> None:
+    """Change one authored knot of one trajectory in a demand plan on disk."""
+    plan = json.loads(plan_file.read_text(encoding="utf-8"))
+    plan["demand_paths_source_twh"][trajectory][year] = twh
+    plan_file.write_text(json.dumps(plan), encoding="utf-8")
+
+
+def test_a_changed_knot_rebuilds_only_its_own_trajectory(
+    built, source_store, plan_file, caplog
+):
+    kept = built / "unit_flat" / "2049" / "sentinel.txt"
+    kept.write_text("kept", encoding="utf-8")
+    discarded = built / "unit_scaled" / "2049" / "sentinel.txt"
+    discarded.write_text("discarded", encoding="utf-8")
+    _rewrite_knot(plan_file, "unit_scaled", "2049", 0.0096)
+
+    with caplog.at_level("WARNING"):
+        build(
+            source=source_store,
+            out_root=built,
+            plan=plan_file,
+            reference_year=REFERENCE_YEAR,
+        )
+
+    assert (
+        "Rebuilding trace directories whose demand plan knots no longer match the built ones: "
+        "['unit_scaled']"
+    ) in caplog.text
+    assert kept.read_text(encoding="utf-8") == "kept"
+    assert not discarded.exists()
+    manifest = pd.read_csv(built / "manifest_demand_dirs.csv")
+    assert manifest["trajectory"].tolist() == ["unit_scaled"] * 3
+    assert manifest["scalar"].tolist() == [1.0, 0.5, 2.0]
+
+
+def test_an_unchanged_plan_rebuilds_nothing(built, source_store, plan_file, caplog):
+    sentinels = [
+        built / trajectory / "2049" / "sentinel.txt"
+        for trajectory in ("unit_flat", "unit_scaled")
+    ]
+    for sentinel in sentinels:
+        sentinel.write_text("kept", encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        build(
+            source=source_store,
+            out_root=built,
+            plan=plan_file,
+            reference_year=REFERENCE_YEAR,
+        )
+
+    assert "Rebuilding trace directories" not in caplog.text
+    assert [sentinel.read_text(encoding="utf-8") for sentinel in sentinels] == [
+        "kept",
+        "kept",
+    ]
+
+
 def test_tracedirs_file_lists_one_token_per_milestone_in_year_order(built):
     tokens = (built / "unit_scaled.txt").read_text(encoding="utf-8").split()
 
