@@ -406,6 +406,7 @@ def main(
     use_gurobi: bool = False,
     gurobi_method: int | None = None,
     gurobi_bar_conv_tol: float | None = None,
+    gurobi_crossover: int | None = None,
     gurobi_threads: int | None = None,
     use_pdlp: bool = False,
     pdlp_tolerance: float | None = None,
@@ -458,6 +459,8 @@ def main(
     :param region_filter: Single NEM region to solve, e.g. ``NSW``; omit for the full NEM.
     :param use_gurobi: Solve with Gurobi instead of HiGHS.
     :param gurobi_method: Gurobi ``Method`` (2 is barrier).
+    :param gurobi_crossover: Gurobi ``Crossover``; 0 stops after the barrier, which is enough for a
+        feasibility screen but leaves no exact vertex and no reliable cap duals.
     :param gurobi_bar_conv_tol: Gurobi ``BarConvTol``; pin it, because Gurobi's own
         default is tighter than intended here and materially slower.
     :param gurobi_threads: Gurobi ``Threads``; pin to the job's core allocation.
@@ -498,6 +501,7 @@ def main(
         use_gurobi=use_gurobi,
         gurobi_method=gurobi_method,
         gurobi_bar_conv_tol=gurobi_bar_conv_tol,
+        gurobi_crossover=gurobi_crossover,
         gurobi_threads=gurobi_threads,
         carried_tranches_dir=tranches_dir,
         reducible_existing=reducible_existing,

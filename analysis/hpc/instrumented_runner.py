@@ -766,6 +766,12 @@ def main():
         help="Set Gurobi BarConvTol (default 1e-8); e.g. 1e-3 for relaxed run",
     )
     ap.add_argument(
+        "--gurobi-crossover",
+        type=int,
+        default=None,
+        help="Set Gurobi Crossover (0 stops after barrier: no exact vertex, no reliable duals)",
+    )
+    ap.add_argument(
         "--gurobi-threads",
         type=int,
         default=None,
@@ -882,6 +888,8 @@ def main():
             gurobi_opts["Threads"] = args.gurobi_threads
         if args.gurobi_method is not None:
             gurobi_opts["Method"] = args.gurobi_method
+        if args.gurobi_crossover is not None:
+            gurobi_opts["Crossover"] = args.gurobi_crossover
         if gurobi_opts:
             solver_options = gurobi_opts
     if args.highs_threads is not None and not args.use_gurobi:
