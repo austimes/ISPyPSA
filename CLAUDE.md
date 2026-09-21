@@ -263,3 +263,11 @@ reproduce an electricity investment history end to end.
   package builder: `msm` is the only path that applies the fork's model patches.
 - Write the laziest code that works - shortest diff, standard library and existing helpers before anything new - and
   leave no commentary in the code about the change itself.
+- Every numeric assumption the campaign relies on is researched under `analysis/research/<topic>/`, one folder per
+  assumption area, following the ShARP `research-role` conventions: `research.md` (what the model does, the derivation,
+  a table of the numbers, and a `confidence: high|medium|low` line with a one-line rationale per derivation),
+  `source_data.md` (numbered sources with a link or file path and a verbatim quote where the document is available;
+  never invent a quote or page number, say so when none exists), `source_ledger.csv` and `assumptions_ledger.csv` with
+  the fixed column sets, and a `plot_*.py` that writes html and png with plotly wherever a plot earns its place. Tables
+  over prose; cite files by path; keep every research doc stateless. Update the topic folder in the same change as the
+  code or data it describes, and add new topics to `analysis/research/README.md`.
