@@ -1,0 +1,7 @@
+source_id,citation,publication_date,institution,document_location,slug,url
+S001,Campaign pressure ladder and cap tonnage arithmetic.,,This fork,analysis/hpc/manifest.py,ispypsa_fork_cap_ladder,
+S002,Absolute annual carbon dioxide equivalent cap constraint and its per-generator residual coefficient.,,This fork,analysis/hpc/instrumented_runner.py and src/ispypsa/translator/generators.py,ispypsa_fork_co2_cap_constraint,
+S003,Unserved-energy price and per-node limit written into every generated period config.,,This fork,analysis/hpc/solve.py,ispypsa_fork_unserved_energy_config,
+S004,Load-shedding acceptance rule and implied carbon price recovery.,,This fork,analysis/sharp/deliverables.py,ispypsa_fork_acceptance_rule,
+S005,Load shedding observed in the deepest-cap reference solve.,,This fork,"Working note rez_transmission_limits.md, not committed to this repository",ispypsa_fork_deepest_cap_shedding,
+S006,Demand trajectories supplying the source load each cap tonnage is computed against.,,This fork,analysis/hpc/demand_plan.json; see analysis/research/demand_plan/,ispypsa_fork_demand_plan,
