@@ -143,6 +143,7 @@ def test_a_relaxed_deep_cap_launch_records_the_factor_and_its_narrowed_chain_cou
     assert _assumptions(tmp_path) == {
         "rez_limit_factor": 2.0,
         "flow_path_limit_factor": 1.5,
+        "solve_flags": None,
         "max_cap": 0.005,
         "chains": 20,
         "inputs": package.as_posix(),
