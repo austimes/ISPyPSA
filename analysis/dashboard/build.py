@@ -84,7 +84,7 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     :param exports: The run's ``exports/`` directory.
     :return: Trajectory and pressure keys, delivered energy, both emissions intensities, cost and
         its components, the cap and its shadow price, boundary flag, solve status and the
-        per-carrier generation shares, per-fuel input intensities and storage power.
+        per-carrier energy delivered, per-fuel input intensities and storage power.
     """
     results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
     marginals = pd.read_csv(exports / "marginals.csv").rename(columns=MARGINAL_MEASURES)
@@ -93,9 +93,9 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
         ["cell", "year", *ACCEPTANCE_TESTS]
     ]
     storage = _storage_power_columns(pd.read_csv(exports / "storage.csv"))
-    shares = list(results.filter(regex=r"^share_"))
+    carriers = list(results.filter(regex=r"^twh_"))
     fuels = list(results.filter(regex=r"^gj_per_mwh_"))
-    frame = results[[*RESULT_KEYS, *RESULT_MEASURES.values(), *shares, *fuels]].merge(
+    frame = results[[*RESULT_KEYS, *RESULT_MEASURES.values(), *carriers, *fuels]].merge(
         marginals[
             ["pressure", "year", "trajectory", "marginal_cost", "marginal_intensity"]
         ],
@@ -149,21 +149,16 @@ def _status_label(frame: pd.DataFrame) -> pd.Series:
 SECTIONS = {
     "Pathway intensities (every chain, ShARP-style)": figures.figure_pathway_intensities,
     "Cost frontier": figures.figure_cost_frontier,
-    "Cost frontier, animated by year": figures.figure_cost_frontier_animated,
-    "Cost frontier, years overlaid": figures.figure_cost_frontier_overlaid,
     "Cost against emissions intensity": figures.figure_cost_families,
-    "Cost surface over demand and demand-marginal intensity": figures.figure_cost_contours,
     "Cost surface as heatmap": figures.figure_cost_heatmap,
+    "Technology mix": figures.figure_tech_mix,
+    "Storage build": figures.figure_storage_build,
     "Cost pathway over time": figures.figure_cost_pathway,
     "Implied carbon price of each cap": figures.figure_implied_carbon_price,
     "Demand-marginal cost and intensity (step to the next demand trajectory)": figures.figure_demand_marginals,
     "Cost decomposition, central trajectory": figures.figure_cost_decomposition,
-    "Cap tracking and unserved energy": figures.figure_cap_tracking,
     "Summary measure matrix": figures.figure_summary_matrix,
-    "Parallel coordinates": figures.figure_parallel_coordinates,
     "Searched parameter grid": figures.html_search_grid,
-    "Technology mix": figures.figure_tech_mix,
-    "Storage build": figures.figure_storage_build,
 }
 
 #: Heading of the run-assumptions table, which the tests name.
@@ -188,10 +183,9 @@ DIVIDER = (
 
 #: Everything the page does once it is open: drag a divider to resize the box above it, click a
 #: table heading to sort on that column, and click a plot's fullscreen button to blow its box up.
-#: The button is added by re-rendering each plot with plotly's own modebar hook, which drops the
-#: plot's animation frames, so the animated figure's frames are put back and it keeps its year
-#: slider. Each divider is paired with its box by position, because plotly parks a hidden measuring
-#: svg in the body next to the first plot, which leaves the first divider no box as a previous sibling.
+#: The button is added by re-rendering each plot with plotly's own modebar hook. Each divider is
+#: paired with its box by position, because plotly parks a hidden measuring svg in the body next to
+#: the first plot, which leaves the first divider no box as a previous sibling.
 PAGE_SCRIPT = """<script>
 const fit = box => {
   const plot = box.querySelector(".js-plotly-plot");
@@ -226,9 +220,7 @@ window.addEventListener("load", () => document.querySelectorAll(".js-plotly-plot
   const button = {name: "fullscreen", title: "Fullscreen", icon: Plotly.Icons.autoscale,
     click: gd => document.fullscreenElement
       ? document.exitFullscreen() : gd.closest(".box").requestFullscreen()};
-  const frames = ((plot._transitionData || {})._frames || []).slice();
-  Plotly.react(plot, plot.data, plot.layout, {responsive: true, modeBarButtonsToAdd: [button]})
-    .then(() => frames.length ? Plotly.addFrames(plot, frames) : null);
+  Plotly.react(plot, plot.data, plot.layout, {responsive: true, modeBarButtonsToAdd: [button]});
 }));
 document.addEventListener("fullscreenchange", () => (document.fullscreenElement
   ? [document.fullscreenElement] : [...document.querySelectorAll(".box")]).forEach(fit));
@@ -295,7 +287,7 @@ RUN_SECTIONS = {
         "Technology cost inputs",
         _figure_input_costs,
     ),
-    "Technology mix": (ASSUMPTIONS_HEADING, _html_assumptions),
+    "Storage build": (ASSUMPTIONS_HEADING, _html_assumptions),
 }
 
 
