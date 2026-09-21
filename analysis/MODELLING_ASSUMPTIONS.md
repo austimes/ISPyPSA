@@ -73,5 +73,11 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
 - Thirteen representative weeks sampled per solve.
 - Per-period absolute carbon dioxide equivalent (CO2e) caps, rather than a carbon price, drive the campaign's pressure
   ladder.
+- Demand range taken from the draft ISP: the low trajectory follows its Slower Growth generation total excluding rooftop
+  solar and the stress trajectory its Accelerated Transition total, each scaled by 0.97 to step from generation to
+  source-NEM operational load (about 3% transmission losses; an authored placeholder, since storage charging losses are
+  not separated), held past the published 2050 horizon to 2060 by the campaign's 2050-to-2060 growth ratio of about
+  1.19, with low_bracket at 0.92 times low. Rooftop solar needs no correction: both the trace store and the draft ISP
+  totals already exclude it.
 - Fossil-only gas pricing (the gas un-blend switch) throughout the campaign.
 - Gurobi barrier solver settings, tuned for this campaign's problem size.
