@@ -133,7 +133,7 @@ resolves as a package-relative path rather than an absolute one, its tests are s
 
   | CSV | Produced by | Contents |
   | --- | --- | --- |
-  | `exports/results.csv` | `msm extract` | Generation mix (TWh and share by carrier), built capacity by carrier (1 MW reporting floor), total and average system cost, absolute emissions and intensity, renewable fraction, load-shedding flags |
+  | `exports/results.csv` | `msm extract` | Generation mix (TWh and share by carrier, storage discharge included as its own carriers), built capacity by carrier (1 MW reporting floor), total and average system cost, absolute emissions and intensity, renewable fraction, load-shedding flags |
   | `exports/storage.csv` | `msm extract` | Storage build by carrier and duration class (power, energy, unit count) |
   | `exports/marginals.csv` | `msm extract` | Finite-difference marginal cost and marginal emissions intensity of demand between adjacent trajectories, plus the thermal/renewable split of the marginal generation |
   | `exports/manifest.csv` | `msm extract` | Run identifier, pressure setting, cap tonnage and shadow price, solver settings, termination status, residuals, wall time, output paths |

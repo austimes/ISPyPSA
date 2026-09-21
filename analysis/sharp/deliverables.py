@@ -3,9 +3,10 @@
 Same six tables as the demand x carbon sweep, over the campaign's grid of five demand
 trajectories by ten pressure settings, at the milestones 2030/2040/2050/2060:
 
-  results.csv          generation mix (TWh and shares), capacity builds (1 MW
-                       reporting floor), total and average system cost, absolute
-                       emissions and intensity, renewable fraction, load shedding
+  results.csv          generation mix (TWh and shares, storage discharge included as
+                       its own carriers), capacity builds (1 MW reporting floor), total
+                       and average system cost, absolute emissions and intensity,
+                       renewable fraction, load shedding
   storage.csv          storage build by duration class
   marginals.csv        finite-difference marginal cost and marginal emissions
                        intensity of demand between adjacent trajectories, plus the
@@ -87,6 +88,9 @@ FUEL_BURNING_CARRIERS = ["Gas", "Black Coal", "Brown Coal", "Liquid Fuel", "Biom
 # Below this share of generation, a zero fuel cost is the honest answer rather than a
 # missing price.
 FUEL_BURNING_FLOOR_PCT = 0.5
+# Pumped hydro units carry the carrier "Water", the same carrier the conventional hydro
+# generators carry, so the storage half of the mix is renamed to keep the two apart.
+STORAGE_MIX_LABELS = {"Water": "Pumped hydro"}
 
 
 # --------------------------------------------------------------- per-chain networks
@@ -104,6 +108,17 @@ def _annual_mwh(network: pypsa.Network) -> pd.Series:
     ).sum()
 
 
+def _storage_discharge_twh(network: pypsa.Network) -> pd.Series:
+    """Annual storage discharge per carrier, charging dropped, snapshot weightings applied."""
+    discharge = (
+        network.storage_units_t.p.clip(lower=0)
+        .mul(network.snapshot_weightings["generators"], axis=0)
+        .sum()
+    )
+    carriers = network.storage_units.carrier.replace(STORAGE_MIX_LABELS)
+    return discharge.groupby(carriers).sum() / 1e6
+
+
 def _mix_row(
     cell: str,
     year: int,
@@ -116,6 +131,10 @@ def _mix_row(
     shares are taken. A run that sheds load needs "Unserved Energy" excluded, or the
     shed energy lands in the mix as if it were a generation technology; `use_mwh` is
     still reported from that carrier regardless.
+
+    Storage discharge is reported per storage carrier against the same generator-output
+    denominator, so a storage share reads as the share of generation storage re-delivers
+    and every generator share means what it did without them.
     """
     network = _network(cell, year, layout)
     energy = _annual_mwh(network)
@@ -127,6 +146,9 @@ def _mix_row(
     for carrier, twh in by_carrier.items():
         if not carrier:
             continue
+        row[f"twh_{carrier}"] = twh
+        row[f"share_{carrier}"] = twh / total * 100 if total else 0.0
+    for carrier, twh in _storage_discharge_twh(network).items():
         row[f"twh_{carrier}"] = twh
         row[f"share_{carrier}"] = twh / total * 100 if total else 0.0
     renewable = sum(by_carrier.get(c, 0.0) for c in RENEWABLE_CARRIERS)

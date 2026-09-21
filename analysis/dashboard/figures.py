@@ -8,6 +8,7 @@ too little to draw. Page assembly, and the order the sections appear in, live in
 from __future__ import annotations
 
 import logging
+from itertools import cycle
 
 import numpy as np
 import pandas as pd
@@ -31,6 +32,8 @@ CARRIER_COLOURS = {
     "Liquid Fuel": "#8c8c8c",
     "Solar": "#f2c511",
     "Wind": "#2f9e8f",
+    "Battery": "#9467bd",
+    "Pumped hydro": "#7fb8dd",
 }
 
 #: Carrier columns whose CSV name reads differently on the page.
@@ -53,6 +56,10 @@ STATUS_COLOURS = {
 #: Hatching that marks a technology mix taken from a cell that failed acceptance.
 STATUS_PATTERNS = {"solved": "", "unaccepted": "/"}
 
+#: Hatching for the technology mix stack: a cell's acceptance status, overridden by a dotted fill on
+#: the storage discharge segments whatever the status.
+MIX_PATTERNS = {**STATUS_PATTERNS, "storage": "."}
+
 #: Hatching that separates the two storage carriers, which share one colour scale.
 STORAGE_PATTERNS = {"Battery": "", "Pumped hydro": "/"}
 
@@ -73,6 +80,22 @@ CELL_SYMBOLS = {"interior": "circle", "boundary": "circle-open", "unaccepted": "
 #: Viridis samples, dark to light, that colour the years in the overlaid cost-frontier figure. Four
 #: are enough for the campaign's milestone years, and a longer run wraps back to the first.
 YEAR_COLOURS = px.colors.sample_colorscale("Viridis", [0.0, 0.35, 0.65, 0.9])
+
+#: The three pathway-intensity panels in page order, each titled and with the unit its y axis carries.
+#: Emissions are in Mt CO2e/TWh and fuel inputs in PJ/TWh, which are the ShARP units and numerically
+#: the t CO2e/MWh and GJ/MWh the campaign exports.
+INTENSITY_PANELS = [
+    ("Conversion cost intensity", "A$/MWh"),
+    ("Emissions intensity", "Mt CO2e/TWh"),
+    ("Input intensity", "PJ/TWh"),
+]
+
+#: Fuel input columns the input-intensity panel draws, each named and dashed as it draws them.
+FUEL_INPUTS = {
+    "gj_per_mwh_coal": ("Coal", "solid"),
+    "gj_per_mwh_natural_gas": ("Gas", "dash"),
+    "gj_per_mwh_biomass": ("Biomass", "dot"),
+}
 
 #: Measures shared by the scatter matrix and the parallel-coordinates figure.
 SUMMARY_MEASURES = [
@@ -137,6 +160,8 @@ FRONTIER_HEIGHT = 480
 FRONTIER_PANEL_HEIGHT = 520
 CONTOUR_HEIGHT = 420
 PATHWAY_HEIGHT = 420
+#: Tall enough for the chain legend, which runs to one entry per trajectory and pressure combination.
+INTENSITIES_HEIGHT = 820
 IMPLIED_PRICE_HEIGHT = 450
 MARGINALS_HEIGHT = 620
 DECOMPOSITION_HEIGHT = 520
@@ -149,7 +174,11 @@ SCALE_BUTTON_MARGIN = 110
 
 #: Note placed under a patterned figure's legend, which the hatching itself cannot carry. It is
 #: shifted down by one legend line per colour entry, so it clears the entries above it.
-HATCH_NOTE = "hatched: unaccepted<br>(failed a demand or<br>termination test)"
+HATCH_NOTE = (
+    "hatched: unaccepted<br>(failed a demand or<br>termination test)<br><br>"
+    "dotted: storage discharge,<br>which re-delivers charged<br>"
+    "energy, so the stack can<br>pass 100%"
+)
 STORAGE_NOTE = "hatched: pumped hydro<br>(solid: battery)"
 HATCH_NOTE_LINE_HEIGHT = 24
 
@@ -711,6 +740,90 @@ def figure_cost_pathway(frame: pd.DataFrame) -> go.Figure:
     return _list_pressures_up_the_ladder(_strip_facet_titles(figure), frame)
 
 
+def figure_pathway_intensities(frame: pd.DataFrame) -> go.Figure:
+    """Conversion cost, emissions and fuel input intensity over the milestone years, one line per chain.
+
+    The row mirrors the ShARP library's pathway intensities, so a modelled pathway reads beside a
+    ShARP one: cost excludes fuel and carbon, and the input panel draws one dashed line per fuel.
+    Every panel's line for a chain shares a legend group, so one legend click hides the chain across
+    all three.
+    """
+    figure = make_subplots(
+        rows=1, cols=3, subplot_titles=[title for title, _ in INTENSITY_PANELS]
+    )
+    for cell, colour in _chain_colours(frame).items():
+        chain = frame[frame["cell"].eq(cell)].sort_values("year")
+        cost = chain["cost_per_mwh_excl_fuel_carbon"]
+        figure.add_trace(_chain_line(chain, cost, colour, legend=True), row=1, col=1)
+        emissions = _chain_line(chain, chain["fleet_intensity"], colour)
+        figure.add_trace(emissions, row=1, col=2)
+        for column, (fuel, dash) in FUEL_INPUTS.items():
+            if _fuel_burnt(chain, column):
+                inputs = _chain_line(chain, chain[column], colour, fuel, dash)
+                figure.add_trace(inputs, row=1, col=3)
+    figure.update_xaxes(
+        title_text=LABELS["year"], tickvals=sorted(frame["year"].unique())
+    )
+    for column, (_, unit) in enumerate(INTENSITY_PANELS, start=1):
+        figure.update_yaxes(title_text=unit, row=1, col=column)
+    return figure.update_layout(
+        height=INTENSITIES_HEIGHT,
+        legend={"title_text": "Chain", "font_size": 10, "y": 1, "yanchor": "top"},
+    )
+
+
+def _chain_colours(frame: pd.DataFrame) -> dict[str, str]:
+    """One colour per chain, ordered trajectory-major and up the pressure ladder, cycling the palette."""
+    orders = _orders(frame)
+    chains = frame.drop_duplicates("cell").astype(
+        {
+            "trajectory": pd.CategoricalDtype(orders["trajectory"]),
+            "pressure": pd.CategoricalDtype(orders["pressure"]),
+        }
+    )
+    return dict(
+        zip(
+            chains.sort_values(["trajectory", "pressure"])["cell"],
+            cycle(INPUT_COST_COLOURS),
+        )
+    )
+
+
+def _chain_label(chain: pd.DataFrame) -> str:
+    """Legend label for one chain: its demand trajectory and the pressure it was solved under."""
+    row = chain.iloc[0]
+    return f"{row['trajectory']} demand, {row['pressure_name']}"
+
+
+def _chain_line(
+    chain: pd.DataFrame,
+    values: pd.Series,
+    colour: str,
+    fuel: str = "",
+    dash: str = "solid",
+    legend: bool = False,
+) -> go.Scatter:
+    """One chain's line in one intensity panel, named in the hover and grouped with its other panels."""
+    label = _chain_label(chain)
+    hover = ", ".join(filter(None, (label, fuel)))
+    return go.Scatter(
+        x=chain["year"],
+        y=values,
+        name=label,
+        legendgroup=chain["cell"].iloc[0],
+        showlegend=legend,
+        mode="lines+markers",
+        line={"color": colour, "dash": dash},
+        marker_size=5,
+        hovertemplate=f"{hover}<br>%{{x}}: %{{y:.3g}}<extra></extra>",
+    )
+
+
+def _fuel_burnt(chain: pd.DataFrame, column: str) -> bool:
+    """Whether one chain burns a fuel in any milestone year, so the input panel draws its line."""
+    return column in chain and chain[column].fillna(0).ne(0).any()
+
+
 def figure_implied_carbon_price(frame: pd.DataFrame) -> go.Figure:
     """Shadow price each cap chain's cap carries, against the 2050 target intensity it aims at.
 
@@ -1039,7 +1152,9 @@ def figure_tech_mix(frame: pd.DataFrame) -> go.Figure:
     The stack is shares of demand rather than of generation, so the unserved slice a deep cap leaves
     is the visible red segment on top instead of being scaled away. Cells that failed acceptance are
     drawn hatched rather than dropped, so a reader sees where the campaign has a mix it cannot stand
-    behind instead of an unexplained gap.
+    behind instead of an unexplained gap. Storage discharge stacks above the generation carriers,
+    dotted, and is energy the storage charged from them rather than new supply, so a stack carrying
+    it passes 100% of demand.
     """
     long = _demand_shares(frame)
     figure = px.bar(
@@ -1047,8 +1162,8 @@ def figure_tech_mix(frame: pd.DataFrame) -> go.Figure:
         x="year",
         y="share",
         color="carrier",
-        pattern_shape="status",
-        pattern_shape_map=STATUS_PATTERNS,
+        pattern_shape="pattern",
+        pattern_shape_map=MIX_PATTERNS,
         facet_row="trajectory",
         facet_col="pressure",
         category_orders={
@@ -1071,7 +1186,8 @@ def _demand_shares(frame: pd.DataFrame) -> pd.DataFrame:
 
     The exported shares are percentages of generation, which sum to 100 however much demand went
     unserved; each is scaled by the served fraction so the carriers and the unserved slice together
-    make up the year's demand.
+    make up the year's demand. A storage discharge share is scaled the same way but adds to that
+    total rather than dividing it, and is patterned as storage instead of by the cell's status.
     """
     keys = ["trajectory", "pressure", "year", "status"]
     served = 1 - frame["use_pct_of_demand"] / 100
@@ -1081,7 +1197,11 @@ def _demand_shares(frame: pd.DataFrame) -> pd.DataFrame:
     unserved = frame[keys].assign(
         carrier=UNSERVED_CARRIER, share=frame["use_pct_of_demand"]
     )
-    return pd.concat([long, unserved], ignore_index=True)
+    mix = pd.concat([long, unserved], ignore_index=True)
+    mix["pattern"] = mix["status"].mask(
+        mix["carrier"].isin(STORAGE_PATTERNS), "storage"
+    )
+    return mix
 
 
 def figure_storage_build(frame: pd.DataFrame) -> go.Figure:

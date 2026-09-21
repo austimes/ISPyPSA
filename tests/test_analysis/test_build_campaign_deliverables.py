@@ -1,4 +1,5 @@
 import pandas as pd
+import pypsa
 
 from analysis.env import OutputLayout
 from analysis.hpc.campaign_grid import order_pressures
@@ -7,11 +8,46 @@ from analysis.sharp.deliverables import (
     _add_unpriced_fuel,
     _cost_monotone_rows,
     _marginals,
+    _mix_row,
     _templated_cost_rows,
     _write_input_costs,
 )
 
 _TRAJECTORY_ORDER = ["low", "central", "stress"]
+
+
+def _save_mix_network(layout: OutputLayout, run_id: str) -> None:
+    """One solved-looking network: a wind generator plus a battery and a pumped hydro unit."""
+    network = pypsa.Network()
+    network.snapshots = pd.date_range("2050-01-01", periods=2, freq="h")
+    network.add("Bus", "n")
+    network.add("Generator", "wind", bus="n", carrier="Wind")
+    network.add("StorageUnit", "battery", bus="n", carrier="Battery")
+    network.add("StorageUnit", "phes", bus="n", carrier="Water")
+    network.generators_t.p = pd.DataFrame({"wind": [1e6, 1e6]}, index=network.snapshots)
+    network.storage_units_t.p = pd.DataFrame(
+        {"battery": [2e5, -2e5], "phes": [1e5, -1e5]}, index=network.snapshots
+    )
+    path = layout.network(run_id)
+    path.parent.mkdir(parents=True)
+    network.export_to_netcdf(path)
+
+
+def test_mix_row_adds_storage_discharge_against_the_generator_denominator(
+    tmp_path, csv_str_to_df
+):
+    layout = OutputLayout(tmp_path)
+    _save_mix_network(layout, "ext_low_c0_2050")
+
+    row = _mix_row("ext_low_c0", 2050, layout)
+
+    # Pumped hydro discharge is named apart from the "Water" generators, and charging is
+    # dropped, so the two storage shares read as re-delivered generation.
+    expected = csv_str_to_df("""
+        cell,        year,  total_twh,  twh_Wind,  share_Wind,  twh_Battery,  share_Battery,  twh_Pumped__hydro,  share_Pumped__hydro,  renewable_fraction_pct,  use_mwh
+        ext_low_c0,  2050,  2.0,        2.0,       100.0,       0.2,          10.0,           0.1,                5.0,                  100.0,                   0.0
+    """)
+    pd.testing.assert_frame_equal(pd.DataFrame([row]), expected)
 
 
 def test_boundary_rule_flags_only_cells_shedding_above_the_threshold(csv_str_to_df):

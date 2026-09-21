@@ -84,7 +84,7 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     :param exports: The run's ``exports/`` directory.
     :return: Trajectory and pressure keys, delivered energy, both emissions intensities, cost and
         its components, the cap and its shadow price, boundary flag, solve status and the
-        per-carrier generation shares and storage power.
+        per-carrier generation shares, per-fuel input intensities and storage power.
     """
     results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
     marginals = pd.read_csv(exports / "marginals.csv").rename(columns=MARGINAL_MEASURES)
@@ -94,7 +94,8 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     ]
     storage = _storage_power_columns(pd.read_csv(exports / "storage.csv"))
     shares = list(results.filter(regex=r"^share_"))
-    frame = results[[*RESULT_KEYS, *RESULT_MEASURES.values(), *shares]].merge(
+    fuels = list(results.filter(regex=r"^gj_per_mwh_"))
+    frame = results[[*RESULT_KEYS, *RESULT_MEASURES.values(), *shares, *fuels]].merge(
         marginals[
             ["pressure", "year", "trajectory", "marginal_cost", "marginal_intensity"]
         ],
@@ -146,6 +147,7 @@ def _status_label(frame: pd.DataFrame) -> pd.Series:
 #: Page heading to section builder, in the order the dashboard shows them. A builder returns either
 #: a plotly figure or ready-made html, and ``None`` where the run holds too little to draw.
 SECTIONS = {
+    "Pathway intensities (every chain, ShARP-style)": figures.figure_pathway_intensities,
     "Cost frontier": figures.figure_cost_frontier,
     "Cost frontier, animated by year": figures.figure_cost_frontier_animated,
     "Cost frontier, years overlaid": figures.figure_cost_frontier_overlaid,

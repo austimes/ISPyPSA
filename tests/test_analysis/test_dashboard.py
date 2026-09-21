@@ -32,6 +32,7 @@ from analysis.dashboard.figures import (
     figure_demand_marginals,
     figure_implied_carbon_price,
     figure_input_costs,
+    figure_pathway_intensities,
     figure_storage_build,
     figure_tech_mix,
     html_search_grid,
@@ -375,6 +376,34 @@ def test_cost_pathway_draws_one_line_per_pressure_and_trajectory(exports):
     ]
 
 
+def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_df):
+    frame = csv_str_to_df("""
+        cell,    trajectory, pressure, pressure_name,        year, delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity, gj_per_mwh_coal, gj_per_mwh_natural_gas, gj_per_mwh_biomass
+        central, central,    c0,       uncapped (A$0/t),     2030, 100.0,         25.0,                          0.40,            1.1,             0.3,                    0.0
+        central, central,    c0,       uncapped (A$0/t),     2040, 110.0,         30.0,                          0.20,            0.9,             0.4,                    0.0
+        high,    high,       c150,     carbon price A$150/t, 2030, 120.0,         35.0,                          0.30,            0.0,             0.5,                    0.1
+        high,    high,       c150,     carbon price A$150/t, 2040, 130.0,         40.0,                          0.10,            0.0,             0.6,                    0.2
+    """)
+
+    figure = figure_pathway_intensities(frame)
+
+    # Cost and emissions for both chains, then the fuels each chain burns: coal and gas, gas and biomass.
+    assert [(trace.name, trace.line.dash) for trace in figure.data] == [
+        ("central demand, uncapped (A$0/t)", "solid"),
+        ("central demand, uncapped (A$0/t)", "solid"),
+        ("central demand, uncapped (A$0/t)", "solid"),
+        ("central demand, uncapped (A$0/t)", "dash"),
+        ("high demand, carbon price A$150/t", "solid"),
+        ("high demand, carbon price A$150/t", "solid"),
+        ("high demand, carbon price A$150/t", "dash"),
+        ("high demand, carbon price A$150/t", "dot"),
+    ]
+    assert [trace.name for trace in figure.data if trace.showlegend] == [
+        "central demand, uncapped (A$0/t)",
+        "high demand, carbon price A$150/t",
+    ]
+
+
 def test_implied_carbon_price_leaves_out_the_price_chains(exports):
     figure = figure_implied_carbon_price(tidy_frame(exports))
 
@@ -484,6 +513,25 @@ def test_tech_mix_hatches_unaccepted_cells_and_renames_water(grid_exports):
         ("Unserved", ""),
         ("Unserved", "/"),
     }
+
+
+def test_tech_mix_dots_storage_discharge_on_top_of_the_generation_carriers(exports):
+    frame = tidy_frame(exports).assign(share_Battery=3.0, **{"share_Pumped hydro": 1.0})
+
+    figure = figure_tech_mix(frame)
+
+    # The ``high`` trajectory's one cell, bottom of the stack to the top.
+    stack = [
+        (trace.name, trace.marker.pattern.shape)
+        for trace in figure.data
+        if trace.xaxis == "x"
+    ]
+    assert stack == [
+        ("Wind", ""),
+        ("Battery", "."),
+        ("Pumped hydro", "."),
+        ("Unserved", ""),
+    ]
 
 
 def test_tech_mix_lists_each_carrier_in_the_legend_once_then_unserved(grid_exports):
