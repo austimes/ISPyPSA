@@ -8,10 +8,11 @@ frame, one row per cell-year, and every figure in :mod:`analysis.dashboard.figur
 source commit shown in the page heading is read from the run's solve records,
 ``<run>/records/*.json``, and the assumptions table from its ``<run>/campaign/``.
 
-Three sections read the run directory rather than the tidy frame: the assumptions table, the
+Four sections read the run directory rather than the tidy frame: the assumptions table, the
 technology cost inputs, which come from ``exports/input_costs.csv`` where the assemble stage found
-templated inputs on disk to read them from, and the transmission build, which comes from
-``exports/transmission.csv`` and the relaxation factors the run recorded in ``<run>/campaign/``.
+templated inputs on disk to read them from, the transmission build, which comes from
+``exports/transmission.csv`` and the relaxation factors the run recorded in ``<run>/campaign/``,
+and the increment grid, from ``exports/increments.csv`` where the campaign solved branch cells.
 
 The page carries plotly's javascript inline, so it opens straight off the data share with no
 server and no build step.
@@ -31,6 +32,7 @@ from plotly.offline import get_plotlyjs
 
 from analysis.dashboard import figures
 from analysis.env import OutputLayout
+from analysis.sharp.deliverables import base_rows
 
 log = logging.getLogger(__name__)
 
@@ -86,9 +88,12 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     :return: Trajectory and pressure keys, delivered energy, both emissions intensities, cost and
         its components, the cap and its shadow price, boundary flag, solve status and the
         per-carrier energy delivered, per-fuel input intensities, priced-curve premiums and
-        storage power.
+        storage power, for the campaign's base chains. Increment-grid branches have their own
+        section instead.
     """
-    results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
+    results = base_rows(
+        pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
+    )
     marginals = pd.read_csv(exports / "marginals.csv").rename(columns=MARGINAL_MEASURES)
     manifest = pd.read_csv(exports / "manifest.csv")[MANIFEST_KEYS]
     acceptance = pd.read_csv(exports / "acceptance_per_cell.csv")[
@@ -286,6 +291,14 @@ def _figure_transmission_limits(layout: OutputLayout) -> go.Figure | None:
     )
 
 
+def _figure_increment_surfaces(layout: OutputLayout) -> go.Figure | None:
+    """The run's increment grid, or nothing where the campaign solved no branch cells."""
+    increments = layout.exports / "increments.csv"
+    if not increments.exists():
+        return None
+    return figures.figure_increment_surfaces(pd.read_csv(increments))
+
+
 def _html_assumptions(layout: OutputLayout) -> str:
     """The assumptions the run was launched under, one row per assumption, styled like the searched grid."""
     rows = pd.DataFrame(_assumptions(layout).items(), columns=["assumption", "value"])
@@ -305,6 +318,7 @@ def _assumptions(layout: OutputLayout) -> dict[str, object]:
 #: Sections built from the run directory rather than the tidy frame, each keyed on the ``SECTIONS``
 #: heading it is shown under, and holding its own heading and builder.
 RUN_SECTIONS = {
+    "Cost surface as heatmap": ("Increment surfaces", _figure_increment_surfaces),
     "Cost decomposition, central trajectory": (
         "Technology cost inputs",
         _figure_input_costs,

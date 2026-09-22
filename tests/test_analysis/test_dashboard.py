@@ -56,13 +56,13 @@ def exports(tmp_path, csv_str_to_df) -> Path:
     """Write a six-row set of export CSVs: three trajectories priced, and one cap chain."""
     tables = {
         "results": """
-            cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, social_licence_premium_aud_per_yr, build_rate_premium_aud_per_yr, twh_Wind
-            a,    central,    c0,       price,         0.0,            2030, 100.0,         False,    0.40,                 30.0,                 3000.0,                40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                   12000000.0,                        3000000.0,                     0.5
-            b,    high,       c0,       price,         0.0,            2030, 120.0,         True,     0.50,                 35.0,                 4200.0,                60000.0,              0.2,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                   14000000.0,                        3500000.0,                     0.4
-            c,    low,        c0,       price,         0.0,            2030, 80.0,          False,    0.30,                 40.0,                 3200.0,                24000.0,              0.0,               34.0,                          5.0,                          1.0,                            800000000.0,              160000000.0,                   9000000.0,                         2000000.0,                     0.6
-            d,    low,        c0,       price,         0.0,            2040, 90.0,          False,    0.25,                 45.0,                 4050.0,                22500.0,              3.0,               39.0,                          5.0,                          1.0,                            900000000.0,              180000000.0,                   10000000.0,                        2500000.0,                     0.7
-            e,    central,    cap0005,  cap,           0.005,          2030, 105.0,         False,    0.10,                 55.0,                 5775.0,                10500.0,              0.0,               48.0,                          4.0,                          3.0,                            1500000000.0,             210000000.0,                   20000000.0,                        6000000.0,                     0.8
-            f,    central,    cap0005,  cap,           0.005,          2040, 110.0,         False,    0.05,                 65.0,                 7150.0,                5500.0,               0.0,               58.0,                          4.0,                          3.0,                            1700000000.0,             220000000.0,                   24000000.0,                        7000000.0,                     0.9
+            cell,    base_cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, social_licence_premium_aud_per_yr, build_rate_premium_aud_per_yr, twh_Wind
+            a,    ,             central,    c0,       price,         0.0,            2030, 100.0,         False,    0.40,                 30.0,                 3000.0,                40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                   12000000.0,                        3000000.0,                     0.5
+            b,    ,             high,       c0,       price,         0.0,            2030, 120.0,         True,     0.50,                 35.0,                 4200.0,                60000.0,              0.2,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                   14000000.0,                        3500000.0,                     0.4
+            c,    ,             low,        c0,       price,         0.0,            2030, 80.0,          False,    0.30,                 40.0,                 3200.0,                24000.0,              0.0,               34.0,                          5.0,                          1.0,                            800000000.0,              160000000.0,                   9000000.0,                         2000000.0,                     0.6
+            d,    ,             low,        c0,       price,         0.0,            2040, 90.0,          False,    0.25,                 45.0,                 4050.0,                22500.0,              3.0,               39.0,                          5.0,                          1.0,                            900000000.0,              180000000.0,                   10000000.0,                        2500000.0,                     0.7
+            e,    ,             central,    cap0005,  cap,           0.005,          2030, 105.0,         False,    0.10,                 55.0,                 5775.0,                10500.0,              0.0,               48.0,                          4.0,                          3.0,                            1500000000.0,             210000000.0,                   20000000.0,                        6000000.0,                     0.8
+            f,    ,             central,    cap0005,  cap,           0.005,          2040, 110.0,         False,    0.05,                 65.0,                 7150.0,                5500.0,               0.0,               58.0,                          4.0,                          3.0,                            1700000000.0,             220000000.0,                   24000000.0,                        7000000.0,                     0.9
         """,
         "marginals": """
             pressure, year, from_level,  to_level, marginal_cost_aud_per_mwh, marginal_co2e_t_per_mwh
@@ -106,12 +106,17 @@ def exports(tmp_path, csv_str_to_df) -> Path:
 
 @pytest.fixture
 def two_cell_exports(tmp_path, csv_str_to_df) -> Path:
-    """Write a two-cell set of export CSVs, too few for the cost surface to be interpolated."""
+    """Write a two-cell set of export CSVs, too few for the cost surface to be interpolated.
+
+    The third results row is an increment-grid branch of the first, which every figure on the
+    page leaves to the increment section.
+    """
     tables = {
         "results": """
-            cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, twh_Wind
-            a,    central,    c0,       price,         0.0,            2030, 100.0,         False,    0.40,                 30.0,                 3000.0,                40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.5
-            b,    high,       c0,       price,         0.0,            2030, 120.0,         True,     0.50,                 35.0,                 4200.0,                60000.0,              0.0,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                      0.4
+            cell, base_cell, trajectory,       pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, twh_Wind
+            a,    ,          central,          c0,       price,         0.0,            2030, 100.0,         False,    0.40,                 30.0,                 3000.0,                40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.5
+            b,    ,          high,             c0,       price,         0.0,            2030, 120.0,         True,     0.50,                 35.0,                 4200.0,                60000.0,              0.0,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                      0.4
+            c,    a,         central_b2030_d110, c0,     price,         0.0,            2030, 110.0,         False,    0.38,                 32.0,                 3520.0,                41800.0,              0.0,               27.0,                          4.0,                          1.0,                            1100000000.0,             200000000.0,                      0.6
         """,
         "marginals": """
             pressure, year, from_level, to_level, marginal_cost_aud_per_mwh, marginal_co2e_t_per_mwh
@@ -238,6 +243,10 @@ def test_tidy_frame_joins_every_export(exports, csv_str_to_df):
     pd.testing.assert_frame_equal(result, expected)
 
 
+def test_tidy_frame_keeps_the_base_chains_only(two_cell_exports):
+    assert list(tidy_frame(two_cell_exports)["cell"]) == ["a", "b"]
+
+
 def test_tidy_frame_logs_cell_years_with_no_marginal(exports, caplog):
     with caplog.at_level("INFO"):
         tidy_frame(exports)
@@ -341,6 +350,32 @@ def test_cost_heatmap_logs_nothing_when_every_year_interpolates(exports, caplog)
         figure_cost_heatmap(tidy_frame(exports))
 
     assert "No cost surface" not in caplog.text
+
+
+def test_increment_surfaces_draw_both_arms_the_grid_and_the_duals(csv_str_to_df):
+    increments = csv_str_to_df("""
+        base_cell, cell,    year, demand_level, intensity_level, delta_delivered_twh, delta_total_cost_aud_per_yr, delta_cost_per_mwh_excl_fuel_carbon, delta_co2e_kt_per_yr, fleet_intensity_t_per_mwh, cap_dual_base, cap_dual_branch
+        ext_sc,    ext_d0,  2035, 1.0,          1.0,             0.0,                 0.0,                         0.0,                                 0.0,                  0.0050,                    50.0,          50.0
+        ext_sc,    ext_d1,  2035, 1.1,          1.0,             20.0,                2.0e9,                       5.0,                                 100.0,                0.0050,                    50.0,          60.0
+        ext_sc,    ext_i1,  2035, 1.0,          0.5,             0.0,                 1.5e9,                       8.0,                                 -300.0,               0.0025,                    50.0,          400.0
+        ext_sc,    ext_x1,  2035, 1.1,          0.5,             20.0,                4.0e9,                       12.0,                                -200.0,               0.0026,                    50.0,          450.0
+    """)
+
+    figure = figures.figure_increment_surfaces(increments)
+
+    # The demand arm, the intensity arm, one grid for the single year, and the duals table.
+    assert [trace.type for trace in figure.data] == [
+        "scatter",
+        "scatter",
+        "heatmap",
+        "table",
+    ]
+    grid = figure.data[2]
+    assert (list(grid.x), list(grid.y)) == ([1.0, 1.1], [0.5, 1.0])
+    assert grid.z.tolist() == [[8.0, 12.0], [0.0, 5.0]]
+    # The button swaps every grid's colouring to the emissions consequence instead.
+    emissions = figure.layout.updatemenus[0].buttons[1]
+    assert emissions.args[0]["z"][0].tolist() == [[-300.0, -200.0], [0.0, 100.0]]
 
 
 def test_cost_pathway_draws_one_line_per_pressure_and_trajectory(exports):
