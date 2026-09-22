@@ -178,6 +178,9 @@ def _status_label(frame: pd.DataFrame) -> pd.Series:
 #: Heading of the pathway-intensity row, which both the increment fans and the pipeline hang off.
 INTENSITIES_HEADING = "Pathway intensities (every chain, ShARP-style)"
 
+#: Heading of the increment cells' technology mix, which the transmission build hangs off.
+INCREMENT_MIX_HEADING = "Technology mix of increment cells"
+
 #: Page heading to section builder, in the order the dashboard shows them. A builder returns either
 #: a plotly figure or ready-made html, and ``None`` where the run holds too little to draw.
 SECTIONS = {
@@ -186,6 +189,7 @@ SECTIONS = {
     "Cost against emissions intensity": figures.figure_cost_families,
     "Cost surface as heatmap": figures.figure_cost_heatmap,
     "Technology mix": figures.figure_tech_mix,
+    INCREMENT_MIX_HEADING: figures.figure_increment_tech_mix,
     "Storage build": figures.figure_storage_build,
     "Cost pathway over time": figures.figure_cost_pathway,
     "Implied carbon price of each cap": figures.figure_implied_carbon_price,
@@ -282,11 +286,12 @@ def _drawn_sections(
     frame: pd.DataFrame, layout: OutputLayout
 ) -> list[tuple[str, go.Figure | str | None]]:
     """Every section in page order, each run-directory section spliced under the one it follows."""
-    fanned = partial(
-        figures.figure_pathway_intensities, branches=tidy_branches(layout.exports)
-    )
+    branches = tidy_branches(layout.exports)
+    fanned = partial(figures.figure_pathway_intensities, branches=branches)
+    mixed = partial(figures.figure_increment_tech_mix, branches=branches)
+    sections = {**SECTIONS, INTENSITIES_HEADING: fanned, INCREMENT_MIX_HEADING: mixed}
     drawn = []
-    for heading, build_from_frame in {**SECTIONS, INTENSITIES_HEADING: fanned}.items():
+    for heading, build_from_frame in sections.items():
         drawn.append((heading, build_from_frame(frame)))
         if heading in RUN_SECTIONS:
             title, build_from_run = RUN_SECTIONS[heading]
@@ -456,7 +461,7 @@ RUN_SECTIONS = {
         "Build cost curves (inputs)",
         _figure_build_cost_curves,
     ),
-    "Technology mix": (
+    INCREMENT_MIX_HEADING: (
         "REZ and corridor expansion against IASR and relaxed limits",
         _figure_transmission_limits,
     ),

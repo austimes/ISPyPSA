@@ -207,6 +207,7 @@ LABELS = {
     "duration_class": "Storage duration",
     "fleet_intensity": "Fleet-average intensity (t CO2e/MWh)",
     "implied_carbon_price_aud_per_t": "Implied carbon price (A$/t)",
+    "increment": "Increment cell",
     "intensity": "Emissions intensity (t CO2e/MWh)",
     "link": "Transmission link",
     "marginal_intensity": "Demand-marginal intensity (t CO2e/MWh)",
@@ -1784,6 +1785,78 @@ def _delivered_energy(frame: pd.DataFrame) -> pd.DataFrame:
         mix["carrier"].isin(STORAGE_PATTERNS), "storage"
     )
     return mix
+
+
+#: What the increment mix calls the base cell's own bar, which is drawn ahead of its fan.
+BASE_CELL_LABEL = "base"
+
+
+def figure_increment_tech_mix(
+    frame: pd.DataFrame, branches: pd.DataFrame | None = None
+) -> go.Figure | None:
+    """Stacked energy delivered by carrier for every increment cell, one facet per snapshot year.
+
+    Each year's fan is read against the base cell it branched from, so that cell's own bar is drawn
+    first and labelled ``base``. Carrier colours and the dotted storage discharge are the technology
+    mix's. A run with no increment grid gets no figure.
+    """
+    if branches is None or branches.empty:
+        return None
+    long = _increment_energy(frame, branches)
+    figure = px.bar(
+        long.astype({"year": str}),
+        x="increment",
+        y="twh",
+        color="carrier",
+        pattern_shape="pattern",
+        pattern_shape_map=MIX_PATTERNS,
+        facet_col="year",
+        category_orders={
+            "carrier": list(CARRIER_COLOURS),
+            "increment": _increment_cell_order(long["increment"]),
+        },
+        color_discrete_map=CARRIER_COLOURS,
+        labels=LABELS,
+        height=DECOMPOSITION_HEIGHT,
+    )
+    figure.update_xaxes(type="category")
+    figure.update_layout(legend_title_text="Carrier")
+    _colour_legend_entries(figure)
+    return _strip_facet_titles(figure)
+
+
+def _increment_energy(frame: pd.DataFrame, branches: pd.DataFrame) -> pd.DataFrame:
+    """Melt the per-carrier energy columns of the increment cells and their base cell, one row each."""
+    cells = pd.concat(
+        [frame.assign(increment=BASE_CELL_LABEL), branches], ignore_index=True
+    )
+    keys = ["increment", "year"]
+    long = (
+        cells[keys]
+        .join(cells.filter(regex=r"^twh_"))
+        .melt(id_vars=keys, var_name="carrier", value_name="twh")
+    )
+    carrier = long["carrier"].str.removeprefix("twh_").replace(CARRIER_LABELS)
+    pattern = np.where(carrier.isin(STORAGE_PATTERNS), "storage", "solved")
+    return long.assign(carrier=carrier, pattern=pattern)
+
+
+def _increment_cell_order(keys: pd.Series) -> list[str]:
+    """The base cell first, then the increment cells along the grid's two arms and its interior."""
+    return [
+        BASE_CELL_LABEL,
+        *sorted(set(keys) - {BASE_CELL_LABEL}, key=_increment_rung),
+    ]
+
+
+def _increment_rung(key: str) -> tuple[int, int]:
+    """Sort key running the demand column first, then the intensity row down, then the interior cells."""
+    demand, intensity = (int(level[1:]) for level in key.split("_"))
+    if intensity == 100:
+        return 0, demand
+    if demand == 100:
+        return 1, -intensity
+    return 2, demand
 
 
 def figure_storage_build(frame: pd.DataFrame) -> go.Figure:

@@ -681,6 +681,30 @@ def test_tech_mix_stacks_energy_delivered_in_twh(exports):
     assert figure.layout.yaxis.title.text == "Energy delivered (TWh)"
 
 
+def test_increment_tech_mix_bars_the_base_cell_beside_each_increment(csv_str_to_df):
+    frame = csv_str_to_df("""
+        cell,   year, twh_Wind, twh_Battery
+        ext_sc, 2030, 100.0,    3.0
+    """)
+    branches = csv_str_to_df("""
+        cell,   base_cell, year, increment, twh_Wind, twh_Battery
+        ext_d1, ext_sc,    2030, d110_i100, 110.0,    4.0
+        ext_i1, ext_sc,    2030, d100_i050, 95.0,     5.0
+    """)
+
+    figure = figures.figure_increment_tech_mix(frame, branches)
+
+    # One trace per carrier, each barring the base cell and then both increments, storage dotted.
+    assert [
+        (trace.name, trace.marker.pattern.shape, list(trace.x), list(trace.y))
+        for trace in figure.data
+    ] == [
+        ("Wind", "", ["base", "d110_i100", "d100_i050"], [100.0, 110.0, 95.0]),
+        ("Battery", ".", ["base", "d110_i100", "d100_i050"], [3.0, 4.0, 5.0]),
+    ]
+    assert figures.figure_increment_tech_mix(frame) is None
+
+
 def test_tech_mix_labels_facets_with_the_manifest_pressure_names(grid_exports):
     figure = figure_tech_mix(tidy_frame(grid_exports))
 
@@ -700,8 +724,9 @@ def test_main_writes_one_html_page(exports):
     assert page == exports.parent / "dashboard.html"
     assert "<h2>Cost frontier</h2>" in text
     assert "<h2>Storage build</h2>" in text
-    # Every section's box, plus the assumptions table that sits under the technology mix.
-    assert text.count('<div class="divider"') == len(SECTIONS) + 1
+    # Every section's box bar the increment mix, which this run has no branch cells for, plus the
+    # assumptions table that sits under the storage build.
+    assert text.count('<div class="divider"') == len(SECTIONS)
     assert text.count('querySelectorAll(".divider")') == 1
 
 
@@ -711,9 +736,8 @@ def test_main_leaves_every_figure_to_fill_its_own_box(exports):
     # Everything past plotly's bundle: the figures, the boxes holding them and the page script.
     text = page.read_text(encoding="utf-8").partition("</script>")[2]
     assert '"height":' not in text
-    assert (
-        text.count('<div class="box" style="overflow: auto; height:')
-        == len(SECTIONS) + 1
+    assert text.count('<div class="box" style="overflow: auto; height:') == len(
+        SECTIONS
     )
     assert text.count('"Fullscreen"') == 1
 
