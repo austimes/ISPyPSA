@@ -300,6 +300,28 @@ def _transmission_frame(cell: str, year: int, layout: OutputLayout) -> pd.DataFr
     ]
 
 
+MARGINAL_COLUMNS = [
+    "year",
+    "from_level",
+    "to_level",
+    "from_delivered_twh",
+    "to_delivered_twh",
+    "delta_delivered_twh",
+    "from_total_cost_aud_per_yr",
+    "to_total_cost_aud_per_yr",
+    "marginal_cost_aud_per_mwh",
+    "from_co2e_kt_per_yr",
+    "to_co2e_kt_per_yr",
+    "marginal_co2e_t_per_mwh",
+    "marginal_thermal_twh",
+    "marginal_renewable_twh",
+    "marginal_thermal_per_delivered_pct",
+    "marginal_renewable_per_delivered_pct",
+    "marginal_thermal_pct_of_generation",
+    "marginal_renewable_pct_of_generation",
+]
+
+
 def _marginals(
     results: pd.DataFrame,
     level_order: list[str],
@@ -376,7 +398,7 @@ def _marginals(
                         * 100,
                     }
                 )
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=[series_column, *MARGINAL_COLUMNS])
 
 
 # ------------------------------------------------------------------ chain products

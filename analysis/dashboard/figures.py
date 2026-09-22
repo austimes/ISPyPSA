@@ -1047,7 +1047,7 @@ def figure_implied_carbon_price(frame: pd.DataFrame) -> go.Figure:
     return add_axis_scale_buttons(_strip_facet_titles(figure), axes="xy")
 
 
-def figure_demand_marginals(frame: pd.DataFrame) -> go.Figure:
+def figure_demand_marginals(frame: pd.DataFrame) -> go.Figure | None:
     """Cost and emissions of stepping demand up one trajectory, over the milestone years.
 
     A marginal belongs to the step between two adjacent trajectories, so each column is the
@@ -1059,6 +1059,8 @@ def figure_demand_marginals(frame: pd.DataFrame) -> go.Figure:
         var_name="measure",
         value_name="value",
     )
+    if long.empty:
+        return None
     steps = long.assign(stepped_to="up to " + long["trajectory"])
     figure = px.line(
         steps.replace({"measure": MARGINAL_LABELS}).sort_values("year"),
