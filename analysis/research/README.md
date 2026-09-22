@@ -14,6 +14,7 @@ its HTML and PNG output where a picture earns its place.
 | [`pumped_hydro_menu/`](pumped_hydro_menu/) | The pumped hydro energy storage (PHES) candidate menu and its site ceilings | [`phes_menu.png`](pumped_hydro_menu/phes_menu.png) |
 | [`carbon_caps/`](carbon_caps/) | The carbon pressure ladder, the cap tonnage arithmetic and the load-shedding rule | [`carbon_caps.png`](carbon_caps/carbon_caps.png) |
 | [`campaign_method/`](campaign_method/) | Chain structure, time sampling, solver settings and the 2060 hold | [`campaign_sampling.png`](campaign_method/campaign_sampling.png) |
+| [`aemo_scenario_intensity/`](aemo_scenario_intensity/) | Per-year AEMO scenario emissions intensity the dashboard draws as a sanity reference | [`aemo_scenario_intensity.png`](aemo_scenario_intensity/aemo_scenario_intensity.png) |
 
 Conventions used throughout:
 

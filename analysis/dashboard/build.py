@@ -8,9 +8,10 @@ frame, one row per cell-year, and every figure in :mod:`analysis.dashboard.figur
 source commit shown in the page heading is read from the run's solve records,
 ``<run>/records/*.json``, and the assumptions table from its ``<run>/campaign/``.
 
-Two sections read the run directory rather than the tidy frame: the assumptions table, and the
+Three sections read the run directory rather than the tidy frame: the assumptions table, the
 technology cost inputs, which come from ``exports/input_costs.csv`` where the assemble stage found
-templated inputs on disk to read them from.
+templated inputs on disk to read them from, and the transmission build, which comes from
+``exports/transmission.csv`` and the relaxation factors the run recorded in ``<run>/campaign/``.
 
 The page carries plotly's javascript inline, so it opens straight off the data share with no
 server and no build step.
@@ -264,6 +265,22 @@ def _figure_input_costs(layout: OutputLayout) -> go.Figure | None:
     return figures.figure_input_costs(pd.read_csv(costs))
 
 
+def _figure_transmission_limits(layout: OutputLayout) -> go.Figure | None:
+    """The run's network build against its limits, or nothing where the run exported no link table.
+
+    A ``None`` relaxation factor means the run was launched unrelaxed, so both ceilings coincide.
+    """
+    links = layout.exports / "transmission.csv"
+    if not links.exists():
+        return None
+    assumptions = _assumptions(layout)
+    return figures.figure_transmission_limits(
+        pd.read_csv(links),
+        assumptions.get("rez_limit_factor") or 1.0,
+        assumptions.get("flow_path_limit_factor") or 1.0,
+    )
+
+
 def _html_assumptions(layout: OutputLayout) -> str:
     """The assumptions the run was launched under, one row per assumption, styled like the searched grid."""
     rows = pd.DataFrame(_assumptions(layout).items(), columns=["assumption", "value"])
@@ -286,6 +303,10 @@ RUN_SECTIONS = {
     "Cost decomposition, central trajectory": (
         "Technology cost inputs",
         _figure_input_costs,
+    ),
+    "Technology mix": (
+        "REZ and corridor expansion against IASR and relaxed limits",
+        _figure_transmission_limits,
     ),
     "Storage build": (ASSUMPTIONS_HEADING, _html_assumptions),
 }

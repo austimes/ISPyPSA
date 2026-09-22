@@ -10,6 +10,7 @@ from analysis.sharp.deliverables import (
     _marginals,
     _mix_row,
     _templated_cost_rows,
+    _transmission_frame,
     _write_input_costs,
 )
 
@@ -206,6 +207,73 @@ def test_templated_cost_rows_melts_build_costs_and_averages_each_fuel_table(
         Hydrogen,      2040,  24.7,       fuel_price,  A$/GJ,  hydrogen_prices
         Biomethane,    2030,  23.5,       fuel_price,  A$/GJ,  biomethane_prices
         Biomethane,    2040,  21.7,       fuel_price,  A$/GJ,  biomethane_prices
+    """)
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def _save_transmission_network(layout: OutputLayout, run_id: str) -> None:
+    """One solved-looking network: a REZ connection and a flow path, each with an expansion half."""
+    network = pypsa.Network()
+    network.add("Bus", ["Q1", "NQ", "CQ"])
+    for name, bus0, bus1 in [
+        ("Q1-NQ_existing", "Q1", "NQ"),
+        ("Q1-NQ_exp_2050", "Q1", "NQ"),
+        ("CQ-NQ_existing", "CQ", "NQ"),
+        ("CQ-NQ_exp_2050", "CQ", "NQ"),
+    ]:
+        network.add("Link", name, bus0=bus0, bus1=bus1)
+    network.links["isp_name"] = ["Q1-NQ", "Q1-NQ", "CQ-NQ", "CQ-NQ"]
+    network.links["isp_type"] = ["rez", "rez", "flow_path", "flow_path"]
+    network.links["p_nom"] = [3000.0, 0.0, 1200.0, 0.0]
+    network.links["p_nom_opt"] = [3000.0, 500.0, 1200.0, 800.0]
+    path = layout.network(run_id)
+    path.parent.mkdir(parents=True)
+    network.export_to_netcdf(path)
+
+
+def _write_transmission_inputs(
+    layout: OutputLayout, run_id: str, csv_str_to_df
+) -> None:
+    """The three templated tables the link limits are read from, relaxed by a factor of four."""
+    tables = {
+        "renewable_energy_zones": """
+            rez_id,  isp_sub_region_id,  rez_transmission_network_limit_summer_typical
+            Q1,      NQ,                 3000.0
+            Q3,      NQ,
+        """,
+        "rez_transmission_expansion_costs": """
+            rez_constraint_id,  additional_network_capacity_mw
+            Q1,                 5160.0
+            NQ1,                12000.0
+        """,
+        "flow_path_expansion_costs": """
+            flow_path,  additional_network_capacity_mw
+            CQ-NQ,      2000.0
+            CQ-NQ,      4000.0
+        """,
+    }
+    inputs = layout.run_dir(run_id) / "ispypsa_inputs"
+    inputs.mkdir(parents=True)
+    for stem, csv in tables.items():
+        csv_str_to_df(csv).to_csv(inputs / f"{stem}.csv", index=False)
+
+
+def test_transmission_frame_pairs_each_link_with_the_limits_it_could_expand_to(
+    tmp_path, csv_str_to_df
+):
+    layout = OutputLayout(tmp_path)
+    _save_transmission_network(layout, "ext_central_cap0005_2050")
+    _write_transmission_inputs(layout, "ext_central_cap0005_2050", csv_str_to_df)
+
+    result = _transmission_frame("ext_central_cap0005", 2050, layout)
+
+    # The existing and expansion halves of each link are summed, the flow path's two options are
+    # summed, and the group-constraint expansion option belongs to no single link so nothing
+    # carries it. Only a REZ connection has a transmission limit.
+    expected = csv_str_to_df("""
+        cell,                 year,  link,   kind,       p_nom_mw,  p_nom_opt_mw,  expansion_limit_mw,  transmission_limit_mw
+        ext_central_cap0005,  2050,  CQ-NQ,  flow_path,  1200.0,    2000.0,        6000.0,
+        ext_central_cap0005,  2050,  Q1-NQ,  rez,        3000.0,    3500.0,        5160.0,              3000.0
     """)
     pd.testing.assert_frame_equal(result, expected)
 

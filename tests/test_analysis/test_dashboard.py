@@ -365,8 +365,14 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
 
     figure = figure_pathway_intensities(frame)
 
-    # Cost and emissions for both chains, then the fuels each chain burns: coal and gas, gas and biomass.
+    # The AEMO reference overlay, then cost and emissions for both chains, then the fuels each chain
+    # burns: coal and gas, gas and biomass.
     assert [(trace.name, trace.line.dash) for trace in figure.data] == [
+        (None, None),
+        ("AEMO scenario range", None),
+        ("AEMO draft ISP: Slower Growth", "dot"),
+        ("AEMO draft ISP: Step Change", "dot"),
+        ("AEMO draft ISP: Accelerated Transition", "dot"),
         ("central demand, uncapped (A$0/t)", "solid"),
         ("central demand, uncapped (A$0/t)", "solid"),
         ("central demand, uncapped (A$0/t)", "solid"),
@@ -377,9 +383,36 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
         ("high demand, carbon price A$150/t", "dot"),
     ]
     assert [trace.name for trace in figure.data if trace.showlegend] == [
+        "AEMO scenario range",
+        "AEMO draft ISP: Slower Growth",
+        "AEMO draft ISP: Step Change",
+        "AEMO draft ISP: Accelerated Transition",
         "central demand, uncapped (A$0/t)",
         "high demand, carbon price A$150/t",
     ]
+
+
+def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_emissions_panel(
+    csv_str_to_df,
+):
+    frame = csv_str_to_df("""
+        cell,    trajectory, pressure, pressure_name,    year, delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        central, central,    c0,       uncapped (A$0/t), 2030, 100.0,         25.0,                          0.40
+        central, central,    c0,       uncapped (A$0/t), 2040, 110.0,         30.0,                          0.20
+    """)
+
+    figure = figure_pathway_intensities(frame)
+
+    overlay = [trace for trace in figure.data if trace.legendgroup == "AEMO draft ISP"]
+    assert [trace.name for trace in overlay] == [
+        None,
+        "AEMO scenario range",
+        "AEMO draft ISP: Slower Growth",
+        "AEMO draft ISP: Step Change",
+        "AEMO draft ISP: Accelerated Transition",
+    ]
+    assert {trace.yaxis for trace in overlay} == {"y2"}
+    assert min(overlay[2].x) == 2030
 
 
 def test_implied_carbon_price_leaves_out_the_price_chains(exports):
@@ -608,4 +641,34 @@ def test_main_names_the_input_package_a_run_recorded_no_assumptions_for(
         "value",
         "inputs",
         "2026-01-01T00.00_final",
+    ]
+
+
+def test_transmission_limits_draw_the_deepest_central_cap_against_both_ceilings(
+    csv_str_to_df,
+):
+    links = csv_str_to_df("""
+        cell,                 year,  link,   kind,       p_nom_mw,  p_nom_opt_mw,  expansion_limit_mw,  transmission_limit_mw
+        ext_central_cap002,   2050,  Q1-NQ,  rez,        3000.0,    3000.0,        5160.0,              3000.0
+        ext_central_cap0005,  2050,  Q1-NQ,  rez,        3000.0,    3500.0,        5160.0,              3000.0
+        ext_central_cap0005,  2050,  Q3-NQ,  rez,        100000.0,  100000.0,      ,
+        ext_central_cap0005,  2050,  CQ-NQ,  flow_path,  1200.0,    2000.0,        6000.0,
+    """)
+
+    figure = figures.figure_transmission_limits(links, 4.0, 4.0)
+
+    # The shallower cap and the REZ connection with no published limit are both left out, and a
+    # flow path's own corridor capacity is AEMO's, so only its expansion headroom divides by four.
+    assert "ext_central_cap0005" in figure.layout.title.text
+    assert [(list(bar.x), list(bar.y)) for bar in figure.data if bar.type == "bar"] == [
+        (["Q1-NQ"], [3500.0]),
+        (["CQ-NQ"], [2000.0]),
+    ]
+    assert [
+        (dash.name, list(dash.y)) for dash in figure.data if dash.type == "scatter"
+    ] == [
+        ("AEMO IASR limit", [2040.0]),
+        ("Relaxed limit", [8160.0]),
+        ("AEMO IASR limit", [2700.0]),
+        ("Relaxed limit", [7200.0]),
     ]

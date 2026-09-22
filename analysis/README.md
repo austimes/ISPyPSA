@@ -44,8 +44,8 @@ $IO_DIR/
     logs/       solver stdout, one file per solve
     records/    JSON records, one per solve plus one per chain
     runs/       solved ISPyPSA run directories, plus chain state (tranches/, retention/)
-    exports/    results.csv, marginals.csv, storage.csv, manifest.csv, acceptance_*.csv,
-                per_chain/, sharp/
+    exports/    results.csv, marginals.csv, storage.csv, transmission.csv, manifest.csv,
+                acceptance_*.csv, per_chain/, sharp/
     dashboard.html
 ```
 
@@ -135,6 +135,7 @@ resolves as a package-relative path rather than an absolute one, its tests are s
   | --- | --- | --- |
   | `exports/results.csv` | `msm extract` | Generation mix (TWh and share by carrier, storage discharge included as its own carriers), built capacity by carrier (1 MW reporting floor), total and average system cost, absolute emissions and intensity, renewable fraction, load-shedding flags |
   | `exports/storage.csv` | `msm extract` | Storage build by carrier and duration class (power, energy, unit count) |
+  | `exports/transmission.csv` | `msm extract` | One row per REZ connection and sub-region flow path per cell-year: templated capacity, solved capacity, and the relaxed expansion and transmission limits the solve could reach |
   | `exports/marginals.csv` | `msm extract` | Finite-difference marginal cost and marginal emissions intensity of demand between adjacent trajectories, plus the thermal/renewable split of the marginal generation |
   | `exports/manifest.csv` | `msm extract` | Run identifier, pressure setting, cap tonnage and shadow price, solver settings, termination status, residuals, wall time, output paths |
   | `exports/acceptance_per_cell.csv`, `acceptance_per_grid.csv` | `msm extract` | The campaign's acceptance tests, per cell-period and per grid |

@@ -1,13 +1,16 @@
 """Assemble the extension campaign's deliverables from the solved chains.
 
-Same six tables as the demand x carbon sweep, over the campaign's grid of five demand
-trajectories by ten pressure settings, at the milestones 2030/2040/2050/2060:
+The demand x carbon sweep's six tables plus one on transmission, over the campaign's grid
+of five demand trajectories by ten pressure settings, at the milestones 2030/2040/2050/2060:
 
   results.csv          generation mix (TWh and shares, storage discharge included as
                        its own carriers), capacity builds (1 MW reporting floor), total
                        and average system cost, absolute emissions and intensity,
                        renewable fraction, load shedding
   storage.csv          storage build by duration class
+  transmission.csv     one row per renewable energy zone (REZ) connection and per sub-region
+                       flow path: the capacity it was templated with, the capacity the solve
+                       built, and the relaxed limits it could have expanded to
   marginals.csv        finite-difference marginal cost and marginal emissions
                        intensity of demand between adjacent trajectories, plus the
                        thermal/renewable split of the marginal generation
@@ -15,7 +18,7 @@ trajectories by ten pressure settings, at the milestones 2030/2040/2050/2060:
                        settings, termination status, residuals, wall time, paths
   acceptance_*.csv     the campaign's acceptance tests, per cell-period and per grid
 
-A seventh table, input_costs.csv, reports the cost inputs the solves were templated from rather
+One more table, input_costs.csv, reports the cost inputs the solves were templated from rather
 than anything they produced: new-entrant build cost per technology, fuel price per fuel, and the
 supply-curve tranche adders, each against the financial year it applies to.
 
@@ -204,6 +207,81 @@ def _storage_rows(cell: str, year: int, layout: OutputLayout) -> list[dict]:
             **row,
         }
         for (carrier, duration_class), row in grouped.iterrows()
+    ]
+
+
+#: Columns of ``transmission.csv``, in order.
+TRANSMISSION_COLUMNS = [
+    "cell",
+    "year",
+    "link",
+    "kind",
+    "p_nom_mw",
+    "p_nom_opt_mw",
+    "expansion_limit_mw",
+    "transmission_limit_mw",
+]
+
+#: The network's own link classes, mapped to the two kinds reported. ISPyPSA tells a REZ connection
+#: with a published transmission limit apart from one without; both are REZ connections here, and the
+#: absent limit is what says which is which.
+LINK_KINDS = {"rez": "rez", "rez_no_limit": "rez", "flow_path": "flow_path"}
+
+
+def _link_capacity(network: pypsa.Network) -> pd.DataFrame:
+    """Templated and solved capacity per REZ and flow-path link.
+
+    ISPyPSA splits every link into an existing half carrying the templated capacity and an
+    extendable half starting at zero, both named after the one link in ``isp_name``, so the pair
+    summed is the link's templated and solved capacity.
+    """
+    links = network.links.rename(columns={"isp_name": "link"})
+    links["kind"] = network.links["isp_type"].map(LINK_KINDS)
+    return links.groupby(["link", "kind"], as_index=False)[["p_nom", "p_nom_opt"]].sum()
+
+
+def _rez_limits(inputs: Path) -> pd.DataFrame:
+    """Relaxed transmission and expansion limits per REZ connection, keyed as the network names it."""
+    zones = pd.read_csv(inputs / "renewable_energy_zones.csv")
+    headroom = (
+        pd.read_csv(inputs / "rez_transmission_expansion_costs.csv")
+        .groupby("rez_constraint_id")["additional_network_capacity_mw"]
+        .sum(min_count=1)
+    )
+    return pd.DataFrame(
+        {
+            "link": zones["rez_id"] + "-" + zones["isp_sub_region_id"],
+            "expansion_limit_mw": zones["rez_id"].map(headroom),
+            "transmission_limit_mw": zones[
+                "rez_transmission_network_limit_summer_typical"
+            ],
+        }
+    )
+
+
+def _flow_path_limits(inputs: Path) -> pd.DataFrame:
+    """Relaxed expansion limit per sub-region flow path, summed over that path's options."""
+    costs = pd.read_csv(inputs / "flow_path_expansion_costs.csv")
+    headroom = costs.groupby("flow_path")["additional_network_capacity_mw"].sum(
+        min_count=1
+    )
+    return headroom.rename("expansion_limit_mw").rename_axis("link").reset_index()
+
+
+def _transmission_frame(cell: str, year: int, layout: OutputLayout) -> pd.DataFrame:
+    """Every REZ and flow-path link of one cell-year against the limits its solve could expand to.
+
+    The limits are read from the solve's own templated tables, so they carry whatever relaxation
+    factors the run was launched under; a link with no expansion option gets no limit.
+    """
+    inputs = layout.run_dir(f"{cell}_{year}") / "ispypsa_inputs"
+    limits = pd.concat(
+        [_rez_limits(inputs), _flow_path_limits(inputs)], ignore_index=True
+    )
+    links = _link_capacity(_network(cell, year, layout))
+    merged = links.merge(limits, on="link", how="left").assign(cell=cell, year=year)
+    return merged.rename(columns={"p_nom": "p_nom_mw", "p_nom_opt": "p_nom_opt_mw"})[
+        TRANSMISSION_COLUMNS
     ]
 
 
@@ -415,7 +493,7 @@ def extract_chain_products(
     workbook_cache: Path,
     per_chain_dir: Path,
 ) -> list[int]:
-    """Write one chain's frontier, mix, storage and manifest CSVs.
+    """Write one chain's frontier, mix, storage, transmission and manifest CSVs.
 
     This is the parallel unit of the pipeline: it opens every network the chain needs
     and writes only small CSVs, so the assemble stage never touches a network.
@@ -435,6 +513,10 @@ def extract_chain_products(
     storage = pd.DataFrame(
         [row for year in solved for row in _storage_rows(run_id, year, layout)]
     )
+    transmission = pd.concat(
+        [_transmission_frame(run_id, year, layout) for year in solved],
+        ignore_index=True,
+    )
     manifest = pd.DataFrame(
         [_manifest_row(run_id, pressure, trajectory, year, layout) for year in solved]
     )
@@ -442,6 +524,7 @@ def extract_chain_products(
         ("frontier", frontier),
         ("mix", mix),
         ("storage", storage),
+        ("transmission", transmission),
         ("manifest", manifest),
     ]:
         frame.to_csv(per_chain_dir / f"{name}_{run_id}.csv", index=False)
@@ -707,7 +790,7 @@ def assemble(
     years: list[int],
     trajectories: list[Trajectory],
 ) -> dict[str, pd.DataFrame]:
-    """Read the per-chain CSVs back and build the six campaign deliverables."""
+    """Read the per-chain CSVs back and build the campaign deliverables."""
     merged = _merge_results(
         _read_per_chain(per_chain_dir, "frontier"),
         _read_per_chain(per_chain_dir, "mix"),
@@ -733,6 +816,7 @@ def assemble(
     return {
         "results.csv": results,
         "storage.csv": _read_per_chain(per_chain_dir, "storage"),
+        "transmission.csv": _read_per_chain(per_chain_dir, "transmission"),
         "marginals.csv": marginals,
         "manifest.csv": _add_pressure_columns(
             _read_per_chain(per_chain_dir, "manifest")

@@ -22,14 +22,14 @@ templater and the translator. A factor of 1.0, or none at all, leaves every tabl
 
 Three exclusions matter for reading any relaxed run:
 
-| Not scaled | Consequence |
+| Not scaled by `rez_limit_factor` | Consequence |
 |---|---|
 | Per-megawatt expansion costs | Relaxed capacity is still paid for at AEMO's published price, so the sensitivity changes the ceiling and not the price |
-| Interconnector flow paths and their expansion limits | The backbone between sub-regions is unchanged, so a relaxed run can still be bound by interconnector expansion |
+| Interconnector and intra-region flow paths | The corridors between sub-regions answer to a second factor, `flow_path_limit_factor` in [`flow_path_limits.py`](../../model/flow_path_limits.py), which scales `flow_path_expansion_costs.additional_network_capacity_mw` and nothing else. Templated corridor capacity is scaled by neither factor, so a run relaxed on REZ limits alone can still be bound by corridor expansion |
 | Constraints summing generator or storage capacity | The fork's own caps (biomass, PHES site limits) keep their authored ceilings |
 
 **confidence: high.** Every column in the table above is read directly from `_SCALED_COLUMNS` and `_scale_group_transmission_limits` in
-`rez_limits.py`; nothing is inferred.
+`rez_limits.py`, and the flow-path row from `_CAPACITY_COLUMN` in `flow_path_limits.py`; nothing is inferred.
 
 ## What binds
 

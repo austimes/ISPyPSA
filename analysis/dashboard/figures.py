@@ -8,7 +8,7 @@ too little to draw. Page assembly, and the order the sections appear in, live in
 from __future__ import annotations
 
 import logging
-from itertools import cycle
+from itertools import cycle, product
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,13 @@ from plotly.subplots import make_subplots
 from scipy.interpolate import griddata
 from scipy.spatial import QhullError
 
-from analysis.hpc.campaign_grid import CAP_KIND, order_pressures, parse_pressure
+from analysis.env import PACKAGE_ROOT
+from analysis.hpc.campaign_grid import (
+    CAP_KIND,
+    order_pressures,
+    parse_pressure,
+    split_chain_id,
+)
 
 log = logging.getLogger(__name__)
 
@@ -85,6 +91,19 @@ INTENSITY_PANELS = [
     ("Emissions intensity", "Mt CO2e/TWh"),
     ("Input intensity", "PJ/TWh"),
 ]
+
+#: Derived AEMO draft ISP scenario emissions intensity, committed beside the research topic that derives it, and how the
+#: emissions panel draws it: one legend group, one grey dotted line per scenario and a shaded range behind them.
+AEMO_INTENSITY_CSV = (
+    PACKAGE_ROOT
+    / "research"
+    / "aemo_scenario_intensity"
+    / "aemo_scenario_intensity.csv"
+)
+AEMO_SCENARIOS = ["Slower Growth", "Step Change", "Accelerated Transition"]
+AEMO_LEGEND_GROUP = "AEMO draft ISP"
+AEMO_LINE_COLOUR = "#808080"
+AEMO_BAND_FILL = "rgba(120,120,120,0.18)"
 
 #: Fuel input columns the input-intensity panel draws, each named and dashed as it draws them.
 FUEL_INPUTS = {
@@ -179,7 +198,9 @@ LABELS = {
     "fleet_intensity": "Fleet-average intensity (t CO2e/MWh)",
     "implied_carbon_price_aud_per_t": "Implied carbon price (A$/t)",
     "intensity": "Emissions intensity (t CO2e/MWh)",
+    "link": "Transmission link",
     "marginal_intensity": "Demand-marginal intensity (t CO2e/MWh)",
+    "p_nom_opt_mw": "Link capacity, existing plus expansion (MW)",
     # Short, because a facet row is only tall enough for a title of about a dozen characters.
     "power_gw": "Power (GW)",
     "pressure_name": "Pressure",
@@ -607,11 +628,14 @@ def figure_pathway_intensities(frame: pd.DataFrame) -> go.Figure:
     The row mirrors the ShARP library's pathway intensities, so a modelled pathway reads beside a
     ShARP one: cost excludes fuel and carbon, and the input panel draws one dashed line per fuel.
     Every panel's line for a chain shares a legend group, so one legend click hides the chain across
-    all three.
+    all three. The emissions panel carries the derived AEMO scenario intensities behind the chains as
+    a sanity reference.
     """
     figure = make_subplots(
         rows=1, cols=3, subplot_titles=[title for title, _ in INTENSITY_PANELS]
     )
+    for reference in _aemo_overlay(_aemo_scenario_span(frame["year"].min())):
+        figure.add_trace(reference, row=1, col=2)
     for cell, colour in _chain_colours(frame).items():
         chain = frame[frame["cell"].eq(cell)].sort_values("year")
         cost = chain["cost_per_mwh_excl_fuel_carbon"]
@@ -631,6 +655,44 @@ def figure_pathway_intensities(frame: pd.DataFrame) -> go.Figure:
         height=INTENSITIES_HEIGHT,
         legend={"title_text": "Chain", "font_size": 10, "y": 1, "yanchor": "top"},
     )
+
+
+def _aemo_scenario_span(first_year: int) -> pd.DataFrame:
+    """The derived AEMO scenario intensities from ``first_year`` on, one column per scenario up the ambition ladder."""
+    table = pd.read_csv(AEMO_INTENSITY_CSV)
+    span = table.pivot(index="year", columns="scenario", values="t_co2e_per_mwh")
+    return span.loc[span.index >= first_year, AEMO_SCENARIOS]
+
+
+def _aemo_overlay(span: pd.DataFrame) -> list[go.Scatter]:
+    """The shaded scenario range and one dotted line per scenario, in one legend group so a click hides the overlay."""
+    shared = {
+        "legendgroup": AEMO_LEGEND_GROUP,
+        "mode": "lines",
+        "x": span.index,
+        "showlegend": True,
+    }
+    edge = {**shared, "line": {"width": 0}, "hoverinfo": "skip"}
+    traces = [
+        go.Scatter(**{**edge, "showlegend": False}, y=span.max(axis=1)),
+        go.Scatter(
+            **edge,
+            y=span.min(axis=1),
+            name="AEMO scenario range",
+            fill="tonexty",
+            fillcolor=AEMO_BAND_FILL,
+        ),
+    ]
+    line = {"color": AEMO_LINE_COLOUR, "dash": "dot", "width": 1.5}
+    for scenario in span:
+        hover = f"AEMO {scenario}<br>%{{x}}: %{{y:.3g}}<extra></extra>"
+        name = f"AEMO draft ISP: {scenario}"
+        traces.append(
+            go.Scatter(
+                **shared, y=span[scenario], name=name, line=line, hovertemplate=hover
+            )
+        )
+    return traces
 
 
 def _chain_colours(frame: pd.DataFrame) -> dict[str, str]:
@@ -1067,3 +1129,124 @@ def _facet_label(text: str) -> str:
     if column == "pressure":
         return pressure_label(value, "<br>")
     return _facet_text(text)
+
+
+#: The transmission panels in page order, each titled as the page names that class of link.
+LINK_KIND_LABELS = {
+    "rez": "REZ connections",
+    "flow_path": "Sub-region flow paths",
+}
+
+#: The two ceilings each panel marks above its bars, each named and coloured as it is drawn.
+LIMIT_MARKERS = {
+    "aemo_limit_mw": ("AEMO IASR limit", "#1c1c1c"),
+    "relaxed_limit_mw": ("Relaxed limit", "#d62728"),
+}
+
+#: Milestone-year bar hues, a single-hue ramp light to dark so the years read in time order and
+#: neither collides with the colours the two limit dashes are drawn in.
+TRANSMISSION_YEAR_COLOURS = px.colors.sequential.Blues[3:]
+
+#: Width and thickness of a limit dash, in pixels. Wide enough to span a link's whole bar group.
+LIMIT_MARKER_SIZE = 26
+LIMIT_MARKER_WIDTH = 3
+
+#: Height of the transmission figure, in pixels. Taller than the other single-strip figures because
+#: its x labels are link names rotated under the axis.
+TRANSMISSION_HEIGHT = 560
+
+
+def figure_transmission_limits(
+    links: pd.DataFrame, rez_factor: float, flow_path_factor: float
+) -> go.Figure:
+    """Capacity built on each REZ connection and flow path against the two ceilings it faced.
+
+    One panel per class of link, for the central-demand chain at the run's deepest cap: the chain
+    most likely to be pressed against its network ceilings. Bars are the capacity each milestone
+    solved to, and the two dashes above them are AEMO's published limit and the relaxed limit the
+    run actually allowed. A REZ connection with no published transmission limit carries ISPyPSA's
+    unlimited placeholder capacity instead of a ceiling, so it is left out.
+
+    :param links: The run's ``transmission.csv``, one row per cell, year and link.
+    :param rez_factor: Factor the run relaxed the REZ limits by.
+    :param flow_path_factor: Factor the run relaxed the flow-path expansion limits by.
+    """
+    cell = _deepest_central_cell(links)
+    limited = links["kind"].eq("flow_path") | links["transmission_limit_mw"].notna()
+    drawn = _limit_columns(
+        links[links["cell"].eq(cell) & limited],
+        {"rez": rez_factor, "flow_path": flow_path_factor},
+    ).sort_values("aemo_limit_mw", ascending=False)
+    figure = px.bar(
+        drawn.astype({"year": str}).replace({"kind": LINK_KIND_LABELS}),
+        x="link",
+        y="p_nom_opt_mw",
+        color="year",
+        barmode="group",
+        facet_col="kind",
+        category_orders={
+            "year": sorted(drawn["year"].unique().astype(str)),
+            "kind": list(LINK_KIND_LABELS.values()),
+        },
+        color_discrete_sequence=TRANSMISSION_YEAR_COLOURS,
+        labels=LABELS,
+        height=TRANSMISSION_HEIGHT,
+        title=f"Central demand at the run's deepest cap: {cell}",
+    )
+    figure.update_xaxes(matches=None, showticklabels=True, type="category")
+    figure.update_layout(legend_title_text=LABELS["year"], bargroupgap=0.05)
+    return _add_limit_markers(_strip_facet_titles(figure), drawn)
+
+
+def _deepest_central_cell(links: pd.DataFrame) -> str:
+    """The central-demand chain at the run's deepest cap, the one cell the panels draw."""
+    pressures = [
+        split_chain_id(cell)[1]
+        for cell in links["cell"].unique()
+        if split_chain_id(cell)[0] == CENTRAL_TRAJECTORY
+    ]
+    return f"ext_{CENTRAL_TRAJECTORY}_{order_pressures(pressures)[-1].key}"
+
+
+def _limit_columns(links: pd.DataFrame, factors: dict[str, float]) -> pd.DataFrame:
+    """Add each link's relaxed ceiling and the IASR ceiling it was relaxed from.
+
+    A REZ connection's templated capacity is itself a relaxed transmission limit, so both halves of
+    its ceiling divide by the REZ factor. A flow path keeps AEMO's own corridor capacity and only
+    its expansion headroom was relaxed, so only that half divides.
+    """
+    headroom = links["expansion_limit_mw"].fillna(0)
+    factor = links["kind"].map(factors)
+    relaxed = links["p_nom_mw"] + headroom
+    return links.assign(
+        relaxed_limit_mw=relaxed,
+        aemo_limit_mw=np.where(
+            links["kind"].eq("rez"),
+            relaxed / factor,
+            links["p_nom_mw"] + headroom / factor,
+        ),
+    )
+
+
+def _add_limit_markers(figure: go.Figure, drawn: pd.DataFrame) -> go.Figure:
+    """Mark both ceilings on every panel, one dash per link, listed once in the legend."""
+    panels = [kind for kind in LINK_KIND_LABELS if kind in set(drawn["kind"])]
+    for (panel, kind), (column, (name, colour)) in product(
+        enumerate(panels, start=1), LIMIT_MARKERS.items()
+    ):
+        block = drawn[drawn["kind"].eq(kind)].drop_duplicates("link")
+        figure.add_scatter(
+            x=block["link"],
+            y=block[column],
+            name=name,
+            mode="markers",
+            marker_symbol="line-ew",
+            marker_size=LIMIT_MARKER_SIZE,
+            marker_line={"color": colour, "width": LIMIT_MARKER_WIDTH},
+            legendgroup="limits",
+            legendgrouptitle_text="Limit",
+            showlegend=panel == 1,
+            row=1,
+            col=panel,
+        )
+    return figure
