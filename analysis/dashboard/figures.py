@@ -194,6 +194,8 @@ LABELS = {
     "cost_per_mwh": "Cost (A$/MWh)",
     "co2e_total_kt_per_yr": "Emissions (kt CO2e/yr)",
     "delivered_twh": "Delivered energy (TWh)",
+    "demand_level": "Demand level (multiple of the base cell's)",
+    "intensity_level": "Intensity level (multiple of the base cell's cap)",
     "duration_class": "Storage duration",
     "fleet_intensity": "Fleet-average intensity (t CO2e/MWh)",
     "implied_carbon_price_aud_per_t": "Implied carbon price (A$/t)",
@@ -604,6 +606,179 @@ def _year_grid(block: pd.DataFrame, size: int) -> pd.DataFrame | None:
     )
 
 
+#: The two measures the increment grid is coloured by, and the button label each carries.
+INCREMENT_COLOUR_MEASURES = {
+    "delta_cost_per_mwh_excl_fuel_carbon": "Delta cost (A$/MWh)",
+    "delta_co2e_kt_per_yr": "Delta emissions (kt CO2e/yr)",
+}
+
+#: The level each arm of the L-shaped grid varies, against the level it holds at one.
+INCREMENT_ARMS = {"demand_level": "intensity_level", "intensity_level": "demand_level"}
+
+#: Cost of the extra energy an increment cell delivers, and how the demand arm titles it.
+INCREMENT_COST_PER_TWH = "delta_cost_per_extra_twh"
+INCREMENT_COST_PER_TWH_LABEL = "Delta cost (A$/yr per extra TWh)"
+
+#: What each cell of the grid says on hover: the two levels, the measure and the intensity reached.
+INCREMENT_HOVER = (
+    "demand %{x:g}x, intensity %{y:g}x<br>%{z:.4g}"
+    "<br>fleet intensity %{customdata:.4g} t CO2e/MWh<extra></extra>"
+)
+
+#: Height of the increment section, which stacks two curve rows, the grids and the duals table.
+INCREMENT_HEIGHT = 1150
+
+
+def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
+    """The increment grid: its demand arm, its intensity arm, and the whole grid per year.
+
+    Each conditioned single-year solve is one cell, reported against the base cell it branched
+    from. The demand arm prices extra energy at the base cell's cap, the intensity arm prices a
+    deeper cap at the base cell's demand, and the grid below shows every cell at once, with the
+    button switching it between cost and emissions. The table carries the implied carbon price
+    each side of the increment faced.
+
+    :param increments: The run's ``increments.csv``, one row per branch cell and year.
+    """
+    curves = _increment_curves(increments)
+    blocks = [
+        curves[curves["year"].eq(year)] for year in sorted(curves["year"].unique())
+    ]
+    figure = make_subplots(
+        rows=4,
+        cols=len(blocks),
+        specs=_increment_specs(len(blocks)),
+        subplot_titles=_increment_titles(blocks),
+        vertical_spacing=0.08,
+    )
+    for block in blocks:
+        for row, level in enumerate(INCREMENT_ARMS, start=1):
+            arm = _increment_arm(block, level, row == 1)
+            figure.add_trace(arm, row=row, col=1)
+    for column, block in enumerate(blocks, start=1):
+        figure.add_trace(_increment_heatmap(block), row=3, col=column)
+    figure.add_trace(_cap_dual_table(increments), row=4, col=1)
+    return _button_row(_label_increment_axes(figure), _increment_buttons(blocks))
+
+
+def _increment_curves(increments: pd.DataFrame) -> pd.DataFrame:
+    """Increment cells with the demand arm's measure: cost per extra TWh delivered.
+
+    A cell whose demand matches its base delivers no extra energy, so its ratio is left out
+    rather than drawn as an infinite one.
+    """
+    per_twh = (
+        increments["delta_total_cost_aud_per_yr"] / increments["delta_delivered_twh"]
+    )
+    return increments.assign(
+        **{INCREMENT_COST_PER_TWH: per_twh.replace([np.inf, -np.inf], np.nan)}
+    )
+
+
+def _increment_specs(columns: int) -> list[list[dict | None]]:
+    """Two full-width arm rows, one grid per year, and a full-width duals table."""
+    wide = [[{"colspan": columns}, *[None] * (columns - 1)] for _ in range(2)]
+    grids = [{} for _ in range(columns)]
+    table = [{"colspan": columns, "type": "table"}, *[None] * (columns - 1)]
+    return [*wide, grids, table]
+
+
+def _increment_titles(blocks: list[pd.DataFrame]) -> list[str]:
+    """Panel titles in subplot order: the two arms, one per year's grid, then the duals."""
+    years = [str(block["year"].iloc[0]) for block in blocks]
+    return [
+        "Demand arm: cost of extra energy at the base cap",
+        "Intensity arm: cost of a deeper cap at base demand",
+        *years,
+        "Implied carbon price each side of the increment (A$/t)",
+    ]
+
+
+def _increment_arm(block: pd.DataFrame, level: str, legend: bool) -> go.Scatter:
+    """One year's arm of the L-shaped grid: the cells varying ``level``, the other held at one."""
+    arm = block[block[INCREMENT_ARMS[level]].eq(1.0)].sort_values(level)
+    measure = (
+        INCREMENT_COST_PER_TWH
+        if level == "demand_level"
+        else "delta_cost_per_mwh_excl_fuel_carbon"
+    )
+    year = str(block["year"].iloc[0])
+    return go.Scatter(
+        x=arm[level],
+        y=arm[measure],
+        name=year,
+        legendgroup=year,
+        showlegend=legend,
+        mode="lines+markers",
+    )
+
+
+def _increment_grid(block: pd.DataFrame, measure: str) -> pd.DataFrame:
+    """One year's cells on the exact grid they were solved on, demand across, intensity down."""
+    return block.pivot_table(
+        index="intensity_level", columns="demand_level", values=measure
+    )
+
+
+def _increment_heatmap(block: pd.DataFrame) -> go.Heatmap:
+    """One year's grid, coloured by delta cost with the intensity it reached on hover."""
+    cells = _increment_grid(block, next(iter(INCREMENT_COLOUR_MEASURES)))
+    reached = _increment_grid(block, "fleet_intensity_t_per_mwh")
+    return go.Heatmap(
+        x=cells.columns,
+        y=cells.index,
+        z=cells.to_numpy(),
+        customdata=reached.to_numpy(),
+        coloraxis="coloraxis",
+        hovertemplate=INCREMENT_HOVER,
+    )
+
+
+def _increment_buttons(blocks: list[pd.DataFrame]) -> list[dict]:
+    """Switch every year's grid between the two increment measures at once."""
+    # The grids follow one arm trace per row per year, so they start after two per year.
+    grids = list(range(2 * len(blocks), 3 * len(blocks)))
+    return [
+        {
+            "label": label,
+            "method": "restyle",
+            "args": [
+                {"z": [_increment_grid(block, measure).to_numpy() for block in blocks]},
+                grids,
+            ],
+        }
+        for measure, label in INCREMENT_COLOUR_MEASURES.items()
+    ]
+
+
+def _label_increment_axes(figure: go.Figure) -> go.Figure:
+    """Name each panel's axes and put every year's grid on one colour scale."""
+    figure.update_xaxes(title_text=LABELS["demand_level"], row=1, col=1)
+    figure.update_yaxes(title_text=INCREMENT_COST_PER_TWH_LABEL, row=1, col=1)
+    figure.update_xaxes(title_text=LABELS["intensity_level"], row=2, col=1)
+    figure.update_yaxes(title_text=LABELS["cost_per_mwh"], row=2, col=1)
+    figure.update_xaxes(title_text=LABELS["demand_level"], row=3)
+    figure.update_yaxes(title_text=LABELS["intensity_level"], row=3, col=1)
+    colourbar = {
+        "title": {"text": next(iter(INCREMENT_COLOUR_MEASURES.values()))},
+        "len": 0.2,
+    }
+    return figure.update_layout(
+        height=INCREMENT_HEIGHT,
+        legend_title_text=LABELS["year"],
+        coloraxis={"colorscale": "Viridis", "colorbar": colourbar},
+    )
+
+
+def _cap_dual_table(increments: pd.DataFrame) -> go.Table:
+    """Implied carbon price each increment cell and its base cell faced, A$/t."""
+    columns = ["cell", "year", "cap_dual_base", "cap_dual_branch"]
+    shown = increments[columns].round(1)
+    return go.Table(
+        header={"values": columns}, cells={"values": [shown[c] for c in columns]}
+    )
+
+
 def figure_cost_pathway(frame: pd.DataFrame) -> go.Figure:
     """Average cost over the milestone years, one line per pressure and one facet per trajectory."""
     figure = px.line(
@@ -825,7 +1000,9 @@ def figure_cost_decomposition(frame: pd.DataFrame) -> go.Figure:
     components below fuel and carbon add up to the cost the campaign reports excluding both, so the
     full stack height is the average cost the other figures plot.
     """
-    central = frame[frame["trajectory"].eq(CENTRAL_TRAJECTORY)]
+    central = frame[
+        frame["trajectory"].eq(_central_trajectory(list(frame["trajectory"])))
+    ]
     figure = px.bar(
         _cost_components(central),
         x="pressure_short",
@@ -1200,12 +1377,26 @@ def figure_transmission_limits(
 
 def _deepest_central_cell(links: pd.DataFrame) -> str:
     """The central-demand chain at the run's deepest cap, the one cell the panels draw."""
+    trajectories = [split_chain_id(cell)[0] for cell in links["cell"].unique()]
+    central = _central_trajectory(trajectories)
     pressures = [
         split_chain_id(cell)[1]
         for cell in links["cell"].unique()
-        if split_chain_id(cell)[0] == CENTRAL_TRAJECTORY
+        if split_chain_id(cell)[0] == central
     ]
-    return f"ext_{CENTRAL_TRAJECTORY}_{order_pressures(pressures)[-1].key}"
+    return f"ext_{central}_{order_pressures(pressures)[-1].key}"
+
+
+def _central_trajectory(trajectories: list[str]) -> str:
+    """The one demand trajectory the single-chain figures draw.
+
+    The campaign's own central trajectory where it has one, and otherwise the median of the
+    base trajectories. An increment-grid branch extends the key of the base trajectory it
+    branched from, so it is never the trajectory drawn.
+    """
+    keys = sorted(set(trajectories))
+    bases = [key for key in keys if not any(key.startswith(f"{k}_") for k in keys)]
+    return CENTRAL_TRAJECTORY if CENTRAL_TRAJECTORY in bases else bases[len(bases) // 2]
 
 
 def _limit_columns(links: pd.DataFrame, factors: dict[str, float]) -> pd.DataFrame:

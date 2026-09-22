@@ -17,6 +17,10 @@ of five demand trajectories by ten pressure settings, at the milestones 2030/204
   manifest.csv         run id, pressure setting, cap tonnage and shadow price, solver
                        settings, termination status, residuals, wall time, paths
   acceptance_*.csv     the campaign's acceptance tests, per cell-period and per grid
+  increments.csv       one row per increment-grid branch cell against the base cell it
+                       branched from: the cost, emissions, fuel and new-build consequence
+                       of its extra demand and deeper cap, with the duals both sides faced.
+                       Written only by a campaign that carries an increment grid
 
 One more table, input_costs.csv, reports the cost inputs the solves were templated from rather
 than anything they produced: new-entrant build cost per technology, fuel price per fuel, and the
@@ -94,6 +98,11 @@ FUEL_BURNING_FLOOR_PCT = 0.5
 # Pumped hydro units carry the carrier "Water", the same carrier the conventional hydro
 # generators carry, so the storage half of the mix is renamed to keep the two apart.
 STORAGE_MIX_LABELS = {"Water": "Pumped hydro"}
+#: Increment-grid columns of ``chains_index.csv``, carried onto the frontier and manifest frames.
+#: A campaign without an increment grid has none of them, and every row of it is a base row.
+BRANCH_COLUMNS = ["base_cell", "branch_year", "demand_level", "intensity_level"]
+#: Long-form columns of the per-chain constraint-dual table.
+DUAL_COLUMNS = ["cell", "year", "constraint", "dual"]
 
 
 # --------------------------------------------------------------- per-chain networks
@@ -389,6 +398,8 @@ def _frontier_frame(
     years: list[int],
     layout: OutputLayout,
     workbook_cache: Path,
+    prior_run_id: str | None,
+    prior_years: list[int],
 ) -> pd.DataFrame:
     """Frontier coordinates for one chain, with the campaign's axis columns attached."""
     frame, _ = extract_chain(
@@ -399,6 +410,8 @@ def _frontier_frame(
         tns_price=TNS_PRICE_AUD_PER_TCO2,
         layout=layout,
         workbook_cache=workbook_cache,
+        prior_run_id=prior_run_id,
+        prior_years=prior_years,
     )
     frame.insert(0, "cell", run_id)
     frame["pressure"] = pressure.key
@@ -492,12 +505,18 @@ def extract_chain_products(
     layout: OutputLayout,
     workbook_cache: Path,
     per_chain_dir: Path,
+    chain_row: pd.Series,
+    prior_years: list[int],
 ) -> list[int]:
-    """Write one chain's frontier, mix, storage, transmission and manifest CSVs.
+    """Write one chain's frontier, mix, storage, transmission, duals and manifest CSVs.
 
     This is the parallel unit of the pipeline: it opens every network the chain needs
     and writes only small CSVs, so the assemble stage never touches a network.
 
+    :param chain_row: The chain's row of ``chains_index.csv``, carrying the increment-grid
+        columns that name the base cell a branch was seeded from.
+    :param prior_years: Milestone years of the base chain, which a branch reads its carried
+        vintages from.
     :return: The milestone years actually extracted.
     """
     solved = _solved_years(layout, run_id, years)
@@ -505,7 +524,14 @@ def extract_chain_products(
         return []
     per_chain_dir.mkdir(parents=True, exist_ok=True)
     frontier = _frontier_frame(
-        run_id, pressure, trajectory.key, solved, layout, workbook_cache
+        run_id,
+        pressure,
+        trajectory.key,
+        solved,
+        layout,
+        workbook_cache,
+        _prior_chain(chain_row),
+        prior_years,
     )
     mix = pd.DataFrame(
         [_mix_row(run_id, year, layout, EXCLUDED_MIX_CARRIERS) for year in solved]
@@ -520,15 +546,33 @@ def extract_chain_products(
     manifest = pd.DataFrame(
         [_manifest_row(run_id, pressure, trajectory, year, layout) for year in solved]
     )
+    duals = pd.concat([_dual_rows(run_id, year, layout) for year in solved])
+    branch = chain_row[BRANCH_COLUMNS].to_dict()
     for name, frame in [
-        ("frontier", frontier),
+        ("frontier", frontier.assign(**branch)),
         ("mix", mix),
         ("storage", storage),
         ("transmission", transmission),
-        ("manifest", manifest),
+        ("duals", duals),
+        ("manifest", manifest.assign(**branch)),
     ]:
         frame.to_csv(per_chain_dir / f"{name}_{run_id}.csv", index=False)
     return solved
+
+
+def _dual_rows(cell: str, year: int, layout: OutputLayout) -> pd.DataFrame:
+    """Every constraint dual one solve reported, long form.
+
+    A solve from before the runner wrote them all carries only the cap dual, which
+    `_cap_shadow_price` reads on its own, so it contributes no rows here.
+    """
+    path = layout.run_dir(f"{cell}_{year}") / "outputs" / "constraint_duals.json"
+    duals = json.loads(path.read_text()).get("duals", {}) if path.exists() else {}
+    rows = [
+        {"cell": cell, "year": year, "constraint": name, "dual": value}
+        for name, value in duals.items()
+    ]
+    return pd.DataFrame(rows, columns=DUAL_COLUMNS)
 
 
 # -------------------------------------------------------------------- cost inputs
@@ -660,7 +704,9 @@ def _merge_results(frontier: pd.DataFrame, mix: pd.DataFrame) -> pd.DataFrame:
     results = frontier.merge(
         mix, on=["cell", "year"], how="left", suffixes=("", "_mix")
     )
-    absent = [c for c in results.columns if c.startswith(("twh_", "share_", "gw_"))]
+    absent = [
+        c for c in results.columns if c.startswith(("twh_", "share_", "gw_", "new_gw_"))
+    ]
     results[absent] = results[absent].fillna(0.0)
     return results
 
@@ -785,6 +831,105 @@ def _intensity_monotone_rows(
     return rows
 
 
+# ------------------------------------------------------------------ increment grid
+
+#: What each increment cell reports, and the ``results.csv`` column it is differenced from.
+INCREMENT_MEASURES = {
+    "delta_delivered_twh": "delivered_twh",
+    "delta_total_cost_aud_per_yr": "total_cost_aud_per_yr",
+    "delta_cost_per_mwh_excl_fuel_carbon": "cost_per_mwh_excl_fuel_carbon",
+    "delta_co2e_kt_per_yr": "co2e_total_kt_per_yr",
+    "delta_pj_gas": "pj_gas",
+    "delta_pj_coal": "pj_coal",
+}
+
+#: Columns naming each increment cell, ahead of the differences, and where each is read from.
+INCREMENT_KEYS = {
+    "base_cell": "base_cell",
+    "cell": "cell",
+    "year": "year",
+    "demand_level": "demand_level",
+    "intensity_level": "intensity_level",
+    "fleet_intensity_t_per_mwh": "co2e_total_t_per_mwh",
+}
+
+#: The implied carbon price both sides of an increment faced, taken from the manifest.
+IMPLIED_PRICE_COLUMN = "implied_carbon_price_aud_per_t"
+
+#: How many constraint duals the increment table carries: the largest by absolute value
+#: anywhere in the campaign, which is as many as a reader can scan in one table.
+MAX_DUAL_COLUMNS = 20
+
+
+def base_rows(results: pd.DataFrame) -> pd.DataFrame:
+    """The campaign's base chains. A run with no increment grid is all base rows."""
+    if "base_cell" not in results:
+        return results
+    return results[results["base_cell"].isna()]
+
+
+def _add_fuel_pj(results: pd.DataFrame) -> pd.DataFrame:
+    """Annual coal and gas input energy in petajoules, from the per-MWh input intensities."""
+    pj_per_gj_per_mwh = results["total_twh"] * 1e6 / 1e9
+    return results.assign(
+        pj_coal=results.get("gj_per_mwh_coal", 0.0) * pj_per_gj_per_mwh,
+        pj_gas=results.get("gj_per_mwh_natural_gas", 0.0) * pj_per_gj_per_mwh,
+    )
+
+
+def _join_branches_to_bases(measured: pd.DataFrame) -> pd.DataFrame:
+    """Every branch cell beside the base cell it branched from, at the same year."""
+    return measured[measured["base_cell"].notna()].merge(
+        base_rows(measured).drop(columns="base_cell"),
+        left_on=["base_cell", "year"],
+        right_on=["cell", "year"],
+        suffixes=("", "_base"),
+    )
+
+
+def _increment_deltas(joined: pd.DataFrame, measures: dict[str, str]) -> pd.DataFrame:
+    """Branch minus base for every increment measure, named as the export names it."""
+    return pd.DataFrame(
+        {
+            name: joined[column] - joined[f"{column}_base"]
+            for name, column in measures.items()
+        }
+    )
+
+
+def _largest_duals(duals: pd.DataFrame) -> pd.DataFrame:
+    """The campaign's largest constraint duals, one column per constraint and cell-year.
+
+    Ranked on the largest absolute dual a constraint reached anywhere, so one column
+    covers the same constraint in every cell rather than a different one per cell.
+    """
+    reach = duals["dual"].astype(float).abs().groupby(duals["constraint"]).max()
+    kept = duals[duals["constraint"].isin(reach.nlargest(MAX_DUAL_COLUMNS).index)]
+    wide = kept.pivot_table(index=["cell", "year"], columns="constraint", values="dual")
+    return wide.add_prefix("dual_").reset_index()
+
+
+def _increments(results: pd.DataFrame, duals: pd.DataFrame) -> pd.DataFrame:
+    """One row per increment-grid branch cell, against the base cell it branched from.
+
+    The gross cost, emissions and fuel consequence of the cell's extra demand and deeper
+    cap, with the implied carbon price both sides faced and the branch's largest duals.
+    A run with no increment grid has no branch rows and so no increments at all.
+    """
+    measured = _add_fuel_pj(results)
+    joined = _join_branches_to_bases(measured)
+    if joined.empty:
+        return pd.DataFrame()
+    new_build = {f"delta_{gw}": gw for gw in measured.filter(regex=r"^new_gw_")}
+    keys = joined[list(INCREMENT_KEYS.values())].set_axis(list(INCREMENT_KEYS), axis=1)
+    prices = joined[[f"{IMPLIED_PRICE_COLUMN}_base", IMPLIED_PRICE_COLUMN]].set_axis(
+        ["cap_dual_base", "cap_dual_branch"], axis=1
+    )
+    deltas = _increment_deltas(joined, {**INCREMENT_MEASURES, **new_build})
+    cells = pd.concat([keys, deltas, prices], axis=1)
+    return cells.merge(_largest_duals(duals), on=["cell", "year"], how="left")
+
+
 def assemble(
     per_chain_dir: Path,
     years: list[int],
@@ -796,33 +941,42 @@ def assemble(
         _read_per_chain(per_chain_dir, "mix"),
     )
     results = _add_pressure_columns(_add_unpriced_fuel(_add_load_shedding(merged)))
+    manifest = _add_pressure_columns(_read_per_chain(per_chain_dir, "manifest"))
     pressures = order_pressures(list(results["pressure"]))
     order = [trajectory.key for trajectory in trajectories]
+    # The demand ladder and both monotone tests run along the base chains: an increment
+    # branch is a conditioned single-year solve, not a rung of the campaign's own grid.
+    base = base_rows(results)
     # A boundary cell's cost is quoted per MWh of demand it did not fully serve, so
     # differencing it against a neighbour would price the shortfall as if it were supply.
     marginals = _marginals(
-        results[~results["boundary"]],
+        base[~base["boundary"]],
         level_order=order,
         periods=years,
         series_column="pressure",
         level_column="trajectory",
     )
     per_grid = pd.DataFrame(
-        _cost_monotone_rows(results[~results["boundary"]], years, pressures, order)
+        _cost_monotone_rows(base[~base["boundary"]], years, pressures, order)
         + _intensity_monotone_rows(
-            results, years, [p for p in pressures if p.kind == CAP_KIND], order
+            base, years, [p for p in pressures if p.kind == CAP_KIND], order
         )
+    )
+    increments = _increments(
+        results.merge(
+            manifest[["cell", "year", IMPLIED_PRICE_COLUMN]], on=["cell", "year"]
+        ),
+        _read_per_chain(per_chain_dir, "duals"),
     )
     return {
         "results.csv": results,
         "storage.csv": _read_per_chain(per_chain_dir, "storage"),
         "transmission.csv": _read_per_chain(per_chain_dir, "transmission"),
         "marginals.csv": marginals,
-        "manifest.csv": _add_pressure_columns(
-            _read_per_chain(per_chain_dir, "manifest")
-        ),
+        "manifest.csv": manifest,
         "acceptance_per_cell.csv": _acceptance_per_cell(results),
         "acceptance_per_grid.csv": per_grid,
+        **({"increments.csv": increments} if not increments.empty else {}),
     }
 
 
@@ -837,6 +991,29 @@ def _chain_ids(chains_path: Path) -> list[str]:
     return list(chains["run_id"])
 
 
+def _chain_index(campaign: Path) -> pd.DataFrame:
+    """The campaign's chain rows, keyed on run id, with the increment-grid columns present.
+
+    A campaign launched without an increment grid names none of those columns, and every
+    row of it is a base row.
+    """
+    index = pd.read_csv(campaign / "chains_index.csv").set_index("run_id")
+    missing = [column for column in BRANCH_COLUMNS if column not in index]
+    return index.reindex(columns=[*index.columns, *missing])
+
+
+def _prior_chain(chain_row: pd.Series) -> str | None:
+    """Chain a row reads its carried vintages from: a base chain reads its own."""
+    return chain_row["base_cell"] if pd.notna(chain_row["base_cell"]) else None
+
+
+def _chain_years(chain_row: pd.Series, years: list[int]) -> list[int]:
+    """Milestones one chain covers: an increment branch is a single conditioned solve."""
+    if pd.isna(chain_row["branch_year"]):
+        return years
+    return [int(chain_row["branch_year"])]
+
+
 def _run_extract(
     layout: OutputLayout,
     plan: dict,
@@ -847,16 +1024,20 @@ def _run_extract(
     """Extract one chain's products, or every chain's in sequence."""
     trajectories = {t.key: t for t in trajectories_from_plan(plan)}
     years = plan["milestone_years"]
+    index = _chain_index(layout.campaign)
     for run_id in run_ids:
+        chain_row = index.loc[run_id]
         trajectory_key, pressure_key = split_chain_id(run_id)
         solved = extract_chain_products(
             run_id,
             trajectories[trajectory_key],
             parse_pressure(pressure_key),
-            years,
+            _chain_years(chain_row, years),
             layout,
             workbook_cache,
             exports / "per_chain",
+            chain_row,
+            years,
         )
         print(f"  extracted {run_id}  ({len(solved)} milestones: {solved})")
 

@@ -6,12 +6,15 @@ from analysis.hpc.campaign_grid import order_pressures
 from analysis.sharp.deliverables import (
     _add_load_shedding,
     _add_unpriced_fuel,
+    _chain_index,
     _cost_monotone_rows,
+    _increments,
     _marginals,
     _mix_row,
     _templated_cost_rows,
     _transmission_frame,
     _write_input_costs,
+    base_rows,
 )
 
 _TRAJECTORY_ORDER = ["low", "central", "stress"]
@@ -134,6 +137,72 @@ def test_marginals_difference_adjacent_trajectories_at_one_pressure(csv_str_to_d
         cap0001, 2050, central, stress, 350.0, 450.0, 100.0, 3.7e10, 5.0e10, 130.0, 1200.0, 1500.0, 0.003, 4.0, 70.0, 4.0, 70.0, 5.405405405, 94.594594595
     """)
     pd.testing.assert_frame_equal(arcs, expected, check_exact=False, rtol=1e-8)
+
+
+def test_chain_index_reads_a_campaign_launched_without_an_increment_grid(
+    tmp_path, csv_str_to_df
+):
+    """Such a campaign names none of the increment-grid columns, and every chain of it is a
+    base chain solving the plan's own milestones."""
+    csv_str_to_df("""
+        row,  run_id,          trajectory,  chain,  stage
+        0,    ext_low_cap002,  low,         cap002, 2b
+    """).to_csv(tmp_path / "chains_index.csv", index=False)
+
+    result = _chain_index(tmp_path)
+
+    expected = csv_str_to_df("""
+        run_id,          row,  trajectory,  chain,   stage,  base_cell,  branch_year,  demand_level,  intensity_level
+        ext_low_cap002,  0,    low,         cap002,  2b,     ,           ,             ,
+    """).set_index("run_id")
+    pd.testing.assert_frame_equal(result, expected, check_dtype=False)
+
+
+def test_marginals_leave_out_the_increment_branch_rows(csv_str_to_df):
+    """A branch cell is a conditioned single-year solve, not a rung of the demand ladder, so
+    the arc from the base trajectory up to a branch of it must never be differenced."""
+    results = csv_str_to_df("""
+        cell,                            base_cell,            pressure,  trajectory,          year,  delivered_twh,  total_cost_aud_per_yr,  co2e_total_kt_per_yr,  twh_Gas,  twh_Wind,  boundary
+        ext_low_cap0001,                 ,                     cap0001,   low,                 2050,  300.0,          3.0e10,                 1000.0,                10.0,     200.0,     False
+        ext_central_cap0001,             ,                     cap0001,   central,             2050,  350.0,          3.7e10,                 1200.0,                12.0,     230.0,     False
+        ext_central_b2050_d110_cap0001,  ext_central_cap0001,  cap0001,   central_b2050_d110,  2050,  385.0,          4.2e10,                 1300.0,                13.0,     250.0,     False
+    """)
+
+    arcs = _marginals(
+        base_rows(results),
+        level_order=["low", "central", "central_b2050_d110"],
+        periods=[2050],
+        series_column="pressure",
+        level_column="trajectory",
+    )
+
+    expected = csv_str_to_df("""
+        pressure, year, from_level, to_level, from_delivered_twh, to_delivered_twh, delta_delivered_twh, from_total_cost_aud_per_yr, to_total_cost_aud_per_yr, marginal_cost_aud_per_mwh, from_co2e_kt_per_yr, to_co2e_kt_per_yr, marginal_co2e_t_per_mwh, marginal_thermal_twh, marginal_renewable_twh, marginal_thermal_per_delivered_pct, marginal_renewable_per_delivered_pct, marginal_thermal_pct_of_generation, marginal_renewable_pct_of_generation
+        cap0001, 2050, low, central, 300.0, 350.0, 50.0, 3.0e10, 3.7e10, 140.0, 1000.0, 1200.0, 0.004, 2.0, 30.0, 4.0, 60.0, 6.25, 93.75
+    """)
+    pd.testing.assert_frame_equal(arcs, expected, check_exact=False, rtol=1e-8)
+
+
+def test_increments_difference_each_branch_cell_against_its_base(csv_str_to_df):
+    """One increment row per branch cell: the gross cost, emissions, fuel and new-build
+    consequence of its extra demand and deeper cap, with the duals both sides faced."""
+    results = csv_str_to_df("""
+        cell,    base_cell,  year,  demand_level,  intensity_level,  delivered_twh,  total_twh,  total_cost_aud_per_yr,  cost_per_mwh_excl_fuel_carbon,  co2e_total_kt_per_yr,  co2e_total_t_per_mwh,  gj_per_mwh_coal,  gj_per_mwh_natural_gas,  new_gw_Wind,  implied_carbon_price_aud_per_t
+        ext_sc,  ,           2035,  ,              ,                 200.0,          210.0,      1.0e10,                 50.0,                           1000.0,                0.0050,                1.0,              0.4,                     1.0,          50.0
+        ext_b,   ext_sc,     2035,  1.1,           0.5,              220.0,          231.0,      1.2e10,                 55.0,                           800.0,                 0.0036,                0.5,              0.6,                     3.0,          400.0
+    """)
+    duals = csv_str_to_df("""
+        cell,   year,  constraint,  dual
+        ext_b,  2035,  rez_Q1,      -12.0
+    """)
+
+    result = _increments(results, duals)
+
+    expected = csv_str_to_df("""
+        base_cell, cell,  year, demand_level, intensity_level, fleet_intensity_t_per_mwh, delta_delivered_twh, delta_total_cost_aud_per_yr, delta_cost_per_mwh_excl_fuel_carbon, delta_co2e_kt_per_yr, delta_pj_gas, delta_pj_coal, delta_new_gw_Wind, cap_dual_base, cap_dual_branch, dual_rez_Q1
+        ext_sc,    ext_b, 2035, 1.1,          0.5,             0.0036,                    20.0,                2.0e9,                       5.0,                                 -200.0,               0.0546,       -0.0945,       2.0,               50.0,          400.0,           -12.0
+    """)
+    pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-9)
 
 
 def test_cost_monotone_row_per_year_and_pressure(csv_str_to_df):

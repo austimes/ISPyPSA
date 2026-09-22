@@ -131,8 +131,34 @@ def extract_frontier_point(
         existing_fom,
         diagnostics,
     )
+    row.update(_new_build_gw(network, year))
+    row["marginal_price_aud_per_mwh"] = _load_weighted_marginal_price(network)
     composition = _composition_diagnostic(network, sweep_id, year)
     return row, composition
+
+
+def _new_build_gw(network: pypsa.Network, year: int) -> dict:
+    """Capacity built in ``year`` per carrier, in GW, over generators and storage units."""
+    built = pd.concat(
+        [
+            _surviving_new_builds(network.generators, year, year),
+            _surviving_new_builds(network.storage_units, year, year),
+        ]
+    )
+    by_carrier = built.groupby("carrier")["p_nom_opt"].sum() / 1000.0
+    return {f"new_gw_{carrier}": gw for carrier, gw in by_carrier.items()}
+
+
+def _load_weighted_marginal_price(network: pypsa.Network) -> float | None:
+    """Load-weighted bus marginal price, A$/MWh, or ``None`` where the solve kept no prices."""
+    prices, load = network.buses_t.marginal_price, network.loads_t.p_set
+    if prices.empty or load.empty:
+        return None
+    energy = load.rename(columns=network.loads["bus"]).mul(
+        network.snapshot_weightings["objective"], axis=0
+    )
+    weighted = prices[energy.columns].to_numpy() * energy.to_numpy()
+    return float(weighted.sum() / energy.to_numpy().sum())
 
 
 def _existing_fleet_fom(
@@ -452,16 +478,24 @@ def extract_chain(
     tns_price: float,
     layout: OutputLayout,
     workbook_cache: Path,
+    prior_run_id: str | None = None,
+    prior_years: list[int] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """All frontier rows + composition diagnostics for one chained sweep.
 
     Every path follows the `msm solve` naming convention through `layout`: one run
     directory and one solver record per `{run_id}_{year}`.
+
+    :param prior_run_id: Chain the carried vintages are read from, for an increment-grid
+        branch seeded from a base chain; defaults to this chain itself.
+    :param prior_years: Years those vintages may have been built in; defaults to `years`.
     """
     rows, compositions = [], []
     for year in years:
         run_root = layout.run_dir(f"{run_id}_{year}")
-        prior_ncs = {y: layout.network(f"{run_id}_{y}") for y in years if y < year}
+        prior_ncs = _prior_networks(
+            layout, prior_run_id or run_id, prior_years or years, year
+        )
         row, composition = extract_frontier_point(
             sweep_id,
             year,
@@ -477,3 +511,10 @@ def extract_chain(
         rows.append(row)
         compositions.append(composition)
     return pd.DataFrame(rows), pd.concat(compositions, ignore_index=True)
+
+
+def _prior_networks(
+    layout: OutputLayout, run_id: str, years: list[int], year: int
+) -> dict[int, Path]:
+    """Solved networks of the years before `year`, holding the vintages still carried at it."""
+    return {y: layout.network(f"{run_id}_{y}") for y in years if y < year}
