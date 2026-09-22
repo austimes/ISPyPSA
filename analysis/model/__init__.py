@@ -67,6 +67,7 @@ def apply_model_patches(
     rez_limit_factor: float | None = None,
     flow_path_limit_factor: float | None = None,
     new_entrant_cap_mw: float | None = None,
+    new_entrant_storage_cap_mw: float | None = None,
 ):
     """Apply the eight fork-specific model patches, in order, to templated ISPyPSA tables.
 
@@ -76,8 +77,10 @@ def apply_model_patches(
         ``None`` leaves the IASR limits in place.
     :param flow_path_limit_factor: Factor the corridor limit relaxation sensitivity multiplies every
         flow-path and REZ-connection expansion limit by; ``None`` leaves the IASR limits in place.
-    :param new_entrant_cap_mw: NEM-wide new-entrant allowance in MW the near-term pipeline pin
-        applies in this period; ``None`` leaves the new-entrant menus uncapped.
+    :param new_entrant_cap_mw: NEM-wide new-entrant generation allowance in MW the near-term pipeline
+        pin applies in this period; ``None`` leaves the generator menu uncapped.
+    :param new_entrant_storage_cap_mw: NEM-wide new-entrant storage allowance in MW the near-term
+        pipeline pin applies in this period; ``None`` leaves the battery menu uncapped.
     :return: The patched tables.
     """
     ispypsa_tables = _apply_pumped_storage_fix(ispypsa_tables, config)
@@ -89,5 +92,7 @@ def apply_model_patches(
     ispypsa_tables = _apply_flow_path_limits(
         ispypsa_tables, config, flow_path_limit_factor
     )
-    ispypsa_tables = _apply_pipeline_pin(ispypsa_tables, config, new_entrant_cap_mw)
+    ispypsa_tables = _apply_pipeline_pin(
+        ispypsa_tables, config, new_entrant_cap_mw, new_entrant_storage_cap_mw
+    )
     return ispypsa_tables

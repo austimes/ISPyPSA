@@ -48,18 +48,35 @@ an edited plan. The demand plan driving this (trajectories, milestone years, tar
 previous year's new build and retained capacity. This is the shape the campaign's Slurm job runs:
 
 ```text
-uv run msm solve --run-id ext_central_c0 --output-root "$RUN_DIR" \
-  --periods 2030 2040 2050 2060 --recursive-dynamic --reducible-existing --existing-fom-keeping \
-  --parsed-traces-directory-schedule 2030:<dir> 2040:<dir> 2050:<dir> 2060:<dir> \
+uv run msm solve --run-id ext_step_change_sc --output-root "$RUN_DIR" \
+  --periods 2030 2035 2040 2045 2050 --recursive-dynamic --reducible-existing --existing-fom-keeping \
+  --parsed-traces-directory-schedule 2030:<dir> 2035:<dir> 2040:<dir> 2045:<dir> 2050:<dir> \
   --rep-weeks 1 6 10 14 19 22 26 32 35 39 41 45 50 --no-named-weeks \
   --tns-price 89.93 --ccs-supply-curve none --gas-unblended \
   --use-gurobi --gurobi-method 2 --gurobi-bar-conv-tol 1e-8 \
-  --co2-cap-t-schedule 2030:<tonnes> 2040:<tonnes> 2050:<tonnes> 2060:<tonnes>
+  --co2-cap-t-schedule 2030:<tonnes> 2035:<tonnes> 2040:<tonnes> 2045:<tonnes> 2050:<tonnes> \
+  --pipeline-period 2030 --new-entrant-cap-mw 19000 --new-entrant-storage-cap-mw 6000 \
+  --social-licence-premiums 0.15,0.60 --build-rate-premiums analysis/model/data/build_rate_premiums_central.csv
 ```
 
 Replace each `<dir>` with a milestone's trace directory (from the trajectory's token file under the input package's
 `tracedirs/`) and each `<tonnes>` with its approved absolute annual cap; the uncapped baseline omits
-`--co2-cap-t-schedule` and uses `--carbon-price 0` instead. Do not reuse a run identifier, or resume a chain, after
+`--co2-cap-t-schedule` and uses `--carbon-price 0` instead. The near-term pin caps new-entrant build at the two
+allowances and stops economic early retirement in every period at or before `--pipeline-period`, and the two premium
+flags price build above AEMO's published limits and above each carrier's baseline additions, writing what they charged
+to each solve's `outputs/capacity_tranches.json`.
+
+An increment-grid cell is the same command narrowed to one year and conditioned on the base chain:
+
+```text
+uv run msm solve --run-id ext_step_change_b2035_d110_cap006450 --output-root "$RUN_DIR" \
+  --periods 2035 --co2-cap-t-schedule 2035:<tonnes> \
+  --seed-state-from ext_step_change_sc --pin-base-stock
+```
+
+`--seed-state-from` copies the base chain's carried tranches and retention floors from before the cell's year into the
+cell's own state directory, and `--pin-base-stock` holds the existing fleet at what the base chain retained, so the cell
+differs from its base cell only by its own demand and cap. Do not reuse a run identifier, or resume a chain, after
 changing its inputs or assumptions: `--resume` trusts that a completed period's inputs have not moved.
 
 ## Fuel supply curves
@@ -81,6 +98,9 @@ available as a model feature; enabling it is a different assumption from the one
 Every product of a chain - generated configs, solver logs, JSON records and solved networks - is written under the
 stamped run directory given as `--output-root`, laid out by `analysis.env.OutputLayout`. Run `msm extract --run <dir>`
 to turn the solved networks into the `exports/` CSVs, and `msm sharp --run <dir>` for the ShARP deliverable CSVs.
+`exports/per_chain/duals_<cell>.csv` carries every custom-constraint dual of a chain, and `exports/increments.csv` joins
+each grid cell to the base cell at its own year, giving the cost, emissions, gas, coal and new-build differences between
+the two.
 
 ## Verify a result
 

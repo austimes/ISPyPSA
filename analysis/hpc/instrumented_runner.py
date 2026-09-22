@@ -305,6 +305,7 @@ def _run_staged_pipeline(
     existing_fom_keeping: bool = False,
     pin_base_stock: bool = False,
     new_entrant_cap_mw: float | None = None,
+    new_entrant_storage_cap_mw: float | None = None,
     co2_cap_t: float | None = None,
     rez_limit_factor: float | None = None,
     flow_path_limit_factor: float | None = None,
@@ -403,6 +404,7 @@ def _run_staged_pipeline(
         rez_limit_factor=rez_limit_factor,
         flow_path_limit_factor=flow_path_limit_factor,
         new_entrant_cap_mw=new_entrant_cap_mw,
+        new_entrant_storage_cap_mw=new_entrant_storage_cap_mw,
     )
     # REQUIRED for the Draft 2026 trace store: drop VRE new entrants whose
     # (rez_id, isp_resource_type) has no 2026 trace (Q8 split; N10/N11 fixed
@@ -924,8 +926,15 @@ def main():
         "--new-entrant-cap-mw",
         type=float,
         default=None,
-        help="Near-term pipeline pin: NEM-wide ceiling in MW on new-entrant generator and "
-        "battery build in this period, added as a custom_constraint. Default: no ceiling.",
+        help="Near-term pipeline pin: NEM-wide ceiling in MW on new-entrant generator build "
+        "in this period, added as a custom_constraint. Default: no ceiling.",
+    )
+    ap.add_argument(
+        "--new-entrant-storage-cap-mw",
+        type=float,
+        default=None,
+        help="Near-term pipeline pin: NEM-wide ceiling in MW on new-entrant battery build "
+        "in this period, added as a custom_constraint. Default: no ceiling.",
     )
     ap.add_argument(
         "--co2-cap-t",
@@ -1040,6 +1049,7 @@ def main():
             existing_fom_keeping=args.existing_fom_keeping,
             pin_base_stock=args.pin_base_stock,
             new_entrant_cap_mw=args.new_entrant_cap_mw,
+            new_entrant_storage_cap_mw=args.new_entrant_storage_cap_mw,
             co2_cap_t=args.co2_cap_t,
             rez_limit_factor=args.rez_limit_factor,
             flow_path_limit_factor=args.flow_path_limit_factor,

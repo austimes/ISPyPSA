@@ -2,15 +2,15 @@
 
 ## Superseded: the 0.12 anchor and the pressure ladder
 
-This topic describes the ladder of 41 chains that spans six 2050 target intensities, every one of them held at an
+This topic was written for a ladder of 41 chains spanning six 2050 target intensities, every one of them held at an
 authored 0.12 t CO2e/MWh in 2030. That anchor is retired. The campaign's base chain now takes the Step Change scenario's
 own emissions intensity at each milestone, 0.19673 t CO2e/MWh in 2030 falling to 0.01385 by 2050, derived in
 [`../aemo_scenario_intensity/`](../aemo_scenario_intensity/) and applied as described in
 [`../near_term_pipeline/`](../near_term_pipeline/). Carbon pressure is now varied by the increment grid rather than by a
 ladder of cap chains.
 
-Everything below still describes how a cap becomes a tonnage, what the constraint covers and when a capped result counts
-as an answer, all of which is unchanged. Read the ladder itself as a record of the earlier design.
+Everything below describes how a cap becomes a tonnage, what the constraint covers and when a capped result counts as an
+answer, all of which is unchanged.
 
 ## Purpose and scope
 
@@ -21,56 +21,32 @@ answer rather than a boundary lives in [`analysis/sharp/deliverables.py`](../../
 
 ## The pressure ladder
 
-| Setting | Kind | Applies to | Count |
-|---|---|---|---:|
-| `c0` | Price, A$0/t | Every trajectory | 5 |
-| `c150`, `c300`, `c550` | Price, A$150/300/550/t | `iasr_central` and `iasr_stress` only | 6 |
-| `cap002` ... `cap00005` | Absolute tonnage schedule | Every trajectory | 30 |
-
-That is 41 chains in total. The price chains exist to bracket the cap duals: a cap chain prices carbon at zero and exerts its pressure
-through the constraint, so its price signal is the cap's shadow price read from the solve and negated.
-
-Each cap schedule is named by its 2050 target intensity in tonnes of carbon dioxide equivalent per megawatt-hour delivered. Every schedule
-holds 2030 at an anchor of 0.12, sets 2040 to the geometric mean of the anchor and the target, and holds the target through 2060 -- except
-the deepest, whose 2060 rung tightens further and switches basis.
-
-| Schedule | 2030 | 2040 (geometric mean) | 2050 | 2060 | 2060 basis |
-|---|---:|---:|---:|---:|---|
-| `cap002` | 0.12 | 0.048990 | 0.02 | 0.02 | delivered |
-| `cap001` | 0.12 | 0.034641 | 0.01 | 0.01 | delivered |
-| `cap0005` | 0.12 | 0.024495 | 0.005 | 0.005 | delivered |
-| `cap0002` | 0.12 | 0.015492 | 0.002 | 0.002 | delivered |
-| `cap0001` | 0.12 | 0.010954 | 0.001 | 0.001 | delivered |
-| `cap00005` | 0.12 | 0.007746 | 0.0005 | 0.0001 | source |
-
-The geometric mean gives a constant proportional tightening per decade rather than a constant absolute step, so every schedule falls at its
-own steady rate rather than deferring most of the work to one decade.
-
-**confidence: high** on the arithmetic, all of which is read from `_cap_rungs` and `CAP_LADDER`; **confidence: low** on the 0.12 anchor and
-on the six target values, for which no basis is recorded anywhere in this fork -- they are a spread chosen to span from an achievable
-near-term intensity to something close to zero, not calibrated to a published target.
+The earlier design ran 41 chains: five zero-price chains, six carbon-price chains and 30 chains on a ladder of six cap
+schedules, each named by a 2050 target intensity and every one anchored at 0.12 t CO2e/MWh in 2030. None of it survives.
+The campaign now runs one base chain on the Step Change intensity path and varies carbon pressure through the increment
+grid's intensity levels, so no ladder, no price chain and no authored anchor remains in the plan or the manifest.
 
 ## From intensity to tonnes
 
-`cap_t = delivery_fraction x intensity x source_twh x 1e6`, where `source_twh` is that trajectory's source NEM load for that year and the
-delivery fraction is 0.91. A rung already quoted on the source basis skips the delivery factor. Every manifest row records its basis, so no
-cap is ever quoted without one.
+`cap_t = delivery_fraction x intensity x source_twh x 1e6`, where `source_twh` is that chain's source NEM load for that
+year. The delivery fraction is 1.0 for an intensity quoted on the source basis, which is what the scenario intensities
+are, and the plan's 0.91 for one quoted on the customer-delivered basis. Every manifest row records its basis, so no cap
+is ever quoted without one.
 
-Worked example on `iasr_central`, whose source load is 183, 268, 365 and 431 TWh.
+Worked example on the base chain `ext_step_change_sc`, whose source load is 202.73, 282.27 and 322.04 TWh at these years.
 
-| Year | Rung | Basis | Arithmetic | Cap (t CO2e/y) |
+| Year | Intensity | Basis | Arithmetic | Cap (t CO2e/y) |
 |---|---:|---|---|---:|
-| 2030 | 0.12 | delivered | 0.91 x 0.12 x 183e6 | 19,983,600 |
-| 2040 | 0.007746 | delivered | 0.91 x 0.007746 x 268e6 | 1,889,086 |
-| 2050 | 0.0005 | delivered | 0.91 x 0.0005 x 365e6 | 166,075 |
-| 2060 | 0.0001 | source | 1.00 x 0.0001 x 431e6 | 43,100 |
+| 2030 | 0.19673 | source | 1.00 x 0.19673 x 202.73e6 | 39,883,073 |
+| 2040 | 0.04136 | source | 1.00 x 0.04136 x 282.27e6 | 11,674,687 |
+| 2050 | 0.01385 | source | 1.00 x 0.01385 x 322.04e6 | 4,460,254 |
 
-Two consequences follow from the delivered basis. First, a cap said to be "0.0005 t/MWh delivered" is enforced as a tonnage derived from
-source load, so the two only agree if the 0.91 delivery fraction is right; that fraction is an unratified placeholder, documented in
-[`../demand_plan/`](../demand_plan/). Second, because the tonnage scales with demand, the same named rung is a materially different physical
-budget on each trajectory: at 2050 the `cap00005` budget is 216,716 t on `iasr_stress` against 108,836 t on `iasr_low_bracket`.
+Because the tonnage scales with demand, an increment cell's cap is its intensity level on the base intensity at its
+demand level on the base load: the 2030 cell at demand level 1.10 and intensity level 1.0 is capped at 43,871,380 t
+against the base cell's 39,883,073 t.
 
-**confidence: high** on the arithmetic; **confidence: low** on the delivered basis itself, which inherits the demand plan's unratified 0.91.
+**confidence: high** on the arithmetic; the delivered basis and its unratified 0.91 are no longer on the path any
+campaign cap takes, and are documented in [`../demand_plan/`](../demand_plan/).
 
 ## What the constraint covers
 
@@ -107,6 +83,6 @@ which is a conventional emergency value but carries no citation in this fork.
 
 ## Plot
 
-[`plot_carbon_caps.py`](plot_carbon_caps.py) draws the ladder as the absolute annual tonnages the solver is given, one line per rung and one
-panel per trajectory on a shared log axis, with the source-basis rung ringed. It builds the tonnages with this module's own
-`build_caps_table`, so the plot and the manifest cannot drift apart. It writes `carbon_caps.html` and `carbon_caps.png` beside itself.
+[`plot_carbon_caps.py`](plot_carbon_caps.py) draws the base chain's cap intensity per milestone and the absolute annual tonnage it becomes,
+with the increment grid's cells as faint points around it. It builds the caps with the manifest's own `build_caps_table` against the shipped
+demand plan, so the plot and the manifest cannot drift apart. It writes `carbon_caps.html` and `carbon_caps.png` beside itself.

@@ -7,8 +7,9 @@ the ISP's own development path shows.
 
 The allowance is applied as a NEM-wide capacity ceiling on every ``New Entrant`` row of the
 generator and battery menus, one constraint per component class because the custom-constraints
-framework sums one component type per constraint. The allowance value itself is a campaign input
-(``msm solve --new-entrant-cap-mw``), not a number this module chooses.
+framework sums one component type per constraint, so generation and storage carry their own
+ceiling. Both values are campaign inputs (``msm solve --new-entrant-cap-mw`` and
+``--new-entrant-storage-cap-mw``), not numbers this module chooses.
 """
 
 from __future__ import annotations
@@ -28,27 +29,27 @@ _MENUS = (
 
 
 def apply(
-    ispypsa_tables: dict[str, pd.DataFrame], config, cap_mw: float | None = None
+    ispypsa_tables: dict[str, pd.DataFrame],
+    config,
+    cap_mw: float | None = None,
+    storage_cap_mw: float | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Cap new-entrant generator and battery build at ``cap_mw`` MW across the NEM.
+    """Cap new-entrant generation at ``cap_mw`` MW and new-entrant storage at ``storage_cap_mw`` MW across the NEM.
 
     :param ispypsa_tables: Templated ISPyPSA input tables, keyed by table name.
     :param config: The run's ISPyPSA configuration; the cap binds on its investment periods.
-    :param cap_mw: NEM-wide new-entrant allowance in MW; ``None`` leaves the menus uncapped.
+    :param cap_mw: NEM-wide new-entrant generation allowance in MW; ``None`` leaves the menu uncapped.
+    :param storage_cap_mw: NEM-wide new-entrant storage allowance in MW; ``None`` leaves the menu uncapped.
     :return: The patched tables.
     """
-    if cap_mw is None:
-        return ispypsa_tables
-    caps_by_year = {
-        year: max(cap_mw, _MINIMUM_CAP_MW)
-        for year in config.temporal.capacity_expansion.investment_periods
-    }
-    for table, id_col, term_type in _MENUS:
+    for (table, id_col, term_type), cap in zip(_MENUS, (cap_mw, storage_cap_mw)):
+        if cap is None:
+            continue
         ispypsa_tables = add_capacity_cap(
             ispypsa_tables,
             config,
             constraint_prefix=f"pipeline_{table}",
-            caps_by_year=caps_by_year,
+            caps_by_year=_caps_by_year(config, cap),
             new_entrant_table=table,
             new_entrant_id_col=id_col,
             new_entrant_predicate=lambda row: row.get("status") == "New Entrant",
@@ -57,3 +58,11 @@ def apply(
             term_type=term_type,
         )
     return ispypsa_tables
+
+
+def _caps_by_year(config, cap_mw: float) -> dict[int, float]:
+    """One menu's allowance repeated across every investment period of the solve."""
+    return {
+        year: max(cap_mw, _MINIMUM_CAP_MW)
+        for year in config.temporal.capacity_expansion.investment_periods
+    }

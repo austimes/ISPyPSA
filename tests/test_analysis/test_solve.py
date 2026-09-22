@@ -205,14 +205,17 @@ def test_a_pipeline_period_caps_new_entrants_and_keeps_the_existing_fleet(
     pin = {
         "reducible_existing": True,
         "pipeline_period": 2030,
-        "new_entrant_cap_mw": 5000,
+        "new_entrant_cap_mw": 19000,
+        "new_entrant_storage_cap_mw": 6000,
     }
 
     pinned = _runner_flags_for(monkeypatch, tmp_path, 2030, **pin)
     later = _runner_flags_for(monkeypatch, tmp_path, 2035, **pin)
 
     assert "--new-entrant-cap-mw" in pinned and "--reducible-existing" not in pinned
+    assert "--new-entrant-storage-cap-mw" in pinned
     assert "--reducible-existing" in later and "--new-entrant-cap-mw" not in later
+    assert "--new-entrant-storage-cap-mw" not in later
 
 
 def _seed_state(layout: OutputLayout, run_id: str, years: list[int]) -> None:

@@ -428,6 +428,7 @@ def main(
     pin_base_stock: bool = False,
     pipeline_period: int | None = None,
     new_entrant_cap_mw: float | None = None,
+    new_entrant_storage_cap_mw: float | None = None,
     parsed_traces_directory_schedule: OptionalSchedule = None,
     rep_weeks: OptionalYears = None,
     named_weeks: bool = True,
@@ -477,8 +478,10 @@ def main(
     :param pipeline_period: Last period the near-term pipeline pin applies to: those periods
         cap new-entrant build at ``new_entrant_cap_mw`` and let closures follow announced
         years only, with no economic early retirement.
-    :param new_entrant_cap_mw: NEM-wide ceiling in MW on new-entrant generator and battery
-        build in each pinned period.
+    :param new_entrant_cap_mw: NEM-wide ceiling in MW on new-entrant generator build in each
+        pinned period.
+    :param new_entrant_storage_cap_mw: NEM-wide ceiling in MW on new-entrant battery build in
+        each pinned period.
     :param parsed_traces_directory_schedule: ``YEAR:DIR`` trace store per period, one
         entry per period; defaults to the single trace store under ``IO_DIR``.
     :param rep_weeks: Numbered representative weeks sampled in each solve.
@@ -592,6 +595,7 @@ def main(
         "pin_base_stock": pin_base_stock,
         "pipeline_period": pipeline_period,
         "new_entrant_cap_mw": new_entrant_cap_mw,
+        "new_entrant_storage_cap_mw": new_entrant_storage_cap_mw,
         "tranches_dir": str(tranches_dir) if tranches_dir else None,
         "output_root": str(layout.root),
         "carbon_price": carbon_price,
@@ -655,6 +659,9 @@ def main(
                     reducible_existing=reducible_existing
                     and not _is_pipeline_period(year, pipeline_period),
                     new_entrant_cap_mw=new_entrant_cap_mw
+                    if _is_pipeline_period(year, pipeline_period)
+                    else None,
+                    new_entrant_storage_cap_mw=new_entrant_storage_cap_mw
                     if _is_pipeline_period(year, pipeline_period)
                     else None,
                 ),

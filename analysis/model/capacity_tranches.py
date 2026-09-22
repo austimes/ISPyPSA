@@ -34,10 +34,10 @@ import numpy as np
 import pandas as pd
 import pypsa
 import xarray as xr
-from ispypsa.pypsa_build.custom_constraints import _get_variables
-from ispypsa.translator.helpers import _annuitised_investment_costs
 
 from analysis.model.recursive_dynamic import _P_NOM_OPT_THRESHOLD_MW, _strip_vintage
+from ispypsa.pypsa_build.custom_constraints import _get_variables
+from ispypsa.translator.helpers import _annuitised_investment_costs
 
 log = logging.getLogger(__name__)
 
@@ -170,9 +170,10 @@ def add_priced_tranches(
         _couple_capacity_to_tranches(
             network, members[members["group"] == group], purchases, group
         )
-        network.model.objective = network.model.objective + (
-            _tranche_adders(rows, group, weight) * purchases
-        ).sum()
+        network.model.objective = (
+            network.model.objective
+            + (_tranche_adders(rows, group, weight) * purchases).sum()
+        )
     log.info(
         f"capacity_tranches: priced {len(tranches)} tranches over "
         f"{tranches['group'].nunique()} groups"
@@ -236,8 +237,8 @@ def _check_curve_backstop(curve: pd.DataFrame) -> None:
 
 
 def _check_curve_adders(curve: pd.DataFrame) -> None:
-    """Raise where a group's adders fall as its tranches rise."""
-    ordered = curve.sort_values(["group", "financial_year", "tranche"])
+    """Raise where a group's adders fall as its cumulative capacity steps rise."""
+    ordered = curve.sort_values(["group", "financial_year", "cap_mw"])
     steps = ordered.groupby(["group", "financial_year"])["adder_$/mw/yr"].diff()
     if (steps.fillna(0) < 0).any():
         raise ValueError("Build-rate curve adders must not decrease across tranches")
@@ -331,7 +332,7 @@ def _transmission_members(headroom: pd.Series) -> pd.DataFrame:
 
 def _build_rate_tranches(curve: pd.DataFrame, period: int) -> pd.DataFrame:
     """One period's build-rate steps per carrier, with widths from the cumulative capacity caps."""
-    rows = curve[curve["financial_year"] == period].sort_values(["group", "tranche"])
+    rows = curve[curve["financial_year"] == period].sort_values(["group", "cap_mw"])
     caps = rows["cap_mw"].fillna(np.inf)
     widths = caps.groupby(rows["group"]).diff().fillna(caps)
     return rows.assign(

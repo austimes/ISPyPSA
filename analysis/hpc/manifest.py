@@ -217,6 +217,7 @@ def _pipeline_args(plan: dict, year: int) -> str:
     return (
         f" --pipeline-period {plan['pipeline_period']}"
         f" --new-entrant-cap-mw {plan['new_entrant_cap_mw']}"
+        f" --new-entrant-storage-cap-mw {plan['new_entrant_storage_cap_mw']}"
     )
 
 

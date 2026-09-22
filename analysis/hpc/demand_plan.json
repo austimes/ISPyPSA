@@ -10,7 +10,8 @@
   "cap_intensity_basis": "source",
   "cap_intensity_csv": "analysis/research/aemo_scenario_intensity/aemo_scenario_intensity.csv",
   "pipeline_period": 2030,
-  "new_entrant_cap_mw": 5000,
+  "new_entrant_cap_mw": 19000,
+  "new_entrant_storage_cap_mw": 6000,
   "increment_grid": {
     "demand_levels": {"d100": 1.0, "d105": 1.05, "d110": 1.1, "d120": 1.2, "d135": 1.35},
     "intensity_levels": {"i100": 1.0, "i075": 0.75, "i050": 0.5, "i025": 0.25, "i010": 0.1},

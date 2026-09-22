@@ -37,7 +37,9 @@ def apply(
     :return: The patched tables.
     """
     unbounded = pypsa_friendly["custom_constraints_generators"]
-    limits = pypsa_friendly["custom_constraints_rhs"].set_index("constraint_name")["rhs"]
+    limits = pypsa_friendly["custom_constraints_rhs"].set_index("constraint_name")[
+        "rhs"
+    ]
     medians = _median_member_capital_cost(pypsa_friendly)
     tranches = pd.concat(
         [
@@ -85,7 +87,9 @@ def _priced_tranche(
     rows = unbounded.copy()
     rows["name"] = rows["isp_name"] + f"_relax{step}_" + rows["build_year"].astype(str)
     rows["p_nom_max"] = rows["isp_name"].map(limits) * width
-    rows["capital_cost"] = rows["capital_cost"] + premium * rows["isp_name"].map(medians)
+    rows["capital_cost"] = rows["capital_cost"] + premium * rows["isp_name"].map(
+        medians
+    )
     return rows.dropna(subset=["p_nom_max", "capital_cost"])
 
 

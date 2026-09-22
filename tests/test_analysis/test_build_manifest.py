@@ -96,14 +96,16 @@ def test_chains_tsv_leads_with_the_base_chain_the_branches_seed_from(
     assert lines[0] == (
         f"ext_step_change_sc\t{traces}\t--periods 2030 2035 2040 2045 2050 "
         "--co2-cap-t-schedule 2030:39883073 2035:15891510 2040:11674687 2045:8345279 "
-        "2050:4460254 --pipeline-period 2030 --new-entrant-cap-mw 5000"
+        "2050:4460254 --pipeline-period 2030 --new-entrant-cap-mw 19000 "
+        "--new-entrant-storage-cap-mw 6000"
     )
     assert lines[1] == (
         "ext_step_change_b2030_d100_cap019673\t"
         "/io/inputs/tracedirs/iasr_step_change_b2030_d100.txt\t"
         "--periods 2030 --co2-cap-t-schedule 2030:39883073 "
         "--seed-state-from ext_step_change_sc --pin-base-stock "
-        "--pipeline-period 2030 --new-entrant-cap-mw 5000"
+        "--pipeline-period 2030 --new-entrant-cap-mw 19000 "
+        "--new-entrant-storage-cap-mw 6000"
     )
 
 

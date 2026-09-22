@@ -57,8 +57,8 @@ _SEGMENT_COLOUR = {
 _ANNOTATION = (
     "The allowance is the gap between the fleet the model already holds at 2030 and the fleet AEMO's Step Change "
     "optimal development path reaches.<br>"
-    "Pooled across carriers it is about 25 GW, which is the recommended --new-entrant-cap-mw. Coal is not shown with "
-    "an allowance because closures follow<br>"
+    "Pooled it is about 19 GW of generation (--new-entrant-cap-mw) and 6 GW of storage "
+    "(--new-entrant-storage-cap-mw). Coal is not shown with<br>an allowance because closures follow "
     "announced years only, which leaves the model 2.3 GW above the path; conventional hydro has no new entrant in the "
     "model."
 )

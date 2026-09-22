@@ -47,7 +47,8 @@ $IO_DIR/
                 outputs/constraint_duals.json and outputs/capacity_tranches.json,
                 plus chain state (tranches/, retention/)
     exports/    results.csv, marginals.csv, storage.csv, transmission.csv, manifest.csv,
-                acceptance_*.csv, per_chain/, sharp/
+                acceptance_*.csv, increments.csv, sharp/,
+                per_chain/ with duals_<cell>.csv and one frame per chain
     dashboard.html
 ```
 
@@ -80,32 +81,47 @@ product and export lives under `IO_DIR`.
 
 ## Workflow
 
-Running the campaign is five `msm` commands, in order:
+Running the campaign is five `msm` commands, in order, the first of them once per launch stage:
 
 | Step | Where | Command | What it produces |
 | --- | --- | --- | --- |
-| 1 | Cluster login node | `msm launch --run-set ext41` | Stamps `$IO_DIR/outputs/<stamp>_ext41/`, builds any missing trace directories, writes the chain manifest and the input package it read, and submits the chains to Slurm |
+| 1 | Cluster login node | `msm launch --run-set sc5 --stage base` | Stamps `$IO_DIR/outputs/<stamp>_sc5/`, builds any missing trace directories, writes the chain manifest and the input package it read, and submits the base chain to Slurm |
+| 1b | Cluster login node | `msm launch --run <dir> --stage branch --after <base job id>` | Submits the increment grid into the same launch directory, held until the base chain it seeds from finishes |
 | 2 | Cluster compute nodes (automatic) | `msm solve --run-id ... --output-root ...` | One chain of single-period solves, one call per Slurm array task |
 | 3 | Cluster login node | `msm extract --run <dir>` | Reads the solved networks and writes the `exports/` CSVs (submits itself as a Slurm array job when Slurm is present, or pass `--local` to run in-process) |
 | 4 | Anywhere `IO_DIR` is mounted | `msm sharp --run <dir>` | The ShARP deliverable CSVs under `exports/sharp/` |
 | 5 | Anywhere `IO_DIR` is mounted | `msm dashboard --run <dir> --show` | `<dir>/dashboard.html`, a self-contained page colleagues can open straight from the share |
 
-Steps 1 to 3 need Slurm; steps 4 and 5 do not. `msm launch --run <dir> --resume` re-submits only the chains whose final
-milestone has not completed. Run `uv run msm <command> --help` for every flag.
+Steps 1 to 3 need Slurm; steps 4 and 5 do not. `msm launch --run <dir> --resume` re-submits only the chains whose own
+final period has not completed, which for a branch cell is its single year. Run `uv run msm <command> --help` for every
+flag.
 
-Two launch flags turn the same campaign into a comparison run set. `--max-cap N` launches only the cap chains whose 2050
-target intensity is at or below `N` tonnes of carbon dioxide equivalent (CO2e) per MWh delivered, dropping the carbon
-price chains and the shallower caps; `--rez-limit-factor N` relaxes every renewable energy zone (REZ) transmission,
-expansion and resource limit by `N` in each chain of the launch, leaving the interconnector flow paths and every
-published cost alone. So `msm launch --run-set ext41_rezx2 --rez-limit-factor 2.0 --max-cap 0.005` re-runs the twenty
-deepest cap chains with twice the REZ headroom, and the difference against the base run set is the deep-cap cost that
-sits in the REZ ceilings rather than in the generation technologies. Every launch writes
-`campaign/assumptions.json` - its REZ limit factor, cap depth cut-off, chain count and input package - which the
-dashboard lists in its assumptions table, so each page states what its own run was launched under.
-`--flow-path-limit-factor N` relaxes the interconnector and intra-region flow-path expansion limits the same way, and
+## What a launch runs
+
+One manifest holds both stages, so a resume or a stage-by-stage submission always reads a complete picture:
+
+| Stage | Chains | What each one solves |
+| --- | --- | --- |
+| `base` | 1 | The Step Change base chain `ext_step_change_sc`, recursive-dynamic over 2030, 2035, 2040, 2045 and 2050, its annual cap set to the Step Change emissions intensity at each milestone |
+| `branch` | 60 | One conditioned single-year solve per increment-grid cell: 12 cells (a demand column, an intensity row and three interior cells) at each of the five milestone years |
+
+`--stage base|branch|all` chooses which of the two to submit, and `--after <job id>` holds the submission behind a Slurm
+job, so the grid queues behind the base chain it seeds from. Each branch row carries its own flags in the manifest:
+`--periods <its year>`, its own `--co2-cap-t-schedule`, `--seed-state-from ext_step_change_sc` to copy the base chain's
+carried tranches and retention floors from before its year, and `--pin-base-stock` to hold the existing fleet at what
+the base chain retained rather than letting the cell retire below it. Every 2030 chain, base and branch alike, also
+carries `--pipeline-period 2030` with the two near-term allowances, `--new-entrant-cap-mw` over new-entrant generators
+and `--new-entrant-storage-cap-mw` over new-entrant batteries, so the near term matches the ISP pipeline. `--max-cap`
+belonged to the earlier ladder of cap chains and now raises, because this plan has one base chain and no ladder to
+narrow.
+
+`--rez-limit-factor N` relaxes every renewable energy zone (REZ) transmission, expansion and resource limit by `N` in
+each chain of the launch, leaving the interconnector flow paths and every published cost alone;
+`--flow-path-limit-factor N` relaxes the interconnector and intra-region flow-path expansion limits the same way; and
 `--solve-flags` appends extra `msm solve` tokens to every chain (for example `--solve-flags="--gurobi-crossover 0"` for
-a barrier-only feasibility screen; the equals form is needed because the value starts with a dash), both recorded in
-`assumptions.json`.
+a barrier-only feasibility screen; the equals form is needed because the value starts with a dash). Every launch writes
+`campaign/assumptions.json` - its limit factors, solve flags, chain count, increment grid and input package - which the
+dashboard lists in its assumptions table, so each page states what its own run was launched under.
 
 The two priced build curves are reached through `--solve-flags`. `--social-licence-premiums 0.15,0.60` prices REZ
 generation and network capacity above AEMO's published limits as stepped tranches and adds the state landholder
@@ -116,8 +132,10 @@ each carrier's new build above the period's baseline additions. Every solve writ
 the campaign launches with:
 
 ```bash
+FACTORS='--rez-limit-factor 4.0 --flow-path-limit-factor 4.0'
 PREMIUMS='--social-licence-premiums 0.15,0.60 --build-rate-premiums analysis/model/data/build_rate_premiums_central.csv'
-uv run msm launch --run-set sc5 --rez-limit-factor 4.0 --flow-path-limit-factor 4.0 --solve-flags="$PREMIUMS"
+uv run msm launch --run-set sc5 --stage base $FACTORS --solve-flags="$PREMIUMS"
+uv run msm launch --run <dir> --stage branch --after <base job id> $FACTORS --solve-flags="$PREMIUMS"
 ```
 
 ## Importing inputs and run products produced outside `IO_DIR`

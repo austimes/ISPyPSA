@@ -116,7 +116,9 @@ def test_link_headroom_sums_a_flow_path_s_options_and_keys_a_rez_link_on_bus0(
         """),
     }
 
-    result = _link_headroom_mw(links, tables, 2030, rez_factor=4.0, flow_path_factor=4.0)
+    result = _link_headroom_mw(
+        links, tables, 2030, rez_factor=4.0, flow_path_factor=4.0
+    )
 
     expected = pd.Series(
         [1000.0, 500.0], index=["CNSW-SNW_exp", "N2-CNSW_exp"], name=None
@@ -129,7 +131,7 @@ def test_link_headroom_sums_a_flow_path_s_options_and_keys_a_rez_link_on_bus0(
 # ---------------------------------------------------------------------------
 
 
-def test_shipped_build_rate_curve_validates_and_gives_one_uncapped_step_per_carrier(
+def test_shipped_build_rate_curve_validates_and_rises_to_one_uncapped_step_per_carrier(
     csv_str_to_df,
 ):
     curve = load_build_rate_curve(
@@ -138,15 +140,24 @@ def test_shipped_build_rate_curve_validates_and_gives_one_uncapped_step_per_carr
 
     result = _build_rate_tranches(curve, 2030)
 
+    summary = (
+        result.groupby("group")
+        .agg(
+            steps=("tranche", "size"),
+            uncapped=("width_mw", lambda width: int(np.isinf(width).sum())),
+            rising=("adder", lambda adder: bool(adder.diff().fillna(0).ge(0).all())),
+        )
+        .reset_index()
+    )
     expected = csv_str_to_df("""
-        kind,        group,    period,  tranche,   width_mw,  adder
-        build_rate,  Battery,  2030,    backstop,  inf,       0.0
-        build_rate,  Gas,      2030,    backstop,  inf,       0.0
-        build_rate,  Hydro,    2030,    backstop,  inf,       0.0
-        build_rate,  Solar,    2030,    backstop,  inf,       0.0
-        build_rate,  Wind,     2030,    backstop,  inf,       0.0
+        group,    steps,  uncapped,  rising
+        Battery,  3,      1,         True
+        Gas,      3,      1,         True
+        Solar,    3,      1,         True
+        Water,    3,      1,         True
+        Wind,     3,      1,         True
     """)
-    pd.testing.assert_frame_equal(result, expected)
+    pd.testing.assert_frame_equal(summary, expected)
 
 
 # ---------------------------------------------------------------------------

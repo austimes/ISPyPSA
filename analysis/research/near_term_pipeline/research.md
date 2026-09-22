@@ -18,7 +18,8 @@ Step Change intensity schedule replaces.
 | Setting | Value | Effect |
 | ------- | ----- | ------ |
 | `--pipeline-period 2030` | the first milestone | Turns the pin on for every solve year at or before 2030 |
-| `--new-entrant-cap-mw` | 25,000 MW, A003 | One NEM-wide capacity cap over every `New Entrant` generator and battery in the 2030 solve |
+| `--new-entrant-cap-mw` | 19,000 MW, A003 | One NEM-wide capacity cap over every `New Entrant` generator in the 2030 solve |
+| `--new-entrant-storage-cap-mw` | 6,000 MW, A003 | One NEM-wide capacity cap over every `New Entrant` battery in the 2030 solve |
 | No economic early retirement | A004 | `make_existing_reducible` is skipped for the pinned period, so plant closes on its announced year and not before |
 | 2030 carbon cap | 0.19673 t CO2e/MWh generated, A007 | The Step Change scenario's own 2030 intensity, replacing the authored 0.12 anchor |
 
@@ -70,12 +71,13 @@ Gigawatts. Two roundings are worth naming: the CDP4 series is published in whole
 while the model's 2030 is the 2029-30 financial year, so a half-year offset and up to 0.5 GW of rounding sit in every
 row.
 
-**The recommended setting is `--new-entrant-cap-mw 25000`**, one NEM-wide megawatt cap over new-entrant generators and
-batteries together, which is 19 GW of generation plus 6 GW of storage. If the cap is ever narrowed to generators only,
-the matching number is 19,000 MW.
+**The recommended settings are `--new-entrant-cap-mw 19000` and `--new-entrant-storage-cap-mw 6000`**: one NEM-wide
+megawatt cap over new-entrant generators, and a second over new-entrant batteries. Generation and storage are capped
+separately because they are separate supply chains, and because the custom-constraints framework sums one component
+type per constraint in any case.
 
-The cap is deliberately one pooled number rather than a per-carrier schedule, A002. Splitting it per carrier would pin
-the 2030 technology mix to AEMO's, which would make the 2030 increment grid a re-reading of AEMO's own answer instead of
+Within generation the cap is deliberately one pooled number rather than a per-carrier schedule, A002. Splitting it per
+carrier would pin the 2030 technology mix to AEMO's, which would make the 2030 increment grid a re-reading of AEMO's own answer instead of
 a measurement of what an extra terawatt hour or an extra tonne of abatement costs. Pooling keeps the mix free and bounds
 only the total, which is the quantity the supply chain actually constrains.
 
