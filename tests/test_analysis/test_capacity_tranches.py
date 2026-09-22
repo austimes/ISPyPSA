@@ -172,16 +172,19 @@ def test_relaxation_tranches_gives_two_bounded_generators_and_two_lhs_rows(
         "custom_constraints_generators": csv_str_to_df("""
             name,                     isp_name,      bus,                            p_nom,  p_nom_extendable,  build_year,  lifetime,  capital_cost
             N2_WH_resource_relax_2030,N2_WH_resource,bus_for_custom_constraint_gens, 0.0,    True,              2030,        30,        15306.0
+            SWQLD1_exp_2030,          SWQLD1,        bus_for_custom_constraint_gens, 0.0,    True,              2030,        30,        500.0
         """),
         "custom_constraints_rhs": csv_str_to_df("""
-            constraint_name,  constraint_type,  rhs
-            N2_WH_resource,   <=,               1000.0
+            constraint_name,         constraint_type,  rhs
+            N2_WH_resource,          <=,               1000.0
+            SWQLD1_expansion_limit,  <=,               400.0
         """),
         "custom_constraints_lhs": csv_str_to_df("""
             constraint_name,  variable_name,             component,  attribute,  coefficient
             N2_WH_resource,   wind_high_n2_2030,         Generator,  p_nom,      1.0
             N2_WH_resource,   wind_high_n2_alt_2030,     Generator,  p_nom,      1.0
             N2_WH_resource,   N2_WH_resource_relax_2030, Generator,  p_nom,      -1.0
+            SWQLD1_expansion_limit, SWQLD1_exp_2030,     Generator,  p_nom,      -1.0
         """),
         "generators": csv_str_to_df("""
             name,                   capital_cost
@@ -194,6 +197,7 @@ def test_relaxation_tranches_gives_two_bounded_generators_and_two_lhs_rows(
 
     expected_generators = csv_str_to_df("""
         name,                      isp_name,       bus,                             p_nom,  p_nom_extendable,  build_year,  lifetime,  capital_cost,  p_nom_max
+        SWQLD1_exp_2030,           SWQLD1,         bus_for_custom_constraint_gens,  0.0,    True,              2030,        30,        500.0,
         N2_WH_resource_relax1_2030,N2_WH_resource, bus_for_custom_constraint_gens,  0.0,    True,              2030,        30,        33306.0,       1000.0
         N2_WH_resource_relax2_2030,N2_WH_resource, bus_for_custom_constraint_gens,  0.0,    True,              2030,        30,        87306.0,       2000.0
     """)
@@ -206,6 +210,7 @@ def test_relaxation_tranches_gives_two_bounded_generators_and_two_lhs_rows(
         constraint_name,  variable_name,              component,  attribute,  coefficient
         N2_WH_resource,   wind_high_n2_2030,          Generator,  p_nom,      1.0
         N2_WH_resource,   wind_high_n2_alt_2030,      Generator,  p_nom,      1.0
+        SWQLD1_expansion_limit, SWQLD1_exp_2030,      Generator,  p_nom,      -1.0
         N2_WH_resource,   N2_WH_resource_relax1_2030, Generator,  p_nom,      -1.0
         N2_WH_resource,   N2_WH_resource_relax2_2030, Generator,  p_nom,      -1.0
     """)

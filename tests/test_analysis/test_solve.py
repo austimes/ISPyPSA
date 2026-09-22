@@ -192,9 +192,10 @@ def _runner_flags_for(monkeypatch, tmp_path: Path, year: int, **kwargs) -> list[
         return {"status": "failed"}
 
     monkeypatch.setattr(solve, "_run_one_period", capture)
-    solve.main(
-        run_id=f"pin_{year}", output_root=tmp_path / "run", periods=[year], **kwargs
-    )
+    with pytest.raises(SystemExit):
+        solve.main(
+            run_id=f"pin_{year}", output_root=tmp_path / "run", periods=[year], **kwargs
+        )
     return captured
 
 

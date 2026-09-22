@@ -32,15 +32,24 @@ def apply(
 ) -> dict[str, pd.DataFrame]:
     """Explode every REZ relaxation generator into bounded, premium-priced tranches.
 
+    Group transmission expansion generators, and relaxation generators whose limit or member
+    cost is unknown, pass through untouched.
+
     :param pypsa_friendly: Translated PyPSA friendly tables, keyed by table name.
     :param premiums: One premium fraction per tranche, e.g. ``(0.15, 0.60)``.
     :return: The patched tables.
     """
-    unbounded = pypsa_friendly["custom_constraints_generators"]
+    generators = pypsa_friendly["custom_constraints_generators"]
     limits = pypsa_friendly["custom_constraints_rhs"].set_index("constraint_name")[
         "rhs"
     ]
-    medians = _median_member_capital_cost(pypsa_friendly)
+    medians = _median_member_capital_cost(pypsa_friendly).dropna()
+    priceable = (
+        generators["name"].str.contains("_relax_")
+        & generators["isp_name"].isin(limits.index)
+        & generators["isp_name"].isin(medians.index)
+    )
+    unbounded, others = generators[priceable], generators[~priceable]
     tranches = pd.concat(
         [
             _priced_tranche(unbounded, limits, medians, step, width, premium)
@@ -50,7 +59,9 @@ def apply(
         ],
         ignore_index=True,
     )
-    pypsa_friendly["custom_constraints_generators"] = tranches
+    pypsa_friendly["custom_constraints_generators"] = pd.concat(
+        [others, tranches], ignore_index=True
+    )
     pypsa_friendly["custom_constraints_lhs"] = _retarget_lhs(
         pypsa_friendly["custom_constraints_lhs"], unbounded, tranches
     )

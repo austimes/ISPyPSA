@@ -696,3 +696,5 @@ def main(
         f"\n=== Done. Cumulative wall: "
         f"{chain_record['cumulative_wall_clock_s']:.0f}s ==="
     )
+    if record.get("status") != "completed":
+        raise SystemExit(1)
