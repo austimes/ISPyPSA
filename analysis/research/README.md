@@ -10,6 +10,8 @@ its HTML and PNG output where a picture earns its place.
 | [`demand_plan/`](demand_plan/) | The five demand trajectories the campaign grid is built over | [`demand_trajectories.png`](demand_plan/demand_trajectories.png) |
 | [`rez_transmission_limits/`](rez_transmission_limits/) | Renewable energy zone (REZ) transmission, resource and land-use ceilings | [`binding_limits.png`](rez_transmission_limits/binding_limits.png) |
 | [`social_licence_premium/`](social_licence_premium/) | What relaxed REZ and corridor capacity should cost above AEMO's published price | [`social_licence_premium.png`](social_licence_premium/social_licence_premium.png) |
+| [`build_rate_premium/`](build_rate_premium/) | What new capacity should cost above AEMO's planned five-year build rate | [`build_rate_premium.png`](build_rate_premium/build_rate_premium.png) |
+| [`near_term_pipeline/`](near_term_pipeline/) | How much genuinely new capacity the model may add by 2030 beyond the committed pipeline | [`near_term_pipeline.png`](near_term_pipeline/near_term_pipeline.png) |
 | [`hydro_energy_budget/`](hydro_energy_budget/) | Annual water available to conventional hydro | [`hydro_budget.png`](hydro_energy_budget/hydro_budget.png) |
 | [`biomass/`](biomass/) | Biomass fuel tranches, the capacity cap, and biomass emissions under a carbon cap | [`biomass_limits.png`](biomass/biomass_limits.png) |
 | [`pumped_hydro_menu/`](pumped_hydro_menu/) | The pumped hydro energy storage (PHES) candidate menu and its site ceilings | [`phes_menu.png`](pumped_hydro_menu/phes_menu.png) |

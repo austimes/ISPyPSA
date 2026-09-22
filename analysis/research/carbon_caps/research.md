@@ -1,5 +1,17 @@
 # Carbon caps
 
+## Superseded: the 0.12 anchor and the pressure ladder
+
+This topic describes the ladder of 41 chains that spans six 2050 target intensities, every one of them held at an
+authored 0.12 t CO2e/MWh in 2030. That anchor is retired. The campaign's base chain now takes the Step Change scenario's
+own emissions intensity at each milestone, 0.19673 t CO2e/MWh in 2030 falling to 0.01385 by 2050, derived in
+[`../aemo_scenario_intensity/`](../aemo_scenario_intensity/) and applied as described in
+[`../near_term_pipeline/`](../near_term_pipeline/). Carbon pressure is now varied by the increment grid rather than by a
+ladder of cap chains.
+
+Everything below still describes how a cap becomes a tonnage, what the constraint covers and when a capped result counts
+as an answer, all of which is unchanged. Read the ladder itself as a record of the earlier design.
+
 ## Purpose and scope
 
 The campaign applies carbon pressure two ways: a price in Australian dollars per tonne, and an absolute annual cap in tonnes. The ladder of
