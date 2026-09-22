@@ -266,6 +266,7 @@ def test_tidy_frame_logs_cell_years_with_no_marginal(exports, caplog):
         ("c0", "uncapped (A$0/t)"),
         ("c150", "carbon price A$150/t"),
         ("cap0005", "cap 0.005 t CO2e/MWh by 2050"),
+        ("sc", "Step Change intensity path"),
     ],
 )
 def test_pressure_label_spells_out_each_family(key, expected):
@@ -361,10 +362,10 @@ def increments(csv_str_to_df) -> pd.DataFrame:
     """One year of the L-shaped grid: its base cell, one arm cell each way, and one interior cell."""
     return csv_str_to_df("""
         base_cell, cell,    year, demand_level, intensity_level, delta_delivered_twh, delta_total_cost_aud_per_yr, delta_cost_per_mwh_excl_fuel_carbon, delta_co2e_kt_per_yr, delta_pj_gas, delta_pj_coal, delta_new_gw_Wind, fleet_intensity_t_per_mwh, cap_dual_base, cap_dual_branch
-        ext_sc,    ext_d0,  2035, 1.0,          1.0,             0.0,                 0.0,                         0.0,                                 0.0,                  0.0,          0.0,           0.0,               0.0050,                    50.0,          50.0
-        ext_sc,    ext_d1,  2035, 1.1,          1.0,             20.0,                2.0e9,                       5.0,                                 100.0,                3.0,          1.0,           4.0,               0.0050,                    50.0,          60.0
-        ext_sc,    ext_i1,  2035, 1.0,          0.5,             0.0,                 1.5e9,                       8.0,                                 -300.0,               -2.0,         -8.0,          6.0,               0.0025,                    50.0,          400.0
-        ext_sc,    ext_x1,  2035, 1.1,          0.5,             20.0,                4.0e9,                       12.0,                                -200.0,               1.0,          -7.0,          9.0,               0.0026,                    50.0,          450.0
+        ext_sc,    ext_d0,  2035, d100,         i100,            0.0,                 0.0,                         0.0,                                 0.0,                  0.0,          0.0,           0.0,               0.0050,                    50.0,          50.0
+        ext_sc,    ext_d1,  2035, d110,         i100,            20.0,                2.0e9,                       5.0,                                 100.0,                3.0,          1.0,           4.0,               0.0050,                    50.0,          60.0
+        ext_sc,    ext_i1,  2035, d100,         i050,            0.0,                 1.5e9,                       8.0,                                 -300.0,               -2.0,         -8.0,          6.0,               0.0025,                    50.0,          400.0
+        ext_sc,    ext_x1,  2035, d110,         i050,            20.0,                4.0e9,                       12.0,                                -200.0,               1.0,          -7.0,          9.0,               0.0026,                    50.0,          450.0
     """)
 
 
@@ -386,6 +387,15 @@ def test_increment_surfaces_draw_both_arms_the_grid_and_the_duals(increments):
     # The button swaps every grid's colouring to the emissions consequence instead.
     emissions = figure.layout.updatemenus[0].buttons[1]
     assert emissions.args[0]["z"][0].tolist() == [[-300.0, -200.0], [0.0, 100.0]]
+
+
+def test_increment_surfaces_read_each_arm_from_the_level_keys(increments):
+    figure = figures.figure_increment_surfaces(increments)
+
+    demand, intensity = figure.data[:2]
+    # The demand arm prices extra energy, so the base cell delivering none has no ratio to plot.
+    assert (list(demand.x), demand.y[1]) == ([1.0, 1.1], 1.0e8)
+    assert (list(intensity.x), list(intensity.y)) == ([0.5, 1.0], [8.0, 0.0])
 
 
 def test_increment_surfaces_annotate_every_consequence_and_hover_the_duals(increments):
@@ -482,6 +492,54 @@ def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_emissions_panel(
     ]
     assert {trace.yaxis for trace in overlay} == {"y2"}
     assert min(overlay[2].x) == 2030
+
+
+def test_pathway_intensities_fans_each_increment_out_of_its_base_point(csv_str_to_df):
+    frame = csv_str_to_df("""
+        cell,   trajectory,  pressure, pressure_name,              year, delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        ext_sc, step_change, sc,       Step Change intensity path, 2030, 100.0,         25.0,                          0.40
+        ext_sc, step_change, sc,       Step Change intensity path, 2035, 110.0,         30.0,                          0.20
+    """)
+    branches = csv_str_to_df("""
+        cell,      base_cell, year, increment, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        ext_b2035, ext_sc,    2035, d110_i050, 45.0,                          0.10
+    """)
+
+    figure = figure_pathway_intensities(frame, branches)
+
+    # One fan per panel, out of the base point at the previous milestone, listed in the legend once.
+    fans = [trace for trace in figure.data if trace.name == "d110_i050"]
+    assert [(trace.xaxis, trace.showlegend) for trace in fans] == [
+        ("x", True),
+        ("x2", False),
+    ]
+    assert (list(fans[0].x), list(fans[0].y)) == (
+        [2030, 2035, None],
+        [25.0, 45.0, None],
+    )
+    assert (list(fans[1].x), list(fans[1].y)) == (
+        [2030, 2035, None],
+        [0.40, 0.10, None],
+    )
+
+
+def test_pathway_intensities_stubs_a_first_milestone_increment_off_its_own_year(
+    csv_str_to_df,
+):
+    frame = csv_str_to_df("""
+        cell,   trajectory,  pressure, pressure_name,              year, delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        ext_sc, step_change, sc,       Step Change intensity path, 2030, 100.0,         25.0,                          0.40
+        ext_sc, step_change, sc,       Step Change intensity path, 2035, 110.0,         30.0,                          0.20
+    """)
+    branches = csv_str_to_df("""
+        cell,      base_cell, year, increment, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        ext_b2030, ext_sc,    2030, d110_i050, 28.0,                          0.38
+    """)
+
+    figure = figure_pathway_intensities(frame, branches)
+
+    stub = next(trace for trace in figure.data if trace.name == "d110_i050")
+    assert (list(stub.x), list(stub.y)) == ([2030, 2030, None], [25.0, 28.0, None])
 
 
 def test_implied_carbon_price_leaves_out_the_price_chains(exports):

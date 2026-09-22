@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import logging
 import webbrowser
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -36,7 +37,7 @@ from plotly.offline import get_plotlyjs
 
 from analysis.dashboard import figures
 from analysis.env import MODEL_DATA, OutputLayout
-from analysis.sharp.deliverables import base_rows
+from analysis.sharp.deliverables import BRANCH_COLUMNS, base_rows
 
 log = logging.getLogger(__name__)
 
@@ -129,6 +130,22 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     )
 
 
+def tidy_branches(exports: Path) -> pd.DataFrame:
+    """The increment grid's branch rows of ``results.csv``, keyed on the increment cell each solved.
+
+    :param exports: The run's ``exports/`` directory.
+    :return: One row per branch cell, carrying the base cell it branched from, its branch year, the
+        measures the pathway-intensity panels draw, and an ``increment`` key naming its two levels.
+        A run with no increment grid returns those columns with no rows.
+    """
+    results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
+    if not set(BRANCH_COLUMNS) <= set(results):
+        return pd.DataFrame(columns=["base_cell", "year", "increment"])
+    branches = results[results["base_cell"].notna()]
+    levels = branches["demand_level"] + "_" + branches["intensity_level"]
+    return branches.assign(increment=levels)
+
+
 def _storage_power_columns(storage: pd.DataFrame) -> pd.DataFrame:
     """Installed storage power as one column per carrier and duration class, keyed on cell and year."""
     wide = storage.pivot_table(
@@ -158,10 +175,13 @@ def _status_label(frame: pd.DataFrame) -> pd.Series:
     return pd.Series(np.where(accepted, "solved", "unaccepted"), index=frame.index)
 
 
+#: Heading of the pathway-intensity row, which both the increment fans and the pipeline hang off.
+INTENSITIES_HEADING = "Pathway intensities (every chain, ShARP-style)"
+
 #: Page heading to section builder, in the order the dashboard shows them. A builder returns either
 #: a plotly figure or ready-made html, and ``None`` where the run holds too little to draw.
 SECTIONS = {
-    "Pathway intensities (every chain, ShARP-style)": figures.figure_pathway_intensities,
+    INTENSITIES_HEADING: figures.figure_pathway_intensities,
     "Cost frontier": figures.figure_cost_frontier,
     "Cost against emissions intensity": figures.figure_cost_families,
     "Cost surface as heatmap": figures.figure_cost_heatmap,
@@ -262,8 +282,11 @@ def _drawn_sections(
     frame: pd.DataFrame, layout: OutputLayout
 ) -> list[tuple[str, go.Figure | str | None]]:
     """Every section in page order, each run-directory section spliced under the one it follows."""
+    fanned = partial(
+        figures.figure_pathway_intensities, branches=tidy_branches(layout.exports)
+    )
     drawn = []
-    for heading, build_from_frame in SECTIONS.items():
+    for heading, build_from_frame in {**SECTIONS, INTENSITIES_HEADING: fanned}.items():
         drawn.append((heading, build_from_frame(frame)))
         if heading in RUN_SECTIONS:
             title, build_from_run = RUN_SECTIONS[heading]
@@ -419,7 +442,7 @@ def _assumptions(layout: OutputLayout) -> dict[str, object]:
 #: Sections built from the run directory rather than the tidy frame, each keyed on the ``SECTIONS``
 #: heading it is shown under, and holding its own heading and builder.
 RUN_SECTIONS = {
-    "Pathway intensities (every chain, ShARP-style)": (
+    INTENSITIES_HEADING: (
         f"Near-term pipeline: {figures.PIPELINE_YEAR} capacity by carrier",
         _figure_near_term_pipeline,
     ),

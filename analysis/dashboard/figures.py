@@ -20,6 +20,7 @@ from scipy.spatial import QhullError
 
 from analysis.env import PACKAGE_ROOT, REPO_ROOT
 from analysis.hpc.campaign_grid import (
+    BASE_CHAIN_KEY,
     CAP_KIND,
     order_pressures,
     parse_pressure,
@@ -111,6 +112,13 @@ FUEL_INPUTS = {
     "gj_per_mwh_natural_gas": ("Gas", "dash"),
     "gj_per_mwh_biomass": ("Biomass", "dot"),
 }
+
+#: Milestone spacing of the campaign's chains. An increment cell is a single-year solve seeded from
+#: its base chain's state one step back, so its fan is drawn from the base point at that year.
+BRANCH_STEP = 5
+
+#: Hues for the increment-grid fans, lighter than the chain palette so the base chains read over them.
+INCREMENT_FAN_COLOURS = px.colors.qualitative.Light24
 
 #: Scatter-matrix dimensions. The year is left out: it is categorical and earns nothing as a row and
 #: column of its own.
@@ -251,9 +259,11 @@ def pressure_label(key: str, separator: str = " ") -> str:
     :param key: Pressure key, e.g. ``c150`` or ``cap0005``.
     :param separator: Sits between the words of the label. ``<br>`` wraps it onto short lines, so
         a table column or a facet title stays narrow.
-    :return: e.g. ``carbon price A$150/t``, ``uncapped (A$0/t)`` or
-        ``cap 0.005 t CO2e/MWh by 2050``.
+    :return: e.g. ``carbon price A$150/t``, ``uncapped (A$0/t)``,
+        ``cap 0.005 t CO2e/MWh by 2050`` or ``Step Change intensity path``.
     """
+    if key == BASE_CHAIN_KEY:
+        return separator.join(["Step Change", "intensity path"])
     pressure = parse_pressure(key)
     if pressure.kind == CAP_KIND:
         return separator.join(["cap", f"{pressure.value:g}", "t CO2e/MWh", "by 2050"])
@@ -623,6 +633,11 @@ INCREMENT_COLOUR_MEASURES = {
 #: The level each arm of the L-shaped grid varies, against the level it holds at one.
 INCREMENT_ARMS = {"demand_level": "intensity_level", "intensity_level": "demand_level"}
 
+#: A level key names a percentage of the base cell's own, prefixed by the axis it varies: ``d135`` is
+#: 1.35 times its demand and ``i010`` a tenth of its cap. The digits are the capture group.
+INCREMENT_LEVEL_PATTERN = r"^[a-z](\d+)$"
+INCREMENT_LEVEL_PER_CENT = 100.0
+
 #: Cost of the extra energy an increment cell delivers, and how the demand arm titles it.
 INCREMENT_COST_PER_TWH = "delta_cost_per_extra_twh"
 INCREMENT_COST_PER_TWH_LABEL = "Delta cost (A$/yr per extra TWh)"
@@ -659,7 +674,8 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
 
     :param increments: The run's ``increments.csv``, one row per branch cell and year.
     """
-    curves = _increment_curves(increments)
+    cells = _numeric_levels(increments)
+    curves = _increment_curves(cells)
     blocks = [
         curves[curves["year"].eq(year)] for year in sorted(curves["year"].unique())
     ]
@@ -674,14 +690,26 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
         for row, level in enumerate(INCREMENT_ARMS, start=1):
             arm = _increment_arm(block, level, row == 1)
             figure.add_trace(arm, row=row, col=1)
-    for bar in _additivity_bars(increments):
+    for bar in _additivity_bars(cells):
         figure.add_trace(bar, row=3, col=1)
     for column, block in enumerate(blocks, start=1):
         figure.add_trace(_increment_heatmap(block), row=4, col=column)
-    figure.add_trace(_cap_dual_table(increments), row=5, col=1)
+    figure.add_trace(_cap_dual_table(cells), row=5, col=1)
     return _button_row(
         _label_increment_axes(figure), _increment_buttons(figure, blocks)
     )
+
+
+def _numeric_levels(increments: pd.DataFrame) -> pd.DataFrame:
+    """Each level key as the multiple of the base cell it names, e.g. ``d135`` as 1.35."""
+    multiples = {
+        level: pd.to_numeric(
+            increments[level].astype(str).str.extract(INCREMENT_LEVEL_PATTERN)[0]
+        )
+        / INCREMENT_LEVEL_PER_CENT
+        for level in INCREMENT_ARMS
+    }
+    return increments.assign(**multiples)
 
 
 def _increment_curves(increments: pd.DataFrame) -> pd.DataFrame:
@@ -893,7 +921,9 @@ def figure_cost_pathway(frame: pd.DataFrame) -> go.Figure:
     return _list_pressures_up_the_ladder(_strip_facet_titles(figure), frame)
 
 
-def figure_pathway_intensities(frame: pd.DataFrame) -> go.Figure:
+def figure_pathway_intensities(
+    frame: pd.DataFrame, branches: pd.DataFrame | None = None
+) -> go.Figure:
     """Conversion cost, emissions and fuel input intensity over the milestone years, one line per chain.
 
     The row mirrors the ShARP library's pathway intensities, so a modelled pathway reads beside a
@@ -901,12 +931,29 @@ def figure_pathway_intensities(frame: pd.DataFrame) -> go.Figure:
     Every panel's line for a chain shares a legend group, so one legend click hides the chain across
     all three. The emissions panel carries the derived AEMO scenario intensities behind the chains as
     a sanity reference.
+
+    :param frame: The tidy cell-year frame of the campaign's base chains.
+    :param branches: The increment grid's branch rows, each fanned out from the base point it
+        branched from. A run with no increment grid draws the base chains alone.
     """
     figure = make_subplots(
         rows=1, cols=3, subplot_titles=[title for title, _ in INTENSITY_PANELS]
     )
     for reference in _aemo_overlay(_aemo_scenario_span(frame["year"].min())):
         figure.add_trace(reference, row=1, col=2)
+    for key, colour in _increment_colours(branches).items():
+        rows = branches[branches["increment"].eq(key)].sort_values("year")
+        cost = _branch_fan(
+            frame, rows, "cost_per_mwh_excl_fuel_carbon", colour, key, True
+        )
+        figure.add_trace(cost, row=1, col=1)
+        figure.add_trace(
+            _branch_fan(frame, rows, "fleet_intensity", colour, key), row=1, col=2
+        )
+        for column, (_, dash) in FUEL_INPUTS.items():
+            if _fuel_burnt(rows, column):
+                fan = _branch_fan(frame, rows, column, colour, key, dash=dash)
+                figure.add_trace(fan, row=1, col=3)
     for cell, colour in _chain_colours(frame).items():
         chain = frame[frame["cell"].eq(cell)].sort_values("year")
         cost = chain["cost_per_mwh_excl_fuel_carbon"]
@@ -1016,6 +1063,55 @@ def _chain_line(
 def _fuel_burnt(chain: pd.DataFrame, column: str) -> bool:
     """Whether one chain burns a fuel in any milestone year, so the input panel draws its line."""
     return column in chain and chain[column].fillna(0).ne(0).any()
+
+
+def _increment_colours(branches: pd.DataFrame | None) -> dict[str, str]:
+    """One colour per increment cell key, demand-major, cycling the fan palette."""
+    keys = sorted(branches["increment"].unique()) if branches is not None else []
+    return dict(zip(keys, cycle(INCREMENT_FAN_COLOURS)))
+
+
+def _fan_points(
+    origins: pd.Series, rows: pd.DataFrame, column: str
+) -> tuple[list, list]:
+    """One increment key's fan: each branch value joined back to its base point one step earlier.
+
+    A cell branching in the first milestone has no earlier base point, so it is drawn as a stub
+    from the base point of its own year. ``None`` separates one segment from the next.
+    """
+    x: list = []
+    y: list = []
+    for row in rows.itertuples():
+        start = row.year - BRANCH_STEP
+        start = start if (row.base_cell, start) in origins.index else row.year
+        x += [start, row.year, None]
+        y += [origins[row.base_cell, start], getattr(row, column), None]
+    return x, y
+
+
+def _branch_fan(
+    frame: pd.DataFrame,
+    rows: pd.DataFrame,
+    column: str,
+    colour: str,
+    key: str,
+    legend: bool = False,
+    dash: str = "solid",
+) -> go.Scatter:
+    """One increment key's fan in one intensity panel, thin and grouped with its other panels."""
+    x, y = _fan_points(frame.set_index(["cell", "year"])[column], rows, column)
+    return go.Scatter(
+        x=x,
+        y=y,
+        name=key,
+        legendgroup=key,
+        showlegend=legend,
+        mode="lines+markers",
+        line={"color": colour, "dash": dash, "width": 1},
+        marker_size=4,
+        connectgaps=False,
+        hovertemplate=f"{key}<br>%{{x}}: %{{y:.3g}}<extra></extra>",
+    )
 
 
 def figure_implied_carbon_price(frame: pd.DataFrame) -> go.Figure:
