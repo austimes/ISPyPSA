@@ -52,8 +52,24 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
 - **Biomass availability cap** - a National Electricity Market (NEM)-wide new-entrant biomass capacity ceiling by
   milestone year, from the ARENA Bioenergy Roadmap 2021 and AEMO's ISP 2024 Step Change technology projections.
 - **Renewable energy zone (REZ) limit relaxation** - off unless a run passes `--rez-limit-factor`, in which case every
-  REZ transmission limit, REZ transmission expansion headroom and REZ wind, solar and land-use resource limit is
-  multiplied by that factor.
+  REZ transmission limit, REZ transmission expansion headroom, offshore wind resource limit and land-use build limit is
+  multiplied by that factor. The soft onshore wind and solar resource limits stay at AEMO's published level, because the
+  social-licence premium prices capacity above them instead.
+- **Social-licence premium on capacity above AEMO's limits** - off unless a run passes `--social-licence-premiums
+  <first>,<second>` (the campaign uses `0.15,0.60`). Three things then change: ISPyPSA's one unbounded
+  `<constraint>_relax_<year>` generator per soft REZ resource limit becomes two bounded tranches, of one and two times
+  the published limit, priced at AEMO's violation penalty plus the two premium fractions of that zone's median
+  new-entrant wind or solar annuitised capital cost; every expandable REZ and corridor link gains three priced capacity
+  steps, its published expansion headroom free and then the two premium fractions of its own capital cost, with its
+  untouched `<isp_name>_expansion_limit` constraint still the hard ceiling; and every expansion link carries a flat
+  landholder payment adder, from the New South Wales Strategic Benefit Payments (A$200,000/km, treated as a 25-year
+  total annuitised at the 3% transmission weighted average cost of capital) and the Victorian scheme (A$8,000/km/yr),
+  converted at AEMO's capacity-weighted easement lengths of 0.149 km/MW for a REZ connection and 0.112 km/MW for a
+  corridor. Derived in [`research/social_licence_premium/research.md`](research/social_licence_premium/research.md).
+- **Build-rate premium** - off unless a run passes `--build-rate-premiums <csv>`, in which case each carrier's new build
+  in a period pays the stepped A$/MW/yr adders of that file above its cumulative capacity steps. The shipped
+  [`model/data/build_rate_premiums_central.csv`](model/data/build_rate_premiums_central.csv) is an uncapped zero-adder
+  backstop, so a run passing it prices nothing until the file carries researched numbers.
 - **Transmission corridor limit relaxation** - off unless a run passes `--flow-path-limit-factor`, in which case the
   expansion headroom of every flow path between sub-regions is multiplied by that factor; REZ-to-sub-region
   connections and REZ group constraints belong to the REZ factor, so the two levers are independent.
@@ -69,6 +85,12 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
 - The biomass capacity cap.
 - The REZ limit relaxation factor of a sensitivity run set: AEMO publishes no relaxed REZ limits, so the factor is a
   chosen test of how much of a deep-cap chain's cost sits in the REZ ceilings, not a forecast of buildable headroom.
+- The two social-licence premium fractions and the tranche widths they apply over: no published source prices capacity
+  beyond a REZ or corridor limit, so 15% is transferred from AEMO's own transmission social-licence cost impost and 60%
+  from the top of its parcel-density-graduated REZ generation uplift.
+- Treating the New South Wales Strategic Benefit Payment as a 25-year total: AEMO states it undiscounted, so the
+  annuitisation to A$/MW/yr is the fork's own.
+- The build-rate premium adders, which ship as zeros until the research topic lands.
 
 ## Campaign method
 

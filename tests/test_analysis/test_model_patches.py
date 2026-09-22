@@ -150,7 +150,7 @@ def _rez_tables(csv_str_to_df) -> dict[str, pd.DataFrame]:
     }
 
 
-def test_rez_limits_doubles_every_rez_limit_and_leaves_prices_and_fork_caps_alone(
+def test_rez_limits_doubles_the_hard_limits_and_leaves_prices_soft_limits_and_fork_caps_alone(
     csv_str_to_df, caplog
 ):
     tables = _rez_tables(csv_str_to_df)
@@ -160,8 +160,8 @@ def test_rez_limits_doubles_every_rez_limit_and_leaves_prices_and_fork_caps_alon
 
     expected_rez = csv_str_to_df("""
         rez_id,  isp_sub_region_id,  carrier,  wind_generation_total_limits_mw_high,  wind_generation_total_limits_mw_medium,  wind_generation_total_limits_mw_offshore_floating,  wind_generation_total_limits_mw_offshore_fixed,  solar_pv_plus_solar_thermal_limits_mw_solar,  rez_resource_limit_violation_penalty_factor_$/mw,  rez_transmission_network_limit_summer_typical,  land_use_limits_mw_wind,  land_use_limits_mw_solar
-        Q1,      NQ,                 AC,       1140.0,                                3420.0,                                 0.0,                                                0.0,                                             2200.0,                                       300000.0,                                          1500.0,                                        13528.0,                 32468.0
-        Q2,      NQ,                 AC,       9400.0,                                27800.0,                                0.0,                                                0.0,                                             16000.0,                                      300000.0,                                          1400.0,                                        55058.0,                 132142.0
+        Q1,      NQ,                 AC,       570.0,                                 1710.0,                                 0.0,                                                0.0,                                             1100.0,                                       300000.0,                                          1500.0,                                        13528.0,                 32468.0
+        Q2,      NQ,                 AC,       4700.0,                                13900.0,                                0.0,                                                0.0,                                             8000.0,                                       300000.0,                                          1400.0,                                        55058.0,                 132142.0
     """)
     pd.testing.assert_frame_equal(result["renewable_energy_zones"], expected_rez)
 

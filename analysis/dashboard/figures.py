@@ -206,6 +206,8 @@ LABELS = {
     "pressure_name": "Pressure",
     "pressure_short": "Pressure (A$/t priced, or cap in t CO2e/MWh)",
     "pressure_value": "Cap target intensity in 2050 (t CO2e/MWh)",
+    "premium_aud_m_per_yr": "Premium paid (A$m/yr)",
+    "curve": "Cost curve",
     "series": "Series",
     "trajectory": "Demand trajectory",
     "twh": "Energy delivered (TWh)",
@@ -867,6 +869,44 @@ def _cost_components(frame: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+#: The premium columns of ``results.csv``, each titled as the page names that curve.
+PREMIUM_LABELS = {
+    "social_licence_premium_aud_per_yr": "Social licence (network)",
+    "build_rate_premium_aud_per_yr": "Build rate",
+}
+
+
+def figure_premiums_paid(frame: pd.DataFrame) -> go.Figure | None:
+    """What each cell-year paid for capacity above AEMO's published limits and baseline build rates.
+
+    One stacked bar per cell and year, in A$ million a year. Nothing is drawn for a run launched
+    without either curve, because every bar would be zero.
+    """
+    columns = [column for column in PREMIUM_LABELS if column in frame.columns]
+    if not columns or not frame[columns].to_numpy().any():
+        return None
+    paid = frame.melt(
+        id_vars=["cell", "year"],
+        value_vars=columns,
+        var_name="curve",
+        value_name="premium_aud_per_yr",
+    )
+    figure = px.bar(
+        paid.assign(
+            curve=paid["curve"].map(PREMIUM_LABELS),
+            premium_aud_m_per_yr=paid["premium_aud_per_yr"] / 1e6,
+        ).astype({"year": str}),
+        x="year",
+        y="premium_aud_m_per_yr",
+        color="curve",
+        facet_col="cell",
+        labels=LABELS,
+        height=DECOMPOSITION_HEIGHT,
+    )
+    figure.update_xaxes(type="category")
+    return _strip_facet_titles(figure)
+
+
 def figure_input_costs(costs: pd.DataFrame) -> go.Figure:
     """The cost inputs the run's solves were templated from, over the financial years they cover.
 
@@ -1137,9 +1177,10 @@ LINK_KIND_LABELS = {
     "flow_path": "Sub-region flow paths",
 }
 
-#: The two ceilings each panel marks above its bars, each named and coloured as it is drawn.
+#: The ceilings each panel marks above its bars, each named and coloured as it is drawn.
 LIMIT_MARKERS = {
     "aemo_limit_mw": ("AEMO IASR limit", "#1c1c1c"),
+    "tranche_2_limit_mw": ("2x AEMO limit (premium step)", "#ff7f0e"),
     "relaxed_limit_mw": ("Relaxed limit", "#d62728"),
 }
 
@@ -1209,11 +1250,12 @@ def _deepest_central_cell(links: pd.DataFrame) -> str:
 
 
 def _limit_columns(links: pd.DataFrame, factors: dict[str, float]) -> pd.DataFrame:
-    """Add each link's relaxed ceiling and the IASR ceiling it was relaxed from.
+    """Add each link's relaxed ceiling, the IASR ceiling it was relaxed from, and the premium step.
 
     A REZ connection's templated capacity is itself a relaxed transmission limit, so both halves of
     its ceiling divide by the REZ factor. A flow path keeps AEMO's own corridor capacity and only
-    its expansion headroom was relaxed, so only that half divides.
+    its expansion headroom was relaxed, so only that half divides. The premium step is where a
+    second helping of published headroom runs out and the priced tranches take over.
     """
     headroom = links["expansion_limit_mw"].fillna(0)
     factor = links["kind"].map(factors)
@@ -1224,6 +1266,11 @@ def _limit_columns(links: pd.DataFrame, factors: dict[str, float]) -> pd.DataFra
             links["kind"].eq("rez"),
             relaxed / factor,
             links["p_nom_mw"] + headroom / factor,
+        ),
+        tranche_2_limit_mw=np.where(
+            links["kind"].eq("rez"),
+            (links["p_nom_mw"] + 2 * headroom) / factor,
+            links["p_nom_mw"] + 2 * headroom / factor,
         ),
     )
 

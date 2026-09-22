@@ -271,9 +271,9 @@ def test_transmission_frame_pairs_each_link_with_the_limits_it_could_expand_to(
     # summed, and the group-constraint expansion option belongs to no single link so nothing
     # carries it. Only a REZ connection has a transmission limit.
     expected = csv_str_to_df("""
-        cell,                 year,  link,   kind,       p_nom_mw,  p_nom_opt_mw,  expansion_limit_mw,  transmission_limit_mw
-        ext_central_cap0005,  2050,  CQ-NQ,  flow_path,  1200.0,    2000.0,        6000.0,
-        ext_central_cap0005,  2050,  Q1-NQ,  rez,        3000.0,    3500.0,        5160.0,              3000.0
+        cell,                 year,  link,   kind,       p_nom_mw,  p_nom_opt_mw,  expansion_limit_mw,  transmission_limit_mw,  premium_aud_per_yr
+        ext_central_cap0005,  2050,  CQ-NQ,  flow_path,  1200.0,    2000.0,        6000.0,              ,                       0.0
+        ext_central_cap0005,  2050,  Q1-NQ,  rez,        3000.0,    3500.0,        5160.0,              3000.0,                 0.0
     """)
     pd.testing.assert_frame_equal(result, expected)
 
