@@ -11,9 +11,12 @@ Two design rules carry over from the intensity-demand-map builder:
 * VRE traces (``project/``, ``zone/``) are symlinked to one shared source store, so wind and solar are bit-identical
   between trajectories.
 
-The 2060 milestone sits past the end of the parsed store, so it is built by relabelling: the FY2050 rows are copied
-forward exactly ten years and appended. Demand gets the 2060 scalar applied to the relabelled rows; VRE is relabelled
-once into a shared ``_vre_2060`` store and left unscaled.
+A trajectory is built only at the milestones it has authored knots for, so a single-knot increment-grid trajectory
+gets one directory and its token file lists that one year.
+
+A plan whose milestones reach 2060 asks for a year past the end of the parsed store, which is built by relabelling: the
+FY2050 rows are copied forward exactly ten years and appended. Demand gets the 2060 scalar applied to the relabelled
+rows; VRE is relabelled once into a shared ``_vre_2060`` store and left unscaled.
 
 Outputs under the output root:
 
@@ -40,6 +43,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from analysis.hpc.campaign_grid import all_demand_paths
 
 ANCHOR_YEAR = 2025
 ANCHOR_KIND = "anchor_customer_delivered"
@@ -265,18 +270,26 @@ def _build_demand_dir(
     }
 
 
+def _knot_milestones(
+    targets: dict[str, float], milestone_years: list[int]
+) -> list[int]:
+    """Milestones one trajectory has an authored knot for, in year order."""
+    return sorted(year for year in milestone_years if str(year) in targets)
+
+
 def _build_trajectory_dirs(
     stores: TraceStores,
     trajectory: str,
     targets: dict[str, float],
     milestone_years: list[int],
 ) -> list[dict]:
-    """Every milestone directory for one trajectory, plus the schedule-token file that points a run at them."""
+    """Every knotted milestone directory for one trajectory, plus the schedule-token file that points a run at them."""
+    years = _knot_milestones(targets, milestone_years)
     records = [
         _build_demand_dir(stores, trajectory, year, targets[str(year)])
-        for year in sorted(milestone_years)
+        for year in years
     ]
-    _write_tracedirs_file(stores.out_root, trajectory, milestone_years)
+    _write_tracedirs_file(stores.out_root, trajectory, years)
     return records
 
 
@@ -320,12 +333,14 @@ def _annual_demand_series(
     )
 
 
-def _write_annual_demand_series(out_root: Path, plan: dict) -> None:
+def _write_annual_demand_series(
+    out_root: Path, plan: dict, paths: dict[str, dict[str, float]]
+) -> None:
     """Yearly demand path for every trajectory in the plan, written once per build."""
     anchor_twh = plan["anchor_2025_customer_delivered_twh"]
     series = [
         _annual_demand_series(name, targets, anchor_twh)
-        for name, targets in plan["demand_paths_source_twh"].items()
+        for name, targets in paths.items()
     ]
     pd.concat(series, ignore_index=True).to_csv(
         out_root / "annual_demand_series.csv", index=False
@@ -373,12 +388,14 @@ def _recorded_knots(out_root: Path) -> dict[str, dict[str, float]]:
     }
 
 
-def _pending_trajectories(out_root: Path, plan: dict) -> list[str]:
+def _pending_trajectories(
+    out_root: Path, paths: dict[str, dict[str, float]]
+) -> list[str]:
     """Trajectories of the plan whose trace directories are missing, or were built from knots the plan has since changed."""
     recorded = _recorded_knots(out_root)
     return [
         trajectory
-        for trajectory, targets in plan["demand_paths_source_twh"].items()
+        for trajectory, targets in paths.items()
         if not (out_root / trajectory).is_dir()
         or recorded.get(trajectory)
         != {year: float(twh) for year, twh in targets.items()}
@@ -409,7 +426,8 @@ def build(
 
     :param source: Parsed trace store root, e.g. ``$IO_DIR/inputs/traces/isp_2026``.
     :param out_root: Directory the rewritten trace directories are written under.
-    :param plan: Demand plan JSON holding ``milestone_years`` and ``demand_paths_source_twh``.
+    :param plan: Demand plan JSON holding ``milestone_years``, ``demand_paths_source_twh`` and
+        any increment grid.
     :param reference_year: Weather reference year partition to rewrite.
     """
     source_root, output_root = source.resolve(), out_root.resolve()
@@ -418,17 +436,17 @@ def build(
     ):
         raise ValueError("Source and output trace stores must not overlap")
     plan_data = json.loads(plan.read_text(encoding="utf-8"))
+    paths = all_demand_paths(plan_data)
     out_root.mkdir(parents=True, exist_ok=True)
-    pending = _pending_trajectories(out_root, plan_data)
+    pending = _pending_trajectories(out_root, paths)
     _discard_stale_trajectories(out_root, pending)
     # Token files and shared-VRE links hold absolute paths, so both are rewritten from the
     # directories on every build: an input package that has been moved then repairs itself.
-    for trajectory in plan_data["demand_paths_source_twh"]:
+    for trajectory, targets in paths.items():
         if trajectory not in pending:
-            _write_tracedirs_file(out_root, trajectory, plan_data["milestone_years"])
-            _relink_trajectory_vre(
-                source, out_root, trajectory, plan_data["milestone_years"]
-            )
+            years = _knot_milestones(targets, plan_data["milestone_years"])
+            _write_tracedirs_file(out_root, trajectory, years)
+            _relink_trajectory_vre(source, out_root, trajectory, years)
     if not pending:
         print(f"trace directories already built for every trajectory in {out_root}")
         return
@@ -446,11 +464,8 @@ def build(
     records = []
     for trajectory in pending:
         records += _build_trajectory_dirs(
-            stores,
-            trajectory,
-            plan_data["demand_paths_source_twh"][trajectory],
-            plan_data["milestone_years"],
+            stores, trajectory, paths[trajectory], plan_data["milestone_years"]
         )
-    _write_annual_demand_series(out_root, plan_data)
+    _write_annual_demand_series(out_root, plan_data, paths)
     _write_manifest(out_root, records, plan_data["version"])
     _print_summary(records)

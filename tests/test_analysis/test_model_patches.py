@@ -8,6 +8,7 @@ from analysis.model import apply_model_patches
 from analysis.model.biomass_cap import apply as biomass_cap_apply
 from analysis.model.flow_path_limits import apply as flow_path_limits_apply
 from analysis.model.maintenance_overlay import apply as maintenance_overlay_apply
+from analysis.model.pipeline_pin import apply as pipeline_pin_apply
 from analysis.model.pumped_storage_fix import apply as pumped_storage_fix_apply
 from analysis.model.repowering import apply as repowering_apply
 from analysis.model.rez_limits import apply as rez_limits_apply
@@ -104,6 +105,33 @@ def test_biomass_cap_nets_existing_biomass_off_the_new_entrant_ceiling(csv_str_t
         biomass_cap_2030,  <=,               1468.0
     """)
     pd.testing.assert_frame_equal(result["custom_constraints_rhs"], expected_rhs)
+
+
+def test_pipeline_pin_caps_the_new_entrant_menus_at_the_allowance(csv_str_to_df):
+    new_entrants = csv_str_to_df("""
+        generator,   status,       lifetime
+        wind_sq,     New__Entrant,  25
+        coal_sq,     Existing,     30
+    """)
+    batteries = csv_str_to_df("""
+        storage_name,  status,       lifetime
+        bess_sq,       New__Entrant,  20
+    """)
+    tables = {
+        "new_entrant_generators": new_entrants,
+        "new_entrant_batteries": batteries,
+        "custom_constraints_lhs": _EMPTY_CC_LHS.copy(),
+        "custom_constraints_rhs": _EMPTY_CC_RHS.copy(),
+    }
+
+    result = pipeline_pin_apply(tables, _config([2030]), cap_mw=5000)
+
+    expected_lhs = csv_str_to_df("""
+        constraint_id,                          term_type,           term_id,       coefficient
+        pipeline_new_entrant_generators_2030,   generator_capacity,  wind_sq_2030,  1.0
+        pipeline_new_entrant_batteries_2030,    storage_capacity,    bess_sq_2030,  1.0
+    """)
+    pd.testing.assert_frame_equal(result["custom_constraints_lhs"], expected_lhs)
 
 
 def test_pumped_storage_fix_removes_pumped_hydro_from_the_generator_roster(

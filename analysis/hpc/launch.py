@@ -6,8 +6,12 @@ The array index is the chain's row in ``campaign/chains.tsv``, so the manifest a
 array are written together and never drift apart. ``campaign/inputs.txt`` names the input
 package the launch read, so a run's results can always be traced back to its inputs, and
 ``campaign/assumptions.json`` names what this launch varies -- its REZ limit factor, its
-corridor limit factor, its cap depth cut-off, its chain count and that input package -- so two
+corridor limit factor, its chain count, its increment grid and that input package -- so two
 run sets can be compared.
+
+The manifest always holds every chain of both stages, and ``--stage`` picks which of them this
+submission covers, so the base chain and the increment grid that seeds from it go into one launch
+directory and the grid is queued behind the base chain with ``--after <job id>``.
 
 ``submit`` is the single place that knows how a campaign job is handed to Slurm: the
 account, partition, stdout path and the exported variables (``RUN_DIR``, ``REPO`` and
@@ -20,11 +24,12 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from typing import Literal
 
 import pandas as pd
 
 from analysis.env import REPO_ROOT, Env, OutputLayout
-from analysis.hpc import manifest, tracedirs
+from analysis.hpc import increments, manifest, tracedirs
 
 SLURM_DIR = Path(__file__).parent / "slurm"
 DEFAULT_PLAN = Path(__file__).parent / "demand_plan.json"
@@ -92,28 +97,53 @@ def _chain_is_complete(layout: OutputLayout, run_id: str, last_period: int) -> b
     return json.loads(record.read_text(encoding="utf-8")).get("status") == "completed"
 
 
-def incomplete_array(
-    layout: OutputLayout, chains: pd.DataFrame, last_period: int
-) -> str:
+def _array(chains: pd.DataFrame) -> str:
+    """Slurm array specification covering the given chains, by their manifest row."""
+    return ",".join(str(row) for row in chains["row"])
+
+
+def incomplete_array(layout: OutputLayout, chains: pd.DataFrame) -> str:
     """Slurm array specification covering only the chains that have not finished.
 
     :param layout: The launch directory to inspect.
-    :param chains: The launch's chain table, whose ``row`` is the array index.
-    :param last_period: Final milestone year of every chain.
+    :param chains: The launch's chain table, whose ``row`` is the array index and whose
+        ``last_period`` is the final period of that chain alone.
     :return: A comma-separated index list, empty when every chain is complete.
     """
-    rows = [
-        chain.row
-        for chain in chains.itertuples()
-        if not _chain_is_complete(layout, chain.run_id, last_period)
-    ]
-    return ",".join(str(row) for row in rows)
+    return _array(
+        chains[
+            [
+                not _chain_is_complete(layout, chain.run_id, chain.last_period)
+                for chain in chains.itertuples()
+            ]
+        ]
+    )
+
+
+def _stage_chains(chains: pd.DataFrame, stage: str) -> pd.DataFrame:
+    """The manifest rows one stage submits: ``base``, ``branch``, or every row for ``all``."""
+    if stage == "all":
+        return chains
+    return chains[chains["stage"] == stage]
+
+
+def _increments_summary(plan: dict) -> dict | None:
+    """The increment grid this launch carries: its cell count and its two level sets."""
+    grid = plan.get(increments.GRID_KEY)
+    if grid is None:
+        return None
+    return {
+        "cells": len(grid["cells"]),
+        "demand_levels": grid["demand_levels"],
+        "intensity_levels": grid["intensity_levels"],
+    }
 
 
 def write_assumptions(
     layout: OutputLayout,
     inputs: Path,
     chains: int,
+    plan: dict,
     max_cap: float | None,
     rez_limit_factor: float | None,
     flow_path_limit_factor: float | None,
@@ -128,6 +158,7 @@ def write_assumptions(
                 "solve_flags": solve_flags,
                 "max_cap": max_cap,
                 "chains": chains,
+                "increments": _increments_summary(plan),
                 "inputs": inputs.as_posix(),
             },
             indent=2,
@@ -138,11 +169,13 @@ def write_assumptions(
 
 
 def main(
-    run_set: str = "ext41",
+    run_set: str = "sc5",
     plan: Path = DEFAULT_PLAN,
     run: Path | None = None,
     resume: bool = False,
     smoke: bool = False,
+    stage: Literal["base", "branch", "all"] = "all",
+    after: str | None = None,
     array: str | None = None,
     max_cap: float | None = None,
     rez_limit_factor: float | None = None,
@@ -158,10 +191,13 @@ def main(
     :param resume: Submit only the chains whose final period has not completed; requires
         ``run``, because a freshly stamped directory has no chain to resume.
     :param smoke: Submit the single NSW two-period gate chain instead of the campaign.
+    :param stage: Which stage of the always-complete manifest to submit: ``base`` for the base
+        chain, ``branch`` for the increment grid, or ``all`` for both.
+    :param after: Slurm job id this submission waits for, so the increment grid can be queued
+        behind the base chain it seeds from.
     :param array: Slurm array specification, overriding the one derived from the manifest.
-    :param max_cap: Launch only the cap chains whose 2050 target intensity in t CO2e/MWh
-        delivered is at or below this value, dropping the price chains and the shallower
-        caps; omit to launch the whole campaign.
+    :param max_cap: Keep only the cap chains at or below this 2050 target intensity; not
+        supported by an increment-grid plan, which has no cap ladder to narrow.
     :param rez_limit_factor: Relax every renewable energy zone (REZ) transmission,
         expansion and resource limit by this factor in every chain of the launch, as a
         sensitivity against the IASR limits; omit for the IASR limits.
@@ -177,6 +213,7 @@ def main(
         raise ValueError("--resume needs --run: name the launch directory to resume")
     env = Env.from_env()
     layout = OutputLayout(run) if run else env.new_run(run_set)
+    plan_data = json.loads(plan.read_text(encoding="utf-8"))
     if not dry_run:
         tracedirs.build(env.traces, env.tracedirs, plan)
     chains = manifest.build(
@@ -189,28 +226,30 @@ def main(
         layout,
         env.inputs,
         len(chains),
+        plan_data,
         max_cap,
         rez_limit_factor,
         flow_path_limit_factor,
         solve_flags,
     )
+    selected = _stage_chains(chains, stage)
     if array is None and smoke:
         array = "0"
     if array is None and resume:
-        milestones = json.loads(plan.read_text(encoding="utf-8"))["milestone_years"]
-        array = incomplete_array(layout, chains, milestones[-1])
+        array = incomplete_array(layout, selected)
         if not array:
             print(f"every chain in {layout.root} has completed its final period")
             return
     if array is None:
-        array = f"0-{len(chains) - 1}"
+        array = _array(selected)
     script = SLURM_DIR / ("smoke.sbatch" if smoke else "chain.sbatch")
     # Only a submission into an existing launch directory may keep carried chain state.
     export = {"RESUME": "--resume"} if run else {}
     if solve_flags:
         export["SOLVE_FLAGS"] = solve_flags
+    dependency = f"afterok:{after}" if after else None
     if dry_run:
-        print(" ".join(sbatch_command(script, array, export, layout, env)))
+        print(" ".join(sbatch_command(script, array, export, layout, env, dependency)))
     else:
-        submit(script, array, export, layout, env)
+        submit(script, array, export, layout, env, dependency)
     print(layout.root)

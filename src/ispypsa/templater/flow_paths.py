@@ -17,6 +17,10 @@ from .mappings import (
     rez_config,
 )
 
+# The v7.x cost tables keep pre-rename corridor ids, which score below the option
+# threshold against their augmentation counterpart: VIC-SNSW against WNV-SNSW scores 75.
+_ID_MATCH_THRESHOLD = 70
+
 
 def _template_sub_regional_flow_paths(
     flow_path_capabilities: pd.DataFrame,
@@ -454,6 +458,44 @@ def _get_cost_table(
     return _combine_cost_tables(cost_table, prep_activities, actionable_projects)
 
 
+def _hyphenate(names: pd.Series) -> pd.Series:
+    """Rewrite em dashes, en dashes and soft hyphens as plain hyphens, e.g. ``NNSW-SQ``."""
+    return names.astype(str).str.replace(r"[\u2014\u2013\u00ad]", "-", regex=True)
+
+
+def _match_key(options: pd.Series) -> pd.Series:
+    """Option name reduced to the spelling the two tables share: hyphens, no descriptor.
+
+    The augmentation tables name the project in brackets where the cost tables stop at the
+    option number, e.g. ``TAS-SEV Option 2 (Project Marinus Stage 2)`` against
+    ``TAS-SEV Option 2``.
+    """
+    return _hyphenate(options).str.replace(r"\s*\(.*\)$", "", regex=True).str.strip()
+
+
+def _match_cost_names_to_augmentation(
+    cost_table: pd.DataFrame, aug_table: pd.DataFrame
+) -> pd.DataFrame:
+    """Rename the cost table's ids and options onto their augmentation-table spellings."""
+    aug_options = dict(zip(_match_key(aug_table["option"]), aug_table["option"]))
+    matched = _fuzzy_match_names(
+        _match_key(cost_table["option"]),
+        aug_options.keys(),
+        "matching transmission augmentation options and costs",
+        not_match="existing",
+        threshold=80,
+    )
+    return cost_table.assign(
+        id=_fuzzy_match_names(
+            _hyphenate(cost_table["id"]),
+            aug_table["id"],
+            "matching transmission augmentation ids and costs",
+            threshold=_ID_MATCH_THRESHOLD,
+        ),
+        option=matched.map(lambda option: aug_options.get(option, option)),
+    )
+
+
 def _get_least_cost_options(
     aug_table: pd.DataFrame, cost_table: pd.DataFrame, config: dict
 ) -> pd.DataFrame:
@@ -461,6 +503,10 @@ def _get_least_cost_options(
     For each transmission, select the augmentation option with the lowest cost per MW of
     increased capacity, using the first year with complete costs for all options. The
     selected option and its costs per MW are used for all years.
+
+    Cost-table ids and option names are renamed onto the augmentation table's spellings
+    before either merge, so a corridor whose cost rows are spelled differently keeps its
+    expansion option.
 
     Args:
         aug_table: pd.DataFrame containing columns:
@@ -484,14 +530,8 @@ def _get_least_cost_options(
             - <financial year>_$/mw (cost per MW for each year, e.g., '2024_25_$/mw')
     """
     year_cols = _get_year_columns(cost_table)
+    cost_table = _match_cost_names_to_augmentation(cost_table, aug_table)
     valid_costs_df = _find_first_year_with_complete_costs(cost_table, year_cols)
-    valid_costs_df["option"] = _fuzzy_match_names(
-        valid_costs_df["option"],
-        aug_table["option"],
-        "matching transmission augmentation options and costs",
-        not_match="existing",
-        threshold=80,
-    )
     transmission_analysis = pd.merge(
         aug_table, valid_costs_df, on=["id", "option"], how="inner"
     )

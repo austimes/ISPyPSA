@@ -120,6 +120,7 @@ def plan_file(tmp_path: Path) -> Path:
             "unit_flat": {"2049": 0.0096, "2050": 0.0096, "2060": 0.0096},
             "unit_scaled": {"2049": 0.0192, "2050": 0.0048, "2060": 0.0192},
         },
+        "increment_demand_paths_source_twh": {"unit_branch": {"2050": 0.0192}},
         "anchor_2025_customer_delivered_twh": 193.911,
     }
     path = tmp_path / "plan.json"
@@ -156,8 +157,17 @@ def test_manifest_lands_realised_energy_on_every_target(built, csv_str_to_df):
         unit_scaled,  2049,  2.0,     9600.0,         19200.0,          test-plan-v1,  False
         unit_scaled,  2050,  0.5,     9600.0,         4800.0,           test-plan-v1,  False
         unit_scaled,  2060,  2.0,     9600.0,         19200.0,          test-plan-v1,  True
+        unit_branch,  2050,  2.0,     9600.0,         19200.0,          test-plan-v1,  False
     """)
     pd.testing.assert_frame_equal(result, expected)
+
+
+def test_a_single_knot_trajectory_builds_only_its_own_year(built):
+    tokens = (built / "unit_branch.txt").read_text(encoding="utf-8").split()
+
+    directory = (built / "unit_branch" / "2050").resolve()
+    assert tokens == [f"2050:{directory.as_posix()}"]
+    assert [path.name for path in sorted((built / "unit_branch").iterdir())] == ["2050"]
 
 
 def test_unit_scalar_still_rewrites_the_demand_file(built, source_store):

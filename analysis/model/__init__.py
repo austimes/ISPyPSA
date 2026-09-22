@@ -8,7 +8,7 @@ Design choice: patches act at the ISPyPSA-input layer (CSVs between templater an
 rather than the PyPSA-friendly layer. This keeps mutations expressed in ISP-domain units
 (technology names, REZ ids, financial-year shares) rather than PyPSA bus/generator names.
 
-:func:`apply_model_patches` applies seven patches, in order, to every run:
+:func:`apply_model_patches` applies eight patches, in order, to every run:
 
   1. Pumped-storage fix -- re-route Wivenhoe / Shoalhaven / Borumba / Snowy 2.0 from
      ecaa_generators to ecaa_batteries so they are modelled as PyPSA StorageUnits, not
@@ -42,6 +42,10 @@ rather than the PyPSA-friendly layer. This keeps mutations expressed in ISP-doma
      sub-region flow path and every REZ-to-sub-region connection by that factor, leaving AEMO's
      REZ group constraints alone. See ``flow_path_limits.py``.
 
+  8. Near-term pipeline pin -- off unless a run passes a new-entrant allowance: caps NEM-wide
+     new-entrant generator and battery build in the period at that allowance, so the near term
+     matches the ISP's own pipeline. See ``pipeline_pin.py``.
+
 Biomass feedstock beyond the residue tier is priced by the configured biomass supply curve
 (``config.biomass_supply_curve.curve_csv``), which every campaign run sets, so the patches leave
 the IASR residue-tier price in place as that curve's baseline.
@@ -51,6 +55,7 @@ from .biomass_cap import apply as _apply_biomass_cap
 from .flow_path_limits import apply as _apply_flow_path_limits
 from .maintenance_overlay import apply as _apply_maintenance_overlay
 from .phes_menu import apply as _apply_phes_menu
+from .pipeline_pin import apply as _apply_pipeline_pin
 from .pumped_storage_fix import apply as _apply_pumped_storage_fix
 from .repowering import apply as _apply_repowering
 from .rez_limits import apply as _apply_rez_limits
@@ -61,8 +66,9 @@ def apply_model_patches(
     config,
     rez_limit_factor: float | None = None,
     flow_path_limit_factor: float | None = None,
+    new_entrant_cap_mw: float | None = None,
 ):
-    """Apply the seven fork-specific model patches, in order, to templated ISPyPSA tables.
+    """Apply the eight fork-specific model patches, in order, to templated ISPyPSA tables.
 
     :param ispypsa_tables: Templated ISPyPSA input tables, keyed by table name.
     :param config: The run's ISPyPSA configuration.
@@ -70,6 +76,8 @@ def apply_model_patches(
         ``None`` leaves the IASR limits in place.
     :param flow_path_limit_factor: Factor the corridor limit relaxation sensitivity multiplies every
         flow-path and REZ-connection expansion limit by; ``None`` leaves the IASR limits in place.
+    :param new_entrant_cap_mw: NEM-wide new-entrant allowance in MW the near-term pipeline pin
+        applies in this period; ``None`` leaves the new-entrant menus uncapped.
     :return: The patched tables.
     """
     ispypsa_tables = _apply_pumped_storage_fix(ispypsa_tables, config)
@@ -81,4 +89,5 @@ def apply_model_patches(
     ispypsa_tables = _apply_flow_path_limits(
         ispypsa_tables, config, flow_path_limit_factor
     )
+    ispypsa_tables = _apply_pipeline_pin(ispypsa_tables, config, new_entrant_cap_mw)
     return ispypsa_tables

@@ -20,8 +20,8 @@ JSON records and solved networks -- is written under the stamped run directory g
 
 Usage::
 
-    msm solve --run-id ext_central_c0 --output-root "$RUN_DIR" \\
-        --periods 2030 2040 2050 2060 --recursive-dynamic --reducible-existing
+    msm solve --run-id ext_step_change_sc --output-root "$RUN_DIR" \\
+        --periods 2030 2035 2040 2045 2050 --recursive-dynamic --reducible-existing
 """
 
 import json
@@ -109,6 +109,45 @@ def _chain_state_dir(
         shutil.rmtree(path)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _seed_state_years(seed_dir: Path) -> list[Path]:
+    """Every per-year carried-state directory of a seed chain, tranches and retention alike."""
+    return [
+        path
+        for name in ("tranches", "retention")
+        for path in sorted((seed_dir / name).glob("*"))
+        if path.is_dir() and path.name.isdigit()
+    ]
+
+
+def _seed_chain_state(
+    layout: OutputLayout, seed_run_id: str, run_id: str, first_period: int
+) -> dict:
+    """Copy a seed chain's state from before this chain's first period into this chain's own state.
+
+    The branch writes its own tranches and floors back, so the seed's directories are copied
+    rather than pointed at.
+    """
+    seed_dir = layout.chain_dir(seed_run_id)
+    years = _seed_state_years(seed_dir)
+    if not years:
+        raise FileNotFoundError(
+            f"--seed-state-from {seed_run_id}: no carried state under {seed_dir}"
+        )
+    earlier = [path for path in years if int(path.name) < first_period]
+    for path in earlier:
+        shutil.copytree(
+            path,
+            layout.chain_dir(run_id) / path.parent.name / path.name,
+            dirs_exist_ok=True,
+        )
+    return {"run_id": seed_run_id, "years": sorted({int(p.name) for p in earlier})}
+
+
+def _is_pipeline_period(year: int, pipeline_period: int | None) -> bool:
+    """True where a period sits inside the near-term pipeline pin."""
+    return pipeline_period is not None and year <= pipeline_period
 
 
 def _write_period_config(
@@ -385,6 +424,10 @@ def main(
     recursive_dynamic: bool = False,
     reducible_existing: bool = False,
     existing_fom_keeping: bool = False,
+    seed_state_from: str | None = None,
+    pin_base_stock: bool = False,
+    pipeline_period: int | None = None,
+    new_entrant_cap_mw: float | None = None,
     parsed_traces_directory_schedule: OptionalSchedule = None,
     rep_weeks: OptionalYears = None,
     named_weeks: bool = True,
@@ -424,6 +467,16 @@ def main(
         retained level carried forward as a monotone non-increasing floor.
     :param existing_fom_keeping: Charge each existing unit its own fixed operating and
         maintenance cost for being kept, instead of keeping it for free.
+    :param seed_state_from: Run id of a chain in the same launch whose carried tranches and
+        retention floors from before this chain's first period start this chain off, for a
+        conditioned single-year solve; raises if that chain has no state on disk.
+    :param pin_base_stock: Hold the existing fleet at the level the seed chain retained,
+        instead of letting this chain retire below it.
+    :param pipeline_period: Last period the near-term pipeline pin applies to: those periods
+        cap new-entrant build at ``new_entrant_cap_mw`` and let closures follow announced
+        years only, with no economic early retirement.
+    :param new_entrant_cap_mw: NEM-wide ceiling in MW on new-entrant generator and battery
+        build in each pinned period.
     :param parsed_traces_directory_schedule: ``YEAR:DIR`` trace store per period, one
         entry per period; defaults to the single trace store under ``IO_DIR``.
     :param rep_weeks: Numbered representative weeks sampled in each solve.
@@ -494,6 +547,11 @@ def main(
         if reducible_existing
         else None
     )
+    seeded = (
+        _seed_chain_state(layout, seed_state_from, run_id, periods[0])
+        if seed_state_from
+        else None
+    )
     chain_flags = _runner_flags(
         highs_threads=highs_threads,
         use_pdlp=use_pdlp,
@@ -504,8 +562,8 @@ def main(
         gurobi_crossover=gurobi_crossover,
         gurobi_threads=gurobi_threads,
         carried_tranches_dir=tranches_dir,
-        reducible_existing=reducible_existing,
         existing_fom_keeping=existing_fom_keeping,
+        pin_base_stock=pin_base_stock,
         retention_floor_dir=retention_dir,
         rez_limit_factor=rez_limit_factor,
         flow_path_limit_factor=flow_path_limit_factor,
@@ -518,6 +576,10 @@ def main(
         "regions_filter": regions,
         "periods": periods,
         "recursive_dynamic": recursive_dynamic,
+        "seeded_from": seeded,
+        "pin_base_stock": pin_base_stock,
+        "pipeline_period": pipeline_period,
+        "new_entrant_cap_mw": new_entrant_cap_mw,
         "tranches_dir": str(tranches_dir) if tranches_dir else None,
         "output_root": str(layout.root),
         "carbon_price": carbon_price,
@@ -571,7 +633,17 @@ def main(
             layout,
             [
                 *chain_flags,
-                *_runner_flags(current_year=year, co2_cap_t=cap_schedule.get(year)),
+                *_runner_flags(
+                    current_year=year,
+                    co2_cap_t=cap_schedule.get(year),
+                    # A pinned period follows announced closures only, so the existing fleet
+                    # is not a capacity decision in it.
+                    reducible_existing=reducible_existing
+                    and not _is_pipeline_period(year, pipeline_period),
+                    new_entrant_cap_mw=new_entrant_cap_mw
+                    if _is_pipeline_period(year, pipeline_period)
+                    else None,
+                ),
             ],
         )
         record["per_period_wall_s"] = time.time() - period_started

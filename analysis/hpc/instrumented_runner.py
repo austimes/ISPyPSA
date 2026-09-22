@@ -30,6 +30,7 @@ import subprocess
 import threading
 import time
 import traceback
+from contextlib import suppress
 from pathlib import Path
 
 import psutil
@@ -277,6 +278,19 @@ def _parse_highs_log(log_text: str) -> dict:
     return out
 
 
+def _scalar_constraint_duals(model) -> dict[str, float]:
+    """Dual of every scalar constraint of a solved linopy model, keyed by constraint name.
+
+    Dimensioned constraints (one row per snapshot or bus) carry no single dual and are
+    skipped, as are constraints whose dual the solver did not report.
+    """
+    duals = {}
+    for name, constraint in model.constraints.items():
+        with suppress(Exception):
+            duals[name] = float(constraint.dual)
+    return duals
+
+
 # ----- staged pipeline runner --------------------------------------------
 
 
@@ -289,6 +303,8 @@ def _run_staged_pipeline(
     reducible_existing: bool = False,
     retention_floor_dir: Path | None = None,
     existing_fom_keeping: bool = False,
+    pin_base_stock: bool = False,
+    new_entrant_cap_mw: float | None = None,
     co2_cap_t: float | None = None,
     rez_limit_factor: float | None = None,
     flow_path_limit_factor: float | None = None,
@@ -384,6 +400,7 @@ def _run_staged_pipeline(
         config,
         rez_limit_factor=rez_limit_factor,
         flow_path_limit_factor=flow_path_limit_factor,
+        new_entrant_cap_mw=new_entrant_cap_mw,
     )
     # REQUIRED for the Draft 2026 trace store: drop VRE new entrants whose
     # (rez_id, isp_resource_type) has no 2026 trace (Q8 split; N10/N11 fixed
@@ -443,7 +460,11 @@ def _run_staged_pipeline(
         else:
             keeping_cost = 0.0
         timings["retirement"] = make_existing_reducible(
-            pypsa_friendly["generators"], existing_names, floor, keeping_cost
+            pypsa_friendly["generators"],
+            existing_names,
+            floor,
+            keeping_cost,
+            pin=pin_base_stock,
         )
         print(f"\n=== REDUCIBLE EXISTING === {timings['retirement']}", flush=True)
 
@@ -618,6 +639,7 @@ def _run_staged_pipeline(
         except Exception as e:  # dual genuinely unavailable - report, not drop
             constraint_report[f"{cname}_dual"] = None
             constraint_report[f"{cname}_dual_error"] = f"{type(e).__name__}: {e}"
+        constraint_report["duals"] = _scalar_constraint_duals(network.model)
         timings["constraint_report"] = constraint_report
         (outputs_dir / "constraint_duals.json").write_text(
             json.dumps(constraint_report, indent=2, default=str)
@@ -840,6 +862,20 @@ def main():
         "unit for free. This is the recurring cost retirement saves.",
     )
     ap.add_argument(
+        "--pin-base-stock",
+        action="store_true",
+        help="Hold the reducible existing fleet at the retained level carried in, instead "
+        "of letting this solve retire below it (p_nom_min = p_nom_max = retained). Used by "
+        "the increment grid's conditioned single-year solves.",
+    )
+    ap.add_argument(
+        "--new-entrant-cap-mw",
+        type=float,
+        default=None,
+        help="Near-term pipeline pin: NEM-wide ceiling in MW on new-entrant generator and "
+        "battery build in this period, added as a custom_constraint. Default: no ceiling.",
+    )
+    ap.add_argument(
         "--co2-cap-t",
         type=float,
         default=None,
@@ -932,6 +968,8 @@ def main():
             reducible_existing=args.reducible_existing,
             retention_floor_dir=args.retention_floor_dir,
             existing_fom_keeping=args.existing_fom_keeping,
+            pin_base_stock=args.pin_base_stock,
+            new_entrant_cap_mw=args.new_entrant_cap_mw,
             co2_cap_t=args.co2_cap_t,
             rez_limit_factor=args.rez_limit_factor,
             flow_path_limit_factor=args.flow_path_limit_factor,
