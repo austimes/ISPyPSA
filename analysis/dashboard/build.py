@@ -8,11 +8,15 @@ frame, one row per cell-year, and every figure in :mod:`analysis.dashboard.figur
 source commit shown in the page heading is read from the run's solve records,
 ``<run>/records/*.json``, and the assumptions table from its ``<run>/campaign/``.
 
-Four sections read the run directory rather than the tidy frame: the assumptions table, the
-technology cost inputs, which come from ``exports/input_costs.csv`` where the assemble stage found
-templated inputs on disk to read them from, the transmission build, which comes from
-``exports/transmission.csv`` and the relaxation factors the run recorded in ``<run>/campaign/``,
-and the increment grid, from ``exports/increments.csv`` where the campaign solved branch cells.
+Several sections read the run directory rather than the tidy frame: the assumptions table; the
+technology cost inputs, from ``exports/input_costs.csv`` where the assemble stage found templated
+inputs on disk to read them from; the transmission build, from ``exports/transmission.csv`` and the
+relaxation factors the run recorded in ``<run>/campaign/``; the increment grid, from
+``exports/increments.csv`` where the campaign solved branch cells; the duals, from
+``exports/per_chain/duals_<base cell>.csv``; the near-term pipeline, from the base solve's own
+templated ``ecaa_*`` rosters; and the priced build curves, from each base solve's
+``outputs/capacity_tranches.json`` and relaxation tranches plus the build-rate curve the run was
+launched with.
 
 The page carries plotly's javascript inline, so it opens straight off the data share with no
 server and no build step.
@@ -31,7 +35,7 @@ import plotly.graph_objects as go
 from plotly.offline import get_plotlyjs
 
 from analysis.dashboard import figures
-from analysis.env import OutputLayout
+from analysis.env import MODEL_DATA, OutputLayout
 from analysis.sharp.deliverables import base_rows
 
 log = logging.getLogger(__name__)
@@ -299,10 +303,107 @@ def _figure_increment_surfaces(layout: OutputLayout) -> go.Figure | None:
     return figures.figure_increment_surfaces(pd.read_csv(increments))
 
 
+#: Solve flag naming the build-rate curve a run was launched with.
+BUILD_RATE_FLAG = "--build-rate-premiums"
+
+
+def _base_results(layout: OutputLayout) -> pd.DataFrame:
+    """The campaign's base chain rows of ``results.csv``, one per cell and milestone year."""
+    return base_rows(pd.read_csv(layout.exports / "results.csv"))
+
+
+def _figure_build_cost_curves(layout: OutputLayout) -> go.Figure | None:
+    """The build curves the run priced, or nothing where no base solve priced a tranche."""
+    steps = [
+        _tranche_steps(layout.run_dir(f"{row.cell}_{row.year}"))
+        for row in _base_results(layout).itertuples()
+    ]
+    drawn = [frame for frame in [*steps, _build_rate_steps(layout)] if not frame.empty]
+    if not drawn:
+        return None
+    return figures.figure_build_cost_curves(
+        pd.concat(drawn).drop_duplicates(["curve", "group", "tranche"])
+    )
+
+
+def _tranche_steps(run: Path) -> pd.DataFrame:
+    """One solve's priced capacity tranches and REZ relaxation tranches, as curve steps."""
+    priced = run / "outputs" / "capacity_tranches.json"
+    relax = run / "pypsa_friendly" / "custom_constraints_generators.csv"
+    steps = [
+        figures.tranche_curve_steps(pd.read_json(priced)) if priced.exists() else None,
+        figures.relax_curve_steps(pd.read_csv(relax)) if relax.exists() else None,
+    ]
+    read = [frame for frame in steps if frame is not None]
+    return pd.concat(read) if read else pd.DataFrame(columns=figures.CURVE_STEP_COLUMNS)
+
+
+def _build_rate_steps(layout: OutputLayout) -> pd.DataFrame:
+    """The build-rate curve the run was launched with, or nothing where its flags named none."""
+    flags = (_assumptions(layout).get("solve_flags") or "").split()
+    if BUILD_RATE_FLAG not in flags:
+        return pd.DataFrame(columns=figures.CURVE_STEP_COLUMNS)
+    named = Path(flags[flags.index(BUILD_RATE_FLAG) + 1]).name
+    return figures.build_rate_curve_steps(pd.read_csv(MODEL_DATA / named))
+
+
+def _figure_near_term_pipeline(layout: OutputLayout) -> go.Figure | None:
+    """The pinned near-term fleet, or nothing where the base solve's templated inputs are gone."""
+    base = _base_results(layout)
+    pinned = base[base["year"].eq(figures.PIPELINE_YEAR)]
+    rosters = [
+        layout.run_dir(f"{cell}_{figures.PIPELINE_YEAR}") / "ispypsa_inputs"
+        for cell in pinned["cell"]
+    ]
+    on_disk = [inputs for inputs in rosters if inputs.is_dir()]
+    if not on_disk:
+        return None
+    return figures.figure_near_term_pipeline(
+        _ecaa_roster(on_disk[0]), pinned, _allowances(layout)
+    )
+
+
+def _ecaa_roster(inputs: Path) -> pd.DataFrame:
+    """The existing, committed and anticipated generators and batteries one solve was templated with."""
+    rosters = [
+        pd.read_csv(inputs / f"ecaa_{name}.csv") for name in ("generators", "batteries")
+    ]
+    return pd.concat(rosters, ignore_index=True)
+
+
+def _allowances(layout: OutputLayout) -> dict[str, float]:
+    """The new-entrant build allowances the run's near-term pin was launched with, in GW."""
+    recorded = {**_plan(layout), **_assumptions(layout)}
+    return {
+        label: recorded[key] / 1e3
+        for key, label in figures.ALLOWANCE_LABELS.items()
+        if recorded.get(key)
+    }
+
+
+def _figure_duals(layout: OutputLayout) -> go.Figure | None:
+    """The run's duals, or nothing where no base chain exported a constraint dual table."""
+    exported = [
+        path
+        for cell in _base_results(layout)["cell"].unique()
+        if (path := layout.exports / "per_chain" / f"duals_{cell}.csv").exists()
+    ]
+    if not exported:
+        return None
+    duals = pd.concat([pd.read_csv(path) for path in exported], ignore_index=True)
+    return figures.figure_duals(pd.read_csv(layout.exports / "manifest.csv"), duals)
+
+
 def _html_assumptions(layout: OutputLayout) -> str:
     """The assumptions the run was launched under, one row per assumption, styled like the searched grid."""
     rows = pd.DataFrame(_assumptions(layout).items(), columns=["assumption", "value"])
     return figures.GRID_STYLE + rows.to_html(index=False, classes="grid")
+
+
+def _plan(layout: OutputLayout) -> dict[str, object]:
+    """The demand plan the launch copied into the run, or nothing where it copied none."""
+    plan = layout.campaign / "demand_plan.json"
+    return json.loads(plan.read_text(encoding="utf-8")) if plan.exists() else {}
 
 
 def _assumptions(layout: OutputLayout) -> dict[str, object]:
@@ -318,10 +419,19 @@ def _assumptions(layout: OutputLayout) -> dict[str, object]:
 #: Sections built from the run directory rather than the tidy frame, each keyed on the ``SECTIONS``
 #: heading it is shown under, and holding its own heading and builder.
 RUN_SECTIONS = {
+    "Pathway intensities (every chain, ShARP-style)": (
+        f"Near-term pipeline: {figures.PIPELINE_YEAR} capacity by carrier",
+        _figure_near_term_pipeline,
+    ),
     "Cost surface as heatmap": ("Increment surfaces", _figure_increment_surfaces),
+    "Implied carbon price of each cap": ("Duals", _figure_duals),
     "Cost decomposition, central trajectory": (
         "Technology cost inputs",
         _figure_input_costs,
+    ),
+    "Premiums paid above AEMO's limits and baseline build rates": (
+        "Build cost curves (inputs)",
+        _figure_build_cost_curves,
     ),
     "Technology mix": (
         "REZ and corridor expansion against IASR and relaxed limits",

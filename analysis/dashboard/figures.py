@@ -18,7 +18,7 @@ from plotly.subplots import make_subplots
 from scipy.interpolate import griddata
 from scipy.spatial import QhullError
 
-from analysis.env import PACKAGE_ROOT
+from analysis.env import PACKAGE_ROOT, REPO_ROOT
 from analysis.hpc.campaign_grid import (
     CAP_KIND,
     order_pressures,
@@ -210,6 +210,12 @@ LABELS = {
     "pressure_value": "Cap target intensity in 2050 (t CO2e/MWh)",
     "premium_aud_m_per_yr": "Premium paid (A$m/yr)",
     "curve": "Cost curve",
+    "delta_cost_aud_m_per_yr": "Delta cost (A$m/yr)",
+    "cumulative_mw": "Cumulative capacity (MW)",
+    "adder": "Cost step (A$/MW/yr)",
+    "group": "Curve group and period",
+    "gw": "Capacity (GW)",
+    "segment": "Fleet segment",
     "series": "Series",
     "trajectory": "Demand trajectory",
     "twh": "Energy delivered (TWh)",
@@ -621,24 +627,35 @@ INCREMENT_ARMS = {"demand_level": "intensity_level", "intensity_level": "demand_
 INCREMENT_COST_PER_TWH = "delta_cost_per_extra_twh"
 INCREMENT_COST_PER_TWH_LABEL = "Delta cost (A$/yr per extra TWh)"
 
-#: What each cell of the grid says on hover: the two levels, the measure and the intensity reached.
+#: What each cell of the grid says on hover: the two levels, the measure it is coloured by, and the
+#: duals, intensity and new build its own row carries.
 INCREMENT_HOVER = (
-    "demand %{x:g}x, intensity %{y:g}x<br>%{z:.4g}"
-    "<br>fleet intensity %{customdata:.4g} t CO2e/MWh<extra></extra>"
+    "demand %{x:g}x, intensity %{y:g}x<br>%{z:.4g}<br>%{customdata}<extra></extra>"
 )
 
-#: Height of the increment section, which stacks two curve rows, the grids and the duals table.
-INCREMENT_HEIGHT = 1150
+#: Columns a cell's hover lists beside the measure it is coloured by.
+INCREMENT_HOVER_COLUMNS = r"^fleet_intensity|^cap_dual_|^dual_|^delta_new_gw_"
+
+#: The interior cells' own cost delta and the sum of their two arms, as the bars name each.
+ADDITIVITY_SERIES = {
+    "interior_aud_per_yr": "Interior cell",
+    "additive_aud_per_yr": "Demand arm plus intensity arm",
+}
+
+#: Height of the increment section, which stacks three curve rows, the grids and the duals table.
+INCREMENT_HEIGHT = 1450
 
 
 def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
-    """The increment grid: its demand arm, its intensity arm, and the whole grid per year.
+    """The increment grid: its two arms, the additivity check, and the whole grid per year.
 
     Each conditioned single-year solve is one cell, reported against the base cell it branched
     from. The demand arm prices extra energy at the base cell's cap, the intensity arm prices a
-    deeper cap at the base cell's demand, and the grid below shows every cell at once, with the
-    button switching it between cost and emissions. The table carries the implied carbon price
-    each side of the increment faced.
+    deeper cap at the base cell's demand, and the bars below test whether an interior cell costs
+    what its two arms cost together, which is the additive form ShARP prices both through. The
+    grids show every cell at once, annotated with each consequence, with the button switching their
+    colouring between cost and emissions, and the table carries the implied carbon price each side
+    of the increment faced.
 
     :param increments: The run's ``increments.csv``, one row per branch cell and year.
     """
@@ -647,20 +664,24 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
         curves[curves["year"].eq(year)] for year in sorted(curves["year"].unique())
     ]
     figure = make_subplots(
-        rows=4,
+        rows=5,
         cols=len(blocks),
         specs=_increment_specs(len(blocks)),
         subplot_titles=_increment_titles(blocks),
-        vertical_spacing=0.08,
+        vertical_spacing=0.06,
     )
     for block in blocks:
         for row, level in enumerate(INCREMENT_ARMS, start=1):
             arm = _increment_arm(block, level, row == 1)
             figure.add_trace(arm, row=row, col=1)
+    for bar in _additivity_bars(increments):
+        figure.add_trace(bar, row=3, col=1)
     for column, block in enumerate(blocks, start=1):
-        figure.add_trace(_increment_heatmap(block), row=3, col=column)
-    figure.add_trace(_cap_dual_table(increments), row=4, col=1)
-    return _button_row(_label_increment_axes(figure), _increment_buttons(blocks))
+        figure.add_trace(_increment_heatmap(block), row=4, col=column)
+    figure.add_trace(_cap_dual_table(increments), row=5, col=1)
+    return _button_row(
+        _label_increment_axes(figure), _increment_buttons(figure, blocks)
+    )
 
 
 def _increment_curves(increments: pd.DataFrame) -> pd.DataFrame:
@@ -678,22 +699,70 @@ def _increment_curves(increments: pd.DataFrame) -> pd.DataFrame:
 
 
 def _increment_specs(columns: int) -> list[list[dict | None]]:
-    """Two full-width arm rows, one grid per year, and a full-width duals table."""
-    wide = [[{"colspan": columns}, *[None] * (columns - 1)] for _ in range(2)]
+    """Three full-width rows, the two arms and the additivity check, then the grids and the table."""
+    wide = [[{"colspan": columns}, *[None] * (columns - 1)] for _ in range(3)]
     grids = [{} for _ in range(columns)]
     table = [{"colspan": columns, "type": "table"}, *[None] * (columns - 1)]
     return [*wide, grids, table]
 
 
 def _increment_titles(blocks: list[pd.DataFrame]) -> list[str]:
-    """Panel titles in subplot order: the two arms, one per year's grid, then the duals."""
+    """Panel titles in subplot order: the arms, the additivity bars, each year's grid, the duals."""
     years = [str(block["year"].iloc[0]) for block in blocks]
     return [
         "Demand arm: cost of extra energy at the base cap",
         "Intensity arm: cost of a deeper cap at base demand",
+        "Additivity check: each interior cell against its own two arms (A$m/yr)",
         *years,
         "Implied carbon price each side of the increment (A$/t)",
     ]
+
+
+def _additivity_bars(increments: pd.DataFrame) -> list[go.Bar]:
+    """Each interior cell's own cost delta beside the sum of its two arms, in A$m a year."""
+    rows = _additivity_rows(increments)
+    return [
+        go.Bar(x=rows["label"], y=rows[column] / 1e6, name=name, legendgroup=name)
+        for column, name in ADDITIVITY_SERIES.items()
+    ]
+
+
+def _additivity_rows(increments: pd.DataFrame) -> pd.DataFrame:
+    """Interior cells against their arms: the cell's own delta, and its two arms' deltas summed."""
+    interior = increments[
+        increments["demand_level"].ne(1.0) & increments["intensity_level"].ne(1.0)
+    ]
+    arms = [
+        _arm_at(interior, _arm_cost(increments, level), level)
+        for level in INCREMENT_ARMS
+    ]
+    label = (
+        interior["year"].astype(str)
+        + ": d"
+        + interior["demand_level"].astype(str)
+        + "x, i"
+        + interior["intensity_level"].astype(str)
+        + "x"
+    )
+    return pd.DataFrame(
+        {
+            "label": label.to_numpy(),
+            "interior_aud_per_yr": interior["delta_total_cost_aud_per_yr"].to_numpy(),
+            "additive_aud_per_yr": arms[0] + arms[1],
+        }
+    )
+
+
+def _arm_cost(increments: pd.DataFrame, level: str) -> pd.Series:
+    """Cost delta of one arm's cells, keyed on year and the level that arm varies."""
+    arm = increments[increments[INCREMENT_ARMS[level]].eq(1.0)]
+    return arm.set_index(["year", level])["delta_total_cost_aud_per_yr"]
+
+
+def _arm_at(interior: pd.DataFrame, arm: pd.Series, level: str) -> np.ndarray:
+    """One arm's cost delta at each interior cell's own year and level."""
+    keys = pd.MultiIndex.from_arrays([interior["year"], interior[level]])
+    return arm.reindex(keys).to_numpy()
 
 
 def _increment_arm(block: pd.DataFrame, level: str, legend: bool) -> go.Scatter:
@@ -717,29 +786,53 @@ def _increment_arm(block: pd.DataFrame, level: str, legend: bool) -> go.Scatter:
 
 def _increment_grid(block: pd.DataFrame, measure: str) -> pd.DataFrame:
     """One year's cells on the exact grid they were solved on, demand across, intensity down."""
-    return block.pivot_table(
-        index="intensity_level", columns="demand_level", values=measure
-    )
+    return block.pivot(index="intensity_level", columns="demand_level", values=measure)
 
 
 def _increment_heatmap(block: pd.DataFrame) -> go.Heatmap:
-    """One year's grid, coloured by delta cost with the intensity it reached on hover."""
+    """One year's grid, coloured by delta cost, annotated with each consequence, duals on hover."""
     cells = _increment_grid(block, next(iter(INCREMENT_COLOUR_MEASURES)))
-    reached = _increment_grid(block, "fleet_intensity_t_per_mwh")
     return go.Heatmap(
         x=cells.columns,
         y=cells.index,
         z=cells.to_numpy(),
-        customdata=reached.to_numpy(),
+        text=_increment_labels(block).to_numpy(),
+        texttemplate="%{text}",
+        textfont_size=9,
+        customdata=_increment_hover_text(block).to_numpy(),
         coloraxis="coloraxis",
         hovertemplate=INCREMENT_HOVER,
     )
 
 
-def _increment_buttons(blocks: list[pd.DataFrame]) -> list[dict]:
+def _increment_labels(block: pd.DataFrame) -> pd.DataFrame:
+    """Each cell's annotation: the cost, emissions and fuel consequence of that increment."""
+    text = (
+        (block["delta_total_cost_aud_per_yr"] / 1e6).map("A${:,.0f}m/yr".format)
+        + block["delta_co2e_kt_per_yr"].map("<br>{:+,.0f} kt".format)
+        + block["delta_pj_gas"].map("<br>gas {:+.1f} PJ".format)
+        + block["delta_pj_coal"].map("<br>coal {:+.1f} PJ".format)
+    )
+    return _increment_grid(block.assign(label=text), "label")
+
+
+def _increment_hover_text(block: pd.DataFrame) -> pd.DataFrame:
+    """Each cell's hover: the intensity it reached, the duals both sides, and the new build."""
+    shown = block.filter(regex=INCREMENT_HOVER_COLUMNS)
+    text = shown.apply(
+        lambda cell: "<br>".join(
+            f"{name}: {value:,.4g}" for name, value in cell.items() if pd.notna(value)
+        ),
+        axis=1,
+    )
+    return _increment_grid(block.assign(hover=text), "hover")
+
+
+def _increment_buttons(figure: go.Figure, blocks: list[pd.DataFrame]) -> list[dict]:
     """Switch every year's grid between the two increment measures at once."""
-    # The grids follow one arm trace per row per year, so they start after two per year.
-    grids = list(range(2 * len(blocks), 3 * len(blocks)))
+    grids = [
+        index for index, trace in enumerate(figure.data) if trace.type == "heatmap"
+    ]
     return [
         {
             "label": label,
@@ -759,8 +852,9 @@ def _label_increment_axes(figure: go.Figure) -> go.Figure:
     figure.update_yaxes(title_text=INCREMENT_COST_PER_TWH_LABEL, row=1, col=1)
     figure.update_xaxes(title_text=LABELS["intensity_level"], row=2, col=1)
     figure.update_yaxes(title_text=LABELS["cost_per_mwh"], row=2, col=1)
-    figure.update_xaxes(title_text=LABELS["demand_level"], row=3)
-    figure.update_yaxes(title_text=LABELS["intensity_level"], row=3, col=1)
+    figure.update_yaxes(title_text=LABELS["delta_cost_aud_m_per_yr"], row=3, col=1)
+    figure.update_xaxes(title_text=LABELS["demand_level"], row=4)
+    figure.update_yaxes(title_text=LABELS["intensity_level"], row=4, col=1)
     colourbar = {
         "title": {"text": next(iter(INCREMENT_COLOUR_MEASURES.values()))},
         "len": 0.2,
@@ -1084,6 +1178,344 @@ def figure_premiums_paid(frame: pd.DataFrame) -> go.Figure | None:
     return _strip_facet_titles(figure)
 
 
+#: Each kind of priced tranche as the page titles its curve, in panel order.
+CURVE_LABELS = {
+    "rez_resource": "REZ resource limit (curve 1a)",
+    "transmission": "Network headroom (curve 1b)",
+    "build_rate": "Build rate (curve 2)",
+}
+
+#: Columns every curve source is read into, in order.
+CURVE_STEP_COLUMNS = ["curve", "group", "tranche", "width_mw", "adder", "mw_used"]
+
+#: A REZ relaxation generator, e.g. ``N2_resource_limit_relax2_2035``: the resource limit it relaxes,
+#: the tranche number, and the build year.
+RELAX_PATTERN = r"^(.+)_relax(\d)_(\d{4})$"
+
+#: How far past the steps below it an unbounded backstop tranche is drawn, as a share of their width.
+BACKSTOP_SHARE = 0.5
+
+#: Groups drawn per curve panel, widest first, so a run pricing dozens of links stays readable.
+MOST_CURVE_GROUPS = 10
+
+#: How the megawatts the base run bought on each step are marked.
+CURVE_USAGE_NAME = "Megawatts the base run used"
+CURVE_USAGE_COLOUR = "#1c1c1c"
+
+#: Height of the build-curve figure, tall enough for one legend entry per group and period.
+BUILD_CURVES_HEIGHT = 760
+
+
+def tranche_curve_steps(tranches: pd.DataFrame) -> pd.DataFrame:
+    """One solve's priced capacity tranches as curve steps, each group named with its period."""
+    return tranches.assign(
+        curve=tranches["kind"].map(CURVE_LABELS),
+        group=tranches["group"] + " " + tranches["period"].astype(str),
+    )[CURVE_STEP_COLUMNS]
+
+
+def relax_curve_steps(generators: pd.DataFrame) -> pd.DataFrame:
+    """One solve's REZ relaxation tranches as curve steps, one group per resource limit and period."""
+    rows = generators[generators["name"].str.match(RELAX_PATTERN)]
+    named = rows["name"].str.extract(RELAX_PATTERN)
+    return pd.DataFrame(
+        {
+            "curve": CURVE_LABELS["rez_resource"],
+            "group": named[0] + " " + named[2],
+            "tranche": named[1].astype(int),
+            "width_mw": rows["p_nom_max"].to_numpy(),
+            "adder": rows["capital_cost"].to_numpy(),
+            "mw_used": np.nan,
+        }
+    )
+
+
+def build_rate_curve_steps(curve: pd.DataFrame) -> pd.DataFrame:
+    """The authored build-rate curve as steps: its cumulative capacity caps as tranche widths."""
+    rows = curve.sort_values(["group", "financial_year", "cap_mw"])
+    caps = rows["cap_mw"].fillna(np.inf)
+    keys = [rows["group"], rows["financial_year"]]
+    return pd.DataFrame(
+        {
+            "curve": CURVE_LABELS["build_rate"],
+            "group": rows["group"] + " " + rows["financial_year"].astype(str),
+            "tranche": rows.groupby(keys).cumcount() + 1,
+            "width_mw": caps.groupby(keys).diff().fillna(caps),
+            "adder": rows["adder_$/mw/yr"],
+            "mw_used": np.nan,
+        }
+    )
+
+
+def figure_build_cost_curves(steps: pd.DataFrame) -> go.Figure:
+    """Every priced build curve as a staircase of A$/MW/yr against cumulative megawatts.
+
+    One panel per curve: the REZ resource-limit relaxation, the network headroom tranches and the
+    per-carrier build rate, each group named with the period it priced. The marker on a step says
+    how far into it the base run's own build reached, so a reader sees which tranche bound.
+
+    :param steps: One row per tranche, from the run's own tranche records and curve inputs.
+    """
+    stairs = _cumulative_steps(_widest_curve_groups(steps))
+    figure = px.line(
+        stairs,
+        x="cumulative_mw",
+        y="adder",
+        color="group",
+        facet_col="curve",
+        line_shape="hv",
+        category_orders={"curve": list(CURVE_LABELS.values())},
+        color_discrete_sequence=INPUT_COST_COLOURS,
+        labels=LABELS,
+        height=BUILD_CURVES_HEIGHT,
+    )
+    figure.update_xaxes(matches=None, showticklabels=True)
+    figure.update_yaxes(matches=None, showticklabels=True)
+    figure.update_layout(legend_title_text=LABELS["group"])
+    return add_axis_scale_buttons(
+        _mark_curve_usage(_strip_facet_titles(figure), stairs), axes="y"
+    )
+
+
+def _widest_curve_groups(
+    steps: pd.DataFrame, most: int = MOST_CURVE_GROUPS
+) -> pd.DataFrame:
+    """The widest groups of each curve, so one panel does not draw dozens of links at once."""
+    bounded = steps.assign(width_mw=_bounded_widths(steps, backstop=0.0))
+    widest = (
+        bounded.groupby(["curve", "group"])["width_mw"]
+        .sum()
+        .groupby("curve")
+        .nlargest(most)
+    )
+    return steps[steps["group"].isin(widest.index.get_level_values("group"))]
+
+
+def _cumulative_steps(steps: pd.DataFrame) -> pd.DataFrame:
+    """Each group's tranches as staircase points: the cumulative megawatts each step's adder starts at.
+
+    One closing point carries the last adder out to the end of its own tranche, so the staircase
+    reads as the marginal cost curve it is rather than stopping at the last step's start.
+    """
+    ordered = steps.sort_values(["curve", "group", "tranche"])
+    ordered = ordered.assign(width_mw=_bounded_widths(ordered))
+    ends = ordered.assign(cumulative_mw=ordered.groupby("group")["width_mw"].cumsum())
+    starts = ends.assign(cumulative_mw=ends["cumulative_mw"] - ends["width_mw"])
+    closing = ends.groupby("group").tail(1).assign(mw_used=np.nan)
+    return pd.concat([starts, closing]).sort_values(["group", "cumulative_mw"])
+
+
+def _bounded_widths(steps: pd.DataFrame, backstop: float = BACKSTOP_SHARE) -> pd.Series:
+    """Tranche widths with an unbounded backstop drawn as a share again of the steps below it."""
+    widths = steps["width_mw"]
+    bounded = widths.where(np.isfinite(widths), 0.0)
+    drawn = bounded.groupby(steps["group"]).transform("sum") * backstop
+    return widths.where(np.isfinite(widths), drawn)
+
+
+def _mark_curve_usage(figure: go.Figure, stairs: pd.DataFrame) -> go.Figure:
+    """Mark how far into each step the base run's own build reached, one panel at a time."""
+    panels = [curve for curve in CURVE_LABELS.values() if curve in set(stairs["curve"])]
+    for panel, curve in enumerate(panels, start=1):
+        used = stairs[stairs["curve"].eq(curve) & stairs["mw_used"].gt(0)]
+        figure.add_scatter(
+            x=used["cumulative_mw"] + used["mw_used"],
+            y=used["adder"],
+            name=CURVE_USAGE_NAME,
+            mode="markers",
+            marker={"symbol": "diamond", "size": 8, "color": CURVE_USAGE_COLOUR},
+            legendgroup="used",
+            showlegend=panel == 1,
+            row=1,
+            col=panel,
+        )
+    return figure
+
+
+#: AEMO's draft 2026 ISP Step Change candidate development path 4 (CDP4) installed capacity, in GW
+#: by fuel and calendar year, tracked beside the other CDP4 exports this repository carries.
+CDP4_CAPACITY_CSV = (
+    REPO_ROOT / "iasr outputs" / "NEM-aemo2026draft-step_change-CDP4 (ODP)-capacity.csv"
+)
+
+#: The year the near term is pinned to, and the carriers that figure compares, in bar order.
+PIPELINE_YEAR = 2030
+PIPELINE_CARRIERS = ["Coal", "Gas", "Hydro", "Wind", "Solar", "Battery"]
+
+#: Model carriers and CDP4 fuel columns mapped onto those carriers. A carrier only one side names,
+#: biomass and liquid fuel, is left out rather than stacked against nothing.
+PIPELINE_CARRIER_NAMES = {
+    "Black Coal": "Coal",
+    "Brown Coal": "Coal",
+    "Gas": "Gas",
+    "Water": "Hydro",
+    "Wind": "Wind",
+    "Solar": "Solar",
+    "Battery": "Battery",
+}
+CDP4_CARRIER_NAMES = {
+    "Coal": "Coal",
+    "Gas": "Gas",
+    "Hydro": "Hydro",
+    "Wind": "Wind",
+    "Solar (Utility)": "Solar",
+}
+
+#: The fleet segments stacked, in stacking order, and the reference dashed beside them.
+PIPELINE_SEGMENTS = ["Existing", "Committed and anticipated", "New build"]
+AEMO_CAPACITY_SEGMENT = f"AEMO CDP4 {PIPELINE_YEAR}"
+
+#: The near-term allowances drawn as dashed lines, each keyed on the plan value it is read from.
+ALLOWANCE_LABELS = {
+    "new_entrant_cap_mw": "New-entrant generator allowance",
+    "new_entrant_storage_cap_mw": "New-entrant storage allowance",
+}
+
+
+def figure_near_term_pipeline(
+    roster: pd.DataFrame, built: pd.DataFrame, allowances: dict[str, float]
+) -> go.Figure:
+    """Capacity by carrier in the pinned year: the pipeline, the new build, and AEMO's own fleet.
+
+    The stack is what the near-term pin holds, the existing fleet and the committed and anticipated
+    projects of the roster, with the capacity the solve built new on top. The dash beside each stack
+    is AEMO's CDP4 capacity for the same year, and each dashed line is a NEM-wide new-entrant
+    allowance the run was launched with.
+
+    :param roster: The base solve's ECAA generator and battery tables for the pinned year.
+    :param built: The base rows of ``results.csv`` for the pinned year, with their ``new_gw_`` columns.
+    :param allowances: Allowance name to its NEM-wide ceiling in GW.
+    """
+    fleet = pd.concat([_roster_capacity(roster), _new_build_capacity(built)])
+    figure = px.bar(
+        fleet,
+        x="carrier",
+        y="gw",
+        color="segment",
+        category_orders={"carrier": PIPELINE_CARRIERS, "segment": PIPELINE_SEGMENTS},
+        labels=LABELS,
+        height=DECOMPOSITION_HEIGHT,
+    )
+    _mark_aemo_capacity(figure, _aemo_capacity())
+    for name, gw in allowances.items():
+        figure.add_hline(
+            y=gw,
+            line={"dash": "dash", "width": 1},
+            annotation_text=f"{name}: {gw:g} GW",
+        )
+    return figure.update_layout(legend_title_text=LABELS["segment"])
+
+
+def _roster_capacity(roster: pd.DataFrame) -> pd.DataFrame:
+    """Existing and pipeline capacity per carrier in GW, from one solve's ECAA rosters."""
+    named = roster.assign(
+        carrier=roster["fuel_type"].map(PIPELINE_CARRIER_NAMES),
+        segment=_pipeline_segment(roster["status"]),
+    ).dropna(subset=["carrier", "segment"])
+    grouped = named.groupby(["carrier", "segment"], as_index=False)[
+        "maximum_capacity_mw"
+    ].sum()
+    return grouped.assign(gw=grouped["maximum_capacity_mw"] / 1e3)
+
+
+def _pipeline_segment(status: pd.Series) -> pd.Series:
+    """Fleet segment one ECAA status belongs to: the existing fleet, or the committed pipeline."""
+    pipeline = status.where(status.eq(PIPELINE_SEGMENTS[0]), PIPELINE_SEGMENTS[1])
+    return pipeline.where(status.ne("New Entrant"))
+
+
+def _new_build_capacity(built: pd.DataFrame) -> pd.DataFrame:
+    """Capacity the base solve built new in the pinned year, in GW per carrier."""
+    new = built.filter(regex=r"^new_gw_").rename(
+        columns=lambda column: column.removeprefix("new_gw_")
+    )
+    carriers = new.sum().rename(PIPELINE_CARRIER_NAMES).groupby(level=0).sum()
+    kept = carriers[carriers.index.isin(PIPELINE_CARRIERS)]
+    return pd.DataFrame(
+        {"carrier": kept.index, "segment": PIPELINE_SEGMENTS[2], "gw": kept.to_numpy()}
+    )
+
+
+def _aemo_capacity() -> pd.DataFrame:
+    """AEMO's own CDP4 installed capacity in the pinned year, GW per carrier the figure compares."""
+    table = pd.read_csv(CDP4_CAPACITY_CSV)
+    row = table[table["date"].str.contains(str(PIPELINE_YEAR))].iloc[0]
+    gw = row[list(CDP4_CARRIER_NAMES)].astype(float).rename(CDP4_CARRIER_NAMES)
+    return pd.DataFrame({"carrier": gw.index, "gw": gw.to_numpy()})
+
+
+def _mark_aemo_capacity(figure: go.Figure, aemo: pd.DataFrame) -> go.Figure:
+    """Dash AEMO's own capacity for the pinned year above each carrier's stack."""
+    return figure.add_scatter(
+        x=aemo["carrier"],
+        y=aemo["gw"],
+        name=AEMO_CAPACITY_SEGMENT,
+        mode="markers",
+        marker_symbol="line-ew",
+        marker_size=LIMIT_MARKER_SIZE,
+        marker_line={"color": UNSERVED_COLOUR, "width": LIMIT_MARKER_WIDTH},
+    )
+
+
+#: The two duals panels in page order, and the columns the table lists.
+DUAL_PANEL_TITLES = [
+    "Implied carbon price of each cell's cap (A$/t)",
+    "Largest custom-constraint duals of the base chain, per year",
+]
+DUAL_TABLE_COLUMNS = ["year", "constraint", "dual"]
+
+#: Constraint duals listed per year, the largest by absolute value first.
+MOST_DUALS_PER_YEAR = 10
+
+#: Height of the duals section, which stacks a bar panel over a table.
+DUALS_HEIGHT = 820
+
+
+def figure_duals(manifest: pd.DataFrame, duals: pd.DataFrame) -> go.Figure:
+    """The shadow price each cell's cap carried, and the base chain's largest constraint duals.
+
+    :param manifest: The run's ``manifest.csv``, one row per cell and year.
+    :param duals: The base chain's exported duals, one row per constraint, cell and year.
+    """
+    figure = make_subplots(
+        rows=2,
+        cols=1,
+        specs=[[{}], [{"type": "table"}]],
+        subplot_titles=DUAL_PANEL_TITLES,
+        vertical_spacing=0.12,
+    )
+    priced = manifest.dropna(subset=["implied_carbon_price_aud_per_t"]).astype(
+        {"year": str}
+    )
+    for cell, block in priced.groupby("cell"):
+        figure.add_bar(
+            x=block["year"],
+            y=block["implied_carbon_price_aud_per_t"],
+            name=cell,
+            row=1,
+            col=1,
+        )
+    figure.add_trace(_largest_dual_table(duals), row=2, col=1)
+    figure.update_yaxes(
+        title_text=LABELS["implied_carbon_price_aud_per_t"], row=1, col=1
+    )
+    return figure.update_layout(
+        height=DUALS_HEIGHT, barmode="group", legend_title_text="Cell"
+    )
+
+
+def _largest_dual_table(duals: pd.DataFrame) -> go.Table:
+    """The largest constraint duals of each year, by absolute value, largest first."""
+    ranked = duals.assign(size=duals["dual"].abs()).sort_values(
+        ["year", "size"], ascending=[True, False]
+    )
+    shown = ranked.groupby("year").head(MOST_DUALS_PER_YEAR).round({"dual": 1})
+    return go.Table(
+        header={"values": DUAL_TABLE_COLUMNS},
+        cells={"values": [shown[column] for column in DUAL_TABLE_COLUMNS]},
+    )
+
+
 def figure_input_costs(costs: pd.DataFrame) -> go.Figure:
     """The cost inputs the run's solves were templated from, over the financial years they cover.
 
@@ -1361,6 +1793,20 @@ LIMIT_MARKERS = {
     "relaxed_limit_mw": ("Relaxed limit", "#d62728"),
 }
 
+#: The two priced tranches, each shaded between the limits it sits between, named and filled as it
+#: is drawn. The first is a second helping of published headroom at the first social-licence
+#: premium; the second runs from there to the run's hard ceiling at the second premium.
+TRANCHE_BANDS = {
+    ("aemo_limit_mw", "tranche_2_limit_mw"): (
+        "First premium tranche",
+        "rgba(255,127,14,0.18)",
+    ),
+    ("tranche_2_limit_mw", "relaxed_limit_mw"): (
+        "Second premium tranche",
+        "rgba(214,39,40,0.14)",
+    ),
+}
+
 #: Milestone-year bar hues, a single-hue ramp light to dark so the years read in time order and
 #: neither collides with the colours the two limit dashes are drawn in.
 TRANSMISSION_YEAR_COLOURS = px.colors.sequential.Blues[3:]
@@ -1413,7 +1859,8 @@ def figure_transmission_limits(
     )
     figure.update_xaxes(matches=None, showticklabels=True, type="category")
     figure.update_layout(legend_title_text=LABELS["year"], bargroupgap=0.05)
-    return _add_limit_markers(_strip_facet_titles(figure), drawn)
+    shaded = _shade_priced_tranches(_strip_facet_titles(figure), drawn)
+    return _add_limit_markers(shaded, drawn)
 
 
 def _deepest_central_cell(links: pd.DataFrame) -> str:
@@ -1464,6 +1911,49 @@ def _limit_columns(links: pd.DataFrame, factors: dict[str, float]) -> pd.DataFra
             links["p_nom_mw"] + 2 * headroom / factor,
         ),
     )
+
+
+def _shade_priced_tranches(figure: go.Figure, drawn: pd.DataFrame) -> go.Figure:
+    """Shade each panel between the published limit, the premium step and the hard ceiling.
+
+    The bands are moved ahead of the bars so the capacity built reads against them rather than
+    under them.
+    """
+    panels = [kind for kind in LINK_KIND_LABELS if kind in set(drawn["kind"])]
+    for (panel, kind), (columns, band) in product(
+        enumerate(panels, start=1), TRANCHE_BANDS.items()
+    ):
+        block = drawn[drawn["kind"].eq(kind)].drop_duplicates("link")
+        _add_tranche_band(figure, block, columns, band, panel)
+    figure.data = tuple(sorted(figure.data, key=lambda trace: trace.type == "bar"))
+    return figure
+
+
+def _add_tranche_band(
+    figure: go.Figure,
+    block: pd.DataFrame,
+    columns: tuple[str, str],
+    band: tuple[str, str],
+    panel: int,
+) -> None:
+    """Fill one panel between two per-link limits: a stepped floor, then the ceiling filled down to it."""
+    name, fill = band
+    for column, area in zip(columns, (None, "tonexty")):
+        figure.add_scatter(
+            x=block["link"],
+            y=block[column],
+            name=name,
+            mode="lines",
+            line={"width": 0, "shape": "hv"},
+            fill=area,
+            fillcolor=fill,
+            legendgroup=name,
+            legendgrouptitle_text="Priced tranche",
+            showlegend=area is not None and panel == 1,
+            hoverinfo="skip",
+            row=1,
+            col=panel,
+        )
 
 
 def _add_limit_markers(figure: go.Figure, drawn: pd.DataFrame) -> go.Figure:

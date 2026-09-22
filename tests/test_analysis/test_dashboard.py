@@ -12,6 +12,9 @@ from analysis.dashboard import figures
 from analysis.dashboard.build import (
     ASSUMPTIONS_HEADING,
     SECTIONS,
+    _figure_build_cost_curves,
+    _figure_duals,
+    _figure_near_term_pipeline,
     main,
     tidy_frame,
 )
@@ -35,6 +38,7 @@ from analysis.dashboard.figures import (
     html_search_grid,
     pressure_label,
 )
+from analysis.env import OutputLayout
 
 
 def _write_campaign(run: Path, name: str, text: str) -> None:
@@ -352,30 +356,60 @@ def test_cost_heatmap_logs_nothing_when_every_year_interpolates(exports, caplog)
     assert "No cost surface" not in caplog.text
 
 
-def test_increment_surfaces_draw_both_arms_the_grid_and_the_duals(csv_str_to_df):
-    increments = csv_str_to_df("""
-        base_cell, cell,    year, demand_level, intensity_level, delta_delivered_twh, delta_total_cost_aud_per_yr, delta_cost_per_mwh_excl_fuel_carbon, delta_co2e_kt_per_yr, fleet_intensity_t_per_mwh, cap_dual_base, cap_dual_branch
-        ext_sc,    ext_d0,  2035, 1.0,          1.0,             0.0,                 0.0,                         0.0,                                 0.0,                  0.0050,                    50.0,          50.0
-        ext_sc,    ext_d1,  2035, 1.1,          1.0,             20.0,                2.0e9,                       5.0,                                 100.0,                0.0050,                    50.0,          60.0
-        ext_sc,    ext_i1,  2035, 1.0,          0.5,             0.0,                 1.5e9,                       8.0,                                 -300.0,               0.0025,                    50.0,          400.0
-        ext_sc,    ext_x1,  2035, 1.1,          0.5,             20.0,                4.0e9,                       12.0,                                -200.0,               0.0026,                    50.0,          450.0
+@pytest.fixture
+def increments(csv_str_to_df) -> pd.DataFrame:
+    """One year of the L-shaped grid: its base cell, one arm cell each way, and one interior cell."""
+    return csv_str_to_df("""
+        base_cell, cell,    year, demand_level, intensity_level, delta_delivered_twh, delta_total_cost_aud_per_yr, delta_cost_per_mwh_excl_fuel_carbon, delta_co2e_kt_per_yr, delta_pj_gas, delta_pj_coal, delta_new_gw_Wind, fleet_intensity_t_per_mwh, cap_dual_base, cap_dual_branch
+        ext_sc,    ext_d0,  2035, 1.0,          1.0,             0.0,                 0.0,                         0.0,                                 0.0,                  0.0,          0.0,           0.0,               0.0050,                    50.0,          50.0
+        ext_sc,    ext_d1,  2035, 1.1,          1.0,             20.0,                2.0e9,                       5.0,                                 100.0,                3.0,          1.0,           4.0,               0.0050,                    50.0,          60.0
+        ext_sc,    ext_i1,  2035, 1.0,          0.5,             0.0,                 1.5e9,                       8.0,                                 -300.0,               -2.0,         -8.0,          6.0,               0.0025,                    50.0,          400.0
+        ext_sc,    ext_x1,  2035, 1.1,          0.5,             20.0,                4.0e9,                       12.0,                                -200.0,               1.0,          -7.0,          9.0,               0.0026,                    50.0,          450.0
     """)
 
+
+def test_increment_surfaces_draw_both_arms_the_grid_and_the_duals(increments):
     figure = figures.figure_increment_surfaces(increments)
 
-    # The demand arm, the intensity arm, one grid for the single year, and the duals table.
+    # The two arms, the additivity check's two bars, one grid for the single year, and the duals.
     assert [trace.type for trace in figure.data] == [
         "scatter",
         "scatter",
+        "bar",
+        "bar",
         "heatmap",
         "table",
     ]
-    grid = figure.data[2]
+    grid = figure.data[4]
     assert (list(grid.x), list(grid.y)) == ([1.0, 1.1], [0.5, 1.0])
     assert grid.z.tolist() == [[8.0, 12.0], [0.0, 5.0]]
     # The button swaps every grid's colouring to the emissions consequence instead.
     emissions = figure.layout.updatemenus[0].buttons[1]
     assert emissions.args[0]["z"][0].tolist() == [[-300.0, -200.0], [0.0, 100.0]]
+
+
+def test_increment_surfaces_annotate_every_consequence_and_hover_the_duals(increments):
+    figure = figures.figure_increment_surfaces(increments)
+
+    grid = figure.data[4]
+    assert grid.text.tolist()[1] == [
+        "A$0m/yr<br>+0 kt<br>gas +0.0 PJ<br>coal +0.0 PJ",
+        "A$2,000m/yr<br>+100 kt<br>gas +3.0 PJ<br>coal +1.0 PJ",
+    ]
+    assert grid.customdata.tolist()[0][0] == (
+        "delta_new_gw_Wind: 6<br>fleet_intensity_t_per_mwh: 0.0025<br>"
+        "cap_dual_base: 50<br>cap_dual_branch: 400"
+    )
+
+
+def test_increment_surfaces_check_the_interior_cell_against_its_two_arms(increments):
+    figure = figures.figure_increment_surfaces(increments)
+
+    # The interior cell costs A$4,000m against A$3,500m for its demand and intensity arms together.
+    assert [(bar.name, list(bar.y)) for bar in figure.data if bar.type == "bar"] == [
+        ("Interior cell", [4000.0]),
+        ("Demand arm plus intensity arm", [3500.0]),
+    ]
 
 
 def test_cost_pathway_draws_one_line_per_pressure_and_trajectory(exports):
@@ -701,7 +735,9 @@ def test_transmission_limits_draw_the_deepest_central_cap_against_both_ceilings(
         (["CQ-NQ"], [2000.0]),
     ]
     assert [
-        (dash.name, list(dash.y)) for dash in figure.data if dash.type == "scatter"
+        (dash.name, list(dash.y))
+        for dash in figure.data
+        if dash.type == "scatter" and dash.mode == "markers"
     ] == [
         ("AEMO IASR limit", [2040.0]),
         ("2x AEMO limit (premium step)", [3330.0]),
@@ -710,3 +746,139 @@ def test_transmission_limits_draw_the_deepest_central_cap_against_both_ceilings(
         ("2x AEMO limit (premium step)", [4200.0]),
         ("Relaxed limit", [7200.0]),
     ]
+
+
+def test_transmission_limits_shade_the_two_priced_tranches(csv_str_to_df):
+    links = csv_str_to_df("""
+        cell,                 year,  link,   kind,       p_nom_mw,  p_nom_opt_mw,  expansion_limit_mw,  transmission_limit_mw
+        ext_central_cap0005,  2050,  Q1-NQ,  rez,        3000.0,    3500.0,        5160.0,              3000.0
+    """)
+
+    figure = figures.figure_transmission_limits(links, 4.0, 4.0)
+
+    # Each band is a floor and a ceiling filled down to it, and both sit ahead of the bars.
+    bands = [
+        trace
+        for trace in figure.data
+        if trace.type == "scatter" and trace.mode == "lines"
+    ]
+    assert [(band.name, list(band.y), band.fill) for band in bands] == [
+        ("First premium tranche", [2040.0], None),
+        ("First premium tranche", [3330.0], "tonexty"),
+        ("Second premium tranche", [3330.0], None),
+        ("Second premium tranche", [8160.0], "tonexty"),
+    ]
+    assert [trace.type for trace in figure.data].index("bar") == len(bands)
+
+
+def test_build_cost_curves_step_each_group_and_mark_what_the_run_used(csv_str_to_df):
+    tranches = csv_str_to_df("""
+        kind,          group,  period, tranche, width_mw, adder,   mw_used
+        transmission,  Q1-NQ,  2035,   1,       1000.0,   0.0,     1000.0
+        transmission,  Q1-NQ,  2035,   2,       1000.0,   15000.0, 400.0
+        transmission,  Q1-NQ,  2035,   3,       ,         60000.0, 0.0
+    """)
+
+    figure = figures.figure_build_cost_curves(figures.tranche_curve_steps(tranches))
+
+    # The unbounded backstop is drawn half again past the bounded steps below it.
+    staircase, used = figure.data
+    assert (list(staircase.x), list(staircase.y)) == (
+        [0.0, 1000.0, 2000.0, 3000.0],
+        [0.0, 15000.0, 60000.0, 60000.0],
+    )
+    assert (used.name, list(used.x), list(used.y)) == (
+        figures.CURVE_USAGE_NAME,
+        [1000.0, 1400.0],
+        [0.0, 15000.0],
+    )
+
+
+def test_build_cost_curves_are_dropped_when_the_run_priced_none(exports):
+    assert _figure_build_cost_curves(OutputLayout(exports.parent)) is None
+
+
+def test_relax_curve_steps_name_each_group_by_its_limit_and_period(csv_str_to_df):
+    generators = csv_str_to_df("""
+        name,                           p_nom_max, capital_cost
+        N2_resource_limit_relax1_2035,   1500.0,    20000.0
+        N2_resource_limit_relax2_2035,   3000.0,    30000.0
+        N2_resource_limit_relax_2035,    ,          15000.0
+    """)
+
+    steps = figures.relax_curve_steps(generators)
+
+    expected = csv_str_to_df("""
+        curve,                          group,                   tranche, width_mw, adder,   mw_used
+        REZ resource limit (curve 1a),  N2_resource_limit 2035,  1,       1500.0,   20000.0,
+        REZ resource limit (curve 1a),  N2_resource_limit 2035,  2,       3000.0,   30000.0,
+    """)
+    pd.testing.assert_frame_equal(
+        steps.reset_index(drop=True), expected, check_dtype=False
+    )
+
+
+def test_near_term_pipeline_stacks_the_roster_against_aemos_own_fleet(csv_str_to_df):
+    roster = csv_str_to_df("""
+        fuel_type,   status,       maximum_capacity_mw
+        Black Coal,  Existing,     10000.0
+        Brown Coal,  Existing,     4000.0
+        Wind,        Existing,     6000.0
+        Wind,        Committed,    3000.0
+        Battery,     Anticipated,  2000.0
+        Biomass,     Existing,     500.0
+    """)
+    built = csv_str_to_df("""
+        cell,    year, new_gw_Wind, new_gw_Solar, new_gw_Biomass
+        ext_sc,  2030, 4.0,         5.0,          0.5
+    """)
+
+    figure = figures.figure_near_term_pipeline(
+        roster, built, {"Generator allowance": 19.0}
+    )
+
+    # One stacked segment per trace, then AEMO's own 2030 capacity dashed beside the stacks.
+    assert [(trace.name, list(trace.x), list(trace.y)) for trace in figure.data] == [
+        ("Existing", ["Coal", "Wind"], [14.0, 6.0]),
+        ("Committed and anticipated", ["Battery", "Wind"], [2.0, 3.0]),
+        ("New build", ["Solar", "Wind"], [5.0, 4.0]),
+        (
+            "AEMO CDP4 2030",
+            ["Coal", "Gas", "Hydro", "Wind", "Solar"],
+            [13.0, 12.0, 7.0, 26.0, 32.0],
+        ),
+    ]
+    assert figure.layout.shapes[0].y0 == 19.0
+
+
+def test_near_term_pipeline_is_dropped_when_no_templated_inputs_remain(exports):
+    assert _figure_near_term_pipeline(OutputLayout(exports.parent)) is None
+
+
+def test_duals_bar_each_cap_and_table_the_largest_constraints(csv_str_to_df):
+    manifest = csv_str_to_df("""
+        cell,    year, implied_carbon_price_aud_per_t
+        ext_sc,  2030, 120.0
+        ext_sc,  2035, 900.0
+    """)
+    duals = csv_str_to_df("""
+        cell,    year, constraint,             dual
+        ext_sc,  2030, Q1-NQ_expansion_limit,  -80.0
+        ext_sc,  2030, N2_resource_limit,      -1500.0
+        ext_sc,  2035, N2_resource_limit,      -3000.0
+    """)
+
+    figure = figures.figure_duals(manifest, duals)
+
+    bar, table = figure.data
+    assert (list(bar.x), list(bar.y)) == (["2030", "2035"], [120.0, 900.0])
+    # Each year lists its own constraints, the largest by absolute dual first.
+    assert [list(column) for column in table.cells.values] == [
+        [2030, 2030, 2035],
+        ["N2_resource_limit", "Q1-NQ_expansion_limit", "N2_resource_limit"],
+        [-1500.0, -80.0, -3000.0],
+    ]
+
+
+def test_duals_are_dropped_when_no_chain_exported_them(exports):
+    assert _figure_duals(OutputLayout(exports.parent)) is None
