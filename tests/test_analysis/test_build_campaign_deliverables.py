@@ -4,6 +4,7 @@ import pypsa
 from analysis.env import OutputLayout
 from analysis.hpc.campaign_grid import order_pressures
 from analysis.sharp.deliverables import (
+    MARGINAL_COLUMNS,
     _add_load_shedding,
     _add_unpriced_fuel,
     _chain_index,
@@ -115,9 +116,10 @@ def test_marginals_drop_both_arcs_touching_a_boundary_cell(csv_str_to_df):
         level_column="trajectory",
     )
 
-    # Both arcs touch the dropped middle trajectory, so no row is differenced at all
-    # and the frame carries no columns to name.
-    pd.testing.assert_frame_equal(arcs, pd.DataFrame())
+    # Both arcs touch the dropped middle trajectory, so no row is differenced at all.
+    pd.testing.assert_frame_equal(
+        arcs, pd.DataFrame(columns=["pressure", *MARGINAL_COLUMNS])
+    )
 
 
 def test_marginals_difference_adjacent_trajectories_at_one_pressure(csv_str_to_df):
