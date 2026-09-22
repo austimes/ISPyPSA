@@ -8,6 +8,9 @@ frame, one row per cell-year, and every figure in :mod:`analysis.dashboard.figur
 source commit shown in the page heading is read from the run's solve records,
 ``<run>/records/*.json``, and the assumptions table from its ``<run>/campaign/``.
 
+The technology mix, the storage build and the pathway intensities draw the increment grid's branch
+cells beside the base chain, from the branch rows of the same exports.
+
 Several sections read the run directory rather than the tidy frame: the assumptions table; the
 technology cost inputs, from ``exports/input_costs.csv`` where the assemble stage found templated
 inputs on disk to read them from; the transmission build, from ``exports/transmission.csv`` and the
@@ -93,8 +96,8 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     :return: Trajectory and pressure keys, delivered energy, both emissions intensities, cost and
         its components, the cap and its shadow price, boundary flag, solve status and the
         per-carrier energy delivered, per-fuel input intensities, priced-curve premiums and
-        storage power, for the campaign's base chains. Increment-grid branches have their own
-        section instead.
+        storage power, for the campaign's base chains. Increment-grid branches come from
+        :func:`tidy_branches` instead.
     """
     results = base_rows(
         pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
@@ -135,15 +138,27 @@ def tidy_branches(exports: Path) -> pd.DataFrame:
 
     :param exports: The run's ``exports/`` directory.
     :return: One row per branch cell, carrying the base cell it branched from, its branch year, the
-        measures the pathway-intensity panels draw, and an ``increment`` key naming its two levels.
-        A run with no increment grid returns those columns with no rows.
+        measures the pathway-intensity panels draw, its storage power and solve status, and an
+        ``increment`` key naming its two levels. A run with no increment grid returns those columns
+        with no rows.
     """
     results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
     if not set(BRANCH_COLUMNS) <= set(results):
-        return pd.DataFrame(columns=["base_cell", "year", "increment"])
-    branches = results[results["base_cell"].notna()]
-    levels = branches["demand_level"] + "_" + branches["intensity_level"]
-    return branches.assign(increment=levels)
+        return pd.DataFrame(columns=["base_cell", "year", "increment", "status"])
+    manifest = pd.read_csv(exports / "manifest.csv")[["cell", "year", "model_status"]]
+    acceptance = pd.read_csv(exports / "acceptance_per_cell.csv")[
+        ["cell", "year", *ACCEPTANCE_TESTS]
+    ]
+    storage = _storage_power_columns(pd.read_csv(exports / "storage.csv"))
+    branches = (
+        results[results["base_cell"].notna()]
+        .merge(manifest, on=["cell", "year"], how="left")
+        .merge(acceptance, on=["cell", "year"], how="left")
+        .merge(storage, on=["cell", "year"], how="left")
+    )
+    return branches.assign(
+        increment=figures.increment_keys(branches), status=_status_label(branches)
+    )
 
 
 def _storage_power_columns(storage: pd.DataFrame) -> pd.DataFrame:
@@ -175,30 +190,28 @@ def _status_label(frame: pd.DataFrame) -> pd.Series:
     return pd.Series(np.where(accepted, "solved", "unaccepted"), index=frame.index)
 
 
-#: Heading of the pathway-intensity row, which both the increment fans and the pipeline hang off.
+#: Headings the increment-grid sections and the run-directory sections are keyed on.
 INTENSITIES_HEADING = "Pathway intensities (every chain, ShARP-style)"
-
-#: Heading of the increment cells' technology mix, which the transmission build hangs off.
-INCREMENT_MIX_HEADING = "Technology mix of increment cells"
+TECH_MIX_HEADING = "Technology mix: the base chain beside each increment cell"
+STORAGE_HEADING = "Storage build: the base chain beside each increment cell"
+PREMIUMS_HEADING = "Premiums paid above AEMO's limits and baseline build rates"
+MARGINALS_HEADING = (
+    "Demand-marginal cost and intensity (step to the next demand trajectory)"
+)
 
 #: Page heading to section builder, in the order the dashboard shows them. A builder returns either
 #: a plotly figure or ready-made html, and ``None`` where the run holds too little to draw.
 SECTIONS = {
     INTENSITIES_HEADING: figures.figure_pathway_intensities,
-    "Cost frontier": figures.figure_cost_frontier,
-    "Cost against emissions intensity": figures.figure_cost_families,
-    "Cost surface as heatmap": figures.figure_cost_heatmap,
-    "Technology mix": figures.figure_tech_mix,
-    INCREMENT_MIX_HEADING: figures.figure_increment_tech_mix,
-    "Storage build": figures.figure_storage_build,
-    "Cost pathway over time": figures.figure_cost_pathway,
-    "Implied carbon price of each cap": figures.figure_implied_carbon_price,
-    "Demand-marginal cost and intensity (step to the next demand trajectory)": figures.figure_demand_marginals,
+    TECH_MIX_HEADING: figures.figure_tech_mix,
+    STORAGE_HEADING: figures.figure_storage_build,
+    PREMIUMS_HEADING: figures.figure_premiums_paid,
     "Cost decomposition, central trajectory": figures.figure_cost_decomposition,
-    "Premiums paid above AEMO's limits and baseline build rates": figures.figure_premiums_paid,
-    "Summary measure matrix": figures.figure_summary_matrix,
-    "Searched parameter grid": figures.html_search_grid,
+    MARGINALS_HEADING: figures.figure_demand_marginals,
 }
+
+#: The sections drawn from the increment grid as well as the base chains.
+BRANCH_SECTIONS = {INTENSITIES_HEADING, TECH_MIX_HEADING, STORAGE_HEADING}
 
 #: Heading of the run-assumptions table, which the tests name.
 ASSUMPTIONS_HEADING = "Assumptions"
@@ -287,14 +300,16 @@ def _drawn_sections(
 ) -> list[tuple[str, go.Figure | str | None]]:
     """Every section in page order, each run-directory section spliced under the one it follows."""
     branches = tidy_branches(layout.exports)
-    fanned = partial(figures.figure_pathway_intensities, branches=branches)
-    mixed = partial(figures.figure_increment_tech_mix, branches=branches)
-    sections = {**SECTIONS, INTENSITIES_HEADING: fanned, INCREMENT_MIX_HEADING: mixed}
+    sections = {
+        heading: partial(build_from_frame, branches=branches)
+        if heading in BRANCH_SECTIONS
+        else build_from_frame
+        for heading, build_from_frame in SECTIONS.items()
+    }
     drawn = []
     for heading, build_from_frame in sections.items():
         drawn.append((heading, build_from_frame(frame)))
-        if heading in RUN_SECTIONS:
-            title, build_from_run = RUN_SECTIONS[heading]
+        for title, build_from_run in RUN_SECTIONS.get(heading, []):
             drawn.append((title, build_from_run(layout)))
     return drawn
 
@@ -445,27 +460,29 @@ def _assumptions(layout: OutputLayout) -> dict[str, object]:
 
 
 #: Sections built from the run directory rather than the tidy frame, each keyed on the ``SECTIONS``
-#: heading it is shown under, and holding its own heading and builder.
+#: heading they follow, and holding their own heading and builder.
 RUN_SECTIONS = {
-    INTENSITIES_HEADING: (
-        f"Near-term pipeline: {figures.PIPELINE_YEAR} capacity by carrier",
-        _figure_near_term_pipeline,
-    ),
-    "Cost surface as heatmap": ("Increment surfaces", _figure_increment_surfaces),
-    "Implied carbon price of each cap": ("Duals", _figure_duals),
-    "Cost decomposition, central trajectory": (
-        "Technology cost inputs",
-        _figure_input_costs,
-    ),
-    "Premiums paid above AEMO's limits and baseline build rates": (
-        "Build cost curves (inputs)",
-        _figure_build_cost_curves,
-    ),
-    INCREMENT_MIX_HEADING: (
-        "REZ and corridor expansion against IASR and relaxed limits",
-        _figure_transmission_limits,
-    ),
-    "Storage build": (ASSUMPTIONS_HEADING, _html_assumptions),
+    TECH_MIX_HEADING: [
+        (
+            f"Near-term pipeline: {figures.PIPELINE_YEAR} capacity by carrier",
+            _figure_near_term_pipeline,
+        )
+    ],
+    STORAGE_HEADING: [
+        (
+            "REZ and corridor expansion against IASR and relaxed limits",
+            _figure_transmission_limits,
+        ),
+        ("Technology cost inputs", _figure_input_costs),
+    ],
+    PREMIUMS_HEADING: [
+        ("Build cost curves (inputs)", _figure_build_cost_curves),
+        ("Increment surfaces", _figure_increment_surfaces),
+    ],
+    MARGINALS_HEADING: [
+        ("Duals", _figure_duals),
+        (ASSUMPTIONS_HEADING, _html_assumptions),
+    ],
 }
 
 

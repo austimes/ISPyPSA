@@ -7,7 +7,6 @@ too little to draw. Page assembly, and the order the sections appear in, live in
 
 from __future__ import annotations
 
-import logging
 from itertools import cycle, product
 
 import numpy as np
@@ -15,8 +14,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from scipy.interpolate import griddata
-from scipy.spatial import QhullError
 
 from analysis.env import PACKAGE_ROOT, REPO_ROOT
 from analysis.hpc.campaign_grid import (
@@ -26,8 +23,6 @@ from analysis.hpc.campaign_grid import (
     parse_pressure,
     split_chain_id,
 )
-
-log = logging.getLogger(__name__)
 
 #: Conventional hues for generation carriers, shared by every figure.
 CARRIER_COLOURS = {
@@ -51,15 +46,6 @@ CARRIER_LABELS = {"Water": "Hydro (conventional)"}
 UNSERVED_CARRIER = "Unserved"
 UNSERVED_COLOUR = "#d62728"
 
-#: Fill colours for the searched-parameter grid table. A combination the campaign plan never
-#: covered is left white; grey means planned but absent from the exports.
-STATUS_COLOURS = {
-    "solved": "#cfe8cf",
-    "unaccepted": "#f2cfc9",
-    "missing": "#ededed",
-    "unplanned": "white",
-}
-
 #: Hatching that marks a technology mix taken from a cell that failed acceptance.
 STATUS_PATTERNS = {"solved": "", "unaccepted": "/"}
 
@@ -80,9 +66,6 @@ DURATION_LABELS = {
     "5_over8to24h": "8 to 24 h",
     "6_over24h": "over 24 h",
 }
-
-#: Marker for each cell in the cost-frontier and cost-family figures: filled, hollow or a cross.
-CELL_SYMBOLS = {"interior": "circle", "boundary": "circle-open", "unaccepted": "x-open"}
 
 #: The three pathway-intensity panels in page order, each titled and with the unit its y axis carries.
 #: Emissions are in Mt CO2e/TWh and fuel inputs in PJ/TWh, which are the ShARP units and numerically
@@ -120,24 +103,6 @@ BRANCH_STEP = 5
 #: Hues for the increment-grid fans, lighter than the chain palette so the base chains read over them.
 INCREMENT_FAN_COLOURS = px.colors.qualitative.Light24
 
-#: Scatter-matrix dimensions. The year is left out: it is categorical and earns nothing as a row and
-#: column of its own.
-MATRIX_MEASURES = [
-    "delivered_twh",
-    "marginal_intensity",
-    "fleet_intensity",
-    "avg_cost",
-]
-
-#: Axes the cost surface is interpolated over.
-GRID_AXES = ["delivered_twh", "marginal_intensity"]
-
-#: Fewest solved cells a year needs before its cost surface can be interpolated.
-MIN_GRID_CELLS = 4
-
-#: Points along each axis of the interpolated cost surface, and so bins in the heatmap drawing it.
-GRID_SIZE = 40
-
 #: The one trajectory the cost decomposition is drawn for. Every trajectory and pressure at once
 #: would be fifty panels, too many to read.
 CENTRAL_TRAJECTORY = "central"
@@ -165,18 +130,9 @@ INPUT_COST_LABELS = {
 #: of one panel in the same colour; this one is long enough not to.
 INPUT_COST_COLOURS = px.colors.qualitative.Dark24
 
-#: Vertical room each trajectory facet gets in the technology-mix and storage figures, in pixels,
-#: and the top margin the wrapped pressure titles need above the first row.
-TECH_MIX_ROW_HEIGHT = 180
-TECH_MIX_TOP_MARGIN = 90
-
 #: Heights of the single-strip figures, in pixels.
-FRONTIER_HEIGHT = 480
-HEATMAP_HEIGHT = 420
-PATHWAY_HEIGHT = 420
 #: Tall enough for the chain legend, which runs to one entry per trajectory and pressure combination.
 INTENSITIES_HEIGHT = 820
-IMPLIED_PRICE_HEIGHT = 450
 MARGINALS_HEIGHT = 620
 DECOMPOSITION_HEIGHT = 520
 #: Tall enough for the cost-input legend, which runs to one entry per technology, fuel and tranche.
@@ -198,6 +154,7 @@ HATCH_NOTE_LINE_HEIGHT = 24
 LABELS = {
     "avg_cost": "Average cost (A$/MWh)",
     "carrier": "Carrier",
+    "cell_label": "Cell: the base chain and each increment cell",
     "component": "Cost component",
     "cost_per_mwh": "Cost (A$/MWh)",
     "co2e_total_kt_per_yr": "Emissions (kt CO2e/yr)",
@@ -207,7 +164,6 @@ LABELS = {
     "duration_class": "Storage duration",
     "fleet_intensity": "Fleet-average intensity (t CO2e/MWh)",
     "implied_carbon_price_aud_per_t": "Implied carbon price (A$/t)",
-    "increment": "Increment cell",
     "intensity": "Emissions intensity (t CO2e/MWh)",
     "link": "Transmission link",
     "marginal_intensity": "Demand-marginal intensity (t CO2e/MWh)",
@@ -232,45 +188,28 @@ LABELS = {
     "year": "Year",
 }
 
-#: Facet row titles for the two emissions intensities the cost-family figure plots against.
-MEASURE_LABELS = {
-    "marginal_intensity": "Demand-marginal intensity",
-    "fleet_intensity": "Fleet-average intensity",
-}
-
 #: Facet row titles for the two consequences of stepping up one demand trajectory.
 MARGINAL_LABELS = {
     "marginal_cost": "Demand-marginal cost (A$/MWh)",
     "marginal_intensity": "Demand-marginal intensity (t CO2e/MWh)",
 }
 
-#: Short measure titles, for the figure that prints every measure on one crowded set of axes.
-MATRIX_LABELS = {
-    **LABELS,
-    "delivered_twh": "Demand (TWh)",
-    "marginal_intensity": "Demand-marginal t/MWh",
-    "fleet_intensity": "Fleet-average t/MWh",
-    "avg_cost": "Cost A$/MWh",
-}
 
-
-def pressure_label(key: str, separator: str = " ") -> str:
+def pressure_label(key: str) -> str:
     """Spell out one pressure key the way the campaign manifest names it.
 
     :param key: Pressure key, e.g. ``c150`` or ``cap0005``.
-    :param separator: Sits between the words of the label. ``<br>`` wraps it onto short lines, so
-        a table column or a facet title stays narrow.
     :return: e.g. ``carbon price A$150/t``, ``uncapped (A$0/t)``,
         ``cap 0.005 t CO2e/MWh by 2050`` or ``Step Change intensity path``.
     """
     if key == BASE_CHAIN_KEY:
-        return separator.join(["Step Change", "intensity path"])
+        return "Step Change intensity path"
     pressure = parse_pressure(key)
     if pressure.kind == CAP_KIND:
-        return separator.join(["cap", f"{pressure.value:g}", "t CO2e/MWh", "by 2050"])
+        return f"cap {pressure.value:g} t CO2e/MWh by 2050"
     if pressure.value == 0:
-        return f"uncapped{separator}(A$0/t)"
-    return f"carbon price{separator}A${pressure.value:g}/t"
+        return "uncapped (A$0/t)"
+    return f"carbon price A${pressure.value:g}/t"
 
 
 def pressure_short(key: str) -> str:
@@ -299,25 +238,6 @@ def _orders(frame: pd.DataFrame) -> dict[str, list]:
         "pressure_name": [pressure_label(key) for key in ladder],
         "pressure_short": [pressure_short(key) for key in ladder],
     }
-
-
-def _accepted(frame: pd.DataFrame) -> pd.DataFrame:
-    """The cell-years that solved and passed both acceptance tests."""
-    return frame[frame["status"].eq("solved")]
-
-
-def _cell_symbols(frame: pd.DataFrame) -> np.ndarray:
-    """Pick each cell's marker: hollow on the edge of the searched region, an open cross if unaccepted."""
-    edge = frame["boundary"].eq(True)
-    solved = np.where(edge, CELL_SYMBOLS["boundary"], CELL_SYMBOLS["interior"])
-    return np.where(frame["status"].eq("solved"), solved, CELL_SYMBOLS["unaccepted"])
-
-
-def _mark_cell_symbols(figure: go.Figure) -> go.Figure:
-    """Give every point the marker its own ``symbol`` custom-data column names."""
-    return figure.for_each_trace(
-        lambda trace: trace.update(marker_symbol=[row[0] for row in trace.customdata])
-    )
 
 
 def _pressure_colours(frame: pd.DataFrame) -> dict[str, str]:
@@ -419,212 +339,6 @@ def add_axis_scale_buttons(figure: go.Figure, axes: str = "x") -> go.Figure:
     return _button_row(figure, buttons)
 
 
-def add_axis_match_buttons(figure: go.Figure) -> go.Figure:
-    """Add a shared/independent axes button pair above the figure, for panels drawn on their own ranges.
-
-    Sharing ties every panel to the first one's axes, which compares the panels directly; freeing
-    them again gives each panel back the range its own data covers. The figure is left as it
-    arrived, on independent axes.
-
-    :param figure: The figure to add the buttons to, edited in place.
-    :return: The same figure.
-    """
-    # The first axis of each letter is the one the others are tied to, so it matches nothing itself.
-    followers = {
-        name: name[0] for name in _axis_names(figure, "xy") if not name.endswith("axis")
-    }
-    buttons = [
-        {
-            "label": label,
-            "method": "relayout",
-            "args": [
-                {
-                    f"{name}.matches": anchor if shared else None
-                    for name, anchor in followers.items()
-                }
-            ],
-        }
-        for label, shared in (("Shared axes", True), ("Independent axes", False))
-    ]
-    return _button_row(figure, buttons)
-
-
-def figure_cost_frontier(frame: pd.DataFrame) -> go.Figure:
-    """Average cost against fleet-average intensity, sized by delivered energy and faceted by year.
-
-    This is the headline view: each trajectory's pressure ladder traced from its uncapped cell out
-    to its deepest cap, where cost turns up sharply for the last tonnes removed. The thin line
-    joins one trajectory's cells in intensity order; the markers carry boundary and acceptance
-    status as they do in the cost-family figure.
-    """
-    points = frame.assign(symbol=_cell_symbols(frame)).sort_values("fleet_intensity")
-    orders = _orders(frame)
-    figure = px.scatter(
-        points,
-        x="fleet_intensity",
-        y="avg_cost",
-        size="delivered_twh",
-        size_max=18,
-        color="trajectory",
-        facet_col="year",
-        custom_data=["symbol"],
-        category_orders=orders,
-        labels=LABELS,
-        height=FRONTIER_HEIGHT,
-    )
-    _mark_cell_symbols(figure)
-    ladder = px.line(
-        points,
-        x="fleet_intensity",
-        y="avg_cost",
-        color="trajectory",
-        facet_col="year",
-        category_orders=orders,
-    )
-    ladder.update_traces(line_width=1, showlegend=False, hoverinfo="skip")
-    figure.add_traces(ladder.data)
-    return add_axis_scale_buttons(_strip_facet_titles(figure))
-
-
-def figure_cost_families(frame: pd.DataFrame) -> go.Figure:
-    """Cost against emissions intensity, one line per trajectory, faceted by year.
-
-    The top row uses the demand-marginal intensity and the bottom row the fleet average, so the
-    same cost frontier can be read either way. Each point keeps its own marker, so one trace per
-    trajectory carries interior, boundary and unaccepted cells alike.
-    """
-    long = frame.assign(symbol=_cell_symbols(frame)).melt(
-        id_vars=["trajectory", "year", "pressure", "avg_cost", "symbol"],
-        value_vars=["marginal_intensity", "fleet_intensity"],
-        var_name="measure",
-        value_name="intensity",
-    )
-    # A logarithmic axis cannot place a zero or negative intensity; such a cell is dropped.
-    long = long[long["intensity"] > 0]
-    figure = px.line(
-        long.replace({"measure": MEASURE_LABELS}).sort_values("intensity"),
-        x="intensity",
-        y="avg_cost",
-        color="trajectory",
-        facet_col="year",
-        facet_row="measure",
-        category_orders={
-            **_orders(frame),
-            "measure": list(MEASURE_LABELS.values()),
-        },
-        custom_data=["symbol"],
-        markers=True,
-        log_x=True,
-        labels=LABELS,
-        height=750,
-    )
-    _mark_cell_symbols(figure)
-    return add_axis_scale_buttons(_strip_facet_titles(figure))
-
-
-def figure_cost_heatmap(frame: pd.DataFrame) -> go.Figure | None:
-    """Average cost interpolated over delivered energy and marginal intensity, one panel per year.
-
-    One cell per interpolated grid point, so the heatmap shows the interpolation itself instead of
-    smoothing it again. Interpolation needs at least ``MIN_GRID_CELLS`` solved cells spread over an
-    area, so a year with fewer, or with its cells on a line, is left out and a run with no such year
-    gets no figure at all.
-    """
-    grid = _interpolated_cost_grid(frame)
-    if grid.empty:
-        return None
-    years = sorted(grid["year"].unique())
-    figure = make_subplots(
-        rows=1, cols=len(years), subplot_titles=[str(y) for y in years]
-    )
-    for column, year in enumerate(years, start=1):
-        figure.add_trace(_year_heatmap(grid[grid["year"].eq(year)]), row=1, col=column)
-    figure.update_xaxes(title_text=LABELS["delivered_twh"])
-    figure.update_yaxes(title_text=LABELS["marginal_intensity"], col=1)
-    return _colour_cost_surface(figure.update_layout(height=HEATMAP_HEIGHT))
-
-
-def _year_heatmap(block: pd.DataFrame) -> go.Heatmap:
-    """One year's interpolated grid as heatmap cells, blank where the interpolation gave no cost.
-
-    Plotly draws nothing for a NaN cell, which is what a grid point outside the solved cells' hull
-    deserves; binning the points instead would colour those gaps as if they were the cheapest.
-    """
-    cells = block.pivot(
-        index="marginal_intensity", columns="delivered_twh", values="avg_cost"
-    )
-    return go.Heatmap(
-        x=cells.columns, y=cells.index, z=cells.to_numpy(), hoverongaps=False
-    )
-
-
-def _colour_cost_surface(figure: go.Figure) -> go.Figure:
-    """Put every year of a cost surface on one colour axis but on its own pair of ranges.
-
-    A shared colour axis makes the years directly comparable and leaves the page one colour bar.
-    Neither the demand nor the intensity axis is shared, because both reachable ranges move year on
-    year.
-    """
-    figure.update_traces(coloraxis="coloraxis")
-    figure.update_layout(
-        coloraxis={
-            "colorscale": "Viridis",
-            "colorbar": {"title": {"text": LABELS["avg_cost"]}},
-        }
-    )
-    figure.update_xaxes(matches=None, showticklabels=True)
-    figure.update_yaxes(matches=None, showticklabels=True)
-    return add_axis_match_buttons(_strip_facet_titles(figure))
-
-
-def _interpolated_cost_grid(frame: pd.DataFrame, size: int = GRID_SIZE) -> pd.DataFrame:
-    """Interpolate cost onto a regular grid over ``GRID_AXES``, one block per year it can be drawn for.
-
-    Grid points the interpolation could not reach keep their NaN cost, which the heatmap blanks.
-    """
-    solved = _accepted(frame).dropna(subset=[*GRID_AXES, "avg_cost"])
-    years = solved.groupby("year")
-    drawn = [
-        _year_grid(block, size) for _, block in years if len(block) >= MIN_GRID_CELLS
-    ]
-    grids = [grid for grid in drawn if grid is not None]
-    if not grids:
-        return pd.DataFrame(columns=["year", *GRID_AXES, "avg_cost"])
-    return pd.concat(grids)
-
-
-def _year_grid(block: pd.DataFrame, size: int) -> pd.DataFrame | None:
-    """Interpolate one year's solved cells onto a regular grid, or ``None`` if they cannot be triangulated.
-
-    Cells that fall on a line, every cap reaching the same marginal intensity say, leave qhull no
-    area to triangulate however many of them there are, so that year is left off the surface.
-    """
-    year = block["year"].iloc[0]
-    axes = [
-        np.linspace(block[axis].min(), block[axis].max(), size) for axis in GRID_AXES
-    ]
-    demand, intensity = np.meshgrid(*axes)
-    try:
-        cost = griddata(
-            block[GRID_AXES].to_numpy(),
-            block["avg_cost"].to_numpy(),
-            (demand, intensity),
-        )
-    except QhullError:
-        log.warning(
-            f"No cost surface for {year}: its accepted cells cannot be triangulated"
-        )
-        return None
-    return pd.DataFrame(
-        {
-            "year": year,
-            "delivered_twh": demand.ravel(),
-            "marginal_intensity": intensity.ravel(),
-            "avg_cost": cost.ravel(),
-        }
-    )
-
-
 #: The two measures the increment grid is coloured by, and the button label each carries.
 INCREMENT_COLOUR_MEASURES = {
     "delta_cost_per_mwh_excl_fuel_carbon": "Delta cost (A$/MWh)",
@@ -639,15 +353,36 @@ INCREMENT_ARMS = {"demand_level": "intensity_level", "intensity_level": "demand_
 INCREMENT_LEVEL_PATTERN = r"^[a-z](\d+)$"
 INCREMENT_LEVEL_PER_CENT = 100.0
 
+#: What every figure calls the base cell's own bar or line, beside the increment cells' labels.
+BASE_CELL_LABEL = "base"
+
+
+def increment_keys(rows: pd.DataFrame) -> pd.Series:
+    """Each branch row's increment key, naming its two levels, e.g. ``d135_i050``."""
+    return rows["demand_level"] + "_" + rows["intensity_level"]
+
+
+def increment_label(key: str) -> str:
+    """Spell out one increment key: ``d135_i050`` as ``d=1.35, i=0.50``, and the base cell as ``base``.
+
+    :param key: An increment key, or ``base`` for the base cell itself.
+    :return: The label every figure names that cell by.
+    """
+    if key == BASE_CELL_LABEL:
+        return BASE_CELL_LABEL
+    demand, intensity = (
+        int(level[1:]) / INCREMENT_LEVEL_PER_CENT for level in key.split("_")
+    )
+    return f"d={demand:.2f}, i={intensity:.2f}"
+
+
 #: Cost of the extra energy an increment cell delivers, and how the demand arm titles it.
 INCREMENT_COST_PER_TWH = "delta_cost_per_extra_twh"
 INCREMENT_COST_PER_TWH_LABEL = "Delta cost (A$/yr per extra TWh)"
 
 #: What each cell of the grid says on hover: the two levels, the measure it is coloured by, and the
 #: duals, intensity and new build its own row carries.
-INCREMENT_HOVER = (
-    "demand %{x:g}x, intensity %{y:g}x<br>%{z:.4g}<br>%{customdata}<extra></extra>"
-)
+INCREMENT_HOVER = "d=%{x:.2f}, i=%{y:.2f}<br>%{z:.4g}<br>%{customdata}<extra></extra>"
 
 #: Columns a cell's hover lists beside the measure it is coloured by.
 INCREMENT_HOVER_COLUMNS = r"^fleet_intensity|^cap_dual_|^dual_|^delta_new_gw_"
@@ -675,7 +410,7 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
 
     :param increments: The run's ``increments.csv``, one row per branch cell and year.
     """
-    cells = _numeric_levels(increments)
+    cells = _numeric_levels(increments.assign(increment=increment_keys(increments)))
     curves = _increment_curves(cells)
     blocks = [
         curves[curves["year"].eq(year)] for year in sorted(curves["year"].unique())
@@ -766,12 +501,7 @@ def _additivity_rows(increments: pd.DataFrame) -> pd.DataFrame:
         for level in INCREMENT_ARMS
     ]
     label = (
-        interior["year"].astype(str)
-        + ": d"
-        + interior["demand_level"].astype(str)
-        + "x, i"
-        + interior["intensity_level"].astype(str)
-        + "x"
+        interior["year"].astype(str) + ": " + interior["increment"].map(increment_label)
     )
     return pd.DataFrame(
         {
@@ -902,24 +632,6 @@ def _cap_dual_table(increments: pd.DataFrame) -> go.Table:
     return go.Table(
         header={"values": columns}, cells={"values": [shown[c] for c in columns]}
     )
-
-
-def figure_cost_pathway(frame: pd.DataFrame) -> go.Figure:
-    """Average cost over the milestone years, one line per pressure and one facet per trajectory."""
-    figure = px.line(
-        frame.sort_values("year"),
-        x="year",
-        y="avg_cost",
-        color="pressure_name",
-        facet_col="trajectory",
-        markers=True,
-        category_orders=_orders(frame),
-        color_discrete_map=_pressure_colours(frame),
-        labels=LABELS,
-        height=PATHWAY_HEIGHT,
-    )
-    figure.update_xaxes(tickvals=sorted(frame["year"].unique()))
-    return _list_pressures_up_the_ladder(_strip_facet_titles(figure), frame)
 
 
 def figure_pathway_intensities(
@@ -1101,47 +813,19 @@ def _branch_fan(
 ) -> go.Scatter:
     """One increment key's fan in one intensity panel, thin and grouped with its other panels."""
     x, y = _fan_points(frame.set_index(["cell", "year"])[column], rows, column)
+    label = increment_label(key)
     return go.Scatter(
         x=x,
         y=y,
-        name=key,
+        name=label,
         legendgroup=key,
         showlegend=legend,
         mode="lines+markers",
         line={"color": colour, "dash": dash, "width": 1},
         marker_size=4,
         connectgaps=False,
-        hovertemplate=f"{key}<br>%{{x}}: %{{y:.3g}}<extra></extra>",
+        hovertemplate=f"{label}<br>%{{x}}: %{{y:.3g}}<extra></extra>",
     )
-
-
-def figure_implied_carbon_price(frame: pd.DataFrame) -> go.Figure:
-    """Shadow price each cap chain's cap carries, against the 2050 target intensity it aims at.
-
-    Only the cap chains appear: a price chain's carbon price is an input, not a solve result. Both
-    axes are logarithmic because a cap two steps deeper can cost two orders of magnitude more per
-    tonne.
-    """
-    caps = frame[frame["pressure_kind"].eq(CAP_KIND)].sort_values("pressure_value")
-    figure = px.scatter(
-        caps,
-        x="pressure_value",
-        y="implied_carbon_price_aud_per_t",
-        color="trajectory",
-        symbol="trajectory",
-        facet_col="year",
-        log_x=True,
-        log_y=True,
-        category_orders=_orders(frame),
-        labels=LABELS,
-        height=IMPLIED_PRICE_HEIGHT,
-    )
-    # Ticked on the caps themselves, because a log decade tick falls between two of them.
-    targets = sorted(caps["pressure_value"].unique())
-    figure.update_xaxes(
-        tickvals=targets, ticktext=[f"{target:g}" for target in targets]
-    )
-    return add_axis_scale_buttons(_strip_facet_titles(figure), axes="xy")
 
 
 def figure_demand_marginals(frame: pd.DataFrame) -> go.Figure | None:
@@ -1656,129 +1340,77 @@ def _carrier_named_colours(names: pd.Series) -> dict[str, str]:
     }
 
 
-def figure_summary_matrix(frame: pd.DataFrame) -> go.Figure:
-    """Every pair of the summary measures for the accepted cells, by trajectory and year."""
-    return px.scatter_matrix(
-        _accepted(frame).astype({"year": str}),
-        dimensions=MATRIX_MEASURES,
-        color="trajectory",
-        symbol="year",
-        category_orders=_orders(frame),
-        labels=MATRIX_LABELS,
-        height=1100,
-    )
-
-
-#: Styling shared by every table on the page: full page width, small text, one fill per status.
-#: Each cell's span is pulled out over its padding so the status fill reaches the cell's borders.
-GRID_STYLE = f"""<style>
-.grid {{ width: 100%; border-collapse: collapse; font-size: 12px; text-align: left }}
-.grid th {{ cursor: pointer; text-align: left; border-bottom: 1px solid #bbb }}
-.grid th::after {{ content: " ^" }}
-.grid td {{ padding: 2px 4px; border: 1px solid #eee }}
-.grid td span {{ display: block; margin: -2px -4px; padding: 2px 4px }}
-{" ".join(f".{name} {{ background: {fill} }}" for name, fill in STATUS_COLOURS.items())}
+#: Styling shared by every html table on the page: full page width, small text, sortable headings.
+GRID_STYLE = """<style>
+.grid { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left }
+.grid th { cursor: pointer; text-align: left; border-bottom: 1px solid #bbb }
+.grid th::after { content: " ^" }
+.grid td { padding: 2px 4px; border: 1px solid #eee }
 </style>"""
 
 
-def html_search_grid(frame: pd.DataFrame) -> str:
-    """Average cost for every searched cell as a sortable table, each cell filled by solve status.
-
-    Delivered energy is the same across a row's pressure columns, so it gets a column of its own
-    and each cell carries the cost instead. Combinations the campaign plan never covered stay
-    white; grey marks a planned combination missing from the exports. The page script in
-    ``build.py`` sorts the table when a heading is clicked.
-
-    :return: A style block and the table itself.
-    """
-    keys = ["trajectory", "year"]
-    costs = (
-        frame.assign(label=_cell_labels(frame))
-        .pivot_table(index=keys, columns="pressure", values="label", aggfunc="first")
-        .reindex(columns=_pressure_ladder(frame))
-    )
-    status = _grid_status(frame, costs)[costs.columns]
-    spans = '<span class="' + status + '">' + costs.fillna("") + "</span>"
-    energy = frame.pivot_table(index=keys, values="delivered_twh", aggfunc="first")
-    cells = energy.round(1).join(spans).reset_index().rename(columns=_grid_heading)
-    table = cells.to_html(index=False, escape=False, classes="grid")
-    return GRID_STYLE + table
-
-
-def _grid_status(frame: pd.DataFrame, costs: pd.DataFrame) -> pd.DataFrame:
-    """Per-cell fill key, separating a planned-but-absent combination from one never planned."""
-    planned = (
-        frame.groupby(["trajectory", "pressure"]).size().unstack(fill_value=0).gt(0)
-    )
-    covered = planned.reindex(
-        index=costs.index.get_level_values("trajectory"), columns=costs.columns
-    )
-    status = frame.pivot_table(
-        index=costs.index.names, columns="pressure", values="status", aggfunc="first"
-    )
-    return status.mask(status.isna() & covered.to_numpy(), "missing").fillna(
-        "unplanned"
-    )
-
-
-def _grid_heading(name: str) -> str:
-    """Heading for one searched-grid column: a measure's label, or a spelled-out pressure label."""
-    return LABELS[name] if name in LABELS else pressure_label(name)
-
-
-def _cell_labels(frame: pd.DataFrame) -> pd.Series:
-    """Average cost per cell, marked where the cell sits on the edge of the searched region."""
-    cost = frame["avg_cost"].round(1).astype(str)
-    return cost.where(~frame["boundary"].eq(True), cost + " (boundary)")
-
-
-def figure_tech_mix(frame: pd.DataFrame) -> go.Figure:
-    """Stacked energy delivered by carrier, in TWh, one facet per trajectory and pressure.
+def figure_tech_mix(
+    frame: pd.DataFrame, branches: pd.DataFrame | None = None
+) -> go.Figure:
+    """Stacked energy delivered by carrier, in TWh, the base cell then each increment cell, per year.
 
     Demand no generation served is stacked last, in red, so the shortfall a deep cap leaves reads off
     the top of the stack. Cells that failed acceptance are drawn hatched rather than dropped, so a
     reader sees where the campaign has a mix it cannot stand behind instead of an unexplained gap.
     Storage discharge stacks above the generation carriers, dotted, and is energy the storage charged
     from them rather than new supply, so a stack carrying it exceeds the year's demand.
+
+    :param frame: The tidy cell-year frame of the campaign's base chains.
+    :param branches: The increment grid's branch rows. A run with no increment grid bars the base
+        cell alone.
     """
-    long = _delivered_energy(frame)
+    long = _delivered_energy(_labelled_cells(frame, branches))
     figure = px.bar(
         long.astype({"year": str}),
-        x="year",
+        x="cell_label",
         y="twh",
         color="carrier",
         pattern_shape="pattern",
         pattern_shape_map=MIX_PATTERNS,
-        facet_row="trajectory",
-        facet_col="pressure",
-        category_orders={
-            **_orders(frame),
-            "carrier": [*CARRIER_COLOURS, UNSERVED_CARRIER],
-        },
+        facet_col="year",
+        category_orders={"carrier": [*CARRIER_COLOURS, UNSERVED_CARRIER]},
         color_discrete_map={**CARRIER_COLOURS, UNSERVED_CARRIER: UNSERVED_COLOUR},
         labels=LABELS,
-        height=TECH_MIX_ROW_HEIGHT * frame["trajectory"].nunique(),
+        height=DECOMPOSITION_HEIGHT,
     )
     figure.update_xaxes(type="category")
-    figure.update_layout(legend_title_text="Carrier", margin_t=TECH_MIX_TOP_MARGIN)
+    figure.update_layout(legend_title_text="Carrier")
     _colour_legend_entries(figure)
-    figure.for_each_annotation(lambda note: note.update(text=_facet_label(note.text)))
+    _strip_facet_titles(figure)
     return _pattern_note(figure, HATCH_NOTE, long["carrier"].nunique())
 
 
-def _delivered_energy(frame: pd.DataFrame) -> pd.DataFrame:
+def _labelled_cells(frame: pd.DataFrame, branches: pd.DataFrame | None) -> pd.DataFrame:
+    """The base chain's rows and the increment cells' rows, each labelled as the bars name it.
+
+    Sorted on the label, which puts the base cell's bar first and then runs the increment cells
+    demand-major up each level, because plotly bars them in the order it meets them.
+    """
+    base = frame.assign(cell_label=BASE_CELL_LABEL)
+    if branches is None or branches.empty:
+        return base
+    labelled = branches.assign(cell_label=branches["increment"].map(increment_label))
+    return pd.concat([base, labelled], ignore_index=True).sort_values("cell_label")
+
+
+def _delivered_energy(cells: pd.DataFrame) -> pd.DataFrame:
     """Melt the per-carrier energy columns into one row each, unserved energy last.
 
     Unserved energy is taken from the shortfall percentage the run reported against its demand. A
     storage discharge column is patterned as storage instead of by the cell's status.
     """
-    keys = ["trajectory", "pressure", "year", "status"]
-    carriers = frame[keys].join(frame.filter(regex=r"^twh_"))
+    keys = ["cell_label", "year", "status"]
+    carriers = cells[keys].join(cells.filter(regex=r"^twh_"))
     long = carriers.melt(id_vars=keys, var_name="carrier", value_name="twh")
     long["carrier"] = long["carrier"].str.removeprefix("twh_").replace(CARRIER_LABELS)
-    unserved = frame[keys].assign(
+    unserved = cells[keys].assign(
         carrier=UNSERVED_CARRIER,
-        twh=frame["delivered_twh"] * frame["use_pct_of_demand"] / 100,
+        twh=cells["delivered_twh"] * cells["use_pct_of_demand"] / 100,
     )
     mix = pd.concat([long, unserved], ignore_index=True)
     mix["pattern"] = mix["status"].mask(
@@ -1787,116 +1419,46 @@ def _delivered_energy(frame: pd.DataFrame) -> pd.DataFrame:
     return mix
 
 
-#: What the increment mix calls the base cell's own bar, which is drawn ahead of its fan.
-BASE_CELL_LABEL = "base"
-
-
-def figure_increment_tech_mix(
+def figure_storage_build(
     frame: pd.DataFrame, branches: pd.DataFrame | None = None
-) -> go.Figure | None:
-    """Stacked energy delivered by carrier for every increment cell, one facet per snapshot year.
-
-    Each year's fan is read against the base cell it branched from, so that cell's own bar is drawn
-    first and labelled ``base``. Carrier colours and the dotted storage discharge are the technology
-    mix's. A run with no increment grid gets no figure.
-    """
-    if branches is None or branches.empty:
-        return None
-    long = _increment_energy(frame, branches)
-    figure = px.bar(
-        long.astype({"year": str}),
-        x="increment",
-        y="twh",
-        color="carrier",
-        pattern_shape="pattern",
-        pattern_shape_map=MIX_PATTERNS,
-        facet_col="year",
-        category_orders={
-            "carrier": list(CARRIER_COLOURS),
-            "increment": _increment_cell_order(long["increment"]),
-        },
-        color_discrete_map=CARRIER_COLOURS,
-        labels=LABELS,
-        height=DECOMPOSITION_HEIGHT,
-    )
-    figure.update_xaxes(type="category")
-    figure.update_layout(legend_title_text="Carrier")
-    _colour_legend_entries(figure)
-    return _strip_facet_titles(figure)
-
-
-def _increment_energy(frame: pd.DataFrame, branches: pd.DataFrame) -> pd.DataFrame:
-    """Melt the per-carrier energy columns of the increment cells and their base cell, one row each."""
-    cells = pd.concat(
-        [frame.assign(increment=BASE_CELL_LABEL), branches], ignore_index=True
-    )
-    keys = ["increment", "year"]
-    long = (
-        cells[keys]
-        .join(cells.filter(regex=r"^twh_"))
-        .melt(id_vars=keys, var_name="carrier", value_name="twh")
-    )
-    carrier = long["carrier"].str.removeprefix("twh_").replace(CARRIER_LABELS)
-    pattern = np.where(carrier.isin(STORAGE_PATTERNS), "storage", "solved")
-    return long.assign(carrier=carrier, pattern=pattern)
-
-
-def _increment_cell_order(keys: pd.Series) -> list[str]:
-    """The base cell first, then the increment cells along the grid's two arms and its interior."""
-    return [
-        BASE_CELL_LABEL,
-        *sorted(set(keys) - {BASE_CELL_LABEL}, key=_increment_rung),
-    ]
-
-
-def _increment_rung(key: str) -> tuple[int, int]:
-    """Sort key running the demand column first, then the intensity row down, then the interior cells."""
-    demand, intensity = (int(level[1:]) for level in key.split("_"))
-    if intensity == 100:
-        return 0, demand
-    if demand == 100:
-        return 1, -intensity
-    return 2, demand
-
-
-def figure_storage_build(frame: pd.DataFrame) -> go.Figure:
-    """Installed storage power by duration class, one facet per trajectory and pressure.
+) -> go.Figure:
+    """Installed storage power by duration class, the base cell then each increment cell, per year.
 
     Battery and pumped hydro share the duration colours and are told apart by hatching, so the
     figure reads as one storage stack rather than two.
+
+    :param frame: The tidy cell-year frame of the campaign's base chains.
+    :param branches: The increment grid's branch rows. A run with no increment grid bars the base
+        cell alone.
     """
-    long = _storage_rows(frame)
+    long = _storage_rows(_labelled_cells(frame, branches))
     figure = px.bar(
         long.astype({"year": str}),
-        x="year",
+        x="cell_label",
         y="power_gw",
         color="duration_class",
         pattern_shape="carrier",
         pattern_shape_map=STORAGE_PATTERNS,
-        facet_row="trajectory",
-        facet_col="pressure",
+        facet_col="year",
         category_orders={
-            **_orders(frame),
             "duration_class": list(DURATION_LABELS.values()),
             "carrier": list(STORAGE_PATTERNS),
         },
         labels=LABELS,
-        height=TECH_MIX_ROW_HEIGHT * frame["trajectory"].nunique(),
+        height=DECOMPOSITION_HEIGHT,
     )
     figure.update_xaxes(type="category")
-    figure.update_layout(
-        legend_title_text=LABELS["duration_class"], margin_t=TECH_MIX_TOP_MARGIN
-    )
+    figure.update_layout(legend_title_text=LABELS["duration_class"])
     _colour_legend_entries(figure)
-    figure.for_each_annotation(lambda note: note.update(text=_facet_label(note.text)))
+    _strip_facet_titles(figure)
     return _pattern_note(figure, STORAGE_NOTE, long["duration_class"].nunique())
 
 
-def _storage_rows(frame: pd.DataFrame) -> pd.DataFrame:
+def _storage_rows(cells: pd.DataFrame) -> pd.DataFrame:
     """Melt the per-carrier, per-duration storage power columns back into one row each."""
-    long = frame.melt(
-        id_vars=["trajectory", "pressure", "year"],
-        value_vars=list(frame.filter(regex=r"^storage_")),
+    long = cells.melt(
+        id_vars=["cell_label", "year"],
+        value_vars=list(cells.filter(regex=r"^storage_")),
         var_name="key",
         value_name="power_gw",
     ).dropna(subset=["power_gw"])
@@ -1941,14 +1503,6 @@ def _pattern_note(figure: go.Figure, text: str, entries: int) -> go.Figure:
         showarrow=False,
         font={"size": 11},
     )
-
-
-def _facet_label(text: str) -> str:
-    """One facet title without its ``column=`` prefix, with a pressure key spelled out in full."""
-    column, _, value = text.partition("=")
-    if column == "pressure":
-        return pressure_label(value, "<br>")
-    return _facet_text(text)
 
 
 #: The transmission panels in page order, each titled as the page names that class of link.

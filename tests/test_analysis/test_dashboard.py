@@ -3,39 +3,33 @@
 import re
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import pytest
-from plotly.subplots import make_subplots
 
 from analysis.dashboard import figures
 from analysis.dashboard.build import (
     ASSUMPTIONS_HEADING,
+    RUN_SECTIONS,
     SECTIONS,
     _figure_build_cost_curves,
     _figure_duals,
     _figure_near_term_pipeline,
     main,
+    tidy_branches,
     tidy_frame,
 )
 from analysis.dashboard.figures import (
     CARRIER_COLOURS,
     COST_COMPONENTS,
-    GRID_SIZE,
     HATCH_NOTE,
     INPUT_COST_LABELS,
-    add_axis_match_buttons,
     figure_cost_decomposition,
-    figure_cost_frontier,
-    figure_cost_heatmap,
-    figure_cost_pathway,
     figure_demand_marginals,
-    figure_implied_carbon_price,
     figure_input_costs,
     figure_pathway_intensities,
     figure_storage_build,
     figure_tech_mix,
-    html_search_grid,
+    increment_label,
     pressure_label,
 )
 from analysis.env import OutputLayout
@@ -146,49 +140,6 @@ def two_cell_exports(tmp_path, csv_str_to_df) -> Path:
 
 
 @pytest.fixture
-def collinear_exports(tmp_path, csv_str_to_df) -> Path:
-    """Write four accepted cells that share one marginal intensity, so their points lie on a line."""
-    tables = {
-        "results": """
-            cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, twh_Wind
-            a,    low,        c0,       price,         0.0,            2030, 80.0,          False,    0.30,                 25.0,                 2000.0,                24000.0,              0.0,               20.0,                          4.0,                          1.0,                            800000000.0,              160000000.0,                      0.5
-            b,    central,    c0,       price,         0.0,            2030, 90.0,          False,    0.35,                 30.0,                 2700.0,                31500.0,              0.0,               25.0,                          4.0,                          1.0,                            900000000.0,              180000000.0,                      0.5
-            c,    high,       c0,       price,         0.0,            2030, 100.0,         False,    0.40,                 35.0,                 3500.0,                40000.0,              0.0,               30.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.5
-            d,    very_high,  c0,       price,         0.0,            2030, 110.0,         False,    0.45,                 40.0,                 4400.0,                49500.0,              0.0,               35.0,                          4.0,                          1.0,                            1100000000.0,             220000000.0,                      0.5
-        """,
-        "marginals": """
-            pressure, year, from_level,  to_level,   marginal_cost_aud_per_mwh, marginal_co2e_t_per_mwh
-            c0,       2030, low_bracket, low,        50.0,                      0.50
-            c0,       2030, low,         central,    60.0,                      0.50
-            c0,       2030, central,     high,       70.0,                      0.50
-            c0,       2030, high,        very_high,  80.0,                      0.50
-        """,
-        "manifest": """
-            cell, year, model_status, co2_cap_annual_t, implied_carbon_price_aud_per_t
-            a,    2030, Optimal,      ,                 0.0
-            b,    2030, Optimal,      ,                 0.0
-            c,    2030, Optimal,      ,                 0.0
-            d,    2030, Optimal,      ,                 0.0
-        """,
-        "acceptance_per_cell": """
-            cell, year, test1_serves_demand, test4_termination
-            a,    2030, True,                True
-            b,    2030, True,                True
-            c,    2030, True,                True
-            d,    2030, True,                True
-        """,
-        "storage": """
-            cell, year, carrier, duration_class, power_gw
-            a,    2030, Battery, 2_2to4h,        0.8
-            b,    2030, Battery, 2_2to4h,        0.9
-            c,    2030, Battery, 2_2to4h,        1.0
-            d,    2030, Battery, 2_2to4h,        1.1
-        """,
-    }
-    return _write_exports(tmp_path / "run_line" / "exports", tables, csv_str_to_df)
-
-
-@pytest.fixture
 def grid_exports(tmp_path, csv_str_to_df) -> Path:
     """Write exports where ``c150`` is planned for ``central`` only, and absent there in 2040."""
     tables = {
@@ -232,6 +183,43 @@ def grid_exports(tmp_path, csv_str_to_df) -> Path:
     return _write_exports(tmp_path / "run_grid" / "exports", tables, csv_str_to_df)
 
 
+@pytest.fixture
+def branch_exports(tmp_path, csv_str_to_df) -> Path:
+    """Write one base chain and two increment cells branching off it, one of them unaccepted."""
+    tables = {
+        "results": """
+            cell,   base_cell, branch_year, demand_level, intensity_level, trajectory,  pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, twh_Wind, twh_Battery
+            ext_sc, ,          ,            ,             ,                step_change, sc,       cap,           0.02,           2030, 100.0,         False,    0.020,                30.0,                 3000.0,                2000.0,               0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                   100.0,    3.0
+            ext_d1, ext_sc,    2030,        d110,         i100,            step_change, cap002,   cap,           0.02,           2030, 110.0,         False,    0.020,                32.0,                 3520.0,                2200.0,               0.0,               27.0,                          4.0,                          1.0,                            1100000000.0,             200000000.0,                   110.0,    4.0
+            ext_i1, ext_sc,    2030,        d100,         i050,            step_change, cap001,   cap,           0.01,           2030, 95.0,          True,     0.010,                38.0,                 3610.0,                950.0,                1.0,               33.0,                          4.0,                          1.0,                            1200000000.0,             200000000.0,                   95.0,     5.0
+        """,
+        "marginals": """
+            pressure, year, from_level, to_level, marginal_cost_aud_per_mwh, marginal_co2e_t_per_mwh
+        """,
+        "manifest": """
+            cell,   year, model_status, co2_cap_annual_t, implied_carbon_price_aud_per_t
+            ext_sc, 2030, Optimal,      2000000.0,        120.0
+            ext_d1, 2030, Optimal,      2200000.0,        130.0
+            ext_i1, 2030, Optimal,      950000.0,         400.0
+        """,
+        "acceptance_per_cell": """
+            cell,   year, test1_serves_demand, test4_termination
+            ext_sc, 2030, True,                True
+            ext_d1, 2030, True,                True
+            ext_i1, 2030, False,               True
+        """,
+        "storage": """
+            cell,   year, carrier, duration_class, power_gw
+            ext_sc, 2030, Battery, 2_2to4h,        1.0
+            ext_sc, 2030, Water,   6_over24h,      0.5
+            ext_d1, 2030, Battery, 2_2to4h,        1.2
+            ext_i1, 2030, Battery, 2_2to4h,        1.4
+            ext_i1, 2030, Water,   6_over24h,      0.7
+        """,
+    }
+    return _write_exports(tmp_path / "run_branch" / "exports", tables, csv_str_to_df)
+
+
 def test_tidy_frame_joins_every_export(exports, csv_str_to_df):
     result = tidy_frame(exports)
 
@@ -271,90 +259,6 @@ def test_tidy_frame_logs_cell_years_with_no_marginal(exports, caplog):
 )
 def test_pressure_label_spells_out_each_family(key, expected):
     assert pressure_label(key) == expected
-
-
-def test_pressure_label_wraps_on_the_given_separator():
-    assert pressure_label("cap0005", "<br>") == "cap<br>0.005<br>t CO2e/MWh<br>by 2050"
-
-
-def test_cost_frontier_draws_a_ladder_line_beside_each_trajectory(exports):
-    figure = figure_cost_frontier(tidy_frame(exports))
-
-    # One marker trace per trajectory and year, and a ladder line beside each of them.
-    modes = [trace.mode for trace in figure.data]
-    assert modes == ["markers"] * 5 + ["lines"] * 5
-
-
-def test_cost_frontier_buttons_retype_every_faceted_x_axis(exports):
-    figure = figure_cost_frontier(tidy_frame(exports))
-
-    linear, log = figure.layout.updatemenus[0].buttons
-    assert [linear.label, log.label] == ["Linear", "Log"]
-    assert log.args[0] == {"xaxis.type": "log", "xaxis2.type": "log"}
-
-
-def test_cost_heatmap_blanks_the_cells_the_interpolation_could_not_reach(exports):
-    figure = figure_cost_heatmap(tidy_frame(exports))
-
-    # Only 2030 holds enough solved cells to interpolate, so the figure is a single panel.
-    (cells,) = figure.data
-    assert (cells.type, cells.z.shape, cells.coloraxis) == (
-        "heatmap",
-        (GRID_SIZE, GRID_SIZE),
-        "coloraxis",
-    )
-    # Grid points outside the solved cells' hull stay NaN, which plotly draws as a gap.
-    assert np.isnan(cells.z).any()
-    assert figure.layout.coloraxis.colorbar.title.text == "Average cost (A$/MWh)"
-    assert figure.layout.yaxis.title.text == "Demand-marginal intensity (t CO2e/MWh)"
-
-
-def test_cost_heatmap_offers_to_share_its_panels_axes(exports):
-    figure = figure_cost_heatmap(tidy_frame(exports))
-
-    assert [button.label for button in figure.layout.updatemenus[0].buttons] == [
-        "Shared axes",
-        "Independent axes",
-    ]
-
-
-def test_axis_match_buttons_tie_every_panel_to_the_first():
-    figure = add_axis_match_buttons(make_subplots(rows=1, cols=3))
-
-    shared, independent = figure.layout.updatemenus[0].buttons
-    assert shared.args[0] == {
-        "xaxis2.matches": "x",
-        "xaxis3.matches": "x",
-        "yaxis2.matches": "y",
-        "yaxis3.matches": "y",
-    }
-    assert independent.args[0] == {
-        "xaxis2.matches": None,
-        "xaxis3.matches": None,
-        "yaxis2.matches": None,
-        "yaxis3.matches": None,
-    }
-
-
-def test_cost_heatmap_is_dropped_when_no_year_holds_enough_cells(two_cell_exports):
-    assert figure_cost_heatmap(tidy_frame(two_cell_exports)) is None
-
-
-def test_cost_heatmap_skips_a_year_whose_cells_lie_on_a_line(collinear_exports, caplog):
-    with caplog.at_level("WARNING"):
-        figure = figure_cost_heatmap(tidy_frame(collinear_exports))
-
-    assert figure is None
-    assert (
-        "No cost surface for 2030: its accepted cells cannot be triangulated"
-    ) in caplog.text
-
-
-def test_cost_heatmap_logs_nothing_when_every_year_interpolates(exports, caplog):
-    with caplog.at_level("WARNING"):
-        figure_cost_heatmap(tidy_frame(exports))
-
-    assert "No cost surface" not in caplog.text
 
 
 @pytest.fixture
@@ -419,17 +323,6 @@ def test_increment_surfaces_check_the_interior_cell_against_its_two_arms(increme
     assert [(bar.name, list(bar.y)) for bar in figure.data if bar.type == "bar"] == [
         ("Interior cell", [4000.0]),
         ("Demand arm plus intensity arm", [3500.0]),
-    ]
-
-
-def test_cost_pathway_draws_one_line_per_pressure_and_trajectory(exports):
-    figure = figure_cost_pathway(tidy_frame(exports))
-
-    assert [(trace.name, trace.xaxis) for trace in figure.data] == [
-        ("uncapped (A$0/t)", "x"),
-        ("uncapped (A$0/t)", "x2"),
-        ("uncapped (A$0/t)", "x3"),
-        ("cap 0.005 t CO2e/MWh by 2050", "x2"),
     ]
 
 
@@ -508,7 +401,7 @@ def test_pathway_intensities_fans_each_increment_out_of_its_base_point(csv_str_t
     figure = figure_pathway_intensities(frame, branches)
 
     # One fan per panel, out of the base point at the previous milestone, listed in the legend once.
-    fans = [trace for trace in figure.data if trace.name == "d110_i050"]
+    fans = [trace for trace in figure.data if trace.name == "d=1.10, i=0.50"]
     assert [(trace.xaxis, trace.showlegend) for trace in fans] == [
         ("x", True),
         ("x2", False),
@@ -538,14 +431,8 @@ def test_pathway_intensities_stubs_a_first_milestone_increment_off_its_own_year(
 
     figure = figure_pathway_intensities(frame, branches)
 
-    stub = next(trace for trace in figure.data if trace.name == "d110_i050")
+    stub = next(trace for trace in figure.data if trace.name == "d=1.10, i=0.50")
     assert (list(stub.x), list(stub.y)) == ([2030, 2030, None], [25.0, 28.0, None])
-
-
-def test_implied_carbon_price_leaves_out_the_price_chains(exports):
-    figure = figure_implied_carbon_price(tidy_frame(exports))
-
-    assert [list(trace.y) for trace in figure.data] == [[120.0], [900.0]]
 
 
 def test_demand_marginals_faces_each_step_with_both_measures(exports):
@@ -574,6 +461,22 @@ def test_storage_build_lists_each_duration_once_across_both_carriers(exports):
     assert [trace.name for trace in figure.data if trace.showlegend] == [
         "2 to 4 h",
         "over 24 h",
+    ]
+
+
+def test_storage_build_bars_the_base_cell_beside_each_increment(branch_exports):
+    frame = tidy_frame(branch_exports)
+    branches = tidy_branches(branch_exports)
+
+    figure = figure_storage_build(frame, branches)
+
+    # One trace per duration and carrier, each barring the base cell and then both increments.
+    assert [
+        (trace.name, trace.marker.pattern.shape, list(trace.x), list(trace.y))
+        for trace in figure.data
+    ] == [
+        ("2 to 4 h", "", ["base", "d=1.00, i=0.50", "d=1.10, i=1.00"], [1.0, 1.4, 1.2]),
+        ("over 24 h", "/", ["base", "d=1.00, i=0.50"], [0.5, 0.7]),
     ]
 
 
@@ -610,29 +513,6 @@ def test_input_costs_draws_one_panel_per_category_with_build_cost_on_a_log_axis(
     assert coloured["Biomass"] == CARRIER_COLOURS["Biomass"]
 
 
-def test_search_grid_heads_each_column_with_its_spelled_out_name(grid_exports):
-    html = html_search_grid(tidy_frame(grid_exports))
-
-    headings = re.findall(r"<th>(.*?)</th>", html)
-    assert headings == [
-        "Demand trajectory",
-        "Year",
-        "Delivered energy (TWh)",
-        "uncapped (A$0/t)",
-        "carbon price A$150/t",
-    ]
-
-
-def test_search_grid_classes_each_cell_by_its_solve_status(grid_exports):
-    html = html_search_grid(tidy_frame(grid_exports))
-
-    assert '<span class="solved">30.1</span>' in html
-    assert '<span class="solved">55.0 (boundary)</span>' in html
-    assert '<span class="unaccepted">25.0</span>' in html
-    assert '<span class="missing"></span>' in html
-    assert '<span class="unplanned"></span>' in html
-
-
 def test_tech_mix_hatches_unaccepted_cells_and_renames_water(grid_exports):
     figure = figure_tech_mix(tidy_frame(grid_exports))
 
@@ -651,7 +531,7 @@ def test_tech_mix_dots_storage_discharge_on_top_of_the_generation_carriers(expor
 
     figure = figure_tech_mix(frame)
 
-    # The ``high`` trajectory's one cell, bottom of the stack to the top.
+    # The 2030 facet's stack, bottom to top.
     stack = [
         (trace.name, trace.marker.pattern.shape)
         for trace in figure.data
@@ -672,49 +552,43 @@ def test_tech_mix_lists_each_carrier_in_the_legend_once_then_unserved(grid_expor
     assert listed == ["Hydro (conventional)", "Wind", "Unserved"]
 
 
-def test_tech_mix_stacks_energy_delivered_in_twh(exports):
-    figure = figure_tech_mix(tidy_frame(exports))
+def test_tech_mix_bars_the_base_cell_beside_each_increment(branch_exports):
+    frame = tidy_frame(branch_exports)
+    branches = tidy_branches(branch_exports)
 
-    # The ``high`` trajectory's one cell: 0.4 TWh of wind, and 0.2% of its 120 TWh demand unserved.
-    high = [(trace.name, list(trace.y)) for trace in figure.data if trace.xaxis == "x"]
-    assert high == [("Wind", [0.4]), ("Unserved", [120.0 * 0.2 / 100])]
-    assert figure.layout.yaxis.title.text == "Energy delivered (TWh)"
+    figure = figure_tech_mix(frame, branches)
 
-
-def test_increment_tech_mix_bars_the_base_cell_beside_each_increment(csv_str_to_df):
-    frame = csv_str_to_df("""
-        cell,   year, twh_Wind, twh_Battery
-        ext_sc, 2030, 100.0,    3.0
-    """)
-    branches = csv_str_to_df("""
-        cell,   base_cell, year, increment, twh_Wind, twh_Battery
-        ext_d1, ext_sc,    2030, d110_i100, 110.0,    4.0
-        ext_i1, ext_sc,    2030, d100_i050, 95.0,     5.0
-    """)
-
-    figure = figures.figure_increment_tech_mix(frame, branches)
-
-    # One trace per carrier, each barring the base cell and then both increments, storage dotted.
+    # One trace per carrier, each barring the base cell and then both increments, storage dotted,
+    # and the unaccepted increment's segments hatched.
     assert [
         (trace.name, trace.marker.pattern.shape, list(trace.x), list(trace.y))
         for trace in figure.data
     ] == [
-        ("Wind", "", ["base", "d110_i100", "d100_i050"], [100.0, 110.0, 95.0]),
-        ("Battery", ".", ["base", "d110_i100", "d100_i050"], [3.0, 4.0, 5.0]),
+        ("Wind", "", ["base", "d=1.10, i=1.00"], [100.0, 110.0]),
+        ("Wind", "/", ["d=1.00, i=0.50"], [95.0]),
+        ("Battery", ".", ["base", "d=1.00, i=0.50", "d=1.10, i=1.00"], [3.0, 5.0, 4.0]),
+        ("Unserved", "", ["base", "d=1.10, i=1.00"], [0.0, 0.0]),
+        ("Unserved", "/", ["d=1.00, i=0.50"], [0.95]),
     ]
-    assert figures.figure_increment_tech_mix(frame) is None
+    assert figure.layout.yaxis.title.text == "Energy delivered (TWh)"
 
 
-def test_tech_mix_labels_facets_with_the_manifest_pressure_names(grid_exports):
-    figure = figure_tech_mix(tidy_frame(grid_exports))
+def test_tech_mix_facets_each_year_and_notes_its_hatching(branch_exports):
+    figure = figure_tech_mix(tidy_frame(branch_exports), tidy_branches(branch_exports))
 
-    assert {note.text for note in figure.layout.annotations} == {
-        "uncapped<br>(A$0/t)",
-        "carbon price<br>A$150/t",
-        "central",
-        "low",
-        HATCH_NOTE,
-    }
+    assert [note.text for note in figure.layout.annotations] == ["2030", HATCH_NOTE]
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("base", "base"),
+        ("d135_i050", "d=1.35, i=0.50"),
+        ("d100_i100", "d=1.00, i=1.00"),
+    ],
+)
+def test_increment_label_spells_out_both_levels(key, expected):
+    assert increment_label(key) == expected
 
 
 def test_main_writes_one_html_page(exports):
@@ -722,12 +596,21 @@ def test_main_writes_one_html_page(exports):
 
     text = page.read_text(encoding="utf-8")
     assert page == exports.parent / "dashboard.html"
-    assert "<h2>Cost frontier</h2>" in text
-    assert "<h2>Storage build</h2>" in text
-    # Every section's box bar the increment mix, which this run has no branch cells for, plus the
-    # assumptions table that sits under the storage build.
-    assert text.count('<div class="divider"') == len(SECTIONS)
+    # Every tidy-frame section's box, plus the assumptions table: the only run-directory section
+    # this run holds the inputs to draw.
+    assert text.count('<div class="divider"') == len(SECTIONS) + 1
     assert text.count('querySelectorAll(".divider")') == 1
+
+
+def test_main_heads_the_sections_in_page_order(exports):
+    page = main(exports.parent)
+
+    headings = re.findall(r"<h2>(.*?)</h2>", page.read_text(encoding="utf-8"))
+    assert headings == [*SECTIONS, ASSUMPTIONS_HEADING]
+
+
+def test_main_splices_each_run_section_under_the_heading_it_follows():
+    assert set(RUN_SECTIONS) <= set(SECTIONS)
 
 
 def test_main_leaves_every_figure_to_fill_its_own_box(exports):
@@ -736,18 +619,10 @@ def test_main_leaves_every_figure_to_fill_its_own_box(exports):
     # Everything past plotly's bundle: the figures, the boxes holding them and the page script.
     text = page.read_text(encoding="utf-8").partition("</script>")[2]
     assert '"height":' not in text
-    assert text.count('<div class="box" style="overflow: auto; height:') == len(
-        SECTIONS
+    assert text.count('<div class="box" style="overflow: auto; height:') == (
+        len(SECTIONS) + 1
     )
     assert text.count('"Fullscreen"') == 1
-
-
-def test_main_renders_a_run_too_small_to_interpolate(two_cell_exports):
-    page = main(two_cell_exports.parent)
-
-    text = page.read_text(encoding="utf-8")
-    assert "<h2>Cost surface as heatmap</h2>" not in text
-    assert "<h2>Technology mix</h2>" in text
 
 
 def _assumptions_table(page: Path) -> list[str]:
