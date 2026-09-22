@@ -220,6 +220,7 @@ TRANSMISSION_COLUMNS = [
     "p_nom_opt_mw",
     "expansion_limit_mw",
     "transmission_limit_mw",
+    "premium_aud_per_yr",
 ]
 
 #: The network's own link classes, mapped to the two kinds reported. ISPyPSA tells a REZ connection
@@ -233,11 +234,16 @@ def _link_capacity(network: pypsa.Network) -> pd.DataFrame:
 
     ISPyPSA splits every link into an existing half carrying the templated capacity and an
     extendable half starting at zero, both named after the one link in ``isp_name``, so the pair
-    summed is the link's templated and solved capacity.
+    summed is the link's templated and solved capacity. The premium is what the run's priced
+    capacity tranches charged that link, and is zero where the run priced none.
     """
     links = network.links.rename(columns={"isp_name": "link"})
     links["kind"] = network.links["isp_type"].map(LINK_KINDS)
-    return links.groupby(["link", "kind"], as_index=False)[["p_nom", "p_nom_opt"]].sum()
+    premium = links.get("capital_premium", pd.Series(0.0, index=links.index))
+    links["premium_aud_per_yr"] = premium.fillna(0) * links["p_nom_opt"]
+    return links.groupby(["link", "kind"], as_index=False)[
+        ["p_nom", "p_nom_opt", "premium_aud_per_yr"]
+    ].sum()
 
 
 def _rez_limits(inputs: Path) -> pd.DataFrame:

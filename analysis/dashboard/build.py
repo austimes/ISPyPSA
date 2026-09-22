@@ -85,7 +85,8 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     :param exports: The run's ``exports/`` directory.
     :return: Trajectory and pressure keys, delivered energy, both emissions intensities, cost and
         its components, the cap and its shadow price, boundary flag, solve status and the
-        per-carrier energy delivered, per-fuel input intensities and storage power.
+        per-carrier energy delivered, per-fuel input intensities, priced-curve premiums and
+        storage power.
     """
     results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
     marginals = pd.read_csv(exports / "marginals.csv").rename(columns=MARGINAL_MEASURES)
@@ -96,7 +97,10 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     storage = _storage_power_columns(pd.read_csv(exports / "storage.csv"))
     carriers = list(results.filter(regex=r"^twh_"))
     fuels = list(results.filter(regex=r"^gj_per_mwh_"))
-    frame = results[[*RESULT_KEYS, *RESULT_MEASURES.values(), *carriers, *fuels]].merge(
+    premiums = list(results.filter(regex=r"_premium_aud_per_yr$"))
+    frame = results[
+        [*RESULT_KEYS, *RESULT_MEASURES.values(), *carriers, *fuels, *premiums]
+    ].merge(
         marginals[
             ["pressure", "year", "trajectory", "marginal_cost", "marginal_intensity"]
         ],
@@ -158,6 +162,7 @@ SECTIONS = {
     "Implied carbon price of each cap": figures.figure_implied_carbon_price,
     "Demand-marginal cost and intensity (step to the next demand trajectory)": figures.figure_demand_marginals,
     "Cost decomposition, central trajectory": figures.figure_cost_decomposition,
+    "Premiums paid above AEMO's limits and baseline build rates": figures.figure_premiums_paid,
     "Summary measure matrix": figures.figure_summary_matrix,
     "Searched parameter grid": figures.html_search_grid,
 }

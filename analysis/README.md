@@ -43,7 +43,9 @@ $IO_DIR/
     configs/    generated per-period ISPyPSA YAML configs
     logs/       solver stdout, one file per solve
     records/    JSON records, one per solve plus one per chain
-    runs/       solved ISPyPSA run directories, plus chain state (tranches/, retention/)
+    runs/       solved ISPyPSA run directories, each with outputs/capacity_expansion.nc,
+                outputs/constraint_duals.json and outputs/capacity_tranches.json,
+                plus chain state (tranches/, retention/)
     exports/    results.csv, marginals.csv, storage.csv, transmission.csv, manifest.csv,
                 acceptance_*.csv, per_chain/, sharp/
     dashboard.html
@@ -104,6 +106,19 @@ dashboard lists in its assumptions table, so each page states what its own run w
 `--solve-flags` appends extra `msm solve` tokens to every chain (for example `--solve-flags="--gurobi-crossover 0"` for
 a barrier-only feasibility screen; the equals form is needed because the value starts with a dash), both recorded in
 `assumptions.json`.
+
+The two priced build curves are reached through `--solve-flags`. `--social-licence-premiums 0.15,0.60` prices REZ
+generation and network capacity above AEMO's published limits as stepped tranches and adds the state landholder
+payments to every expansion link; `--build-rate-premiums analysis/model/data/build_rate_premiums_central.csv` prices
+each carrier's new build above the period's baseline additions. Every solve writes what its tranches charged to
+`outputs/capacity_tranches.json`, which `msm extract` turns into the `social_licence_premium_aud_per_yr` and
+`build_rate_premium_aud_per_yr` columns of `results.csv` and the `premium_aud_per_yr` column of `transmission.csv`. So
+the campaign launches with:
+
+```bash
+PREMIUMS='--social-licence-premiums 0.15,0.60 --build-rate-premiums analysis/model/data/build_rate_premiums_central.csv'
+uv run msm launch --run-set sc5 --rez-limit-factor 4.0 --flow-path-limit-factor 4.0 --solve-flags="$PREMIUMS"
+```
 
 ## Importing inputs and run products produced outside `IO_DIR`
 

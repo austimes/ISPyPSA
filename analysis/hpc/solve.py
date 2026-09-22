@@ -436,6 +436,8 @@ def main(
     tns_price: float = 0.0,
     rez_limit_factor: float | None = None,
     flow_path_limit_factor: float | None = None,
+    social_licence_premiums: str | None = None,
+    build_rate_premiums: str = "none",
     gas_unblended: bool = False,
     gas_supply_curve: str = str(
         MODEL_DATA / "gas_supply_curve_central_held_to_2060.csv"
@@ -494,6 +496,13 @@ def main(
         path and every REZ-to-sub-region connection by this factor, as a sensitivity
         against the IASR limits; AEMO's REZ group constraints are not scaled. Omit for the
         IASR limits.
+    :param social_licence_premiums: Comma-separated premium fractions, e.g. ``0.15,0.60``,
+        pricing REZ generation and network capacity above AEMO's published limits as stepped
+        tranches and adding the NSW and Victorian landholder payments to every expansion link.
+        Omit to leave relaxed capacity at AEMO's published price.
+    :param build_rate_premiums: Build-rate premium curve CSV (group, tranche, financial_year,
+        cap_mw, adder_$/mw/yr) pricing each carrier's new build above the period's baseline
+        additions; ``none`` for unpriced build rates. The curve must carry a row for every period.
     :param gas_unblended: Price gas from the IASR gas table alone, leaving out AEMO's
         mandated biomethane blend.
     :param gas_supply_curve: Gas supply curve CSV (tranche, financial_year, cap_pj,
@@ -536,6 +545,7 @@ def main(
     gas_curve = _curve_or_none(gas_supply_curve)
     biomass_curve = _curve_or_none(biomass_supply_curve)
     ccs_curve = _curve_or_none(ccs_supply_curve)
+    build_rate_curve = _curve_or_none(build_rate_premiums)
     regions = [region_filter] if region_filter else None
     tranches_dir = (
         _chain_state_dir(layout, run_id, "tranches", resume)
@@ -567,6 +577,8 @@ def main(
         retention_floor_dir=retention_dir,
         rez_limit_factor=rez_limit_factor,
         flow_path_limit_factor=flow_path_limit_factor,
+        social_licence_premiums=social_licence_premiums,
+        build_rate_premiums=build_rate_curve,
     )
 
     layout.records.mkdir(parents=True, exist_ok=True)
@@ -588,6 +600,8 @@ def main(
         "tns_price": tns_price,
         "rez_limit_factor": rez_limit_factor,
         "flow_path_limit_factor": flow_path_limit_factor,
+        "social_licence_premiums": social_licence_premiums,
+        "build_rate_premiums": build_rate_curve,
         "gas_supply_curve": gas_curve,
         "gas_unblended": gas_unblended,
         "biomass_supply_curve": biomass_curve,

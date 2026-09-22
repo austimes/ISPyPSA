@@ -65,7 +65,7 @@ import pandas as pd
 import pypsa
 
 from analysis.env import OutputLayout
-from analysis.sharp.method_years import extract_method_year_row
+from analysis.sharp.method_years import _capital_rate, extract_method_year_row
 
 log = logging.getLogger(__name__)
 
@@ -132,7 +132,21 @@ def extract_frontier_point(
         diagnostics,
     )
     composition = _composition_diagnostic(network, sweep_id, year)
-    return row, composition
+    return row | _premiums_paid(network_path.parents[1]), composition
+
+
+def _premiums_paid(run_root: Path) -> dict[str, float]:
+    """Social-licence and build-rate premiums the solve paid, zero where the run priced neither."""
+    tranches = run_root / "outputs" / "capacity_tranches.json"
+    paid = (
+        pd.read_json(tranches).groupby("kind")["premium_aud_per_yr"].sum()
+        if tranches.exists()
+        else pd.Series(dtype=float)
+    )
+    return {
+        "social_licence_premium_aud_per_yr": float(paid.get("transmission", 0.0)),
+        "build_rate_premium_aud_per_yr": float(paid.get("build_rate", 0.0)),
+    }
 
 
 def _existing_fleet_fom(
@@ -247,13 +261,13 @@ def _carried_vintage_capex(prior_year_ncs: dict[int, Path], at_year: int) -> dic
 def _one_vintage_capex(
     nc_path: Path, vintage_year: int, at_year: int
 ) -> tuple[float, float]:
-    """capital_cost x p_nom_opt of vintage-year new builds still active at
+    """capital rate x p_nom_opt of vintage-year new builds still active at
     at_year, summed over generators and storage units."""
     network = pypsa.Network(nc_path)
     gen = _surviving_new_builds(network.generators, vintage_year, at_year)
     stor = _surviving_new_builds(network.storage_units, vintage_year, at_year)
-    capex = float((gen["capital_cost"] * gen["p_nom_opt"]).sum()) + float(
-        (stor["capital_cost"] * stor["p_nom_opt"]).sum()
+    capex = float((_capital_rate(gen) * gen["p_nom_opt"]).sum()) + float(
+        (_capital_rate(stor) * stor["p_nom_opt"]).sum()
     )
     gw = (float(gen["p_nom_opt"].sum()) + float(stor["p_nom_opt"].sum())) / 1000.0
     return capex, gw

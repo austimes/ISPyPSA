@@ -230,8 +230,14 @@ def _capex_per_period(network: pypsa.Network) -> pd.Series:
     return pd.Series(out)
 
 
+def _capital_rate(df: pd.DataFrame) -> pd.Series:
+    """Annualised capital cost per MW, including any priced capacity-tranche premium."""
+    premium = df.get("capital_premium", pd.Series(0.0, index=df.index))
+    return df["capital_cost"].fillna(0) + premium.fillna(0)
+
+
 def _active_capex(df: pd.DataFrame, period: int, sizing_col: str | None) -> float:
-    """Sum of capital_cost x sizing for rows active in `period`. Excludes slack
+    """Sum of capital rate x sizing for rows active in `period`. Excludes slack
     generators attached to bus_for_custom_constraint_gens."""
     if df.empty or sizing_col is None or sizing_col not in df.columns:
         return 0.0
@@ -243,9 +249,7 @@ def _active_capex(df: pd.DataFrame, period: int, sizing_col: str | None) -> floa
         (df["build_year"].fillna(0) <= period)
         & (df["build_year"].fillna(0) + df["lifetime"].fillna(0) > period)
     ]
-    return float(
-        (active["capital_cost"].fillna(0) * active[sizing_col].fillna(0)).sum()
-    )
+    return float((_capital_rate(active) * active[sizing_col].fillna(0)).sum())
 
 
 def _h2_blend_fraction_per_period(workbook_cache: Path, period: int) -> float:

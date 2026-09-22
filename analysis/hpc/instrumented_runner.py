@@ -308,6 +308,8 @@ def _run_staged_pipeline(
     co2_cap_t: float | None = None,
     rez_limit_factor: float | None = None,
     flow_path_limit_factor: float | None = None,
+    social_licence_premiums: str | None = None,
+    build_rate_premiums: Path | None = None,
 ) -> dict:
     """Run the ISPyPSA pipeline with per-stage timing. Returns timings dict.
 
@@ -318,7 +320,7 @@ def _run_staged_pipeline(
     the accumulated brownfield stock built across the chain.
     """
 
-    from analysis.model import apply_model_patches
+    from analysis.model import apply_model_patches, capacity_tranches
     from analysis.model.flagged_exclusions_2026 import (
         exclude_ecaa_without_trace,
         exclude_flagged_new_entrants,
@@ -517,6 +519,16 @@ def _run_staged_pipeline(
             flush=True,
         )
 
+    # Social-licence seam. Both patches change pypsa_friendly tables, so they must land before
+    # build_pypsa_network: a capital_cost or a relaxation generator changed after the linopy
+    # model exists never reaches the objective.
+    premiums = capacity_tranches.parse_premiums(social_licence_premiums)
+    if premiums is not None:
+        from analysis.model import relaxation_tranches
+
+        relaxation_tranches.apply(pypsa_friendly, premiums)
+        capacity_tranches.add_landholder_adders(pypsa_friendly)
+
     # Capacity-expansion modelling choice: zero p_min_pu so AEMO's
     # min-stable-level (a unit-commitment concept = the floor WHEN a unit is on)
     # is NOT enforced as a hard floor in this no-unit-commitment investment LP.
@@ -582,6 +594,30 @@ def _run_staged_pipeline(
             flush=True,
         )
 
+    # Priced capacity tranches, added to the same linopy model the CO2 cap and the fuel supply
+    # curves use: the transmission social-licence curve above AEMO's published headroom, and the
+    # per-carrier build-rate curve.
+    build_rate_curve = (
+        capacity_tranches.load_build_rate_curve(build_rate_premiums, [current_year])
+        if build_rate_premiums is not None
+        else None
+    )
+    tranches, members = None, None
+    if premiums is not None or build_rate_curve is not None:
+        tranches, members = capacity_tranches.campaign_tranches(
+            network,
+            ispypsa_tables,
+            current_year,
+            premiums,
+            build_rate_curve,
+            rez_limit_factor or 1.0,
+            flow_path_limit_factor or 1.0,
+        )
+        capacity_tranches.add_priced_tranches(network, tranches, members)
+        print(
+            f"\n=== CAPACITY TRANCHES === {len(tranches)} priced tranches", flush=True
+        )
+
     # HiGHS C++ writes directly to OS fd 1. When this runner is launched by
     # `msm solve`, fd 1 is the per-run log file - so HiGHS output is captured
     # without any in-process redirect. When run standalone, HiGHS output goes
@@ -600,6 +636,22 @@ def _run_staged_pipeline(
 
     if not solve_ok:
         return timings
+
+    # Before the NetCDF is written, so the per-component capital_premium the cost extractors bill
+    # is saved with the network.
+    if tranches is not None:
+        usage = capacity_tranches.tranche_usage(network, tranches)
+        capacity_tranches.allocate_premiums(network, usage, members)
+        usage.to_json(
+            outputs_dir / "capacity_tranches.json", orient="records", indent=2
+        )
+        timings["capacity_premium_aud_per_yr"] = (
+            usage.groupby("kind")["premium_aud_per_yr"].sum().to_dict()
+        )
+        print(
+            f"\n=== CAPACITY PREMIUMS === {timings['capacity_premium_aud_per_yr']}",
+            flush=True,
+        )
 
     t = time.perf_counter()
     save_pypsa_network(network, outputs_dir, "capacity_expansion")
@@ -902,6 +954,24 @@ def main():
         "limits. AEMO's REZ group constraints are not scaled. Default: IASR limits "
         "unchanged.",
     )
+    ap.add_argument(
+        "--social-licence-premiums",
+        type=str,
+        default=None,
+        help="Comma-separated premium fractions, e.g. '0.15,0.60'. Prices REZ "
+        "generation above AEMO's published resource limits as two bounded relaxation "
+        "tranches, and REZ and corridor capacity above published headroom as link "
+        "tranches, and adds the NSW and Victorian landholder payments to every "
+        "expansion link. Default: no social-licence premium.",
+    )
+    ap.add_argument(
+        "--build-rate-premiums",
+        type=Path,
+        default=None,
+        help="Build-rate premium curve CSV (group, tranche, financial_year, cap_mw, "
+        "adder_$/mw/yr) pricing each carrier's new build above the period's baseline "
+        "additions. Default: no build-rate premium.",
+    )
     args = ap.parse_args()
     if args.carried_tranches_dir is not None and args.current_year is None:
         ap.error("--carried-tranches-dir requires --current-year.")
@@ -973,6 +1043,8 @@ def main():
             co2_cap_t=args.co2_cap_t,
             rez_limit_factor=args.rez_limit_factor,
             flow_path_limit_factor=args.flow_path_limit_factor,
+            social_licence_premiums=args.social_licence_premiums,
+            build_rate_premiums=args.build_rate_premiums,
         )
         record.update(timings)
         record["wall_clock_s"] = time.perf_counter() - t_total

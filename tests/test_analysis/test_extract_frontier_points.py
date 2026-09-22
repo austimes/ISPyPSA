@@ -19,9 +19,11 @@ from analysis.sharp.frontier_points import (
     _assemble_frontier_row,
     _carried_vintage_capex,
     _existing_fleet_fom,
+    _one_vintage_capex,
     _solve_diagnostics,
     _surviving_new_builds,
 )
+from analysis.sharp.method_years import _active_capex
 
 # ---------------------------------------------------------------------------
 # _surviving_new_builds — vintage isolation + retirement
@@ -85,10 +87,12 @@ def _save_vintage_network(tmp_path: Path, vintage_year: int, gens: list[dict]) -
         [(vintage_year, pd.Timestamp(f"{vintage_year}-07-01 00:00"))]
     )
     n.add("Bus", "n")
+    solved = ("p_nom_opt", "capital_premium")
     for g in gens:
-        attrs = {k: v for k, v in g.items() if k not in ("name", "p_nom_opt")}
+        attrs = {k: v for k, v in g.items() if k not in ("name", *solved)}
         n.add("Generator", g["name"], bus="n", **attrs)
-    n.generators["p_nom_opt"] = [g["p_nom_opt"] for g in gens]
+    for column in (c for c in solved if c in gens[0]):
+        n.generators[column] = [g[column] for g in gens]
     path = tmp_path / f"v{vintage_year}.nc"
     n.export_to_netcdf(path)
     return path
@@ -446,3 +450,49 @@ def test_tolerance_robust_false_when_metric_above_tolerance(tmp_path):
     result = _solve_diagnostics(record)
 
     assert result["tolerance_robust"] is False
+
+
+# ---------------------------------------------------------------------------
+# capital_premium — the priced capacity curves reaching the cost columns
+# ---------------------------------------------------------------------------
+
+
+def test_one_vintage_capex_bills_the_capital_premium(tmp_path):
+    nc_path = _save_vintage_network(
+        tmp_path,
+        2030,
+        [
+            dict(
+                name="wind_2030",
+                p_nom_extendable=True,
+                build_year=2030,
+                lifetime=30.0,
+                capital_cost=200.0,
+                capital_premium=50.0,
+                p_nom_opt=1000.0,
+            ),
+        ],
+    )
+
+    capex, gw = _one_vintage_capex(nc_path, vintage_year=2030, at_year=2040)
+
+    assert capex == 250.0 * 1000.0
+    assert gw == 1.0
+
+
+def test_active_capex_bills_the_capital_premium_and_leaves_premium_less_frames_alone():
+    priced = pd.DataFrame(
+        {
+            "build_year": [2030.0],
+            "lifetime": [30.0],
+            "capital_cost": [200.0],
+            "capital_premium": [50.0],
+            "p_nom_opt": [1000.0],
+        }
+    )
+
+    assert _active_capex(priced, 2040, "p_nom_opt") == 250.0 * 1000.0
+    assert (
+        _active_capex(priced.drop(columns="capital_premium"), 2040, "p_nom_opt")
+        == 200.0 * 1000.0
+    )
