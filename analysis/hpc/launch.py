@@ -22,6 +22,7 @@ extract array through it as well, so the two entry points cannot disagree.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Literal
@@ -43,23 +44,26 @@ def sbatch_command(
     env: Env,
     dependency: str | None = None,
 ) -> list[str]:
-    """The ``sbatch`` command line for one array submission of ``script``."""
-    exported = {
-        "RUN_DIR": layout.root.as_posix(),
-        "REPO": REPO_ROOT.as_posix(),
-        **export,
-    }
+    """The ``sbatch`` command line for one array submission of ``script``.
+
+    Variables reach the job through the submitting environment (see ``job_environment``)
+    rather than ``--export`` items, whose comma separator would split flag values.
+    """
     return [
         "sbatch",
         f"--array={array}",
-        "--export=ALL,"
-        + ",".join(f"{name}={value}" for name, value in exported.items()),
+        "--export=ALL",
         *([f"--account={env.slurm_account}"] if env.slurm_account else []),
         *([f"--partition={env.slurm_partition}"] if env.slurm_partition else []),
         f"--output={(layout.campaign / 'slurm').as_posix()}/%x-%A_%a.out",
         *([f"--dependency={dependency}"] if dependency else []),
         script.as_posix(),
     ]
+
+
+def job_environment(export: dict[str, str], layout: OutputLayout) -> dict[str, str]:
+    """Variables every array task reads: the launch directory, the repo and the extras."""
+    return {"RUN_DIR": layout.root.as_posix(), "REPO": REPO_ROOT.as_posix(), **export}
 
 
 def submit(
@@ -81,8 +85,16 @@ def submit(
     """
     (layout.campaign / "slurm").mkdir(parents=True, exist_ok=True)
     command = sbatch_command(script, array, export, layout, env, dependency)
+    environment = job_environment(export, layout)
+    print(" ".join(f"{name}={value}" for name, value in environment.items()))
     print(" ".join(command))
-    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, **environment},
+    )
     return result.stdout.split()[-1]
 
 
