@@ -1,0 +1,6 @@
+source_id,citation,publication_date,institution,document_location,slug,url
+S001,"Chain submission script: milestones, representative weeks, solver flags and Slurm allocation.",,This fork,analysis/hpc/slurm/chain.sbatch,ispypsa_fork_chain_sbatch,
+S002,Generated per-period ISPyPSA configuration and solver argument definitions.,,This fork,analysis/hpc/solve.py and analysis/hpc/instrumented_runner.py,ispypsa_fork_period_config,
+S003,Recursive-dynamic capacity roll-forward between milestones.,,This fork,analysis/model/recursive_dynamic.py,ispypsa_fork_recursive_dynamic,
+S004,"Trace extension to 2060, hydro budget clamping and fuel supply curves held to 2060.",,This fork,"analysis/hpc/tracedirs.py, src/ispypsa/pypsa_build/generators.py, analysis/model/data/gas_supply_curve_central_held_to_2060.csv, analysis/model/data/biomass_supply_curve_central_held_to_2060.csv",ispypsa_fork_2060_hold,
+S005,"ShARP review of solved ISPyPSA networks, confirming the 4368-snapshot annualisation convention.",,ShARP,docs/reviews/ispypsa-electricity/quantity-reconciliation.md at ShARP commit a09411440235da436607cb31bffb232aaeb35a50,sharp_ispypsa_quantity_reconciliation,

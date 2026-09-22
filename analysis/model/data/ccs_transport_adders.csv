@@ -1,0 +1,16 @@
+isp_sub_region_id,reference_node,sink,distance_km,transport_$/t
+CNSW,Wellington,carbonnet,840.0,92.06
+CQ,Broadsound,cooper_hub,1370.0,150.15
+CSA,Torrens Island,otway_hub,720.0,78.91
+GG,Calliope River,cooper_hub,1490.0,163.3
+MEL,Thomastown,carbonnet,250.0,27.4
+NNSW,Armidale,carbonnet,1210.0,132.62
+NQ,Ross,cooper_hub,1480.0,162.21
+NSA,Davenport,cooper_hub,680.0,74.53
+SESA,South East,otway_hub,270.0,29.59
+SEV,Hazelwood,carbonnet,80.0,8.77
+SNSW,Canberra,carbonnet,490.0,53.7
+SNW,Sydney West,carbonnet,770.0,84.39
+SQ,South Pine,cooper_hub,1580.0,173.17
+TAS,George Town,carbonnet,380.0,41.65
+WNV,Moorabool,otway_hub,160.0,17.54

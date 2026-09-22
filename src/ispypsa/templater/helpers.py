@@ -274,8 +274,18 @@ def _strip_all_text_after_numeric_value(
         # - Either properly formatted numbers with commas (1,234) or simple numbers (1234)
         # - Optional decimal part with one period
         # - Followed by optional whitespace and any other text
+        #
+        # The comma-formatted branch requires at least one `,###` group. Written as
+        # `(?:,[0-9]{3})*` (zero or more) it also matched a bare `[0-9]{1,3}`, and
+        # because alternation is ordered and the trailing `.*` absorbed whatever was
+        # left, the overall match succeeded on its first three digits and never
+        # backtracked into `[0-9]+` - silently truncating every plain 4+ digit value
+        # to three digits ("1660" -> "166", "2131000" -> "213"). Comma-formatted and
+        # <=3-digit values were unaffected, which is why it went unnoticed. Requiring
+        # `+` here makes the two branches disjoint, so a plain integer can only be
+        # matched by `[0-9]+`, which is greedy and takes all of it.
         series = series.astype(str).str.replace(
-            r"^([+-]?(?:[0-9]{1,3}(?:,[0-9]{3})*|[0-9]+)(?:\.[0-9]+)?)\s*.*",
+            r"^([+-]?(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.[0-9]+)?)\s*.*",
             r"\1",
             regex=True,
         )

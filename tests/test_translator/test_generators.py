@@ -362,6 +362,33 @@ def test_add_new_entrant_generator_build_costs(
     pd.testing.assert_frame_equal(result, expected_result_df, check_dtype=False)
 
 
+def test_add_new_entrant_generator_build_costs_beyond_published_years(
+    csv_str_to_df, sample_generator_translator_tables
+):
+    """Test that a build year beyond the published table holds the last published cost."""
+    generators_csv = """
+    generator_name,           build_year
+    CCGT,                     2025
+    CCGT,                     2035
+    Wind,                     2035
+    """
+    generators_df = csv_str_to_df(generators_csv)
+
+    build_costs_df = sample_generator_translator_tables["new_entrant_build_costs"]
+
+    result = _add_new_entrant_generator_build_costs(generators_df, build_costs_df)
+
+    expected_result = """
+    generator_name,           build_year,    build_cost_$/mw
+    CCGT,                     2025,          1900000
+    CCGT,                     2035,          1900000
+    Wind,                     2035,          1500000
+    """
+    expected_result_df = csv_str_to_df(expected_result)
+
+    pd.testing.assert_frame_equal(result, expected_result_df, check_dtype=False)
+
+
 def test_add_new_entrant_generator_build_costs_missing_build_year(
     csv_str_to_df, sample_generator_translator_tables
 ):
@@ -417,7 +444,7 @@ def test_get_vre_connection_costs_dict(csv_str_to_df):
     vre_costs_df = csv_str_to_df(vre_costs_csv)
 
     # Call the function
-    result = _get_vre_connection_costs_dict(vre_costs_df)
+    result = _get_vre_connection_costs_dict(vre_costs_df, [2025, 2040])
 
     expected_result = {
         "Northern Qld_2025": 60000.0,
@@ -428,6 +455,29 @@ def test_get_vre_connection_costs_dict(csv_str_to_df):
         "Leigh Creek_2040": 120000.0,
         "Tumut_2025": 220000.0,
         "Tumut_2040": 220000.0,
+    }
+
+    assert result == expected_result
+
+
+def test_get_vre_connection_costs_dict_beyond_published_years(csv_str_to_df):
+    """Test that a build year beyond the published table holds the last published cost."""
+    vre_costs_csv = """
+    REZ__names,                2024_25_$/mw,  2039_40_$/mw, system_strength_connection_cost_$/mw
+    Northern__Qld,             50000,         45000,        10000
+    Wide__Bay,                 55000,         50000,        12000
+    """
+    vre_costs_df = csv_str_to_df(vre_costs_csv)
+
+    result = _get_vre_connection_costs_dict(vre_costs_df, [2025, 2040, 2045])
+
+    expected_result = {
+        "Northern Qld_2025": 60000.0,
+        "Northern Qld_2040": 55000.0,
+        "Northern Qld_2045": 55000.0,
+        "Wide Bay_2025": 67000.0,
+        "Wide Bay_2040": 62000.0,
+        "Wide Bay_2045": 62000.0,
     }
 
     assert result == expected_result
@@ -619,6 +669,68 @@ def test_get_single_carrier_fuel_prices_simple(
         expected_black_coal_prices.sort_values("isp_fuel_cost_mapping").reset_index(
             drop=True
         ),
+    )
+
+
+def test_get_single_carrier_fuel_prices_gas_blended(
+    sample_generator_translator_tables, csv_str_to_df
+):
+    """Test that by default the Gas carrier price includes the biomethane blend."""
+    ispypsa_tables = {
+        key: sample_generator_translator_tables[key]
+        for key in [
+            "gas_prices",
+            "biomethane_prices",
+            "gpg_emissions_reduction_biomethane",
+        ]
+    }
+    generators_df = sample_generator_translator_tables["translated_generators_df"]
+
+    gas_prices = _get_single_carrier_fuel_prices("Gas", generators_df, ispypsa_tables)
+
+    # base_price * base_percentage + blend_price * (1 - base_percentage), e.g.
+    # 20.0 * 0.9 + 40.0 * 0.1 = 22.0 in 2022_23.
+    expected_gas_prices = """
+    isp_fuel_cost_mapping,   2022_23_$/gj,  2023_24_$/gj,  2024_25_$/gj,  carrier
+    Bairnsdale,              22.0,          23.8,          24.4,          Gas
+    SA__new__CCGT,           22.0,          23.8,          24.4,          Gas
+    """
+    expected_gas_prices = csv_str_to_df(expected_gas_prices)
+
+    pd.testing.assert_frame_equal(
+        gas_prices.sort_values("isp_fuel_cost_mapping").reset_index(drop=True),
+        expected_gas_prices.sort_values("isp_fuel_cost_mapping").reset_index(drop=True),
+    )
+
+
+def test_get_single_carrier_fuel_prices_gas_unblended(
+    sample_generator_translator_tables, csv_str_to_df
+):
+    """Test that switching the blend off prices Gas from the gas price table alone."""
+    ispypsa_tables = {
+        key: sample_generator_translator_tables[key]
+        for key in [
+            "gas_prices",
+            "biomethane_prices",
+            "gpg_emissions_reduction_biomethane",
+        ]
+    }
+    generators_df = sample_generator_translator_tables["translated_generators_df"]
+
+    gas_prices = _get_single_carrier_fuel_prices(
+        "Gas", generators_df, ispypsa_tables, blend_biomethane_into_gas=False
+    )
+
+    expected_gas_prices = """
+    isp_fuel_cost_mapping,   2022_23_$/gj,  2023_24_$/gj,  2024_25_$/gj,  carrier
+    Bairnsdale,              20.0,          21.0,          22.0,          Gas
+    SA__new__CCGT,           20.0,          21.0,          22.0,          Gas
+    """
+    expected_gas_prices = csv_str_to_df(expected_gas_prices)
+
+    pd.testing.assert_frame_equal(
+        gas_prices.sort_values("isp_fuel_cost_mapping").reset_index(drop=True),
+        expected_gas_prices.sort_values("isp_fuel_cost_mapping").reset_index(drop=True),
     )
 
 
@@ -1410,3 +1522,71 @@ def test_create_pypsa_friendly_new_entrant_generator_timeseries(tmp_path):
     got_trace = pd.read_parquet(tmp_path / Path("wind_traces/Wind_Q1_WM.parquet"))
 
     pd.testing.assert_frame_equal(expected_trace, got_trace)
+
+
+def test_calculate_dynamic_marginal_cost_adds_per_generator_ccs_transport(
+    csv_str_to_df,
+):
+    """The CCS supply curve prices CO2 transport per generator against its assigned
+    sink, so the adder varies by bus where the superseded scalar tns_price could not.
+    Storage is priced separately at the injectivity tranche, not here."""
+    snapshots = csv_str_to_df("""
+    investment_periods,     snapshots
+    2050,                   2049-07-01__12:00:00
+    """)
+    snapshots["snapshots"] = pd.to_datetime(snapshots["snapshots"])
+
+    generator_df = csv_str_to_df("""
+    name,                    carrier,  isp_fuel_cost_mapping,  isp_heat_rate_gj/mwh,  isp_vom_$/mwh_sent_out,  isp_residual_co2_t_per_mwh,  isp_captured_co2_t_per_mwh,  isp_ccs_transport_$/t,  marginal_cost
+    ccgt_with_ccs_snw_2050,  Gas,      SNW__new__CCGT,         9.039648,              0.0,                     0.046581,                    0.419232,                    84.39,                  ccgt_with_ccs_snw
+    """)
+
+    result = _calculate_dynamic_marginal_costs_single_generator(
+        generator_df.iloc[0],
+        pd.Series({"2049_50_$/gj": 10.0}),
+        snapshots,
+        carbon_price=550.0,
+    )
+
+    # fuel 9.039648 * 10 = 90.39648, VOM 0, carbon 550 * 0.046581 = 25.61955,
+    # transport 84.39 * 0.419232 = 35.37898848 -> 151.39501848 $/MWh
+    expected = csv_str_to_df("""
+    investment_periods,     snapshots,                  marginal_cost
+    2050,                   2049-07-01__12:00:00,       151.39501848
+    """)
+    expected["snapshots"] = pd.to_datetime(expected["snapshots"])
+
+    pd.testing.assert_frame_equal(result.sort_index(), expected.sort_index(), rtol=1e-6)
+
+
+def test_calculate_dynamic_marginal_cost_leaves_uncapturing_generators_alone(
+    csv_str_to_df,
+):
+    """A transport adder on a generator that captures nothing must not change its
+    cost, so the column is safe to attach to the whole generators table."""
+    snapshots = csv_str_to_df("""
+    investment_periods,     snapshots
+    2050,                   2049-07-01__12:00:00
+    """)
+    snapshots["snapshots"] = pd.to_datetime(snapshots["snapshots"])
+
+    generator_df = csv_str_to_df("""
+    name,           carrier,  isp_fuel_cost_mapping,  isp_heat_rate_gj/mwh,  isp_vom_$/mwh_sent_out,  isp_residual_co2_t_per_mwh,  isp_captured_co2_t_per_mwh,  isp_ccs_transport_$/t,  marginal_cost
+    ccgt_snw_2050,  Gas,      SNW__new__CCGT,         7.24923,               0.0,                     0.373550,                    0.0,                         84.39,                  ccgt_snw
+    """)
+
+    result = _calculate_dynamic_marginal_costs_single_generator(
+        generator_df.iloc[0],
+        pd.Series({"2049_50_$/gj": 10.0}),
+        snapshots,
+        carbon_price=550.0,
+    )
+
+    # fuel 72.4923 + carbon 550 * 0.37355 = 205.4525 -> 277.9448, no transport term.
+    expected = csv_str_to_df("""
+    investment_periods,     snapshots,                  marginal_cost
+    2050,                   2049-07-01__12:00:00,       277.944800
+    """)
+    expected["snapshots"] = pd.to_datetime(expected["snapshots"])
+
+    pd.testing.assert_frame_equal(result.sort_index(), expected.sort_index(), rtol=1e-6)

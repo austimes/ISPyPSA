@@ -4,16 +4,21 @@ battery_properties:
   end_row: 13
   column_range: "B:J"
 
+# v7.8 workbook layout: header row 23 ("Power Station / Installed capacity (MW)
+# / Storage capacity (hours) / Pumping efficiency (%)"), existing, committed,
+# anticipated and additional data rows 24-30 (Snowy 2.0 to Borumba),
+# new-entrant data rows 24-27 (BOTN - Cethana - 20h to Pumped Hydro (48hrs
+# storage)).
 pumped_hydro_existing_committed_anticipated_additional_properties:
   sheet_name: "Storage properties"
-  header_rows: 22
-  end_row: 29
+  header_rows: 23
+  end_row: 30
   column_range: "B:E"
 
 pumped_hydro_new_entrant_properties:
   sheet_name: "Storage properties"
-  header_rows: 22
-  end_row: 26
+  header_rows: 23
+  end_row: 27
   column_range: "G:J"
 
 on_site_diesel_properties:

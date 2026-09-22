@@ -1,0 +1,5 @@
+source_id,citation,publication_date,institution,document_location,slug,url
+S001,"Limits inventory: every REZ, flow-path, biomass, PHES, hydro and unserved-energy limit the campaign enforces, with binding flags against two reference solves and a proposed relaxed value for each.",,This fork,Working note rez_transmission_limits.md; not committed to this repository,ispypsa_fork_limits_inventory,
+S002,REZ limit relaxation switch as implemented.,,This fork,analysis/model/rez_limits.py,ispypsa_fork_rez_limits_switch,
+S003,"AEMO 2026 IASR renewable energy zone, flow path and expansion cost tables as templated into ISPyPSA inputs.",2026,Australian Energy Market Operator,"Per-run ispypsa_inputs/renewable_energy_zones.csv, flow_paths.csv, flow_path_expansion_costs.csv, rez_transmission_expansion_costs.csv; not in this repository",aemo_iasr_2026_rez_and_flow_path_tables,https://aemo.com.au/energy-systems/major-publications/integrated-system-plan-isp/isp-inputs-assumptions-and-scenarios
+S004,Binding-constraint probe of a run set solved with the REZ limits doubled.,,This fork,Probe transcript; not committed to this repository,ispypsa_fork_relaxed_limits_probe,

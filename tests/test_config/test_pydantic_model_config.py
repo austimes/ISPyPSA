@@ -442,3 +442,87 @@ def test_base_paths_only():
     assert not hasattr(model.paths, "capacity_expansion_timeseries_location")
     assert not hasattr(model.paths, "operational_timeseries_location")
     assert not hasattr(model.paths, "pypsa_outputs_directory")
+
+
+def test_ccs_supply_curve_defaults_to_off():
+    """Omitting the block leaves CO2 disposal free and unlimited, which is the
+    pre-existing behaviour and matches AEMO's own ISP treatment."""
+    model = ModelConfig(**get_valid_config())
+
+    assert model.ccs_supply_curve.sink_tranches_csv is None
+    assert model.ccs_supply_curve.transport_csv is None
+
+
+def test_ccs_supply_curve_accepts_both_csvs():
+    config = get_valid_config()
+    config["ccs_supply_curve"] = {
+        "sink_tranches_csv": "tranches.csv",
+        "transport_csv": "transport.csv",
+    }
+
+    model = ModelConfig(**config)
+
+    assert model.ccs_supply_curve.sink_tranches_csv == "tranches.csv"
+    assert model.ccs_supply_curve.transport_csv == "transport.csv"
+
+
+@pytest.mark.parametrize(
+    "ccs_supply_curve",
+    [
+        {"sink_tranches_csv": "tranches.csv"},
+        {"transport_csv": "transport.csv"},
+    ],
+)
+def test_ccs_supply_curve_needs_both_csvs_or_neither(ccs_supply_curve):
+    """Sink tranches limit injection and transport prices the pipeline to it; one
+    without the other is a half-specified curve."""
+    config = get_valid_config()
+    config["ccs_supply_curve"] = ccs_supply_curve
+
+    with pytest.raises(
+        ValidationError,
+        match="needs both sink_tranches_csv and transport_csv, or neither",
+    ):
+        ModelConfig(**config)
+
+
+def test_ccs_supply_curve_cannot_be_set_alongside_tns_price():
+    """Both price disposal of the same captured tonne, so allowing both would
+    double-count it. tns_price is the superseded flat alternative."""
+    config = get_valid_config()
+    config["carbon_pricing"] = {"carbon_price": 550.0, "tns_price": 20.0}
+    config["ccs_supply_curve"] = {
+        "sink_tranches_csv": "tranches.csv",
+        "transport_csv": "transport.csv",
+    }
+
+    with pytest.raises(
+        ValidationError, match="tns_price is superseded by ccs_supply_curve"
+    ):
+        ModelConfig(**config)
+
+
+def test_tns_price_still_works_without_a_ccs_supply_curve():
+    """Retained so the archived prod_* configs carrying tns_price stay reproducible."""
+    config = get_valid_config()
+    config["carbon_pricing"] = {"carbon_price": 550.0, "tns_price": 20.0}
+
+    model = ModelConfig(**config)
+
+    assert model.carbon_pricing.tns_price == 20.0
+
+
+def test_fuel_pricing_defaults_to_blending_biomethane_into_gas():
+    """Omitting the block keeps AEMO's biomethane blend in the gas price trajectory."""
+    model = ModelConfig(**get_valid_config())
+
+    assert model.fuel_pricing.blend_biomethane_into_gas is True
+
+
+def test_fuel_pricing_can_switch_the_biomethane_blend_off():
+    config = get_valid_config()
+    config["fuel_pricing"] = {"blend_biomethane_into_gas": False}
+
+    model = ModelConfig(**config)
+
+    assert model.fuel_pricing.blend_biomethane_into_gas is False
