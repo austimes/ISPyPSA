@@ -216,16 +216,18 @@ def _year_schedule(values: dict[str, float], years: list[int]) -> str:
 
 
 def _pipeline_args(plan: dict, years: list[int]) -> str:
-    """Near-term pin flags for a chain's periods at or before the plan's pipeline period, with the rush charge."""
+    """Near-term pin flags for a chain's periods at or before the plan's pipeline period, with the rush charge and ceiling."""
     pinned = [year for year in years if year <= plan["pipeline_period"]]
     if not pinned:
         return ""
     rush = plan["pipeline_rush_charge_aud_per_mw_yr"]
+    ceiling = plan["pipeline_rush_ceiling_mw"]
     return (
         f" --pipeline-period {plan['pipeline_period']}"
         f" --new-entrant-cap-mw {_year_schedule(plan['new_entrant_cap_mw_by_year'], pinned)}"
         f" --new-entrant-storage-cap-mw {_year_schedule(plan['new_entrant_storage_cap_mw_by_year'], pinned)}"
         f" --pipeline-rush-charge {rush['generation']},{rush['storage']}"
+        f" --pipeline-rush-ceiling-mw {ceiling['generation']},{ceiling['storage']}"
     )
 
 

@@ -72,11 +72,7 @@ def _template_battery_properties(
     iasr_tables["battery_properties"] = battery_properties
 
     # Separate out ECAA and new entrants again for some of the merging in of static properties
-    ecaa_battery_summary = cleaned_battery_summaries[
-        cleaned_battery_summaries["status"].isin(
-            ["Existing", "Committed", "Anticipated", "Additional projects"]
-        )
-    ].copy()
+    ecaa_battery_summary = _filter_to_ecaa_batteries(cleaned_battery_summaries)
     merged_cleaned_ecaa_battery_summaries = (
         _merge_and_set_ecaa_battery_static_properties(ecaa_battery_summary, iasr_tables)
     )
@@ -110,6 +106,25 @@ def _template_battery_properties(
         merged_cleaned_ecaa_battery_summaries[ecaa_required_cols],
         merged_cleaned_new_entrant_battery_summaries[new_entrant_required_cols],
     )
+
+
+def _filter_to_ecaa_batteries(batteries: pd.DataFrame) -> pd.DataFrame:
+    """Keep existing, committed, anticipated and additional battery projects.
+
+    The 2024 IASR labels additional projects "Additional projects" and the 2026 IASR
+    "Additional policy-supported project", so both are kept.
+    """
+    return batteries[
+        batteries["status"].isin(
+            [
+                "Existing",
+                "Committed",
+                "Anticipated",
+                "Additional projects",
+                "Additional policy-supported project",
+            ]
+        )
+    ].copy()
 
 
 def _clean_storage_summary(df: pd.DataFrame) -> pd.DataFrame:

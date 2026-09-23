@@ -17,6 +17,7 @@ from ispypsa.templater.storage import (
     _add_unique_new_entrant_storage_name_column,
     _calculate_and_merge_tech_specific_lcfs,
     _calculate_storage_duration_hours,
+    _filter_to_ecaa_batteries,
     _merge_table_data,
     _process_and_merge_connection_cost,
     _process_and_merge_opex,
@@ -100,6 +101,26 @@ def test_merge_and_set_battery_static_properties_string_handling(
                 assert not df[col].apply(lambda x: isinstance(x, str)).any(), (
                     f"Column {col} contains string values"
                 )
+
+
+def test_ecaa_batteries_keep_both_iasr_additional_project_labels(csv_str_to_df):
+    batteries = csv_str_to_df("""
+        storage_name,  status
+        Existing,      Existing
+        Add 2024,      Additional__projects
+        Add 2026,      Additional__policy-supported__project
+        New,           New__Entrant
+    """)
+
+    result = _filter_to_ecaa_batteries(batteries)
+
+    expected = csv_str_to_df("""
+        storage_name,  status
+        Existing,      Existing
+        Add 2024,      Additional__projects
+        Add 2026,      Additional__policy-supported__project
+    """)
+    pd.testing.assert_frame_equal(result, expected)
 
 
 def test_ecaa_battery_commissioning_date_reads_committed_and_indicative_dates(

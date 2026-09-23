@@ -147,25 +147,22 @@ to reproduce what the fleet did, not to choose new plant.
 
 ## The allowance on the corrected pipeline
 
-Two roster faults found while counting the storage pipeline are fixed in the model builder, and both move the 2030
+Three roster faults found while counting the storage pipeline are fixed in the model builder, and each moves the 2030
 allowance.
 
 | Fault | Fix | Effect on the roster |
 | ----- | --- | -------------------- |
 | The ISPyPSA parser read the IASR summary sheet only to row 648, while the final workbook's data runs to row 732 | Parser configuration end row corrected | 10 committed and 29 anticipated batteries enter: batteries active in 2030 rise from 14.594 GW (88 units) to 24.280 GW (120 units). 25 wind and solar generators are restored too, but stay out of the solve until their traces are parsed |
 | Committed commissioning dates were dropped in templating | Dates carried through | The 2026 solve holds 8.602 GW of batteries (53 units), not 11.028 GW |
-
-One fault remains: the storage translator in `src/ispypsa/translator/storage.py` matches the status label "Additional
-projects", while the workbook writes "Additional policy-supported project". So the 29 policy-supported batteries (8.05
-GW, 7.56 GW of it dated on or before FY2030) are still dropped.
+| The battery templater in `src/ispypsa/templater/storage.py` kept only the 2024 IASR label "Additional projects", while the 2026 workbook writes "Additional policy-supported project" | Both labels kept | The 29 policy-supported batteries enter: 8.05 GW, 7.56 GW of it dated on or before FY2030 |
 
 Storage at 2030, gigawatts:
 
 | Roster | Batteries | Pumped hydro | Total | Against the 27 GW milestone (S004) |
 | ------ | --------: | -----------: | ----: | ---------------------------------: |
 | Before the fixes | 14.594 | 6.075 | 20.7 | 6.3 of room |
-| With the fixes | 24.280 | 6.075 | 30.4 | 3.4 over |
-| With the policy-supported batteries as well | 31.8 | 6.075 | 37.9 | 10.9 over |
+| With the parser and date fixes | 24.280 | 6.075 | 30.4 | 3.4 over |
+| With all three fixes | 31.8 | 6.075 | 37.9 | 10.9 over |
 
 **The 2030 storage allowance is 0 MW** (A009). The corrected pipeline already holds more storage than AEMO's draft path
 wanted by 2030. It still does when pumped hydro counts only where its commissioning date falls by FY2030 (3.3 GW, total

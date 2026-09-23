@@ -108,7 +108,16 @@ def test_pipeline_build_above_the_allowance_pays_the_rush_charge(
     }
 
     tranches, members = campaign_tranches(
-        network, tables, 2030, None, None, 1.0, 1.0, (10.0, 5.0), (7.0, 3.0)
+        network,
+        tables,
+        2030,
+        None,
+        None,
+        1.0,
+        1.0,
+        (10.0, 5.0),
+        (7.0, 3.0),
+        (25.0, 6.0),
     )
     add_priced_tranches(network, tranches, members)
     network.optimize.solve_model(solver_name="highs")
@@ -117,7 +126,7 @@ def test_pipeline_build_above_the_allowance_pays_the_rush_charge(
     expected = csv_str_to_df("""
         kind,           group,                period,  tranche,  width_mw,  adder
         pipeline_rush,  pipeline_generation,  2030,    1,        10.0,      0.0
-        pipeline_rush,  pipeline_generation,  2030,    2,        10.0,      7.0
+        pipeline_rush,  pipeline_generation,  2030,    2,        15.0,      7.0
     """).assign(mw_used=expected_mw, premium_aud_per_yr=expected_premium)
     pd.testing.assert_frame_equal(
         result, expected, check_exact=False, rtol=1e-5, check_dtype=False

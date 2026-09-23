@@ -312,6 +312,7 @@ def _run_staged_pipeline(
     social_licence_premiums: str | None = None,
     build_rate_premiums: Path | None = None,
     pipeline_rush_charge: str | None = None,
+    pipeline_rush_ceiling_mw: str | None = None,
 ) -> dict:
     """Run the ISPyPSA pipeline with per-stage timing. Returns timings dict.
 
@@ -400,6 +401,7 @@ def _run_staged_pipeline(
         config.filter_by_isp_sub_regions,
     )
     rush_charge = capacity_tranches.parse_premiums(pipeline_rush_charge)
+    rush_ceilings = capacity_tranches.parse_premiums(pipeline_rush_ceiling_mw)
     ispypsa_tables = apply_model_patches(
         ispypsa_tables,
         config,
@@ -407,7 +409,7 @@ def _run_staged_pipeline(
         flow_path_limit_factor=flow_path_limit_factor,
         new_entrant_cap_mw=new_entrant_cap_mw,
         new_entrant_storage_cap_mw=new_entrant_storage_cap_mw,
-        rush_priced=rush_charge is not None,
+        rush_ceilings_mw=rush_ceilings,
     )
     # REQUIRED for the Draft 2026 trace store: drop VRE new entrants whose
     # (rez_id, isp_resource_type) has no 2026 trace (Q8 split; N10/N11 fixed
@@ -619,6 +621,7 @@ def _run_staged_pipeline(
             flow_path_limit_factor or 1.0,
             (new_entrant_cap_mw, new_entrant_storage_cap_mw),
             rush_charge,
+            rush_ceilings,
         )
         capacity_tranches.add_priced_tranches(network, tranches, members)
         print(
@@ -991,8 +994,15 @@ def main():
         type=str,
         default=None,
         help="Comma-separated generation and storage rush charges in A$/MW/yr, e.g. "
-        "'98000,26000', on new-entrant build above the near-term allowances, whose hard "
-        "ceilings then rise to twice the allowance. Default: the allowances are hard caps.",
+        "'71400,24900', on new-entrant build above the near-term allowances, up to "
+        "--pipeline-rush-ceiling-mw. Default: the allowances are hard caps.",
+    )
+    ap.add_argument(
+        "--pipeline-rush-ceiling-mw",
+        type=str,
+        default=None,
+        help="Comma-separated generation and storage hard ceilings in MW on new-entrant "
+        "build where the rush charge applies, e.g. '26000,6000'.",
     )
     args = ap.parse_args()
     if args.carried_tranches_dir is not None and args.current_year is None:
@@ -1069,6 +1079,7 @@ def main():
             social_licence_premiums=args.social_licence_premiums,
             build_rate_premiums=args.build_rate_premiums,
             pipeline_rush_charge=args.pipeline_rush_charge,
+            pipeline_rush_ceiling_mw=args.pipeline_rush_ceiling_mw,
         )
         record.update(timings)
         record["wall_clock_s"] = time.perf_counter() - t_total

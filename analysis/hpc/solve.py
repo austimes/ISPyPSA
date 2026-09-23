@@ -430,6 +430,7 @@ def main(
     new_entrant_cap_mw: OptionalSchedule = None,
     new_entrant_storage_cap_mw: OptionalSchedule = None,
     pipeline_rush_charge: str | None = None,
+    pipeline_rush_ceiling_mw: str | None = None,
     parsed_traces_directory_schedule: OptionalSchedule = None,
     rep_weeks: OptionalYears = None,
     named_weeks: bool = True,
@@ -484,8 +485,9 @@ def main(
     :param new_entrant_storage_cap_mw: ``YEAR:MW`` NEM-wide allowance on new-entrant battery
         build, one entry per pinned period.
     :param pipeline_rush_charge: Generation and storage rush charges in A$/MW/yr, e.g.
-        ``98000,26000``, on new-entrant build above the allowance in the pipeline period itself,
-        whose hard ceiling then rises to twice the allowance.
+        ``71400,24900``, on new-entrant build above the allowance in the pipeline period itself.
+    :param pipeline_rush_ceiling_mw: Generation and storage hard ceilings in MW on new-entrant build
+        in the pipeline period itself where the rush charge applies, e.g. ``26000,6000``.
     :param parsed_traces_directory_schedule: ``YEAR:DIR`` trace store per period, one
         entry per period; defaults to the single trace store under ``IO_DIR``.
     :param rep_weeks: Numbered representative weeks sampled in each solve.
@@ -603,6 +605,7 @@ def main(
         "new_entrant_cap_mw": generation_allowance or None,
         "new_entrant_storage_cap_mw": storage_allowance or None,
         "pipeline_rush_charge": pipeline_rush_charge,
+        "pipeline_rush_ceiling_mw": pipeline_rush_ceiling_mw,
         "tranches_dir": str(tranches_dir) if tranches_dir else None,
         "output_root": str(layout.root),
         "carbon_price": carbon_price,
@@ -668,6 +671,9 @@ def main(
                     new_entrant_cap_mw=generation_allowance.get(year),
                     new_entrant_storage_cap_mw=storage_allowance.get(year),
                     pipeline_rush_charge=pipeline_rush_charge
+                    if year == pipeline_period
+                    else None,
+                    pipeline_rush_ceiling_mw=pipeline_rush_ceiling_mw
                     if year == pipeline_period
                     else None,
                 ),

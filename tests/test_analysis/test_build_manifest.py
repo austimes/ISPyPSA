@@ -71,7 +71,7 @@ def test_only_rows_solving_the_pipeline_period_carry_the_rush_charge(
 ):
     result = (
         chains.assign(
-            rush=chains["args"].str.contains("--pipeline-rush-charge 98000,26000"),
+            rush=chains["args"].str.contains("--pipeline-rush-charge 71400,24900"),
             branch_year=chains["branch_year"].replace("", 0),
         )
         .groupby(["stage", "rush"], as_index=False)
@@ -107,10 +107,10 @@ def test_sampled_caps_are_the_cell_intensity_at_the_cell_load(caps, csv_str_to_d
 
     expected = csv_str_to_df("""
         run_id,                                  year,  intensity,  intensity_basis,  source_twh,  cap_t
-        ext_step_change_sc,                      2026,  0.55646,    source,           185.3,       103112038
+        ext_step_change_sc,                      2026,  0.55646,    source,           190.1,       105783046
         ext_step_change_sc,                      2030,  0.19673,    source,           202.73,      39883073
         ext_step_change_b2040_d120_cap001034,    2040,  0.01034,    source,           338.724,     3502406
-        ext_step_change_b2060_d135_cap00006925,  2060,  0.0006925,  source,           517.32,      358244
+        ext_step_change_b2060_d135_cap00006925,  2060,  0.0006925,  source,           488.43,      338238
     """)
     pd.testing.assert_frame_equal(result, expected, check_dtype=False)
 
@@ -126,19 +126,20 @@ def test_chains_tsv_leads_with_the_base_chain_the_branches_seed_from(
     assert len(lines) == 505
     assert lines[0] == (
         f"ext_step_change_sc\t{traces}\t--periods 2026 2030 2035 2040 2045 2050 2055 2060 "
-        "--co2-cap-t-schedule 2026:103112038 2030:39883073 2035:15891510 2040:11674687 "
-        "2045:8345279 2050:4460254 2055:4865505 2060:5307320 --pipeline-period 2030 "
-        "--new-entrant-cap-mw 2026:500 2030:19000 "
-        "--new-entrant-storage-cap-mw 2026:500 2030:6000 "
-        "--pipeline-rush-charge 98000,26000"
+        "--co2-cap-t-schedule 2026:105783046 2030:39883073 2035:15891510 2040:11674687 "
+        "2045:8345279 2050:4460254 2055:4735315 2060:5010930 --pipeline-period 2030 "
+        "--new-entrant-cap-mw 2026:0 2030:13000 "
+        "--new-entrant-storage-cap-mw 2026:0 2030:0 "
+        "--pipeline-rush-charge 71400,24900 --pipeline-rush-ceiling-mw 26000,6000"
     )
     assert lines[1] == (
         "ext_step_change_b2030_d080_cap039346\t"
         "/io/inputs/tracedirs/iasr_step_change_b2030_d080.txt\t"
         "--periods 2030 --co2-cap-t-schedule 2030:63812917 "
         "--seed-state-from ext_step_change_sc --pin-base-stock "
-        "--pipeline-period 2030 --new-entrant-cap-mw 2030:19000 "
-        "--new-entrant-storage-cap-mw 2030:6000 --pipeline-rush-charge 98000,26000"
+        "--pipeline-period 2030 --new-entrant-cap-mw 2030:13000 "
+        "--new-entrant-storage-cap-mw 2030:0 --pipeline-rush-charge 71400,24900 "
+        "--pipeline-rush-ceiling-mw 26000,6000"
     )
 
 

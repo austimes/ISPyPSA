@@ -20,8 +20,8 @@ are this period's genuine new build, with widths from the cumulative capacity st
 
 **Pipeline rush, above the near-term allowances.** In the pipeline period, the new-entrant generators and the
 new-entrant batteries the pipeline pin caps (:mod:`analysis.model.pipeline_pin`) form one group each: the first
-tranche is that menu's allowance at no premium, the second the same width again at the rush charge in A$/MW/yr.
-Together they end at twice the allowance, where the pin's own hard ceiling sits.
+tranche is that menu's allowance at no premium, the second the rest of the way to the rush ceiling at the rush
+charge in A$/MW/yr. Together they end where the pin's own hard ceiling sits.
 
 **Landholder payments.** A flat per-megawatt adder on every expansion link's capital cost, converted from the New
 South Wales and Victorian per-kilometre host payment schemes at AEMO's own easement lengths. Applied before the
@@ -144,6 +144,7 @@ def campaign_tranches(
     flow_path_factor: float,
     pipeline_allowances_mw: tuple[float | None, float | None],
     pipeline_rush_charge: tuple[float, ...] | None,
+    pipeline_rush_ceilings_mw: tuple[float, ...] | None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Every priced capacity tranche of one solve and the components each group meters.
 
@@ -157,6 +158,7 @@ def campaign_tranches(
     :param pipeline_allowances_mw: New-entrant generation and storage allowances of this period.
     :param pipeline_rush_charge: Generation and storage rush charges in A$/MW/yr above the
         allowances, or ``None``.
+    :param pipeline_rush_ceilings_mw: Generation and storage hard ceilings in MW the rush tranche ends at.
     :return: The tranche frame and the member frame.
     """
     tranches, members = [], []
@@ -174,7 +176,10 @@ def campaign_tranches(
     if pipeline_rush_charge is not None:
         tranches.append(
             _pipeline_rush_tranches(
-                pipeline_allowances_mw, pipeline_rush_charge, period
+                pipeline_allowances_mw,
+                pipeline_rush_charge,
+                pipeline_rush_ceilings_mw,
+                period,
             )
         )
         members.append(_pipeline_rush_members(network, ispypsa_tables, period))
@@ -418,16 +423,18 @@ def _new_build_rows(
 def _pipeline_rush_tranches(
     allowances_mw: tuple[float | None, float | None],
     charges: tuple[float, ...],
+    ceilings_mw: tuple[float, ...],
     period: int,
 ) -> pd.DataFrame:
-    """Each menu's allowance free, then the same width again at its rush charge."""
+    """Each menu's allowance free, then the rest of the way to its ceiling at its rush charge."""
     groups = pd.Index(list(_PIPELINE_GROUPS))
     widths = pd.Series(allowances_mw, dtype=float)
+    rush_widths = pd.Series(ceilings_mw, dtype=float) - widths
     return pd.concat(
         [
             _tranche_rows("pipeline_rush", groups, period, 1, widths, widths * 0.0),
             _tranche_rows(
-                "pipeline_rush", groups, period, 2, widths, pd.Series(charges)
+                "pipeline_rush", groups, period, 2, rush_widths, pd.Series(charges)
             ),
         ],
         ignore_index=True,

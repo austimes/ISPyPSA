@@ -208,7 +208,8 @@ def test_pinned_periods_take_their_own_allowances_and_only_the_pipeline_period_t
         "pipeline_period": 2030,
         "new_entrant_cap_mw": ["2026:500", "2030:19000"],
         "new_entrant_storage_cap_mw": ["2026:400", "2030:6000"],
-        "pipeline_rush_charge": "98000,26000",
+        "pipeline_rush_charge": "71400,24900",
+        "pipeline_rush_ceiling_mw": "26000,6000",
     }
 
     early = _runner_flags_for(monkeypatch, tmp_path, 2026, **pin)
@@ -221,17 +222,20 @@ def test_pinned_periods_take_their_own_allowances_and_only_the_pipeline_period_t
         "--new-entrant-storage-cap-mw",
         "400.0",
     ]
-    assert pinned[-6:] == [
+    assert pinned[-8:] == [
         "--new-entrant-cap-mw",
         "19000.0",
         "--new-entrant-storage-cap-mw",
         "6000.0",
         "--pipeline-rush-charge",
-        "98000,26000",
+        "71400,24900",
+        "--pipeline-rush-ceiling-mw",
+        "26000,6000",
     ]
     assert "--reducible-existing" not in early + pinned
     assert "--reducible-existing" in later and "--new-entrant-cap-mw" not in later
     assert "--pipeline-rush-charge" not in later
+    assert "--pipeline-rush-ceiling-mw" not in early + later
 
 
 def _seed_state(layout: OutputLayout, run_id: str, years: list[int]) -> None:

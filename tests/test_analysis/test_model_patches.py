@@ -167,6 +167,38 @@ def test_pipeline_pin_caps_generation_and_storage_at_their_own_allowances(
     pd.testing.assert_frame_equal(result["custom_constraints_rhs"], expected_rhs)
 
 
+def test_pipeline_pin_caps_at_the_rush_ceilings_where_the_rush_is_priced(
+    csv_str_to_df,
+):
+    tables = {
+        "new_entrant_generators": csv_str_to_df("""
+            generator,  status,        lifetime
+            wind_sq,    New__Entrant,  25
+        """),
+        "new_entrant_batteries": csv_str_to_df("""
+            storage_name,  status,        lifetime
+            bess_sq,       New__Entrant,  20
+        """),
+        "custom_constraints_lhs": _EMPTY_CC_LHS.copy(),
+        "custom_constraints_rhs": _EMPTY_CC_RHS.copy(),
+    }
+
+    result = pipeline_pin_apply(
+        tables,
+        _config([2030]),
+        cap_mw=13000,
+        storage_cap_mw=0,
+        rush_ceilings_mw=(26000, 6000),
+    )
+
+    expected_rhs = csv_str_to_df("""
+        constraint_id,                          constraint_type,  rhs
+        pipeline_new_entrant_generators_2030,   <=,               26000.0
+        pipeline_new_entrant_batteries_2030,    <=,               6000.0
+    """)
+    pd.testing.assert_frame_equal(result["custom_constraints_rhs"], expected_rhs)
+
+
 def test_pumped_storage_fix_removes_pumped_hydro_from_the_generator_roster(
     csv_str_to_df,
 ):

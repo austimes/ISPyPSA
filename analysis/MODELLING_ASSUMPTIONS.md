@@ -35,6 +35,9 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
   its same-technology-type peers instead.
 - **Gas un-blend switch** - a configuration flag can price the Gas carrier from the gas price table alone, leaving out
   AEMO's mandated biomethane blend, so the blend's cost effect can be isolated.
+- **2026 IASR additional batteries kept** - upstream's battery templater keeps only the 2024 IASR status label
+  "Additional projects", so every 2026 IASR "Additional policy-supported project" battery is dropped; this fork keeps
+  both labels.
 - **Biomass supply curve and gas terajoule fix** - a stepped, config-gated biomass feedstock supply curve, and a fix
   denominating gas supply-curve purchases in terajoules rather than gigajoules.
 
@@ -108,7 +111,7 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
 - Fossil-only gas pricing (the gas un-blend switch) throughout the campaign.
 - Near-term pipeline pin and pre-2030 rush charge: new-entrant generator and battery build is capped at a per-year
   allowance in 2026; in 2030 build up to each allowance is free and build above it pays a rush charge in A$/MW/yr,
-  converted from ShARP's A$37.45/MWh charge on growth installed in FY2030, up to a hard ceiling of twice the allowance.
+  converted from ShARP's A$37.45/MWh charge on growth installed in FY2030, up to a hard ceiling of its own.
   Derived in [`research/near_term_pipeline/`](research/near_term_pipeline/) and
   [`research/pre2030_rush_charge/`](research/pre2030_rush_charge/).
 - Gurobi barrier solver settings, tuned for this campaign's problem size.
