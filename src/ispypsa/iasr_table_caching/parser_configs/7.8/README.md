@@ -47,7 +47,7 @@ original v7.5 value and the reason.
    footnote block. Affected: Fixed OPEX, Variable OPEX, Heat rates,
    Emissions intensity, Maximum capacity, Retirement (expected_closure_years
    + retirement_costs), Marginal Loss Factors, Seasonal ratings,
-   Affine Heat rates.
+   Affine Heat rates, Summary Mapping (ECAA and Consumer Energy Resources).
 
 3. **Build limits - REZs**: `initial_resource_limits` end_row 58->59 (N9 split
    into N9a/N9b adds one REZ row); `initial_transmission_limits` shifted +2

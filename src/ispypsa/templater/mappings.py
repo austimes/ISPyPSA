@@ -408,7 +408,10 @@ _ECAA_STORAGE_STATIC_PROPERTY_TABLE_MAP = {
     "commissioning_date": dict(
         table="maximum_capacity_existing_committed_anticipated_additional_generators",
         table_lookup="Power Station",
-        table_value="Indicative commissioning date",
+        # Committed dates sit in `Commissioning date`, indicative ones in
+        # `Indicative commissioning date` (see the ECAA generator map above).
+        table_value="Commissioning date",
+        alternative_values=["Indicative commissioning date"],
     ),
     "fom_$/kw/annum": dict(
         table="fixed_opex_existing_committed_anticipated_additional_generators",
