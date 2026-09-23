@@ -113,8 +113,8 @@ the base chain retained rather than letting the cell retire below it. Every chai
 alike, also carries `--pipeline-period 2030` with the two near-term allowances as `YEAR:MW` schedules,
 `--new-entrant-cap-mw` over new-entrant generators and `--new-entrant-storage-cap-mw` over new-entrant batteries, so
 the near term matches the ISP pipeline, and `--pipeline-rush-charge <generation>,<storage>`: in 2030 itself build above
-each allowance pays that rush charge in A$/MW/yr up to a hard ceiling of twice the allowance, while 2026 keeps its
-allowance as a hard cap. `--max-cap`
+each allowance pays that rush charge in A$/MW/yr up to the hard ceiling in `--pipeline-rush-ceiling-mw`, while 2026 keeps
+its allowance as a hard cap. `--max-cap`
 belonged to the earlier ladder of cap chains and now raises, because this plan has one base chain and no ladder to
 narrow.
 
@@ -149,6 +149,12 @@ Inputs and run products are brought onto `$IO_DIR` by hand, with no command in t
 - A new set of input stores goes into one stamped package directory, `$IO_DIR/inputs/<stamp>_<label>/`, holding `iasr/`,
   `workbook_cache_final/`, `traces/isp_2026/` and `tracedirs/` at the paths given in "`IO_DIR` layout" above. Later runs
   pick up the newest package, so an earlier one stays readable by any run that names it with `MSM_INPUTS`.
+- The `isp2026_final_v2` package differs from `isp2026_final` in two stores: `workbook_cache_final/` is rebuilt with
+  the v7.8 parser configuration that reads the Summary Mapping sheet to row 732, so the existing, committed and
+  anticipated (ECAA) and consumer energy resources summaries hold every FINAL row; and
+  `traces/isp_2026/project/reference_year=2018/data_2.parquet` adds FINAL reference year 2018 traces, parsed by
+  `ISP_PARSE_YEARS=2018 uv run python scripts/parse_2026_final_traces.py`, for the 25 wind and solar ECAA projects
+  those extra rows add. Every other file is copied unchanged from `isp2026_final`.
 - A run solved on local or scratch storage is `rsync`ed into one stamped launch directory,
   `$IO_DIR/outputs/<stamp>_<run_set>/`, carrying its `configs/`, `logs/`, `records/`, `runs/`, `campaign/` and
   `exports/` subdirectories.

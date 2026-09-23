@@ -4,7 +4,6 @@ This is the FINAL-data sibling of `parse_2026_traces.py` (which parsed the
 DRAFT 2026 release). It preserves the 2026 conventions (demand
 "<REGION>_" prefix strip, Q8a/b/c split-aware regex, and single-process
 parse) while retaining the AEMO reference year from each VRE archive.
-The existing 2018 VRE partition is deliberately preserved byte-for-byte.
 Only four things change for the FINAL release:
 
 1. Input paths point at "iasr inputs/2026 ISP Final/...". The FINAL solar and
@@ -81,7 +80,6 @@ FLAT = (
 )
 
 STAGING = INPUTS / "_extracted_vre"
-VRE_YEARS_TO_ADD = tuple(y for y in VRE_YEARS if y != 2018)
 
 MAPPING_DIR = (
     Path(solar_traces.__file__).parent.parent / "isp_trace_name_mapping_configs"
@@ -135,6 +133,28 @@ SOLAR_PROJECT_OVERRIDES = {
     # case-insensitive filesystem.
     "Warwick Solar Farm - stage 1": "Warwick",
     "Warwick Solar Farm - stage 2": "Warwick",
+    # FINAL 2026 ECAA solar farms listed past the v7.5 summary table's last row.
+    "Axedale Solar Farm": "Axedale",
+    "Bendemeer Energy Hub Solar Farm": "Bendemeer",
+    "Blind Creek Solar Farm": "Blind_Creek",
+    "Bundey Solar Farm": "Bundey",
+    "Corop Solar Farm": "Corop",
+    "Dunedoo Solar Farm": "Dunedoo",
+    "Fosterville Solar Farm": "Fosterville",
+    "Fraser Coast Hybrid Solar Farm": "Fraser_Coast",
+    "Gunsynd Solar Farm": "Gunsynd_1",
+    "Guthries Gap Solar Power Station": "Guthrie",
+    "Kerang Solar Plant": "Kerang_1",
+    "Lower Wonga Solar Farm": "Lower_Wonga",
+    # No own trace: proxied by the co-located Marulan distribution REZ solar trace.
+    "Marulan Solar Farm": "Distribution_REZ_Marulan",
+    "Merino Solar Farm": "Merino",
+    "Middlebrook Solar Farm": "Middlebrook",
+    "Moama Solar Farm": "Moama",
+    "Nowingi Solar Power Station": "Nowingi",
+    "Smoky Creek Solar Power Station": "Smoky_Creek",
+    "Wandoan South Solar Farm - Stage 2": "Wandoan_South",
+    "Winton North Solar Farm": "Winton_North",
 }
 # v7.5 generators whose draft override stem has NO matching FINAL solar trace.
 # NOT applied (a stale override is a harmless no-op — the parser only processes
@@ -214,6 +234,13 @@ WIND_PROJECT_OVERRIDES = {
     # subregion CNSW) — a regionally coherent stand-in, flagged pending Valley's
     # own trace in a future release.
     "Valley of the Winds": "Spicers_Creek",
+    # FINAL 2026 ECAA wind farms listed past the v7.5 summary table's last row.
+    "Bell Bay Wind Farm": "Bell_Bay",
+    "Carmodys Hill Wind Farm": "Carmodys_Hill",
+    "Goyder North Wind Farm 2": "Goyder_North",
+    "Hexham Wind Farm": "Hexham",
+    # No own trace: proxied by the stage 1 Willogoleche trace at the same site.
+    "Willogoleche Wind Farm 2": "WGWF1",
 }
 
 
@@ -229,8 +256,7 @@ def parse_2026_final_traces():
 
 
 def _clean_dirs():
-    # Never remove OUT: the committed reference_year=2018 VRE partition and
-    # the already-ingested demand partitions are inputs to this incremental run.
+    # Never remove OUT: the already-ingested demand partitions are inputs to this incremental run.
     if FLAT.exists():
         shutil.rmtree(FLAT)
     FLAT.mkdir(parents=True)
@@ -275,7 +301,7 @@ def _parse_vre_split_by_filetype():
     original_cpu_count = os.cpu_count
     os.cpu_count = lambda: 6
     try:
-        for year in VRE_YEARS_TO_ADD:
+        for year in VRE_YEARS:
             solar_csv = STAGING / "solar" / f"r{year}"
             wind_csv = STAGING / "wind" / f"r{year}"
             parse_solar_traces(
@@ -348,11 +374,6 @@ def _trim_flat_to_model_horizon():
         f"{FLAT / 'zone'}/*.parquet",
         str(OUT / "zone"),
         partition_cols=["reference_year"],
-    )
-    partition_traces_by_columns(
-        f"{FLAT / 'demand'}/*.parquet",
-        str(OUT / "demand"),
-        partition_cols=["scenario", "reference_year"],
     )
 
 

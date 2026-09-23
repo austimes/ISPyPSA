@@ -83,6 +83,9 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
 - The 2060 hold of every trajectory table at its last published year, and the 2060 demand and weather traces relabelled
   from FY2055.
 - The held-to-2060 gas and biomass supply curves.
+- Stand-in reference-year-2018 traces for two ECAA projects the final 2026 trace release does not cover: Marulan Solar
+  Farm uses the `Distribution_REZ_Marulan` solar trace and Willogoleche Wind Farm 2 uses stage 1's `WGWF1` trace.
+  Mulwala Solar Farm (25.1 MW) has no trace and is excluded.
 - The flat A$89.93 per tonne CCS transport-and-storage charge used in place of the supply curve.
 - The ageing-fleet maintenance cost premium.
 - The 20-year renewable repowering life extension.
