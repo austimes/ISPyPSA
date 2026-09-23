@@ -23,6 +23,7 @@ from analysis.dashboard.figures import (
     COST_COMPONENTS,
     HATCH_NOTE,
     INPUT_COST_LABELS,
+    SHARP_NAME,
     figure_cost_decomposition,
     figure_demand_marginals,
     figure_input_costs,
@@ -276,8 +277,11 @@ def increments(csv_str_to_df) -> pd.DataFrame:
 def test_increment_surfaces_draw_both_arms_the_grid_and_the_duals(increments):
     figure = figures.figure_increment_surfaces(increments)
 
-    # The two arms, the additivity check's two bars, one grid for the single year, and the duals.
+    # The two arms, ShARP's reference on each, the additivity check's two bars, one grid for the
+    # single year, and the duals.
     assert [trace.type for trace in figure.data] == [
+        "scatter",
+        "scatter",
         "scatter",
         "scatter",
         "bar",
@@ -285,7 +289,7 @@ def test_increment_surfaces_draw_both_arms_the_grid_and_the_duals(increments):
         "heatmap",
         "table",
     ]
-    grid = figure.data[4]
+    grid = figure.data[6]
     assert (list(grid.x), list(grid.y)) == ([1.0, 1.1], [0.5, 1.0])
     assert grid.z.tolist() == [[8.0, 12.0], [0.0, 5.0]]
     # The button swaps every grid's colouring to the emissions consequence instead.
@@ -305,7 +309,7 @@ def test_increment_surfaces_read_each_arm_from_the_level_keys(increments):
 def test_increment_surfaces_annotate_every_consequence_and_hover_the_duals(increments):
     figure = figures.figure_increment_surfaces(increments)
 
-    grid = figure.data[4]
+    grid = figure.data[6]
     assert grid.text.tolist()[1] == [
         "A$0m/yr<br>+0 kt<br>gas +0.0 PJ<br>coal +0.0 PJ",
         "A$2,000m/yr<br>+100 kt<br>gas +3.0 PJ<br>coal +1.0 PJ",
@@ -337,14 +341,17 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
 
     figure = figure_pathway_intensities(frame)
 
-    # The AEMO reference overlay, then cost and emissions for both chains, then the fuels each chain
-    # burns: coal and gas, gas and biomass.
+    # The AEMO reference overlay, ShARP's planned line on each panel, then cost and emissions for both
+    # chains, then the fuels each chain burns: coal and gas, gas and biomass.
     assert [(trace.name, trace.line.dash) for trace in figure.data] == [
         (None, None),
         ("AEMO scenario range", None),
         ("AEMO draft ISP: Slower Growth", "dot"),
         ("AEMO draft ISP: Step Change", "dot"),
         ("AEMO draft ISP: Accelerated Transition", "dot"),
+        ("ShARP current policy (approx.)", "dash"),
+        ("ShARP current policy (approx.)", "dash"),
+        ("ShARP current policy (approx.)", "dash"),
         ("central demand, uncapped (A$0/t)", "solid"),
         ("central demand, uncapped (A$0/t)", "solid"),
         ("central demand, uncapped (A$0/t)", "solid"),
@@ -359,6 +366,7 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
         "AEMO draft ISP: Slower Growth",
         "AEMO draft ISP: Step Change",
         "AEMO draft ISP: Accelerated Transition",
+        "ShARP current policy (approx.)",
         "central demand, uncapped (A$0/t)",
         "high demand, carbon price A$150/t",
     ]
@@ -385,6 +393,27 @@ def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_emissions_panel(
     ]
     assert {trace.yaxis for trace in overlay} == {"y2"}
     assert min(overlay[2].x) == 2030
+
+
+@pytest.mark.parametrize(
+    ("year", "expected"), [(2035, ["y", "y2", "y3", "y", "y2"]), (2036, [])]
+)
+def test_sharp_reference_is_drawn_only_for_years_it_covers(
+    csv_str_to_df, increments, year, expected
+):
+    frame = csv_str_to_df("""
+        cell,    trajectory, pressure, pressure_name,    delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        central, central,    c0,       uncapped (A$0/t), 100.0,         25.0,                          0.40
+    """).assign(year=year)
+
+    pathways = figure_pathway_intensities(frame)
+    arms = figures.figure_increment_surfaces(increments.assign(year=year))
+
+    # One planned line on each pathway panel, then the extra-MWh price and the clean ladder on the arms.
+    sharp = [
+        trace for trace in [*pathways.data, *arms.data] if trace.name == SHARP_NAME
+    ]
+    assert [trace.yaxis for trace in sharp] == expected
 
 
 def test_pathway_intensities_fans_each_increment_out_of_its_base_point(csv_str_to_df):

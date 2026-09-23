@@ -89,6 +89,21 @@ AEMO_LEGEND_GROUP = "AEMO draft ISP"
 AEMO_LINE_COLOUR = "#808080"
 AEMO_BAND_FILL = "rgba(120,120,120,0.18)"
 
+#: ShARP's current-policy grid supply and its clean ladder converted to intensity, committed beside the research topic that
+#: derives it, and how every figure draws it: one dashed neutral line per panel or year under one legend entry.
+SHARP_REFERENCE_CSV = (
+    PACKAGE_ROOT / "research" / "sharp_grid_reference" / "sharp_grid_reference.csv"
+)
+SHARP_NAME = "ShARP current policy (approx.)"
+SHARP_LINE = {"color": "#404040", "dash": "dash", "width": 1.5}
+#: ShARP's planned columns the pathway-intensity panels draw, in ``INTENSITY_PANELS`` order.
+SHARP_PATHWAY_COLUMNS = [
+    "planned_cost_aud_per_mwh",
+    "planned_t_co2e_per_mwh",
+    "planned_pj_per_twh",
+]
+MWH_PER_TWH = 1e6
+
 #: Fuel input columns the input-intensity panel draws, each named and dashed as it draws them.
 FUEL_INPUTS = {
     "gj_per_mwh_coal": ("Coal", "solid"),
@@ -402,7 +417,8 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
 
     Each conditioned single-year solve is one cell, reported against the base cell it branched
     from. The demand arm prices extra energy at the base cell's cap, the intensity arm prices a
-    deeper cap at the base cell's demand, and the bars below test whether an interior cell costs
+    deeper cap at the base cell's demand, each beside ShARP's approximate reference for the same
+    step where one exists for that year, and the bars below test whether an interior cell costs
     what its two arms cost together, which is the additive form ShARP prices both through. The
     grids show every cell at once, annotated with each consequence, with the button switching their
     colouring between cost and emissions, and the table carries the implied carbon price each side
@@ -426,6 +442,8 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
         for row, level in enumerate(INCREMENT_ARMS, start=1):
             arm = _increment_arm(block, level, row == 1)
             figure.add_trace(arm, row=row, col=1)
+    for row, reference in _sharp_arms(curves):
+        figure.add_trace(reference, row=row, col=1)
     for bar in _additivity_bars(cells):
         figure.add_trace(bar, row=3, col=1)
     for column, block in enumerate(blocks, start=1):
@@ -543,6 +561,40 @@ def _increment_arm(block: pd.DataFrame, level: str, legend: bool) -> go.Scatter:
     )
 
 
+def _sharp_arms(curves: pd.DataFrame) -> list[tuple[int, go.Scatter]]:
+    """ShARP's reference on each arm row per year: the extra-MWh price on the demand arm, the clean ladder on the intensity arm."""
+    traces = []
+    for year, rows in _sharp_reference(curves["year"]).groupby("year"):
+        arm = curves[curves["year"].eq(year) & curves["intensity_level"].eq(1.0)]
+        demand = _sharp_demand_arm(rows, arm["demand_level"], not traces)
+        traces += [(1, demand), (2, _sharp_intensity_arm(rows))]
+    return traces
+
+
+def _sharp_demand_arm(
+    rows: pd.DataFrame, levels: pd.Series, legend: bool
+) -> go.Scatter:
+    """ShARP's approximate price of one extra MWh, flat across the demand arm, in A$ per extra TWh."""
+    price = rows["extra_mwh_price_aud_per_mwh"].iloc[0] * MWH_PER_TWH
+    label = f"{rows['year'].iloc[0]} extra-MWh price"
+    return _sharp_line([levels.min(), levels.max()], [price, price], label, legend)
+
+
+def _sharp_intensity_arm(rows: pd.DataFrame) -> go.Scatter:
+    """ShARP's ladder cleaner than the planned share: intensity as a multiple of planned, cost above the planned share's."""
+    planned = rows.iloc[0]
+    cleaner = rows[
+        rows["ladder_renewable_fraction"] > planned["planned_renewable_fraction"]
+    ]
+    x = cleaner["ladder_t_co2e_per_mwh"] / planned["planned_t_co2e_per_mwh"]
+    y = (
+        cleaner["ladder_cost_aud_per_mwh"]
+        - planned["planned_share_ladder_cost_aud_per_mwh"]
+    )
+    label = f"{planned['year']} clean ladder"
+    return _sharp_line([1.0, *x], [0.0, *y], label, False)
+
+
 def _increment_grid(block: pd.DataFrame, measure: str) -> pd.DataFrame:
     """One year's cells on the exact grid they were solved on, demand across, intensity down."""
     return block.pivot(index="intensity_level", columns="demand_level", values=measure)
@@ -643,7 +695,8 @@ def figure_pathway_intensities(
     ShARP one: cost excludes fuel and carbon, and the input panel draws one dashed line per fuel.
     Every panel's line for a chain shares a legend group, so one legend click hides the chain across
     all three. The emissions panel carries the derived AEMO scenario intensities behind the chains as
-    a sanity reference.
+    a sanity reference, and every panel carries ShARP's planned current-policy value where the
+    reference covers the plotted years.
 
     :param frame: The tidy cell-year frame of the campaign's base chains.
     :param branches: The increment grid's branch rows, each fanned out from the base point it
@@ -654,6 +707,8 @@ def figure_pathway_intensities(
     )
     for reference in _aemo_overlay(_aemo_scenario_span(frame["year"].min())):
         figure.add_trace(reference, row=1, col=2)
+    for column, reference in enumerate(_sharp_pathway(frame["year"]), start=1):
+        figure.add_trace(reference, row=1, col=column)
     for key, colour in _increment_colours(branches).items():
         rows = branches[branches["increment"].eq(key)].sort_values("year")
         cost = _branch_fan(
@@ -724,6 +779,40 @@ def _aemo_overlay(span: pd.DataFrame) -> list[go.Scatter]:
             )
         )
     return traces
+
+
+def _sharp_reference(years: pd.Series) -> pd.DataFrame:
+    """ShARP's reference rows for the years a figure plots, one per year and clean-ladder point."""
+    table = pd.read_csv(SHARP_REFERENCE_CSV)
+    return table[table["year"].isin(years)]
+
+
+def _sharp_pathway(years: pd.Series) -> list[go.Scatter]:
+    """ShARP's planned cost, emissions and fuel input intensity, one line per panel, or none without matching years."""
+    planned = _sharp_reference(years).drop_duplicates("year")
+    if planned.empty:
+        return []
+    return [
+        _sharp_line(planned["year"], planned[column], "planned", legend=index == 0)
+        for index, column in enumerate(SHARP_PATHWAY_COLUMNS)
+    ]
+
+
+def _sharp_line(
+    x: list | pd.Series, y: list | pd.Series, label: str, legend: bool
+) -> go.Scatter:
+    """One dashed ShARP reference line, sharing a single legend entry with every other."""
+    return go.Scatter(
+        x=x,
+        y=y,
+        name=SHARP_NAME,
+        legendgroup=SHARP_NAME,
+        showlegend=legend,
+        mode="lines+markers",
+        line=SHARP_LINE,
+        marker_size=4,
+        hovertemplate=f"{SHARP_NAME}, {label}<br>%{{x:.3g}}: %{{y:.3g}}<extra></extra>",
+    )
 
 
 def _chain_colours(frame: pd.DataFrame) -> dict[str, str]:

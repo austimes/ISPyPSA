@@ -18,6 +18,7 @@ its HTML and PNG output where a picture earns its place.
 | [`carbon_caps/`](carbon_caps/) | The carbon pressure ladder, the cap tonnage arithmetic and the load-shedding rule | [`carbon_caps.png`](carbon_caps/carbon_caps.png) |
 | [`campaign_method/`](campaign_method/) | Chain structure, time sampling, solver settings and the 2060 hold | [`campaign_sampling.png`](campaign_method/campaign_sampling.png) |
 | [`aemo_scenario_intensity/`](aemo_scenario_intensity/) | Per-year AEMO scenario emissions intensity the dashboard draws as a sanity reference | [`aemo_scenario_intensity.png`](aemo_scenario_intensity/aemo_scenario_intensity.png) |
+| [`sharp_grid_reference/`](sharp_grid_reference/) | ShARP's current-policy grid supply and its clean ladder converted to intensity, drawn as dashboard references | [`sharp_grid_reference.png`](sharp_grid_reference/sharp_grid_reference.png) |
 
 Conventions used throughout:
 
