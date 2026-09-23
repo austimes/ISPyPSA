@@ -342,9 +342,14 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
 
     figure = figure_pathway_intensities(frame)
 
-    # The AEMO reference overlay, ShARP's reach band and planned line on each panel, then cost and emissions for both
+    # The AEMO reference overlay on the cost and emissions panels, ShARP's reach band and planned line on each panel, then cost and emissions for both
     # chains, then the fuels each chain burns: coal and gas, gas and biomass.
     assert [(trace.name, trace.line.dash) for trace in figure.data] == [
+        (None, None),
+        ("AEMO scenario range", None),
+        ("AEMO draft ISP: Slower Growth", "dot"),
+        ("AEMO draft ISP: Step Change", "dot"),
+        ("AEMO draft ISP: Accelerated Transition", "dot"),
         (None, None),
         ("AEMO scenario range", None),
         ("AEMO draft ISP: Slower Growth", "dot"),
@@ -380,7 +385,7 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
     ]
 
 
-def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_emissions_panel(
+def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_cost_and_emissions_panels(
     csv_str_to_df,
 ):
     frame = csv_str_to_df("""
@@ -392,15 +397,19 @@ def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_emissions_panel(
     figure = figure_pathway_intensities(frame)
 
     overlay = [trace for trace in figure.data if trace.legendgroup == "AEMO draft ISP"]
-    assert [trace.name for trace in overlay] == [
+    names = [
         None,
         "AEMO scenario range",
         "AEMO draft ISP: Slower Growth",
         "AEMO draft ISP: Step Change",
         "AEMO draft ISP: Accelerated Transition",
     ]
-    assert {trace.yaxis for trace in overlay} == {"y2"}
-    assert min(overlay[2].x) == 2030
+    assert [(trace.name, trace.yaxis) for trace in overlay] == [
+        *((name, "y") for name in names),
+        *((name, "y2") for name in names),
+    ]
+    assert [min(overlay[index].x) for index in (2, 7)] == [2030, 2030]
+    assert [trace.showlegend for trace in overlay[1:]] == [True] * 4 + [False] * 5
 
 
 @pytest.mark.parametrize(

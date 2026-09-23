@@ -1,0 +1,1225 @@
+scenario,series,financial_year_ending,value,unit
+Step Change,"Generation, storage and electrolyser capital costs",2027,36386,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2028,427762,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2029,2408835,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2030,4154400,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2031,4452979,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2032,6380131,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2033,7239131,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2034,7862543,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2035,8851558,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2036,9865308,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2037,11301080,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2038,12662964,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2039,14105106,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2040,14754539,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2041,15176375,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2042,16143388,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2043,17343013,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2044,17936952,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2045,17897514,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2046,18468028,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2047,19415534,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2048,19969672,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2049,20642046,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser capital costs",2050,21178835,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2027,2835027,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2028,3110903,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2029,3571427,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2030,3940838,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2031,4096618,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2032,4458217,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2033,4734440,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2034,4802620,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2035,5067260,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2036,5279691,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2037,5538097,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2038,5742097,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2039,6034196,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2040,6221308,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2041,6238569,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2042,6383421,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2043,6547884,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2044,6603875,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2045,6500661,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2046,6481855,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2047,6539418,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2048,6565395,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2049,6576207,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser FOM costs",2050,6475276,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2027,959339,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2028,824774,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2029,592766,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2030,450413,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2031,404862,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2032,362436,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2033,388497,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2034,341100,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2035,325479,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2036,337967,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2037,353270,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2038,334314,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2039,299191,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2040,326068,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2041,316789,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2042,299881,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2043,303864,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2044,288222,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2045,310560,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2046,307669,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2047,303723,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2048,295758,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2049,353634,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser VOM costs",2050,273468,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2027,0,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2028,47141,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2029,1526905,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2030,424540,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2031,27748,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2032,401957,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2033,159,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2034,729684,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2035,453955,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2036,371801,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2037,270474,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2038,537470,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2039,133154,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2040,90892,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2041,115313,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2042,49453,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2043,227282,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2044,385418,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2045,378857,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2046,448477,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2047,460260,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2048,449482,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2049,668192,$000 real Jul-2023
+Step Change,"Generation, storage and electrolyser retirement costs",2050,1127508,$000 real Jul-2023
+Step Change,Fuel costs,2027,4001580,$000 real Jul-2023
+Step Change,Fuel costs,2028,3209080,$000 real Jul-2023
+Step Change,Fuel costs,2029,2179098,$000 real Jul-2023
+Step Change,Fuel costs,2030,1408126,$000 real Jul-2023
+Step Change,Fuel costs,2031,1084741,$000 real Jul-2023
+Step Change,Fuel costs,2032,955536,$000 real Jul-2023
+Step Change,Fuel costs,2033,1178188,$000 real Jul-2023
+Step Change,Fuel costs,2034,944057,$000 real Jul-2023
+Step Change,Fuel costs,2035,803465,$000 real Jul-2023
+Step Change,Fuel costs,2036,1196674,$000 real Jul-2023
+Step Change,Fuel costs,2037,1409810,$000 real Jul-2023
+Step Change,Fuel costs,2038,1268512,$000 real Jul-2023
+Step Change,Fuel costs,2039,880353,$000 real Jul-2023
+Step Change,Fuel costs,2040,1426590,$000 real Jul-2023
+Step Change,Fuel costs,2041,1508958,$000 real Jul-2023
+Step Change,Fuel costs,2042,1294988,$000 real Jul-2023
+Step Change,Fuel costs,2043,1228757,$000 real Jul-2023
+Step Change,Fuel costs,2044,928491,$000 real Jul-2023
+Step Change,Fuel costs,2045,1344259,$000 real Jul-2023
+Step Change,Fuel costs,2046,1577745,$000 real Jul-2023
+Step Change,Fuel costs,2047,1437813,$000 real Jul-2023
+Step Change,Fuel costs,2048,948991,$000 real Jul-2023
+Step Change,Fuel costs,2049,1939962,$000 real Jul-2023
+Step Change,Fuel costs,2050,1268227,$000 real Jul-2023
+Step Change,DSP+USE costs,2027,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2028,128265,$000 real Jul-2023
+Step Change,DSP+USE costs,2029,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2030,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2031,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2032,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2033,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2034,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2035,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2036,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2037,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2038,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2039,3312,$000 real Jul-2023
+Step Change,DSP+USE costs,2040,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2041,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2042,1297,$000 real Jul-2023
+Step Change,DSP+USE costs,2043,48707,$000 real Jul-2023
+Step Change,DSP+USE costs,2044,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2045,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2046,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2047,0,$000 real Jul-2023
+Step Change,DSP+USE costs,2048,1808,$000 real Jul-2023
+Step Change,DSP+USE costs,2049,5161,$000 real Jul-2023
+Step Change,DSP+USE costs,2050,2161,$000 real Jul-2023
+Step Change,Flow path capital costs,2027,0,$000 real Jul-2023
+Step Change,Flow path capital costs,2028,0,$000 real Jul-2023
+Step Change,Flow path capital costs,2029,99971,$000 real Jul-2023
+Step Change,Flow path capital costs,2030,164254,$000 real Jul-2023
+Step Change,Flow path capital costs,2031,183725,$000 real Jul-2023
+Step Change,Flow path capital costs,2032,482801,$000 real Jul-2023
+Step Change,Flow path capital costs,2033,482801,$000 real Jul-2023
+Step Change,Flow path capital costs,2034,590860,$000 real Jul-2023
+Step Change,Flow path capital costs,2035,685378,$000 real Jul-2023
+Step Change,Flow path capital costs,2036,685378,$000 real Jul-2023
+Step Change,Flow path capital costs,2037,685378,$000 real Jul-2023
+Step Change,Flow path capital costs,2038,685378,$000 real Jul-2023
+Step Change,Flow path capital costs,2039,685378,$000 real Jul-2023
+Step Change,Flow path capital costs,2040,685378,$000 real Jul-2023
+Step Change,Flow path capital costs,2041,685378,$000 real Jul-2023
+Step Change,Flow path capital costs,2042,826456,$000 real Jul-2023
+Step Change,Flow path capital costs,2043,853640,$000 real Jul-2023
+Step Change,Flow path capital costs,2044,853640,$000 real Jul-2023
+Step Change,Flow path capital costs,2045,853640,$000 real Jul-2023
+Step Change,Flow path capital costs,2046,922369,$000 real Jul-2023
+Step Change,Flow path capital costs,2047,922369,$000 real Jul-2023
+Step Change,Flow path capital costs,2048,922369,$000 real Jul-2023
+Step Change,Flow path capital costs,2049,922369,$000 real Jul-2023
+Step Change,Flow path capital costs,2050,922369,$000 real Jul-2023
+Step Change,Flow path O&M costs,2027,0,$000 real Jul-2023
+Step Change,Flow path O&M costs,2028,0,$000 real Jul-2023
+Step Change,Flow path O&M costs,2029,27911,$000 real Jul-2023
+Step Change,Flow path O&M costs,2030,45683,$000 real Jul-2023
+Step Change,Flow path O&M costs,2031,50693,$000 real Jul-2023
+Step Change,Flow path O&M costs,2032,130445,$000 real Jul-2023
+Step Change,Flow path O&M costs,2033,130445,$000 real Jul-2023
+Step Change,Flow path O&M costs,2034,165657,$000 real Jul-2023
+Step Change,Flow path O&M costs,2035,189977,$000 real Jul-2023
+Step Change,Flow path O&M costs,2036,189977,$000 real Jul-2023
+Step Change,Flow path O&M costs,2037,189977,$000 real Jul-2023
+Step Change,Flow path O&M costs,2038,189977,$000 real Jul-2023
+Step Change,Flow path O&M costs,2039,189977,$000 real Jul-2023
+Step Change,Flow path O&M costs,2040,189977,$000 real Jul-2023
+Step Change,Flow path O&M costs,2041,189977,$000 real Jul-2023
+Step Change,Flow path O&M costs,2042,231431,$000 real Jul-2023
+Step Change,Flow path O&M costs,2043,242158,$000 real Jul-2023
+Step Change,Flow path O&M costs,2044,242158,$000 real Jul-2023
+Step Change,Flow path O&M costs,2045,242158,$000 real Jul-2023
+Step Change,Flow path O&M costs,2046,259842,$000 real Jul-2023
+Step Change,Flow path O&M costs,2047,259842,$000 real Jul-2023
+Step Change,Flow path O&M costs,2048,259842,$000 real Jul-2023
+Step Change,Flow path O&M costs,2049,257654,$000 real Jul-2023
+Step Change,Flow path O&M costs,2050,256421,$000 real Jul-2023
+Step Change,REZ capital costs,2027,0,$000 real Jul-2023
+Step Change,REZ capital costs,2028,0,$000 real Jul-2023
+Step Change,REZ capital costs,2029,0,$000 real Jul-2023
+Step Change,REZ capital costs,2030,0,$000 real Jul-2023
+Step Change,REZ capital costs,2031,36482,$000 real Jul-2023
+Step Change,REZ capital costs,2032,105518,$000 real Jul-2023
+Step Change,REZ capital costs,2033,167143,$000 real Jul-2023
+Step Change,REZ capital costs,2034,207673,$000 real Jul-2023
+Step Change,REZ capital costs,2035,207673,$000 real Jul-2023
+Step Change,REZ capital costs,2036,207673,$000 real Jul-2023
+Step Change,REZ capital costs,2037,214611,$000 real Jul-2023
+Step Change,REZ capital costs,2038,214611,$000 real Jul-2023
+Step Change,REZ capital costs,2039,236052,$000 real Jul-2023
+Step Change,REZ capital costs,2040,236052,$000 real Jul-2023
+Step Change,REZ capital costs,2041,236282,$000 real Jul-2023
+Step Change,REZ capital costs,2042,240343,$000 real Jul-2023
+Step Change,REZ capital costs,2043,248984,$000 real Jul-2023
+Step Change,REZ capital costs,2044,248984,$000 real Jul-2023
+Step Change,REZ capital costs,2045,248984,$000 real Jul-2023
+Step Change,REZ capital costs,2046,251645,$000 real Jul-2023
+Step Change,REZ capital costs,2047,255043,$000 real Jul-2023
+Step Change,REZ capital costs,2048,256121,$000 real Jul-2023
+Step Change,REZ capital costs,2049,256121,$000 real Jul-2023
+Step Change,REZ capital costs,2050,256121,$000 real Jul-2023
+Step Change,REZ O&M costs,2027,0,$000 real Jul-2023
+Step Change,REZ O&M costs,2028,0,$000 real Jul-2023
+Step Change,REZ O&M costs,2029,0,$000 real Jul-2023
+Step Change,REZ O&M costs,2030,0,$000 real Jul-2023
+Step Change,REZ O&M costs,2031,9397,$000 real Jul-2023
+Step Change,REZ O&M costs,2032,27163,$000 real Jul-2023
+Step Change,REZ O&M costs,2033,43022,$000 real Jul-2023
+Step Change,REZ O&M costs,2034,53605,$000 real Jul-2023
+Step Change,REZ O&M costs,2035,53609,$000 real Jul-2023
+Step Change,REZ O&M costs,2036,53613,$000 real Jul-2023
+Step Change,REZ O&M costs,2037,55400,$000 real Jul-2023
+Step Change,REZ O&M costs,2038,55432,$000 real Jul-2023
+Step Change,REZ O&M costs,2039,60998,$000 real Jul-2023
+Step Change,REZ O&M costs,2040,61045,$000 real Jul-2023
+Step Change,REZ O&M costs,2041,61137,$000 real Jul-2023
+Step Change,REZ O&M costs,2042,62244,$000 real Jul-2023
+Step Change,REZ O&M costs,2043,64567,$000 real Jul-2023
+Step Change,REZ O&M costs,2044,64663,$000 real Jul-2023
+Step Change,REZ O&M costs,2045,64727,$000 real Jul-2023
+Step Change,REZ O&M costs,2046,65496,$000 real Jul-2023
+Step Change,REZ O&M costs,2047,66472,$000 real Jul-2023
+Step Change,REZ O&M costs,2048,66878,$000 real Jul-2023
+Step Change,REZ O&M costs,2049,66966,$000 real Jul-2023
+Step Change,REZ O&M costs,2050,67080,$000 real Jul-2023
+Step Change,Distribution capital costs,2027,0,$000 real Jul-2023
+Step Change,Distribution capital costs,2028,0,$000 real Jul-2023
+Step Change,Distribution capital costs,2029,0,$000 real Jul-2023
+Step Change,Distribution capital costs,2030,0,$000 real Jul-2023
+Step Change,Distribution capital costs,2031,12269,$000 real Jul-2023
+Step Change,Distribution capital costs,2032,13550,$000 real Jul-2023
+Step Change,Distribution capital costs,2033,14604,$000 real Jul-2023
+Step Change,Distribution capital costs,2034,14713,$000 real Jul-2023
+Step Change,Distribution capital costs,2035,16485,$000 real Jul-2023
+Step Change,Distribution capital costs,2036,18365,$000 real Jul-2023
+Step Change,Distribution capital costs,2037,23331,$000 real Jul-2023
+Step Change,Distribution capital costs,2038,23553,$000 real Jul-2023
+Step Change,Distribution capital costs,2039,25086,$000 real Jul-2023
+Step Change,Distribution capital costs,2040,31016,$000 real Jul-2023
+Step Change,Distribution capital costs,2041,32101,$000 real Jul-2023
+Step Change,Distribution capital costs,2042,35786,$000 real Jul-2023
+Step Change,Distribution capital costs,2043,42522,$000 real Jul-2023
+Step Change,Distribution capital costs,2044,46326,$000 real Jul-2023
+Step Change,Distribution capital costs,2045,50324,$000 real Jul-2023
+Step Change,Distribution capital costs,2046,55268,$000 real Jul-2023
+Step Change,Distribution capital costs,2047,55735,$000 real Jul-2023
+Step Change,Distribution capital costs,2048,56806,$000 real Jul-2023
+Step Change,Distribution capital costs,2049,62053,$000 real Jul-2023
+Step Change,Distribution capital costs,2050,64440,$000 real Jul-2023
+Step Change,Distribution O&M costs,2027,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2028,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2029,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2030,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2031,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2032,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2033,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2034,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2035,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2036,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2037,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2038,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2039,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2040,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2041,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2042,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2043,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2044,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2045,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2046,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2047,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2048,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2049,0,$000 real Jul-2023
+Step Change,Distribution O&M costs,2050,0,$000 real Jul-2023
+Step Change,System security costs,2027,0,$000 real Jul-2023
+Step Change,System security costs,2028,31422,$000 real Jul-2023
+Step Change,System security costs,2029,97058,$000 real Jul-2023
+Step Change,System security costs,2030,172619,$000 real Jul-2023
+Step Change,System security costs,2031,183974,$000 real Jul-2023
+Step Change,System security costs,2032,204656,$000 real Jul-2023
+Step Change,System security costs,2033,225566,$000 real Jul-2023
+Step Change,System security costs,2034,233331,$000 real Jul-2023
+Step Change,System security costs,2035,263399,$000 real Jul-2023
+Step Change,System security costs,2036,289441,$000 real Jul-2023
+Step Change,System security costs,2037,319009,$000 real Jul-2023
+Step Change,System security costs,2038,346683,$000 real Jul-2023
+Step Change,System security costs,2039,375700,$000 real Jul-2023
+Step Change,System security costs,2040,389522,$000 real Jul-2023
+Step Change,System security costs,2041,396494,$000 real Jul-2023
+Step Change,System security costs,2042,419561,$000 real Jul-2023
+Step Change,System security costs,2043,450812,$000 real Jul-2023
+Step Change,System security costs,2044,467992,$000 real Jul-2023
+Step Change,System security costs,2045,468417,$000 real Jul-2023
+Step Change,System security costs,2046,481294,$000 real Jul-2023
+Step Change,System security costs,2047,503073,$000 real Jul-2023
+Step Change,System security costs,2048,506002,$000 real Jul-2023
+Step Change,System security costs,2049,502957,$000 real Jul-2023
+Step Change,System security costs,2050,508373,$000 real Jul-2023
+Step Change,Emissions costs,2027,8844434,$000 real Jul-2023
+Step Change,Emissions costs,2028,7845216,$000 real Jul-2023
+Step Change,Emissions costs,2029,5325351,$000 real Jul-2023
+Step Change,Emissions costs,2030,4147307,$000 real Jul-2023
+Step Change,Emissions costs,2031,3967206,$000 real Jul-2023
+Step Change,Emissions costs,2032,3643267,$000 real Jul-2023
+Step Change,Emissions costs,2033,4333562,$000 real Jul-2023
+Step Change,Emissions costs,2034,3674686,$000 real Jul-2023
+Step Change,Emissions costs,2035,2872805,$000 real Jul-2023
+Step Change,Emissions costs,2036,2949875,$000 real Jul-2023
+Step Change,Emissions costs,2037,3148607,$000 real Jul-2023
+Step Change,Emissions costs,2038,2478120,$000 real Jul-2023
+Step Change,Emissions costs,2039,2266352,$000 real Jul-2023
+Step Change,Emissions costs,2040,2869514,$000 real Jul-2023
+Step Change,Emissions costs,2041,3106733,$000 real Jul-2023
+Step Change,Emissions costs,2042,3085192,$000 real Jul-2023
+Step Change,Emissions costs,2043,2947998,$000 real Jul-2023
+Step Change,Emissions costs,2044,2669762,$000 real Jul-2023
+Step Change,Emissions costs,2045,3078896,$000 real Jul-2023
+Step Change,Emissions costs,2046,3327300,$000 real Jul-2023
+Step Change,Emissions costs,2047,3059627,$000 real Jul-2023
+Step Change,Emissions costs,2048,2583012,$000 real Jul-2023
+Step Change,Emissions costs,2049,3942255,$000 real Jul-2023
+Step Change,Emissions costs,2050,1654304,$000 real Jul-2023
+Step Change,Generation excluding rooftop and storage,2027,190599,GWh
+Step Change,Generation excluding rooftop and storage,2028,193072,GWh
+Step Change,Generation excluding rooftop and storage,2029,197733,GWh
+Step Change,Generation excluding rooftop and storage,2030,210467,GWh
+Step Change,Generation excluding rooftop and storage,2031,217560,GWh
+Step Change,Generation excluding rooftop and storage,2032,227883,GWh
+Step Change,Generation excluding rooftop and storage,2033,237705,GWh
+Step Change,Generation excluding rooftop and storage,2034,247730,GWh
+Step Change,Generation excluding rooftop and storage,2035,259031,GWh
+Step Change,Generation excluding rooftop and storage,2036,267161,GWh
+Step Change,Generation excluding rooftop and storage,2037,275269,GWh
+Step Change,Generation excluding rooftop and storage,2038,280677,GWh
+Step Change,Generation excluding rooftop and storage,2039,291412,GWh
+Step Change,Generation excluding rooftop and storage,2040,294160,GWh
+Step Change,Generation excluding rooftop and storage,2041,297261,GWh
+Step Change,Generation excluding rooftop and storage,2042,305437,GWh
+Step Change,Generation excluding rooftop and storage,2043,306384,GWh
+Step Change,Generation excluding rooftop and storage,2044,313288,GWh
+Step Change,Generation excluding rooftop and storage,2045,317019,GWh
+Step Change,Generation excluding rooftop and storage,2046,322187,GWh
+Step Change,Generation excluding rooftop and storage,2047,324032,GWh
+Step Change,Generation excluding rooftop and storage,2048,328045,GWh
+Step Change,Generation excluding rooftop and storage,2049,329583,GWh
+Step Change,Generation excluding rooftop and storage,2050,332097,GWh
+Step Change,Rooftop and other small-scale solar generation,2027,32141,GWh
+Step Change,Rooftop and other small-scale solar generation,2028,36841,GWh
+Step Change,Rooftop and other small-scale solar generation,2029,41451,GWh
+Step Change,Rooftop and other small-scale solar generation,2030,44135,GWh
+Step Change,Rooftop and other small-scale solar generation,2031,49428,GWh
+Step Change,Rooftop and other small-scale solar generation,2032,52890,GWh
+Step Change,Rooftop and other small-scale solar generation,2033,55125,GWh
+Step Change,Rooftop and other small-scale solar generation,2034,59603,GWh
+Step Change,Rooftop and other small-scale solar generation,2035,62749,GWh
+Step Change,Rooftop and other small-scale solar generation,2036,64832,GWh
+Step Change,Rooftop and other small-scale solar generation,2037,64597,GWh
+Step Change,Rooftop and other small-scale solar generation,2038,65921,GWh
+Step Change,Rooftop and other small-scale solar generation,2039,71052,GWh
+Step Change,Rooftop and other small-scale solar generation,2040,79332,GWh
+Step Change,Rooftop and other small-scale solar generation,2041,82412,GWh
+Step Change,Rooftop and other small-scale solar generation,2042,82408,GWh
+Step Change,Rooftop and other small-scale solar generation,2043,76076,GWh
+Step Change,Rooftop and other small-scale solar generation,2044,84672,GWh
+Step Change,Rooftop and other small-scale solar generation,2045,93277,GWh
+Step Change,Rooftop and other small-scale solar generation,2046,97376,GWh
+Step Change,Rooftop and other small-scale solar generation,2047,103126,GWh
+Step Change,Rooftop and other small-scale solar generation,2048,108265,GWh
+Step Change,Rooftop and other small-scale solar generation,2049,112174,GWh
+Step Change,Rooftop and other small-scale solar generation,2050,120866,GWh
+Step Change,Storage and DSP net generation,2027,-941,GWh
+Step Change,Storage and DSP net generation,2028,-1864,GWh
+Step Change,Storage and DSP net generation,2029,-4497,GWh
+Step Change,Storage and DSP net generation,2030,-7230,GWh
+Step Change,Storage and DSP net generation,2031,-8144,GWh
+Step Change,Storage and DSP net generation,2032,-9059,GWh
+Step Change,Storage and DSP net generation,2033,-10006,GWh
+Step Change,Storage and DSP net generation,2034,-11088,GWh
+Step Change,Storage and DSP net generation,2035,-13056,GWh
+Step Change,Storage and DSP net generation,2036,-13120,GWh
+Step Change,Storage and DSP net generation,2037,-13933,GWh
+Step Change,Storage and DSP net generation,2038,-12948,GWh
+Step Change,Storage and DSP net generation,2039,-15315,GWh
+Step Change,Storage and DSP net generation,2040,-16240,GWh
+Step Change,Storage and DSP net generation,2041,-16730,GWh
+Step Change,Storage and DSP net generation,2042,-17228,GWh
+Step Change,Storage and DSP net generation,2043,-15029,GWh
+Step Change,Storage and DSP net generation,2044,-17081,GWh
+Step Change,Storage and DSP net generation,2045,-17843,GWh
+Step Change,Storage and DSP net generation,2046,-18845,GWh
+Step Change,Storage and DSP net generation,2047,-17915,GWh
+Step Change,Storage and DSP net generation,2048,-18609,GWh
+Step Change,Storage and DSP net generation,2049,-17950,GWh
+Step Change,Storage and DSP net generation,2050,-19242,GWh
+Slower Growth,"Generation, storage and electrolyser capital costs",2027,37408,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2028,151817,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2029,914989,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2030,3275420,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2031,3321650,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2032,4822077,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2033,5254947,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2034,5693374,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2035,6375643,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2036,6913800,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2037,7690056,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2038,8301601,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2039,9009686,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2040,9629958,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2041,9759384,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2042,10306408,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2043,11148758,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2044,11414842,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2045,11627874,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2046,11933006,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2047,13193714,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2048,13773285,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2049,14538286,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser capital costs",2050,15680378,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2027,2835009,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2028,3077125,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2029,3392587,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2030,3784362,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2031,3891080,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2032,4254624,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2033,4466061,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2034,4528934,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2035,4667825,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2036,4806643,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2037,4970927,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2038,5128342,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2039,5306744,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2040,5479492,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2041,5417190,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2042,5498136,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2043,5583228,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2044,5559400,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2045,5507398,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2046,5438105,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2047,5512569,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2048,5503933,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2049,5486747,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser FOM costs",2050,5454766,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2027,910053,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2028,780637,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2029,540481,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2030,288857,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2031,303385,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2032,299885,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2033,323170,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2034,308143,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2035,240775,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2036,270616,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2037,314104,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2038,323907,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2039,319189,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2040,336186,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2041,321540,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2042,326084,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2043,336631,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2044,324997,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2045,355729,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2046,361758,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2047,337956,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2048,345058,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2049,403700,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser VOM costs",2050,335657,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2027,0,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2028,47141,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2029,1526905,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2030,867770,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2031,116648,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2032,126201,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2033,159,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2034,464254,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2035,748595,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2036,275281,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2037,111558,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2038,144102,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2039,133154,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2040,90892,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2041,478533,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2042,49453,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2043,227282,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2044,385418,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2045,378857,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2046,448477,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2047,460260,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2048,452471,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2049,682992,$000 real Jul-2023
+Slower Growth,"Generation, storage and electrolyser retirement costs",2050,1086673,$000 real Jul-2023
+Slower Growth,Fuel costs,2027,4165908,$000 real Jul-2023
+Slower Growth,Fuel costs,2028,3400574,$000 real Jul-2023
+Slower Growth,Fuel costs,2029,2295829,$000 real Jul-2023
+Slower Growth,Fuel costs,2030,1130113,$000 real Jul-2023
+Slower Growth,Fuel costs,2031,929322,$000 real Jul-2023
+Slower Growth,Fuel costs,2032,869853,$000 real Jul-2023
+Slower Growth,Fuel costs,2033,859689,$000 real Jul-2023
+Slower Growth,Fuel costs,2034,700773,$000 real Jul-2023
+Slower Growth,Fuel costs,2035,604246,$000 real Jul-2023
+Slower Growth,Fuel costs,2036,737791,$000 real Jul-2023
+Slower Growth,Fuel costs,2037,961765,$000 real Jul-2023
+Slower Growth,Fuel costs,2038,905175,$000 real Jul-2023
+Slower Growth,Fuel costs,2039,900699,$000 real Jul-2023
+Slower Growth,Fuel costs,2040,1152868,$000 real Jul-2023
+Slower Growth,Fuel costs,2041,1565524,$000 real Jul-2023
+Slower Growth,Fuel costs,2042,1595481,$000 real Jul-2023
+Slower Growth,Fuel costs,2043,1649175,$000 real Jul-2023
+Slower Growth,Fuel costs,2044,1651006,$000 real Jul-2023
+Slower Growth,Fuel costs,2045,2089794,$000 real Jul-2023
+Slower Growth,Fuel costs,2046,2627419,$000 real Jul-2023
+Slower Growth,Fuel costs,2047,2522428,$000 real Jul-2023
+Slower Growth,Fuel costs,2048,2001476,$000 real Jul-2023
+Slower Growth,Fuel costs,2049,3016755,$000 real Jul-2023
+Slower Growth,Fuel costs,2050,2318432,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2027,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2028,80738,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2029,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2030,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2031,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2032,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2033,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2034,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2035,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2036,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2037,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2038,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2039,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2040,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2041,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2042,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2043,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2044,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2045,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2046,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2047,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2048,0,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2049,1392,$000 real Jul-2023
+Slower Growth,DSP+USE costs,2050,1786,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2027,0,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2028,0,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2029,99954,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2030,163948,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2031,183353,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2032,487732,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2033,487732,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2034,592005,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2035,686523,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2036,686523,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2037,686523,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2038,686523,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2039,699841,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2040,699841,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2041,835667,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2042,835667,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2043,835667,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2044,835667,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2045,835667,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2046,835667,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2047,835667,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2048,835667,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2049,835667,$000 real Jul-2023
+Slower Growth,Flow path capital costs,2050,835667,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2027,0,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2028,0,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2029,27906,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2030,45605,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2031,50598,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2032,131714,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2033,131714,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2034,165952,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2035,190271,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2036,190271,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2037,190271,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2038,190271,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2039,193698,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2040,193698,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2041,233801,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2042,233801,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2043,233801,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2044,233801,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2045,233801,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2046,233801,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2047,233801,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2048,233801,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2049,231613,$000 real Jul-2023
+Slower Growth,Flow path O&M costs,2050,230380,$000 real Jul-2023
+Slower Growth,REZ capital costs,2027,0,$000 real Jul-2023
+Slower Growth,REZ capital costs,2028,0,$000 real Jul-2023
+Slower Growth,REZ capital costs,2029,0,$000 real Jul-2023
+Slower Growth,REZ capital costs,2030,0,$000 real Jul-2023
+Slower Growth,REZ capital costs,2031,35311,$000 real Jul-2023
+Slower Growth,REZ capital costs,2032,104039,$000 real Jul-2023
+Slower Growth,REZ capital costs,2033,139278,$000 real Jul-2023
+Slower Growth,REZ capital costs,2034,173943,$000 real Jul-2023
+Slower Growth,REZ capital costs,2035,177587,$000 real Jul-2023
+Slower Growth,REZ capital costs,2036,182300,$000 real Jul-2023
+Slower Growth,REZ capital costs,2037,184068,$000 real Jul-2023
+Slower Growth,REZ capital costs,2038,185344,$000 real Jul-2023
+Slower Growth,REZ capital costs,2039,205615,$000 real Jul-2023
+Slower Growth,REZ capital costs,2040,205615,$000 real Jul-2023
+Slower Growth,REZ capital costs,2041,208047,$000 real Jul-2023
+Slower Growth,REZ capital costs,2042,208047,$000 real Jul-2023
+Slower Growth,REZ capital costs,2043,209423,$000 real Jul-2023
+Slower Growth,REZ capital costs,2044,209423,$000 real Jul-2023
+Slower Growth,REZ capital costs,2045,209843,$000 real Jul-2023
+Slower Growth,REZ capital costs,2046,209843,$000 real Jul-2023
+Slower Growth,REZ capital costs,2047,209843,$000 real Jul-2023
+Slower Growth,REZ capital costs,2048,210952,$000 real Jul-2023
+Slower Growth,REZ capital costs,2049,210952,$000 real Jul-2023
+Slower Growth,REZ capital costs,2050,211081,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2027,0,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2028,0,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2029,0,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2030,0,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2031,9085,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2032,26769,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2033,35836,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2034,44906,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2035,45844,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2036,47125,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2037,47618,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2038,47991,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2039,53253,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2040,53303,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2041,53971,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2042,54017,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2043,54431,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2044,54496,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2045,54646,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2046,54705,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2047,54765,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2048,55137,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2049,55190,$000 real Jul-2023
+Slower Growth,REZ O&M costs,2050,55295,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2027,0,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2028,0,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2029,0,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2030,0,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2031,161,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2032,161,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2033,432,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2034,432,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2035,3649,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2036,7810,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2037,15133,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2038,15412,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2039,16261,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2040,18474,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2041,20305,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2042,21463,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2043,22685,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2044,23435,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2045,25095,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2046,28282,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2047,28716,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2048,32436,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2049,35719,$000 real Jul-2023
+Slower Growth,Distribution capital costs,2050,41606,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2027,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2028,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2029,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2030,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2031,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2032,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2033,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2034,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2035,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2036,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2037,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2038,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2039,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2040,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2041,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2042,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2043,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2044,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2045,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2046,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2047,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2048,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2049,0,$000 real Jul-2023
+Slower Growth,Distribution O&M costs,2050,0,$000 real Jul-2023
+Slower Growth,System security costs,2027,0,$000 real Jul-2023
+Slower Growth,System security costs,2028,8795,$000 real Jul-2023
+Slower Growth,System security costs,2029,36012,$000 real Jul-2023
+Slower Growth,System security costs,2030,121166,$000 real Jul-2023
+Slower Growth,System security costs,2031,121166,$000 real Jul-2023
+Slower Growth,System security costs,2032,130931,$000 real Jul-2023
+Slower Growth,System security costs,2033,134168,$000 real Jul-2023
+Slower Growth,System security costs,2034,144469,$000 real Jul-2023
+Slower Growth,System security costs,2035,153344,$000 real Jul-2023
+Slower Growth,System security costs,2036,164152,$000 real Jul-2023
+Slower Growth,System security costs,2037,175843,$000 real Jul-2023
+Slower Growth,System security costs,2038,183683,$000 real Jul-2023
+Slower Growth,System security costs,2039,196097,$000 real Jul-2023
+Slower Growth,System security costs,2040,206372,$000 real Jul-2023
+Slower Growth,System security costs,2041,216172,$000 real Jul-2023
+Slower Growth,System security costs,2042,235309,$000 real Jul-2023
+Slower Growth,System security costs,2043,254296,$000 real Jul-2023
+Slower Growth,System security costs,2044,262702,$000 real Jul-2023
+Slower Growth,System security costs,2045,268077,$000 real Jul-2023
+Slower Growth,System security costs,2046,277777,$000 real Jul-2023
+Slower Growth,System security costs,2047,297386,$000 real Jul-2023
+Slower Growth,System security costs,2048,302634,$000 real Jul-2023
+Slower Growth,System security costs,2049,303212,$000 real Jul-2023
+Slower Growth,System security costs,2050,308154,$000 real Jul-2023
+Slower Growth,Emissions costs,2027,8388477,$000 real Jul-2023
+Slower Growth,Emissions costs,2028,7512921,$000 real Jul-2023
+Slower Growth,Emissions costs,2029,5078894,$000 real Jul-2023
+Slower Growth,Emissions costs,2030,3071368,$000 real Jul-2023
+Slower Growth,Emissions costs,2031,3225155,$000 real Jul-2023
+Slower Growth,Emissions costs,2032,3361821,$000 real Jul-2023
+Slower Growth,Emissions costs,2033,3645224,$000 real Jul-2023
+Slower Growth,Emissions costs,2034,3499937,$000 real Jul-2023
+Slower Growth,Emissions costs,2035,2310843,$000 real Jul-2023
+Slower Growth,Emissions costs,2036,2616390,$000 real Jul-2023
+Slower Growth,Emissions costs,2037,3573884,$000 real Jul-2023
+Slower Growth,Emissions costs,2038,3683505,$000 real Jul-2023
+Slower Growth,Emissions costs,2039,3774668,$000 real Jul-2023
+Slower Growth,Emissions costs,2040,4116381,$000 real Jul-2023
+Slower Growth,Emissions costs,2041,3919453,$000 real Jul-2023
+Slower Growth,Emissions costs,2042,4246308,$000 real Jul-2023
+Slower Growth,Emissions costs,2043,4191357,$000 real Jul-2023
+Slower Growth,Emissions costs,2044,4379063,$000 real Jul-2023
+Slower Growth,Emissions costs,2045,4743537,$000 real Jul-2023
+Slower Growth,Emissions costs,2046,5046386,$000 real Jul-2023
+Slower Growth,Emissions costs,2047,4528630,$000 real Jul-2023
+Slower Growth,Emissions costs,2048,4513317,$000 real Jul-2023
+Slower Growth,Emissions costs,2049,5946440,$000 real Jul-2023
+Slower Growth,Emissions costs,2050,2774527,$000 real Jul-2023
+Slower Growth,Generation excluding rooftop and storage,2027,184081,GWh
+Slower Growth,Generation excluding rooftop and storage,2028,183001,GWh
+Slower Growth,Generation excluding rooftop and storage,2029,173127,GWh
+Slower Growth,Generation excluding rooftop and storage,2030,174276,GWh
+Slower Growth,Generation excluding rooftop and storage,2031,180677,GWh
+Slower Growth,Generation excluding rooftop and storage,2032,188450,GWh
+Slower Growth,Generation excluding rooftop and storage,2033,192771,GWh
+Slower Growth,Generation excluding rooftop and storage,2034,199346,GWh
+Slower Growth,Generation excluding rooftop and storage,2035,200605,GWh
+Slower Growth,Generation excluding rooftop and storage,2036,205148,GWh
+Slower Growth,Generation excluding rooftop and storage,2037,211100,GWh
+Slower Growth,Generation excluding rooftop and storage,2038,215299,GWh
+Slower Growth,Generation excluding rooftop and storage,2039,223275,GWh
+Slower Growth,Generation excluding rooftop and storage,2040,224536,GWh
+Slower Growth,Generation excluding rooftop and storage,2041,226066,GWh
+Slower Growth,Generation excluding rooftop and storage,2042,233238,GWh
+Slower Growth,Generation excluding rooftop and storage,2043,234853,GWh
+Slower Growth,Generation excluding rooftop and storage,2044,241054,GWh
+Slower Growth,Generation excluding rooftop and storage,2045,247700,GWh
+Slower Growth,Generation excluding rooftop and storage,2046,253401,GWh
+Slower Growth,Generation excluding rooftop and storage,2047,256768,GWh
+Slower Growth,Generation excluding rooftop and storage,2048,262361,GWh
+Slower Growth,Generation excluding rooftop and storage,2049,267551,GWh
+Slower Growth,Generation excluding rooftop and storage,2050,273581,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2027,30776,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2028,34564,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2029,38273,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2030,39966,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2031,42159,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2032,43968,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2033,44854,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2034,47588,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2035,49363,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2036,50250,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2037,48261,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2038,48343,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2039,50606,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2040,54983,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2041,55625,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2042,54194,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2043,48782,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2044,52843,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2045,56932,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2046,58600,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2047,61475,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2048,64560,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2049,66967,GWh
+Slower Growth,Rooftop and other small-scale solar generation,2050,72304,GWh
+Slower Growth,Storage and DSP net generation,2027,-1139,GWh
+Slower Growth,Storage and DSP net generation,2028,-1775,GWh
+Slower Growth,Storage and DSP net generation,2029,-3544,GWh
+Slower Growth,Storage and DSP net generation,2030,-9286,GWh
+Slower Growth,Storage and DSP net generation,2031,-10580,GWh
+Slower Growth,Storage and DSP net generation,2032,-11798,GWh
+Slower Growth,Storage and DSP net generation,2033,-10709,GWh
+Slower Growth,Storage and DSP net generation,2034,-12314,GWh
+Slower Growth,Storage and DSP net generation,2035,-11131,GWh
+Slower Growth,Storage and DSP net generation,2036,-11328,GWh
+Slower Growth,Storage and DSP net generation,2037,-11022,GWh
+Slower Growth,Storage and DSP net generation,2038,-9965,GWh
+Slower Growth,Storage and DSP net generation,2039,-11581,GWh
+Slower Growth,Storage and DSP net generation,2040,-11150,GWh
+Slower Growth,Storage and DSP net generation,2041,-10607,GWh
+Slower Growth,Storage and DSP net generation,2042,-11688,GWh
+Slower Growth,Storage and DSP net generation,2043,-9701,GWh
+Slower Growth,Storage and DSP net generation,2044,-10236,GWh
+Slower Growth,Storage and DSP net generation,2045,-11525,GWh
+Slower Growth,Storage and DSP net generation,2046,-11997,GWh
+Slower Growth,Storage and DSP net generation,2047,-11320,GWh
+Slower Growth,Storage and DSP net generation,2048,-11661,GWh
+Slower Growth,Storage and DSP net generation,2049,-10908,GWh
+Slower Growth,Storage and DSP net generation,2050,-12363,GWh
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2027,25928,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2028,665001,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2029,3842742,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2030,5911374,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2031,9123646,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2032,10903655,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2033,12077965,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2034,13411109,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2035,14879814,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2036,16286250,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2037,18660862,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2038,19735271,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2039,22159694,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2040,24338955,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2041,25317189,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2042,26626690,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2043,27478849,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2044,29694197,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2045,31234007,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2046,32923266,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2047,33010854,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2048,33472566,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2049,37444121,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser capital costs",2050,37005876,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2027,2835029,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2028,3133979,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2029,3706965,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2030,3958703,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2031,4405908,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2032,4798484,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2033,5126359,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2034,5265823,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2035,5720083,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2036,6074844,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2037,6521743,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2038,6843549,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2039,7297608,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2040,7736837,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2041,7895926,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2042,8089670,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2043,8254456,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2044,8629328,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2045,8774537,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2046,8959044,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2047,8939841,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2048,8967921,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2049,9804353,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser FOM costs",2050,9602099,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2027,1123902,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2028,991121,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2029,637445,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2030,472123,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2031,293567,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2032,247455,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2033,312885,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2034,257863,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2035,271212,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2036,322240,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2037,330661,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2038,318780,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2039,286124,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2040,314352,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2041,359736,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2042,346692,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2043,381239,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2044,343373,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2045,353727,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2046,356943,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2047,398737,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2048,401003,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2049,445849,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser VOM costs",2050,415803,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2027,0,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2028,47141,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2029,1526905,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2030,1687198,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2031,878648,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2032,418279,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2033,185579,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2034,779214,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2035,34855,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2036,44141,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2037,92674,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2038,70720,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2039,133154,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2040,90892,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2041,115313,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2042,49453,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2043,43514,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2044,292708,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2045,286147,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2046,355767,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2047,367550,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2048,443063,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2049,682990,$000 real Jul-2023
+Accelerated Transition,"Generation, storage and electrolyser retirement costs",2050,984121,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2027,7912304,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2028,6614704,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2029,2928870,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2030,2394550,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2031,882841,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2032,629948,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2033,1498146,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2034,1170291,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2035,1094167,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2036,1397901,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2037,1507628,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2038,1288844,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2039,645464,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2040,1101368,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2041,1248708,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2042,1050128,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2043,1271657,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2044,397722,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2045,714007,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2046,546176,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2047,959667,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2048,454301,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2049,987920,$000 real Jul-2023
+Accelerated Transition,Fuel costs,2050,565125,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2027,14,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2028,154786,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2029,10,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2030,1319,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2031,156,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2032,57,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2033,6995,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2034,30,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2035,0,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2036,0,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2037,0,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2038,222,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2039,111267,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2040,157855,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2041,213044,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2042,193373,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2043,240320,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2044,164313,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2045,235347,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2046,332093,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2047,271421,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2048,292615,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2049,451323,$000 real Jul-2023
+Accelerated Transition,DSP+USE costs,2050,252146,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2027,0,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2028,0,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2029,111350,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2030,182934,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2031,204642,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2032,536076,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2033,536076,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2034,657148,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2035,760830,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2036,807251,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2037,807251,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2038,807251,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2039,807251,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2040,807251,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2041,810355,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2042,973874,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2043,1023281,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2044,1023281,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2045,1023281,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2046,1023281,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2047,1023281,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2048,1238274,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2049,1238274,$000 real Jul-2023
+Accelerated Transition,Flow path capital costs,2050,1238274,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2027,0,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2028,0,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2029,28306,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2030,46329,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2031,51421,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2032,131962,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2033,131962,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2034,167769,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2035,192088,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2036,206891,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2037,206891,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2038,206891,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2039,206891,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2040,206891,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2041,207619,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2042,251129,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2043,262718,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2044,262718,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2045,262718,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2046,262718,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2047,262718,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2048,317170,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2049,314981,$000 real Jul-2023
+Accelerated Transition,Flow path O&M costs,2050,313749,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2027,0,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2028,0,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2029,0,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2030,0,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2031,73915,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2032,151325,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2033,220693,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2034,274313,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2035,285435,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2036,289877,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2037,309366,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2038,316131,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2039,359104,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2040,369227,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2041,381300,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2042,477411,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2043,484246,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2044,514523,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2045,581990,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2046,698442,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2047,703087,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2048,722309,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2049,900943,$000 real Jul-2023
+Accelerated Transition,REZ capital costs,2050,907384,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2027,0,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2028,0,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2029,0,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2030,0,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2031,17576,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2032,35894,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2033,52269,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2034,65170,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2035,67962,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2036,69210,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2037,73938,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2038,75781,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2039,86571,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2040,89547,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2041,92973,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2042,116174,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2043,118338,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2044,126639,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2045,144667,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2046,177299,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2047,179840,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2048,186249,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2049,235612,$000 real Jul-2023
+Accelerated Transition,REZ O&M costs,2050,239175,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2027,0,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2028,0,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2029,0,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2030,0,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2031,26965,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2032,28979,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2033,33216,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2034,34598,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2035,39432,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2036,44480,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2037,58525,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2038,60666,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2039,72848,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2040,88455,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2041,103873,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2042,114593,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2043,129340,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2044,152925,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2045,165373,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2046,176152,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2047,189457,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2048,198725,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2049,218730,$000 real Jul-2023
+Accelerated Transition,Distribution capital costs,2050,236046,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2027,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2028,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2029,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2030,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2031,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2032,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2033,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2034,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2035,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2036,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2037,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2038,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2039,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2040,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2041,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2042,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2043,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2044,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2045,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2046,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2047,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2048,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2049,0,$000 real Jul-2023
+Accelerated Transition,Distribution O&M costs,2050,0,$000 real Jul-2023
+Accelerated Transition,System security costs,2027,0,$000 real Jul-2023
+Accelerated Transition,System security costs,2028,48255,$000 real Jul-2023
+Accelerated Transition,System security costs,2029,143425,$000 real Jul-2023
+Accelerated Transition,System security costs,2030,227437,$000 real Jul-2023
+Accelerated Transition,System security costs,2031,348207,$000 real Jul-2023
+Accelerated Transition,System security costs,2032,380857,$000 real Jul-2023
+Accelerated Transition,System security costs,2033,417124,$000 real Jul-2023
+Accelerated Transition,System security costs,2034,466239,$000 real Jul-2023
+Accelerated Transition,System security costs,2035,503780,$000 real Jul-2023
+Accelerated Transition,System security costs,2036,541056,$000 real Jul-2023
+Accelerated Transition,System security costs,2037,592222,$000 real Jul-2023
+Accelerated Transition,System security costs,2038,610738,$000 real Jul-2023
+Accelerated Transition,System security costs,2039,656509,$000 real Jul-2023
+Accelerated Transition,System security costs,2040,731546,$000 real Jul-2023
+Accelerated Transition,System security costs,2041,760557,$000 real Jul-2023
+Accelerated Transition,System security costs,2042,786556,$000 real Jul-2023
+Accelerated Transition,System security costs,2043,810245,$000 real Jul-2023
+Accelerated Transition,System security costs,2044,867691,$000 real Jul-2023
+Accelerated Transition,System security costs,2045,905189,$000 real Jul-2023
+Accelerated Transition,System security costs,2046,942183,$000 real Jul-2023
+Accelerated Transition,System security costs,2047,950540,$000 real Jul-2023
+Accelerated Transition,System security costs,2048,929720,$000 real Jul-2023
+Accelerated Transition,System security costs,2049,1006902,$000 real Jul-2023
+Accelerated Transition,System security costs,2050,967510,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2027,7339723,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2028,6472565,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2029,4356059,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2030,2852666,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2031,1897562,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2032,1427518,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2033,1779001,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2034,539797,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2035,425142,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2036,605453,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2037,717265,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2038,624882,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2039,227351,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2040,498899,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2041,610088,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2042,502422,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2043,714556,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2044,114797,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2045,375295,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2046,252729,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2047,666959,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2048,210155,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2049,854036,$000 real Jul-2023
+Accelerated Transition,Emissions costs,2050,407427,$000 real Jul-2023
+Accelerated Transition,Generation excluding rooftop and storage,2027,192365,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2028,198982,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2029,208713,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2030,221445,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2031,238276,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2032,249152,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2033,265048,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2034,283271,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2035,305499,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2036,322060,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2037,339460,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2038,350265,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2039,364247,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2040,373748,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2041,387201,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2042,399696,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2043,403970,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2044,418849,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2045,431804,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2046,445622,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2047,453589,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2048,465421,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2049,481553,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2050,492526,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2027,32602,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2028,37833,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2029,43165,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2030,46558,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2031,53608,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2032,57967,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2033,60814,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2034,66184,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2035,69950,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2036,72522,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2037,72630,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2038,75190,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2039,81809,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2040,92371,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2041,97329,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2042,98472,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2043,91553,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2044,102973,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2045,115000,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2046,120877,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2047,128522,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2048,135337,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2049,141225,GWh
+Accelerated Transition,Rooftop and other small-scale solar generation,2050,152721,GWh
+Accelerated Transition,Storage and DSP net generation,2027,-740,GWh
+Accelerated Transition,Storage and DSP net generation,2028,-2050,GWh
+Accelerated Transition,Storage and DSP net generation,2029,-4952,GWh
+Accelerated Transition,Storage and DSP net generation,2030,-7788,GWh
+Accelerated Transition,Storage and DSP net generation,2031,-12293,GWh
+Accelerated Transition,Storage and DSP net generation,2032,-13146,GWh
+Accelerated Transition,Storage and DSP net generation,2033,-14234,GWh
+Accelerated Transition,Storage and DSP net generation,2034,-15831,GWh
+Accelerated Transition,Storage and DSP net generation,2035,-17721,GWh
+Accelerated Transition,Storage and DSP net generation,2036,-17962,GWh
+Accelerated Transition,Storage and DSP net generation,2037,-19332,GWh
+Accelerated Transition,Storage and DSP net generation,2038,-18407,GWh
+Accelerated Transition,Storage and DSP net generation,2039,-20138,GWh
+Accelerated Transition,Storage and DSP net generation,2040,-22450,GWh
+Accelerated Transition,Storage and DSP net generation,2041,-22724,GWh
+Accelerated Transition,Storage and DSP net generation,2042,-22970,GWh
+Accelerated Transition,Storage and DSP net generation,2043,-20232,GWh
+Accelerated Transition,Storage and DSP net generation,2044,-23248,GWh
+Accelerated Transition,Storage and DSP net generation,2045,-25911,GWh
+Accelerated Transition,Storage and DSP net generation,2046,-26641,GWh
+Accelerated Transition,Storage and DSP net generation,2047,-25441,GWh
+Accelerated Transition,Storage and DSP net generation,2048,-24467,GWh
+Accelerated Transition,Storage and DSP net generation,2049,-26382,GWh
+Accelerated Transition,Storage and DSP net generation,2050,-26669,GWh
