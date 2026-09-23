@@ -86,6 +86,10 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
 - Stand-in reference-year-2018 traces for two ECAA projects the final 2026 trace release does not cover: Marulan Solar
   Farm uses the `Distribution_REZ_Marulan` solar trace and Willogoleche Wind Farm 2 uses stage 1's `WGWF1` trace.
   Mulwala Solar Farm (25.1 MW) has no trace and is excluded.
+- Ten ECAA solar projects (Aldoga, Broadsound, Bundaberg, Goorambat East, Goulburn River, Kingaroy, Maryvale, Mortlake
+  Energy Hub, Punch's Creek and Solar River) and zones N9a and N9b, absent from the final 2026 trace release, keep their
+  reference-year-2018 traces from the `isp2026_final_v2` input package, extended to FY2026 by copying FY2027 back one
+  year and to FY2052-FY2055 by copying FY2051 forward, with 29 February 2052 copied from the day before.
 - The flat A$89.93 per tonne CCS transport-and-storage charge used in place of the supply curve.
 - The ageing-fleet maintenance cost premium.
 - The 20-year renewable repowering life extension.

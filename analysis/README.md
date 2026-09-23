@@ -155,6 +155,10 @@ Inputs and run products are brought onto `$IO_DIR` by hand, with no command in t
   `traces/isp_2026/project/reference_year=2018/data_2.parquet` adds FINAL reference year 2018 traces, parsed by
   `ISP_PARSE_YEARS=2018 uv run python scripts/parse_2026_final_traces.py`, for the 25 wind and solar ECAA projects
   those extra rows add. Every other file is copied unchanged from `isp2026_final`.
+- The `isp2026_final_v3` package replaces `isp2026_final_v2`'s `project/` and `zone/` trace stores with one FINAL
+  reference-year-2018 parse spanning FY2026 to FY2055 (`ISP_PARSE_YEARS=2018`), plus an `old_store_fill.parquet` in
+  each carrying the v2 traces of the ten solar projects and the N9a and N9b zones the FINAL release lacks; every other
+  file is copied unchanged from `isp2026_final_v2`.
 - A run solved on local or scratch storage is `rsync`ed into one stamped launch directory,
   `$IO_DIR/outputs/<stamp>_<run_set>/`, carrying its `configs/`, `logs/`, `records/`, `runs/`, `campaign/` and
   `exports/` subdirectories.

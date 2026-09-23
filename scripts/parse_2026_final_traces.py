@@ -357,8 +357,8 @@ def _trim_flat_to_model_horizon():
     import pyarrow.compute as pc
     import pyarrow.parquet as pq
 
-    start = datetime(2026, 7, 1, 0, 30)
-    end = datetime(2051, 7, 1, 0, 0)
+    start = datetime(2025, 7, 1, 0, 30)
+    end = datetime(2055, 7, 1, 0, 0)
     for kind in ("project", "zone"):
         for path in (FLAT / kind).glob("*.parquet"):
             table = pq.read_table(path)
