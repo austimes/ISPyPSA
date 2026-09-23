@@ -80,6 +80,35 @@ On the 99% ladder endpoint, verbatim:
 > "Every post-2025 clean-supply sequence ends with a local extension to a nominal 99% renewable endpoint at the final
 > published interval's incremental price."
 
+## S007 -- ShARP A052, national delivered-electricity factors
+
+**Source:** `assumptions_ledger.csv` of the same role directory, assumption `A052`. On how ShARP maps AEMO's NEM source
+generation to its national delivered quantity, verbatim:
+
+> "Rooftop output is removed before translation. Each source quantity is multiplied by planned delivered electricity divided
+> by matching source electricity; the existing geographic factor of 1.3 and delivery factor of 0.7914939324516337 establish
+> planned output rounded once to 5 TWh. Landfill electricity is then removed once from total and renewable output."
+
+## S008 -- ABS Consumer Price Index, All groups, weighted average of eight capital cities
+
+**Source:** Australian Bureau of Statistics (ABS), Consumer Price Index, Australia: quarterly index numbers, All groups CPI,
+original series, weighted average of eight capital cities (series A2325846C), read through the ABS data API at
+<https://data.api.abs.gov.au/rest/data/ABS,CPI,1.1.0/1.10001.10.50.Q?startPeriod=2023-Q1>. The rows used, verbatim:
+
+> ```text
+> DATAFLOW,MEASURE,INDEX,TSEST,REGION,FREQ,TIME_PERIOD,OBS_VALUE,UNIT_MEASURE,OBS_STATUS,DECIMALS,OBS_COMMENT
+> ABS:CPI(1.1.0),1,10001,10,50,Q,2024-Q1,137.4,IN,,1,
+> ABS:CPI(1.1.0),1,10001,10,50,Q,2024-Q2,138.8,IN,,1,
+> ABS:CPI(1.1.0),1,10001,10,50,Q,2024-Q3,139.1,IN,,1,
+> ABS:CPI(1.1.0),1,10001,10,50,Q,2024-Q4,139.4,IN,,1,
+> ABS:CPI(1.1.0),1,10001,10,50,Q,2025-Q2,141.7,IN,,1,
+> ```
+
+AEMO names the same index for rebasing its own dollar years; the quote is in
+[`../aemo_scenario_cost/source_data.md`](../aemo_scenario_cost/source_data.md) (S004 there). ShARP's conventions set the
+basis year but no quarter, verbatim from `library/CONVENTIONS.md` at the pinned commit: "deflation to a common basis is the
+consumer's responsibility and must use the stated basis year."
+
 ## A001 -- Constant residual emissions factor
 
 Each ladder point's intensity assumes the non-renewable remainder emits at the planned year's residual factor, planned
@@ -96,9 +125,10 @@ files carry no row for that endpoint, so the extension is reconstructed here.
 The approximate price of one extra MWh is the ladder cost interpolated at the planned renewable share plus the overflow-scale
 premium. It leaves out ShARP's fuel and carbon allowances and its overflow-growth charge (S006).
 
-## A004 -- No boundary factor
+## A004 -- No boundary factor on intensities
 
-ShARP's national net-delivered boundary is not scaled to the NEM, because only intensities and per-MWh costs are compared.
+ShARP's emissions and fuel input intensities are drawn as published, per MWh of ShARP's delivered quantity. The common basis
+covers the cost and demand panels only, through A007 to A009.
 
 ## A005 -- Demand-arm units
 
@@ -108,3 +138,24 @@ else.
 ## A006 -- Intensity-arm anchor
 
 The ShARP intensity-arm line starts at (1, 0), the planned point, as the campaign's own arm starts at its base cell.
+
+## A007 -- Delivered to NEM generation by ShARP's own factors
+
+Per-MWh costs are multiplied by the delivery factor, 0.7915, and quantities divided by the geographic and delivery factors
+together, 1.3 x 0.7915 (S007). The step assumes cost and energy scale with ShARP's national quantity in one flat ratio.
+
+## A008 -- Operational demand as 0.97 of generation
+
+NEM generation excluding rooftop becomes operational demand at 0.97, the demand plan's authored factor for storage charging and
+auxiliary load ([`../demand_plan/`](../demand_plan/), A010 there). The same factor sets AEMO's common basis in
+[`../aemo_scenario_cost/`](../aemo_scenario_cost/).
+
+## A009 -- A$2024 as the 2024 mean index
+
+ShARP's A$2024 is taken as the mean of the four 2024 quarterly index values, 138.675, and inflated to the June quarter 2025,
+141.7 (S008), a factor of 1.0218. The June quarter 2024 alone would give 1.0209.
+
+## A010 -- Futures range over every grid method
+
+The demand band spans the lowest and highest planned quantity over every method in S001 each year, six methods of which the
+two current-policy ones share one quantity path.

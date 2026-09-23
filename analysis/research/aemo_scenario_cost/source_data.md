@@ -46,14 +46,55 @@ The first Step Change rows of the extract, verbatim:
 
 The "Build costs" sheet heading agrees, verbatim: "Capital cost projections ($/kW, real 2025 dollars)".
 
+## S003 -- ABS Consumer Price Index, All groups, weighted average of eight capital cities
+
+**Source:** Australian Bureau of Statistics (ABS), Consumer Price Index, Australia: quarterly index numbers, All groups CPI, original
+series, weighted average of eight capital cities (series A2325846C). Read through the ABS data API at
+<https://data.api.abs.gov.au/rest/data/ABS,CPI,1.1.0/1.10001.10.50.Q?startPeriod=2023-Q1>, whose dimension codes decode, from the same
+API's code lists, to "Index Numbers", "All groups CPI", "Original" and "Weighted average of eight capital cities". The rows used,
+verbatim:
+
+> ```text
+> DATAFLOW,MEASURE,INDEX,TSEST,REGION,FREQ,TIME_PERIOD,OBS_VALUE,UNIT_MEASURE,OBS_STATUS,DECIMALS,OBS_COMMENT
+> ABS:CPI(1.1.0),1,10001,10,50,Q,2023-Q2,133.7,IN,,1,
+> ABS:CPI(1.1.0),1,10001,10,50,Q,2024-Q1,137.4,IN,,1,
+> ABS:CPI(1.1.0),1,10001,10,50,Q,2024-Q2,138.8,IN,,1,
+> ABS:CPI(1.1.0),1,10001,10,50,Q,2024-Q3,139.1,IN,,1,
+> ABS:CPI(1.1.0),1,10001,10,50,Q,2024-Q4,139.4,IN,,1,
+> ABS:CPI(1.1.0),1,10001,10,50,Q,2025-Q2,141.7,IN,,1,
+> ```
+
+The 2024 quarters are used by the ShARP reference in [`../sharp_grid_reference/`](../sharp_grid_reference/); this topic uses the June
+quarters of 2023 and 2025.
+
+## S004 -- IASR workbook price index
+
+**Source:** sheet "Change Log" of the same IASR workbook as S002. AEMO names the index it rebases dollar years with, verbatim:
+
+> "Australian dollars have been updated from $ 2019 to $ 2020 using All groups CPI index values - June 2020 from the Australian Bureau of
+> Statistics"
+
 ## A001 -- Generation excluding rooftop and storage as the denominator
 
 The drawn measure divides by generation excluding rooftop and storage. Rooftop output never crosses the NEM, and storage and DSP net
 generation is a small negative number (storage round-trip losses) that would otherwise net against grid supply. The same rooftop exclusion
 is used for the emissions overlay in [`../aemo_scenario_intensity/`](../aemo_scenario_intensity/).
 
-## A002 -- Dollar year left unconverted
+## A002 -- Dollar year converted by the ABS All groups CPI
 
-AEMO's costs are in real July 2023 dollars (S001) and the campaign's in real 30 June 2025 dollars (S002). The overlay is drawn as
-published, with no inflation factor: no consumer price index series is tracked in this repository, so any factor would be an uncited
-number. Two years of inflation is a few per cent, small beside the gap between scenarios, so the band still reads correctly as a range.
+AEMO's costs are in real July 2023 dollars (S001) and the campaign's in real 30 June 2025 dollars (S002). The common-basis cost multiplies
+by the June quarter 2025 index over the June quarter 2023 index, 141.7 / 133.7 = 1.0598 (S003), the index AEMO itself names (S004). July
+2023 dollars are taken as the June quarter 2023 index, the quarter that ends the day before; the September quarter (135.3) would lower the
+factor to 1.047.
+
+## A003 -- Cost classes the campaign does not model
+
+The common-basis cost also leaves out generation, storage and electrolyser retirement costs, system security costs and distribution
+capital and O&M costs. The campaign's model carries no counterpart for any of the four. Flow path, REZ, and DSP and unserved energy costs
+stay in, because the campaign builds transmission and REZ capacity and prices unserved energy.
+
+## A004 -- Operational demand as 0.97 of generation
+
+Operational demand is taken as 0.97 of generation excluding rooftop and storage, the demand plan's authored factor for storage charging and
+auxiliary load ([`../demand_plan/`](../demand_plan/), A010 there). It sets both `operational_demand_twh` and the common-basis cost's
+denominator. AEMO publishes no such factor.

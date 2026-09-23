@@ -4,9 +4,12 @@
 
 The dashboard's "Pathway intensities" row draws every chain's conversion cost, the cost excluding fuel and carbon per megawatt hour,
 against the milestone years. This topic derives the same measure for the three AEMO 2026 ISP scenarios and commits it as a CSV, so the
-conversion cost panel shades the range between them and draws each scenario as a dotted line behind the chains. The band shares its legend
-entries with the emissions panel's overlay from [`../aemo_scenario_intensity/`](../aemo_scenario_intensity/), so one legend click hides
-both.
+conversion cost panel shades the range between them and draws each scenario as a dotted line behind the chains. The same CSV carries each
+scenario's operational demand, which the row's demand panel draws the same way. Both overlays sit under one "AEMO 2026 ISP" legend group,
+so one legend click hides both; the emissions panel's overlay from [`../aemo_scenario_intensity/`](../aemo_scenario_intensity/) comes from
+the draft ISP and keeps its own "AEMO draft ISP" group.
+
+The dashboard draws both overlays on the campaign's own basis, described under [Common basis](#common-basis-with-the-campaigns-measure).
 
 The overlay is a sanity reference, not a target and not a constraint. Nothing in the campaign model reads it.
 
@@ -78,26 +81,58 @@ years carry little capital; the rise tracks the new fleet's annualised capital a
 **confidence: high** on the arithmetic: every number is a sum and a ratio of AEMO-published rows, and the five milestone years reproduce
 by hand from the source CSV.
 
-**confidence: low** on comparability with the campaign's own conversion cost, for the three basis differences below.
+## Common basis with the campaign's measure
 
-## Basis differences against the campaign's measure
+The dashboard draws AEMO on the campaign's own basis, not as published. The campaign's conversion cost divides by the load its model
+serves, which is AEMO operational demand with no transmission losses modelled ([`../../../docs/method.md`](../../../docs/method.md)), and
+its costs are in real 30 June 2025 dollars (S002). Two CSV columns restate AEMO on that basis:
 
-| Difference | AEMO overlay | Campaign conversion cost | Effect on the comparison |
-|---|---|---|---|
-| Dollar year | Real July 2023 dollars (S001) | Real 30 June 2025 dollars, the IASR workbook's basis (S002) | AEMO sits low by about two years of inflation; not converted (A002) |
-| Cost scope | Whole NEM, annualised: new-build capital, whole-fleet FOM, retirement, transmission, REZ, distribution, system security (S001) | The solve's spend excluding fuel and carbon, plus annualised capital and FOM of the chain's surviving builds and existing-fleet FOM; pre-2030 existing-fleet capital sunk ([`../../sharp/frontier_points.py`](../../sharp/frontier_points.py)) | AEMO carries retirement, distribution and system security classes the campaign has no counterpart for |
-| Denominator | Generation excluding rooftop and storage (A001) | Annual load served in the solve | AEMO's generation also covers network losses, so its denominator is the larger and its per-MWh figure the lower for the same cost |
+```text
+common_cost_aud_per_mwh = (14 cost classes - fuel - emissions - retirement - system security - distribution capital - distribution O&M)
+                          / generation excluding rooftop and storage / 0.97 x CPI June quarter 2025 / CPI June quarter 2023
+operational_demand_twh  = generation excluding rooftop and storage x 0.97
+```
 
-The ShARP reference on the same panel ([`../sharp_grid_reference/`](../sharp_grid_reference/)) is in 2024 dollars and is drawn
-unconverted as well, so the panel mixes three dollar years. Each is within about two years of the others, which is small beside the
-spread between scenarios.
+| Difference | As published | Common basis | Factor | Basis |
+|---|---|---|---|---|
+| Dollar year | Real July 2023 dollars (S001) | Real 30 June 2025 dollars (S002) | 141.7 / 133.7 = 1.0598 | A002 (S003, S004) |
+| Cost scope | 14 classes less fuel and emissions | Also less retirement, system security and distribution capital and O&M | Classes dropped | A003 |
+| Denominator | Generation excluding rooftop and storage (A001) | Operational demand, the load the campaign serves | 1 / 0.97 = 1.031 | A004 |
+
+Common-basis cost, A$/MWh of operational demand in real June 2025 dollars, and operational demand in TWh:
+
+| Year | Cost, Slower Growth | Cost, Step Change | Cost, Accelerated Transition | Demand, Slower Growth | Demand, Step Change | Demand, Accelerated Transition |
+|---|---:|---:|---:|---:|---:|---:|
+| 2030 | 47.4 | 45.5 | 52.2 | 169.0 | 204.2 | 214.8 |
+| 2035 | 67.5 | 64.9 | 79.3 | 194.6 | 251.3 | 296.3 |
+| 2040 | 80.8 | 83.5 | 99.5 | 217.8 | 285.3 | 362.5 |
+| 2045 | 83.0 | 90.0 | 107.8 | 240.3 | 307.5 | 418.8 |
+| 2050 | 91.1 | 96.8 | 110.9 | 265.4 | 322.1 | 477.8 |
+
+Inflation and the smaller denominator raise every figure by 9.3%, and dropping the unmodelled classes takes some of that back. Against
+the published series, the common basis runs 8% lower to 2% higher in 2030, where retirement costs are heaviest, and 3% to 7% higher from
+2035 on.
+
+**confidence: high** on the price-index factor: both index values are ABS-published, and AEMO's own IASR names the same All groups index.
+
+**confidence: medium** on the dropped classes: the campaign has no retirement, system security or distribution cost, but AEMO does not
+split its generation capital and O&M the way the campaign splits sunk and new-build capital.
+
+**confidence: low** on the 0.97: it is the demand plan's authored placeholder, not an AEMO figure
+([`../demand_plan/`](../demand_plan/), A010 there).
+
+One scope difference remains. The campaign counts pre-2030 existing-fleet capital as sunk and adds annualised capital and FOM of the
+chain's surviving builds and existing-fleet FOM ([`../../sharp/frontier_points.py`](../../sharp/frontier_points.py)); AEMO annualises the
+capital of its new builds only. The ShARP reference on the same panel ([`../sharp_grid_reference/`](../sharp_grid_reference/)) is restated
+to the same basis, so every line on the cost and demand panels shares one dollar year and one denominator.
 
 ## Plot
 
 [`plot_aemo_scenario_cost.py`](plot_aemo_scenario_cost.py) reads the committed source extract
 [`aemo_2026_isp_cdp4_costs_generation.csv`](aemo_2026_isp_cdp4_costs_generation.csv), writes
-[`aemo_scenario_cost.csv`](aemo_scenario_cost.csv) and renders [`aemo_scenario_cost.png`](aemo_scenario_cost.png) and its HTML twin. The
-dashboard reads the same committed CSV, so the figure and the overlay never disagree.
+[`aemo_scenario_cost.csv`](aemo_scenario_cost.csv) and renders [`aemo_scenario_cost.png`](aemo_scenario_cost.png) and its HTML twin:
+each scenario's cost as published (dotted) and on the common basis the dashboard draws (solid). The dashboard reads the same committed
+CSV, so the figure and the overlay never disagree.
 
 Run it with:
 

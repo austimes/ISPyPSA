@@ -2,7 +2,9 @@
 
 Reads five files of the ShARP ``generate_grid_electricity`` role from the ``austimes/sharp`` GitHub repository at a pinned commit, through
 the authenticated ``gh`` command line, and keeps the ``current_policy_clean_transition`` future for 2030 to 2050. Each clean-ladder point's
-renewable fraction becomes an intensity by assuming the non-renewable remainder keeps the planned year's emissions factor.
+renewable fraction becomes an intensity by assuming the non-renewable remainder keeps the planned year's emissions factor. Columns prefixed
+``common_`` restate ShARP's national delivered quantities and costs on the campaign's basis: NEM operational demand in real June 2025
+dollars, with ``common_futures_min_twh`` and ``common_futures_max_twh`` the range over every ShARP grid future.
 
 Run with ``uv run --with kaleido python analysis/research/sharp_grid_reference/plot_sharp_grid_reference.py``; writes
 ``sharp_grid_reference.csv``, ``.html`` and ``.png`` beside this script.
@@ -26,6 +28,14 @@ _YEARS = [2030, 2035, 2040, 2045, 2050]
 #: ShARP extends every clean ladder to a nominal 99% renewable endpoint at its final published interval's incremental price.
 _LADDER_END = 0.99
 _OUTPUT_STEM = Path(__file__).with_name("sharp_grid_reference")
+#: ShARP's A052 factors from NEM source generation to national delivered electricity (S007).
+_GEOGRAPHIC_FACTOR = 1.3
+_DELIVERY_FACTOR = 0.7914939324516337
+#: Operational demand as a share of NEM generation excluding rooftop, the demand plan's authored factor (A008).
+_OPERATIONAL_SHARE = 0.97
+_QUANTITY_COLUMNS = ["planned_twh", "futures_min_twh", "futures_max_twh"]
+#: ABS All groups CPI, weighted average of eight capital cities (series A2325846C): June quarter 2025 over the 2024 mean (A009).
+_CPI_2024_TO_JUN_2025 = 141.7 / ((137.4 + 138.8 + 139.1 + 139.4) / 4)
 
 
 def _read_sharp(name: str) -> pd.DataFrame:
@@ -115,7 +125,7 @@ def _share_cost(ladder: pd.DataFrame, share: float) -> float:
 
 
 def reference_table() -> pd.DataFrame:
-    """Per year and ladder point: the planned state, the residual factor, the converted ladder and the approximate extra-MWh price."""
+    """Per year and ladder point: the planned state, the futures range, the converted ladder, the extra-MWh price and their common basis."""
     planned = _planned()
     planned["residual_t_co2e_per_mwh"] = planned["planned_t_co2e_per_mwh"] / (
         1 - planned["planned_renewable_fraction"]
@@ -132,11 +142,31 @@ def reference_table() -> pd.DataFrame:
     planned["extra_mwh_price_aud_per_mwh"] = (
         planned["planned_share_ladder_cost_aud_per_mwh"] + premiums
     )
-    table = planned.join(ladder).reset_index()
+    table = planned.join(_futures_range()).join(ladder).reset_index()
     table["ladder_t_co2e_per_mwh"] = (1 - table["ladder_renewable_fraction"]) * table[
         "residual_t_co2e_per_mwh"
     ]
-    return table.round(5)
+    return _common_basis(table).round(5)
+
+
+def _futures_range() -> pd.DataFrame:
+    """Lowest and highest planned quantity over every ShARP grid future, per year, in national delivered TWh."""
+    states = _read_sharp("overflow_supply_pathway_states.csv")
+    quantity = states.groupby("year")["planned_quantity"]
+    return pd.DataFrame(
+        {"futures_min_twh": quantity.min(), "futures_max_twh": quantity.max()}
+    )
+
+
+def _common_basis(table: pd.DataFrame) -> pd.DataFrame:
+    """Every A$/MWh column per MWh of NEM operational demand in June 2025 dollars, and every TWh column as NEM operational demand."""
+    cost = _DELIVERY_FACTOR / _OPERATIONAL_SHARE * _CPI_2024_TO_JUN_2025
+    energy = _OPERATIONAL_SHARE / (_GEOGRAPHIC_FACTOR * _DELIVERY_FACTOR)
+    common = {
+        **{f"common_{c}": table[c] * cost for c in table.filter(like="aud_per_mwh")},
+        **{f"common_{c}": table[c] * energy for c in _QUANTITY_COLUMNS},
+    }
+    return table.assign(**common)
 
 
 def build_figure(table: pd.DataFrame) -> go.Figure:

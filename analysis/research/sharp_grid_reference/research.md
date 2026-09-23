@@ -8,10 +8,11 @@ Change, and commits it as a CSV so the campaign dashboard can draw it as a dashe
 
 | Dashboard panel | ShARP reference drawn |
 |---|---|
-| Pathway intensities: conversion cost | Planned non-fuel cost (A$2024/MWh) |
+| Pathway intensities: conversion cost | Planned non-fuel cost on the common basis (A$2025/MWh of operational demand) |
 | Pathway intensities: emissions | Planned emissions intensity (t CO2e/MWh) |
 | Pathway intensities: input | Planned fuel input intensity, coal, lignite and gas summed (PJ/TWh) |
-| Pathway intensities: all three | A band from the planned value to the clean ladder's 99% point |
+| Pathway intensities: cost, emissions and input | A band from the planned value to the clean ladder's 99% point |
+| Pathway intensities: demand | Planned quantity as NEM operational demand (TWh), over a band spanning every ShARP grid future |
 | Increment surfaces: demand arm | Approximate price of one extra MWh, flat across the arm |
 | Increment surfaces: intensity arm | The clean ladder cleaner than the planned share, converted to intensity |
 
@@ -20,11 +21,10 @@ The reference is a comparison aid, not a target or a constraint. Nothing in the 
 Scope and boundaries:
 
 - One ShARP method, `electricity__grid_supply__current_policy_clean_transition`, for the financial years 2030 to 2050 in
-  five-year steps.
+  five-year steps. The demand band alone spans every grid method in ShARP's planned pathway states (S001).
 - ShARP's boundary is national net-delivered grid electricity excluding rooftop solar (S006). The campaign's boundary is
-  NEM operational demand, about 6% fewer TWh: the Step Change base chain delivers 202 TWh in 2030 and 322 TWh in 2050
-  against ShARP's planned 214 and 340. No boundary factor is applied, because intensities and per-MWh costs are compared,
-  not totals (A004).
+  NEM operational demand. The cost and demand panels restate ShARP on the campaign's basis, described under
+  [Common basis](#common-basis-with-the-campaigns-measure); intensities are drawn unscaled (A004).
 - Every ShARP cost is in 2024 Australian dollars (A$2024) and excludes fuel and carbon, which ShARP prices separately
   (S006).
 
@@ -100,20 +100,70 @@ from the NEM's.
 contradict: renewable share and intensity are not one-to-one there, because the emissions factor of the thermal remainder
 changes as the cap deepens. The ladder costs themselves are tagged exploratory in ShARP, and the 99% endpoint is an extension.
 
-**Clean ladder reach band, confidence: low.** Each pathway panel shades from the planned value to the ladder's 99% point:
+**Clean ladder reach band, confidence: low.** The cost, emissions and input panels each shade from the planned value to the
+ladder's 99% point:
 cost rises by the ladder cost at 99% less the ladder cost at the planned share, and emissions and fuel input both scale by
 `(1 - 0.99) / (1 - planned share)`, so the band inherits the converted ladder's constant-residual-factor assumption.
 
 **Extra-MWh price, confidence: low.** It is a proxy that leaves out ShARP's fuel and carbon allowances and overflow-growth
 charge, and it inherits the ladder's exploratory status.
 
+## Common basis with the campaign's measure
+
+The campaign's cost and demand are per MWh and TWh of the load its model serves, which is NEM operational demand, in real 30
+June 2025 dollars. ShARP's are per MWh and TWh of national delivered electricity in A$2024. ShARP's own translation from AEMO
+generation sets the bridge: NEM source generation times a geographic factor of 1.3 and a delivery factor of 0.7915 gives
+ShARP's planned delivered quantity (S007). The CSV's `common_` columns reverse that step and apply the demand plan's 0.97 from
+generation to operational demand:
+
+```text
+common cost (A$/MWh)  = ShARP cost x 0.7915 / 0.97 x CPI June quarter 2025 / mean CPI of the four 2024 quarters
+common quantity (TWh) = ShARP quantity / (1.3 x 0.7915) x 0.97
+```
+
+Per MWh, the geographic factor cancels: a national total cost over a national delivered quantity carries the same ratio as the
+NEM share of each.
+
+| Factor | Value | Basis |
+|---|---:|---|
+| Delivered to NEM generation, per MWh | 0.7915 | S007 |
+| NEM generation to operational demand, per MWh | 1 / 0.97 = 1.031 | A008 |
+| A$2024 to real June 2025 dollars | 141.7 / 138.675 = 1.0218 | A009 (S008) |
+| Cost, all three together | 0.8338 | A007 |
+| Quantity: national delivered to NEM operational demand | 0.97 / (1.3 x 0.7915) = 0.9427 | A007, A008 |
+
+On that basis, from [`sharp_grid_reference.csv`](sharp_grid_reference.csv):
+
+| Year | Planned cost (A$2025/MWh) | Reach cost at 99% (A$2025/MWh) | Planned demand (TWh) | Futures range (TWh) |
+|---|---:|---:|---:|---|
+| 2030 | 73.3 | 81.7 | 201.7 | 168.7 to 211.1 |
+| 2035 | 81.8 | 85.7 | 248.9 | 192.4 to 296.1 |
+| 2040 | 91.8 | 94.5 | 282.1 | 216.1 to 362.3 |
+| 2045 | 101.8 | 103.7 | 305.9 | 239.9 to 419.0 |
+| 2050 | 112.6 | 113.5 | 320.2 | 263.6 to 475.7 |
+
+The futures range spans the six grid methods in S001: the two current-policy methods share one quantity path, the incumbent
+and delayed-with-gas futures set the floor from 2030 on, and the early near-zero future sets the ceiling (A010). The
+current-policy demand lands within 2% of the campaign's Step Change base chain in every milestone year, which supports the
+two factors as a pair.
+
+**Cost factor, confidence: medium.** The delivery factor is ShARP's own, but it maps national delivered energy to generation
+as one flat ratio, and ShARP's cost may carry network costs that do not scale with it.
+
+**Quantity factor, confidence: medium.** It inverts ShARP's own translation, which rounds planned output once to 5 TWh and
+removes landfill electricity (S007), so the restated quantity carries up to about 2.5 TWh of that rounding.
+
+**Price-index factor, confidence: high.** Both index values are ABS-published; the only choice is taking A$2024 as the 2024
+mean, and the June quarter 2024 alone (138.8) would move the factor by 0.1%.
+
 ## Plot
 
 [`plot_sharp_grid_reference.py`](plot_sharp_grid_reference.py) reads the five ShARP files at the pinned commit through the
 `gh` command line, writes [`sharp_grid_reference.csv`](sharp_grid_reference.csv), and renders
 [`sharp_grid_reference.png`](sharp_grid_reference.png) and its HTML twin: each year's converted ladder as cost against
-intensity, with the planned point marked. The dashboard reads the same committed CSV, so the figure and the overlays cannot
-disagree.
+intensity in A$2024 per delivered MWh, with the planned point marked. The CSV also carries the futures range and the
+`common_` columns the dashboard's cost and demand panels draw. The dashboard reads the same committed CSV, so the figure and the
+overlays cannot disagree.
 
 Run it with:
 

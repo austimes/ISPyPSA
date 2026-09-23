@@ -342,19 +342,24 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
 
     figure = figure_pathway_intensities(frame)
 
-    # The AEMO reference overlay on the cost and emissions panels, ShARP's reach band and planned line on each panel, then cost and emissions for both
-    # chains, then the fuels each chain burns: coal and gas, gas and biomass.
+    # The AEMO overlays on the cost, emissions and demand panels, ShARP's band and planned line on each panel, then cost and emissions for
+    # both chains, the fuels each chain burns (coal and gas, gas and biomass) and its demand.
     assert [(trace.name, trace.line.dash) for trace in figure.data] == [
         (None, None),
-        ("AEMO scenario range", None),
+        ("AEMO 2026 ISP scenario range", None),
+        ("AEMO 2026 ISP: Slower Growth", "dot"),
+        ("AEMO 2026 ISP: Step Change", "dot"),
+        ("AEMO 2026 ISP: Accelerated Transition", "dot"),
+        (None, None),
+        ("AEMO draft ISP scenario range", None),
         ("AEMO draft ISP: Slower Growth", "dot"),
         ("AEMO draft ISP: Step Change", "dot"),
         ("AEMO draft ISP: Accelerated Transition", "dot"),
         (None, None),
-        ("AEMO scenario range", None),
-        ("AEMO draft ISP: Slower Growth", "dot"),
-        ("AEMO draft ISP: Step Change", "dot"),
-        ("AEMO draft ISP: Accelerated Transition", "dot"),
+        ("AEMO 2026 ISP scenario range", None),
+        ("AEMO 2026 ISP: Slower Growth", "dot"),
+        ("AEMO 2026 ISP: Step Change", "dot"),
+        ("AEMO 2026 ISP: Accelerated Transition", "dot"),
         (None, None),
         ("ShARP clean ladder reach (approx.)", None),
         ("ShARP current policy (approx.)", "dash"),
@@ -363,29 +368,39 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
         ("ShARP current policy (approx.)", "dash"),
         (None, None),
         ("ShARP clean ladder reach (approx.)", None),
+        ("ShARP current policy (approx.)", "dash"),
+        (None, None),
+        ("ShARP futures range", None),
         ("ShARP current policy (approx.)", "dash"),
         ("central demand, uncapped (A$0/t)", "solid"),
         ("central demand, uncapped (A$0/t)", "solid"),
         ("central demand, uncapped (A$0/t)", "solid"),
         ("central demand, uncapped (A$0/t)", "dash"),
+        ("central demand, uncapped (A$0/t)", "solid"),
         ("high demand, carbon price A$150/t", "solid"),
         ("high demand, carbon price A$150/t", "solid"),
         ("high demand, carbon price A$150/t", "dash"),
         ("high demand, carbon price A$150/t", "dot"),
+        ("high demand, carbon price A$150/t", "solid"),
     ]
     assert [trace.name for trace in figure.data if trace.showlegend] == [
-        "AEMO scenario range",
+        "AEMO 2026 ISP scenario range",
+        "AEMO 2026 ISP: Slower Growth",
+        "AEMO 2026 ISP: Step Change",
+        "AEMO 2026 ISP: Accelerated Transition",
+        "AEMO draft ISP scenario range",
         "AEMO draft ISP: Slower Growth",
         "AEMO draft ISP: Step Change",
         "AEMO draft ISP: Accelerated Transition",
         "ShARP clean ladder reach (approx.)",
         "ShARP current policy (approx.)",
+        "ShARP futures range",
         "central demand, uncapped (A$0/t)",
         "high demand, carbon price A$150/t",
     ]
 
 
-def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_cost_and_emissions_panels(
+def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_cost_emissions_and_demand_panels(
     csv_str_to_df,
 ):
     frame = csv_str_to_df("""
@@ -396,25 +411,26 @@ def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_cost_and_emissio
 
     figure = figure_pathway_intensities(frame)
 
-    overlay = [trace for trace in figure.data if trace.legendgroup == "AEMO draft ISP"]
-    names = [
-        None,
-        "AEMO scenario range",
-        "AEMO draft ISP: Slower Growth",
-        "AEMO draft ISP: Step Change",
-        "AEMO draft ISP: Accelerated Transition",
+    # The final ISP's cost and demand share one legend group; the draft ISP's emissions keep their own.
+    ranges = [
+        trace for trace in figure.data if str(trace.name).endswith("scenario range")
     ]
-    assert [(trace.name, trace.yaxis) for trace in overlay] == [
-        *((name, "y") for name in names),
-        *((name, "y2") for name in names),
+    assert [(trace.name, trace.yaxis, trace.showlegend) for trace in ranges] == [
+        ("AEMO 2026 ISP scenario range", "y", True),
+        ("AEMO draft ISP scenario range", "y2", True),
+        ("AEMO 2026 ISP scenario range", "y4", False),
     ]
-    assert [min(overlay[index].x) for index in (2, 7)] == [2030, 2030]
-    assert [trace.showlegend for trace in overlay[1:]] == [True] * 4 + [False] * 5
+    # Step Change in 2030, restated per MWh and TWh of operational demand in June 2025 dollars.
+    step_change = [t for t in figure.data if t.name == "AEMO 2026 ISP: Step Change"]
+    assert [(trace.x[0], round(trace.y[0], 1)) for trace in step_change] == [
+        (2030, 45.5),
+        (2030, 204.2),
+    ]
 
 
 @pytest.mark.parametrize(
     ("year", "expected"),
-    [(2035, ["y", "y", "y2", "y2", "y3", "y3", "y", "y2"]), (2036, [])],
+    [(2035, ["y", "y", "y2", "y2", "y3", "y3", "y4", "y", "y2"]), (2036, [])],
 )
 def test_sharp_reference_is_drawn_only_for_years_it_covers(
     csv_str_to_df, increments, year, expected
@@ -427,7 +443,8 @@ def test_sharp_reference_is_drawn_only_for_years_it_covers(
     pathways = figure_pathway_intensities(frame)
     arms = figures.figure_increment_surfaces(increments.assign(year=year))
 
-    # A reach band and planned line on each pathway panel, then the extra-MWh price and the clean ladder on the arms.
+    # A reach band and planned line on each intensity panel, the planned line on the demand panel, then the extra-MWh price and the clean
+    # ladder on the arms.
     sharp = [
         trace
         for trace in [*pathways.data, *arms.data]
@@ -443,8 +460,8 @@ def test_pathway_intensities_fans_each_increment_out_of_its_base_point(csv_str_t
         ext_sc, step_change, sc,       Step Change intensity path, 2035, 110.0,         30.0,                          0.20
     """)
     branches = csv_str_to_df("""
-        cell,      base_cell, year, increment, cost_per_mwh_excl_fuel_carbon, fleet_intensity
-        ext_b2035, ext_sc,    2035, d110_i050, 45.0,                          0.10
+        cell,      base_cell, year, increment, delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        ext_b2035, ext_sc,    2035, d110_i050, 121.0,         45.0,                          0.10
     """)
 
     figure = figure_pathway_intensities(frame, branches)
@@ -454,6 +471,7 @@ def test_pathway_intensities_fans_each_increment_out_of_its_base_point(csv_str_t
     assert [(trace.xaxis, trace.showlegend) for trace in fans] == [
         ("x", True),
         ("x2", False),
+        ("x4", False),
     ]
     assert (list(fans[0].x), list(fans[0].y)) == (
         [2030, 2035, None],
@@ -462,6 +480,10 @@ def test_pathway_intensities_fans_each_increment_out_of_its_base_point(csv_str_t
     assert (list(fans[1].x), list(fans[1].y)) == (
         [2030, 2035, None],
         [0.40, 0.10, None],
+    )
+    assert (list(fans[2].x), list(fans[2].y)) == (
+        [2030, 2035, None],
+        [100.0, 121.0, None],
     )
 
 
@@ -474,8 +496,8 @@ def test_pathway_intensities_stubs_a_first_milestone_increment_off_its_own_year(
         ext_sc, step_change, sc,       Step Change intensity path, 2035, 110.0,         30.0,                          0.20
     """)
     branches = csv_str_to_df("""
-        cell,      base_cell, year, increment, cost_per_mwh_excl_fuel_carbon, fleet_intensity
-        ext_b2030, ext_sc,    2030, d110_i050, 28.0,                          0.38
+        cell,      base_cell, year, increment, delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        ext_b2030, ext_sc,    2030, d110_i050, 110.0,         28.0,                          0.38
     """)
 
     figure = figure_pathway_intensities(frame, branches)

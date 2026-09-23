@@ -68,14 +68,18 @@ DURATION_LABELS = {
     "6_over24h": "over 24 h",
 }
 
-#: The three pathway-intensity panels in page order, each titled and with the unit its y axis carries.
-#: Emissions are in Mt CO2e/TWh and fuel inputs in PJ/TWh, which are the ShARP units and numerically
-#: the t CO2e/MWh and GJ/MWh the campaign exports.
+#: The four pathway panels in page order, each titled with the unit its y axis carries. Emissions are in
+#: Mt CO2e/TWh and fuel inputs in PJ/TWh, which are the ShARP units and numerically the t CO2e/MWh and
+#: GJ/MWh the campaign exports. Cost and demand are per MWh and TWh of NEM operational demand.
 INTENSITY_PANELS = [
-    ("Conversion cost intensity", "A$/MWh"),
+    ("Conversion cost intensity", "A$2025/MWh"),
     ("Emissions intensity", "Mt CO2e/TWh"),
     ("Input intensity", "PJ/TWh"),
+    ("Demand", "TWh"),
 ]
+#: The white, horizontal-grid look of ShARP's own panels.
+PANEL_BACKGROUND = "white"
+PANEL_GRID_COLOUR = "#e6e6e6"
 
 #: AEMO scenario emissions and cost intensities, each committed beside the research topic that derives it, and how the
 #: cost and emissions panels draw them: one legend group, one dotted line per scenario and a shaded range behind them.
@@ -88,13 +92,14 @@ AEMO_INTENSITY_CSV = (
 AEMO_COST_CSV = (
     PACKAGE_ROOT / "research" / "aemo_scenario_cost" / "aemo_scenario_cost.csv"
 )
-#: The AEMO series each pathway-intensity panel draws, by panel column: its CSV and value column.
+#: The AEMO series each pathway panel draws, by panel column: its CSV, value column and the ISP it comes from, which is
+#: also its legend group.
 AEMO_PANELS = {
-    1: (AEMO_COST_CSV, "cost_excl_fuel_emissions_aud_per_mwh"),
-    2: (AEMO_INTENSITY_CSV, "t_co2e_per_mwh"),
+    1: (AEMO_COST_CSV, "common_cost_aud_per_mwh", "AEMO 2026 ISP"),
+    2: (AEMO_INTENSITY_CSV, "t_co2e_per_mwh", "AEMO draft ISP"),
+    4: (AEMO_COST_CSV, "operational_demand_twh", "AEMO 2026 ISP"),
 }
 AEMO_SCENARIOS = ["Slower Growth", "Step Change", "Accelerated Transition"]
-AEMO_LEGEND_GROUP = "AEMO draft ISP"
 AEMO_LINE_COLOUR = "#101080"
 AEMO_BAND_FILL = "rgba(10,10,80,0.2)"
 
@@ -107,12 +112,14 @@ SHARP_NAME = "ShARP current policy (approx.)"
 SHARP_LINE = {"color": "#108010", "dash": "dash", "width": 1.5}
 SHARP_BAND_NAME = "ShARP clean ladder reach (approx.)"
 SHARP_BAND_FILL = "rgba(10,80,10,0.2)"
+SHARP_FUTURES_NAME = "ShARP futures range"
 
-#: ShARP's planned columns the pathway-intensity panels draw, in ``INTENSITY_PANELS`` order.
+#: ShARP's planned columns the pathway panels draw, in ``INTENSITY_PANELS`` order.
 SHARP_PATHWAY_COLUMNS = [
-    "planned_cost_aud_per_mwh",
+    "common_planned_cost_aud_per_mwh",
     "planned_t_co2e_per_mwh",
     "planned_pj_per_twh",
+    "common_planned_twh",
 ]
 MWH_PER_TWH = 1e6
 
@@ -701,25 +708,31 @@ def _cap_dual_table(increments: pd.DataFrame) -> go.Table:
 def figure_pathway_intensities(
     frame: pd.DataFrame, branches: pd.DataFrame | None = None
 ) -> go.Figure:
-    """Conversion cost, emissions and fuel input intensity over the milestone years, one line per chain.
+    """Conversion cost, emissions and fuel input intensity and operational demand over the milestone years, one line per chain.
 
     The row mirrors the ShARP library's pathway intensities, so a modelled pathway reads beside a
     ShARP one: cost excludes fuel and carbon, and the input panel draws one dashed line per fuel.
     Every panel's line for a chain shares a legend group, so one legend click hides the chain across
-    all three. The cost and emissions panels carry the AEMO scenario intensities behind the chains as
-    a sanity reference, and every panel carries ShARP's planned current-policy value, shaded out to
-    its clean ladder's cleanest point, where the reference covers the plotted years.
+    all four. The cost, emissions and demand panels carry the AEMO scenarios behind the chains as a
+    sanity reference, and every panel carries ShARP's planned current-policy value, shaded out to its
+    clean ladder's cleanest point, or across every ShARP future for demand, where the reference
+    covers the plotted years. Cost and demand references are restated per MWh and TWh of operational
+    demand in June 2025 dollars, the campaign's own basis.
 
     :param frame: The tidy cell-year frame of the campaign's base chains.
     :param branches: The increment grid's branch rows, each fanned out from the base point it
         branched from. A run with no increment grid draws the base chains alone.
     """
     figure = make_subplots(
-        rows=1, cols=3, subplot_titles=[title for title, _ in INTENSITY_PANELS]
+        rows=1,
+        cols=len(INTENSITY_PANELS),
+        subplot_titles=[f"{title} \u00b7 {unit}" for title, unit in INTENSITY_PANELS],
     )
-    for index, (column, (csv, value)) in enumerate(AEMO_PANELS.items()):
+    isps = [isp for _, _, isp in AEMO_PANELS.values()]
+    for index, (column, (csv, value, isp)) in enumerate(AEMO_PANELS.items()):
         span = _aemo_scenario_span(csv, value, frame["year"].min())
-        figure.add_traces(_aemo_overlay(span, index == 0), rows=1, cols=column)
+        overlay = _aemo_overlay(span, isp, isps.index(isp) == index)
+        figure.add_traces(overlay, rows=1, cols=column)
     for column, references in enumerate(_sharp_pathway(frame["year"]), start=1):
         figure.add_traces(references, rows=1, cols=column)
     for key, colour in _increment_colours(branches).items():
@@ -735,6 +748,8 @@ def figure_pathway_intensities(
             if _fuel_burnt(rows, column):
                 fan = _branch_fan(frame, rows, column, colour, key, dash=dash)
                 figure.add_trace(fan, row=1, col=3)
+        demand = _branch_fan(frame, rows, "delivered_twh", colour, key)
+        figure.add_trace(demand, row=1, col=4)
     for cell, colour in _chain_colours(frame).items():
         chain = frame[frame["cell"].eq(cell)].sort_values("year")
         cost = chain["cost_per_mwh_excl_fuel_carbon"]
@@ -745,14 +760,19 @@ def figure_pathway_intensities(
             if _fuel_burnt(chain, column):
                 inputs = _chain_line(chain, chain[column], colour, fuel, dash)
                 figure.add_trace(inputs, row=1, col=3)
+        demand = _chain_line(chain, chain["delivered_twh"], colour)
+        figure.add_trace(demand, row=1, col=4)
     figure.update_xaxes(
-        title_text=LABELS["year"], tickvals=sorted(frame["year"].unique())
+        title_text=LABELS["year"],
+        tickvals=sorted(frame["year"].unique()),
+        showgrid=False,
     )
-    for column, (_, unit) in enumerate(INTENSITY_PANELS, start=1):
-        figure.update_yaxes(title_text=unit, row=1, col=column)
+    figure.update_yaxes(gridcolor=PANEL_GRID_COLOUR, zeroline=False)
     return figure.update_layout(
         height=INTENSITIES_HEIGHT,
-        legend={"title_text": "Chain", "font_size": 10, "y": 1, "yanchor": "top"},
+        plot_bgcolor=PANEL_BACKGROUND,
+        paper_bgcolor=PANEL_BACKGROUND,
+        legend={"font_size": 10, "orientation": "h", "y": 1.08, "yanchor": "bottom"},
     )
 
 
@@ -763,10 +783,10 @@ def _aemo_scenario_span(csv: Path, value: str, first_year: int) -> pd.DataFrame:
     return span.loc[span.index >= first_year, AEMO_SCENARIOS]
 
 
-def _aemo_overlay(span: pd.DataFrame, legend: bool) -> list[go.Scatter]:
-    """The shaded scenario range and one dotted line per scenario, in one legend group so a click hides every panel's overlay."""
+def _aemo_overlay(span: pd.DataFrame, isp: str, legend: bool) -> list[go.Scatter]:
+    """The shaded scenario range and one dotted line per scenario, grouped by ISP so a click hides that ISP's overlay on every panel."""
     shared = {
-        "legendgroup": AEMO_LEGEND_GROUP,
+        "legendgroup": isp,
         "mode": "lines",
         "x": span.index,
         "showlegend": legend,
@@ -777,15 +797,15 @@ def _aemo_overlay(span: pd.DataFrame, legend: bool) -> list[go.Scatter]:
         go.Scatter(
             **edge,
             y=span.min(axis=1),
-            name="AEMO scenario range",
+            name=f"{isp} scenario range",
             fill="tonexty",
             fillcolor=AEMO_BAND_FILL,
         ),
     ]
     line = {"color": AEMO_LINE_COLOUR, "dash": "dot", "width": 1.5}
     for scenario in span:
-        hover = f"AEMO {scenario}<br>%{{x}}: %{{y:.3g}}<extra></extra>"
-        name = f"AEMO draft ISP: {scenario}"
+        name = f"{isp}: {scenario}"
+        hover = f"{name}<br>%{{x}}: %{{y:.3g}}<extra></extra>"
         traces.append(
             go.Scatter(
                 **shared, y=span[scenario], name=name, line=line, hovertemplate=hover
@@ -801,51 +821,60 @@ def _sharp_reference(years: pd.Series) -> pd.DataFrame:
 
 
 def _sharp_pathway(years: pd.Series) -> list[list[go.Scatter]]:
-    """Per panel, ShARP's clean-ladder reach band behind its planned line, or nothing without matching years."""
+    """Per panel, ShARP's band behind its planned line, or nothing without matching years."""
     cleanest = _sharp_reference(years).drop_duplicates("year", keep="last")
     if cleanest.empty:
         return []
+    year = cleanest["year"]
     return [
         [
-            *_sharp_band(cleanest["year"], cleanest[column], reach, index == 0),
-            _sharp_line(cleanest["year"], cleanest[column], "planned", index == 0),
+            *_sharp_band(
+                year, low, high, name, index == 0 or name == SHARP_FUTURES_NAME
+            ),
+            _sharp_line(year, cleanest[column], "planned", index == 0),
         ]
-        for index, (column, reach) in enumerate(
-            zip(SHARP_PATHWAY_COLUMNS, _sharp_reach(cleanest))
+        for index, (column, (name, low, high)) in enumerate(
+            zip(SHARP_PATHWAY_COLUMNS, _sharp_bands(cleanest))
         )
     ]
 
 
-def _sharp_reach(cleanest: pd.DataFrame) -> list[pd.Series]:
-    """The planned cost, emissions and fuel input moved to the cleanest ladder point, fuel scaling with the non-renewable share."""
+def _sharp_bands(cleanest: pd.DataFrame) -> list[tuple[str, pd.Series, pd.Series]]:
+    """Per panel, a band's name and edges: the planned value to the cleanest ladder point, or every ShARP future for demand."""
     lift = (
-        cleanest["ladder_cost_aud_per_mwh"]
-        - cleanest["planned_share_ladder_cost_aud_per_mwh"]
+        cleanest["common_ladder_cost_aud_per_mwh"]
+        - cleanest["common_planned_share_ladder_cost_aud_per_mwh"]
     )
     residual = (1 - cleanest["ladder_renewable_fraction"]) / (
         1 - cleanest["planned_renewable_fraction"]
     )
-    cost, emissions, inputs = (cleanest[column] for column in SHARP_PATHWAY_COLUMNS)
-    return [cost + lift, emissions * residual, inputs * residual]
+    cost, emissions, inputs, _ = (cleanest[c] for c in SHARP_PATHWAY_COLUMNS)
+    futures = cleanest["common_futures_min_twh"], cleanest["common_futures_max_twh"]
+    return [
+        (SHARP_BAND_NAME, cost, cost + lift),
+        (SHARP_BAND_NAME, emissions, emissions * residual),
+        (SHARP_BAND_NAME, inputs, inputs * residual),
+        (SHARP_FUTURES_NAME, *futures),
+    ]
 
 
 def _sharp_band(
-    years: pd.Series, planned: pd.Series, reach: pd.Series, legend: bool
+    years: pd.Series, low: pd.Series, high: pd.Series, name: str, legend: bool
 ) -> list[go.Scatter]:
-    """ShARP's clean-ladder reach shaded from the planned value to the cleanest point, under one legend entry."""
+    """One ShARP band shaded between two edges, under one legend entry per band name."""
     edge = {
         "x": years,
         "mode": "lines",
         "line": {"width": 0},
         "hoverinfo": "skip",
-        "legendgroup": SHARP_BAND_NAME,
+        "legendgroup": name,
     }
     return [
-        go.Scatter(**edge, y=planned, showlegend=False),
+        go.Scatter(**edge, y=low, showlegend=False),
         go.Scatter(
             **edge,
-            y=reach,
-            name=SHARP_BAND_NAME,
+            y=high,
+            name=name,
             showlegend=legend,
             fill="tonexty",
             fillcolor=SHARP_BAND_FILL,
