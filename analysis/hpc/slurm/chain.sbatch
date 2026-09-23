@@ -14,7 +14,7 @@
 # login-node environment that `msm launch` loaded from .env.
 #SBATCH --job-name=ispypsa-ext
 #SBATCH --partition=h24
-#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=64
+#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=32
 #SBATCH --mem=40G
 #SBATCH --time=12:00:00
 set -euo pipefail
