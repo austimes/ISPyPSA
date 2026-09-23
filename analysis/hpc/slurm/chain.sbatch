@@ -33,4 +33,4 @@ uv run --no-sync msm solve --run-id "$RUN_ID" --output-root "$RUN_DIR" \
   --rep-weeks 1 6 10 14 19 22 26 32 35 39 41 45 50 --no-named-weeks \
   --tns-price 89.93 --ccs-supply-curve none --gas-unblended \
   --use-gurobi --gurobi-method 2 --gurobi-bar-conv-tol 1e-8 --gurobi-threads $SLURM_CPUS_PER_TASK \
-  --highs-threads $SLURM_CPUS_PER_TASK --budget-min 300 ${RESUME:-} ${SOLVE_FLAGS:-} $ARGS
+  --highs-threads $SLURM_CPUS_PER_TASK --budget-min 600 ${RESUME:-} ${SOLVE_FLAGS:-} $ARGS
