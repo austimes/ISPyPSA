@@ -23,6 +23,7 @@ from analysis.dashboard.figures import (
     COST_COMPONENTS,
     HATCH_NOTE,
     INPUT_COST_LABELS,
+    SHARP_BAND_NAME,
     SHARP_NAME,
     figure_cost_decomposition,
     figure_demand_marginals,
@@ -341,7 +342,7 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
 
     figure = figure_pathway_intensities(frame)
 
-    # The AEMO reference overlay, ShARP's planned line on each panel, then cost and emissions for both
+    # The AEMO reference overlay, ShARP's reach band and planned line on each panel, then cost and emissions for both
     # chains, then the fuels each chain burns: coal and gas, gas and biomass.
     assert [(trace.name, trace.line.dash) for trace in figure.data] == [
         (None, None),
@@ -349,8 +350,14 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
         ("AEMO draft ISP: Slower Growth", "dot"),
         ("AEMO draft ISP: Step Change", "dot"),
         ("AEMO draft ISP: Accelerated Transition", "dot"),
+        (None, None),
+        ("ShARP clean ladder reach (approx.)", None),
         ("ShARP current policy (approx.)", "dash"),
+        (None, None),
+        ("ShARP clean ladder reach (approx.)", None),
         ("ShARP current policy (approx.)", "dash"),
+        (None, None),
+        ("ShARP clean ladder reach (approx.)", None),
         ("ShARP current policy (approx.)", "dash"),
         ("central demand, uncapped (A$0/t)", "solid"),
         ("central demand, uncapped (A$0/t)", "solid"),
@@ -366,6 +373,7 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
         "AEMO draft ISP: Slower Growth",
         "AEMO draft ISP: Step Change",
         "AEMO draft ISP: Accelerated Transition",
+        "ShARP clean ladder reach (approx.)",
         "ShARP current policy (approx.)",
         "central demand, uncapped (A$0/t)",
         "high demand, carbon price A$150/t",
@@ -396,7 +404,8 @@ def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_emissions_panel(
 
 
 @pytest.mark.parametrize(
-    ("year", "expected"), [(2035, ["y", "y2", "y3", "y", "y2"]), (2036, [])]
+    ("year", "expected"),
+    [(2035, ["y", "y", "y2", "y2", "y3", "y3", "y", "y2"]), (2036, [])],
 )
 def test_sharp_reference_is_drawn_only_for_years_it_covers(
     csv_str_to_df, increments, year, expected
@@ -409,9 +418,11 @@ def test_sharp_reference_is_drawn_only_for_years_it_covers(
     pathways = figure_pathway_intensities(frame)
     arms = figures.figure_increment_surfaces(increments.assign(year=year))
 
-    # One planned line on each pathway panel, then the extra-MWh price and the clean ladder on the arms.
+    # A reach band and planned line on each pathway panel, then the extra-MWh price and the clean ladder on the arms.
     sharp = [
-        trace for trace in [*pathways.data, *arms.data] if trace.name == SHARP_NAME
+        trace
+        for trace in [*pathways.data, *arms.data]
+        if trace.name in (SHARP_BAND_NAME, SHARP_NAME)
     ]
     assert [trace.yaxis for trace in sharp] == expected
 

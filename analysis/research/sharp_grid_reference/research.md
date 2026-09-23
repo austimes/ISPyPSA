@@ -11,6 +11,7 @@ Change, and commits it as a CSV so the campaign dashboard can draw it as a dashe
 | Pathway intensities: conversion cost | Planned non-fuel cost (A$2024/MWh) |
 | Pathway intensities: emissions | Planned emissions intensity (t CO2e/MWh) |
 | Pathway intensities: input | Planned fuel input intensity, coal, lignite and gas summed (PJ/TWh) |
+| Pathway intensities: all three | A band from the planned value to the clean ladder's 99% point |
 | Increment surfaces: demand arm | Approximate price of one extra MWh, flat across the arm |
 | Increment surfaces: intensity arm | The clean ladder cleaner than the planned share, converted to intensity |
 
@@ -98,6 +99,10 @@ from the NEM's.
 **Converted ladder, confidence: low.** It rests on the constant-residual-factor assumption, which the campaign's own cells
 contradict: renewable share and intensity are not one-to-one there, because the emissions factor of the thermal remainder
 changes as the cap deepens. The ladder costs themselves are tagged exploratory in ShARP, and the 99% endpoint is an extension.
+
+**Clean ladder reach band, confidence: low.** Each pathway panel shades from the planned value to the ladder's 99% point:
+cost rises by the ladder cost at 99% less the ladder cost at the planned share, and emissions and fuel input both scale by
+`(1 - 0.99) / (1 - planned share)`, so the band inherits the converted ladder's constant-residual-factor assumption.
 
 **Extra-MWh price, confidence: low.** It is a proxy that leaves out ShARP's fuel and carbon allowances and overflow-growth
 charge, and it inherits the ladder's exploratory status.

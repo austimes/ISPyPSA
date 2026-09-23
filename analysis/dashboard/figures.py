@@ -96,6 +96,8 @@ SHARP_REFERENCE_CSV = (
 )
 SHARP_NAME = "ShARP current policy (approx.)"
 SHARP_LINE = {"color": "#404040", "dash": "dash", "width": 1.5}
+SHARP_BAND_NAME = "ShARP clean ladder reach (approx.)"
+SHARP_BAND_FILL = "rgba(64,64,64,0.08)"
 #: ShARP's planned columns the pathway-intensity panels draw, in ``INTENSITY_PANELS`` order.
 SHARP_PATHWAY_COLUMNS = [
     "planned_cost_aud_per_mwh",
@@ -695,8 +697,8 @@ def figure_pathway_intensities(
     ShARP one: cost excludes fuel and carbon, and the input panel draws one dashed line per fuel.
     Every panel's line for a chain shares a legend group, so one legend click hides the chain across
     all three. The emissions panel carries the derived AEMO scenario intensities behind the chains as
-    a sanity reference, and every panel carries ShARP's planned current-policy value where the
-    reference covers the plotted years.
+    a sanity reference, and every panel carries ShARP's planned current-policy value, shaded out to
+    its clean ladder's cleanest point, where the reference covers the plotted years.
 
     :param frame: The tidy cell-year frame of the campaign's base chains.
     :param branches: The increment grid's branch rows, each fanned out from the base point it
@@ -707,8 +709,8 @@ def figure_pathway_intensities(
     )
     for reference in _aemo_overlay(_aemo_scenario_span(frame["year"].min())):
         figure.add_trace(reference, row=1, col=2)
-    for column, reference in enumerate(_sharp_pathway(frame["year"]), start=1):
-        figure.add_trace(reference, row=1, col=column)
+    for column, references in enumerate(_sharp_pathway(frame["year"]), start=1):
+        figure.add_traces(references, rows=1, cols=column)
     for key, colour in _increment_colours(branches).items():
         rows = branches[branches["increment"].eq(key)].sort_values("year")
         cost = _branch_fan(
@@ -787,14 +789,56 @@ def _sharp_reference(years: pd.Series) -> pd.DataFrame:
     return table[table["year"].isin(years)]
 
 
-def _sharp_pathway(years: pd.Series) -> list[go.Scatter]:
-    """ShARP's planned cost, emissions and fuel input intensity, one line per panel, or none without matching years."""
-    planned = _sharp_reference(years).drop_duplicates("year")
-    if planned.empty:
+def _sharp_pathway(years: pd.Series) -> list[list[go.Scatter]]:
+    """Per panel, ShARP's clean-ladder reach band behind its planned line, or nothing without matching years."""
+    cleanest = _sharp_reference(years).drop_duplicates("year", keep="last")
+    if cleanest.empty:
         return []
     return [
-        _sharp_line(planned["year"], planned[column], "planned", legend=index == 0)
-        for index, column in enumerate(SHARP_PATHWAY_COLUMNS)
+        [
+            *_sharp_band(cleanest["year"], cleanest[column], reach, index == 0),
+            _sharp_line(cleanest["year"], cleanest[column], "planned", index == 0),
+        ]
+        for index, (column, reach) in enumerate(
+            zip(SHARP_PATHWAY_COLUMNS, _sharp_reach(cleanest))
+        )
+    ]
+
+
+def _sharp_reach(cleanest: pd.DataFrame) -> list[pd.Series]:
+    """The planned cost, emissions and fuel input moved to the cleanest ladder point, fuel scaling with the non-renewable share."""
+    lift = (
+        cleanest["ladder_cost_aud_per_mwh"]
+        - cleanest["planned_share_ladder_cost_aud_per_mwh"]
+    )
+    residual = (1 - cleanest["ladder_renewable_fraction"]) / (
+        1 - cleanest["planned_renewable_fraction"]
+    )
+    cost, emissions, inputs = (cleanest[column] for column in SHARP_PATHWAY_COLUMNS)
+    return [cost + lift, emissions * residual, inputs * residual]
+
+
+def _sharp_band(
+    years: pd.Series, planned: pd.Series, reach: pd.Series, legend: bool
+) -> list[go.Scatter]:
+    """ShARP's clean-ladder reach shaded from the planned value to the cleanest point, under one legend entry."""
+    edge = {
+        "x": years,
+        "mode": "lines",
+        "line": {"width": 0},
+        "hoverinfo": "skip",
+        "legendgroup": SHARP_BAND_NAME,
+    }
+    return [
+        go.Scatter(**edge, y=planned, showlegend=False),
+        go.Scatter(
+            **edge,
+            y=reach,
+            name=SHARP_BAND_NAME,
+            showlegend=legend,
+            fill="tonexty",
+            fillcolor=SHARP_BAND_FILL,
+        ),
     ]
 
 
