@@ -121,9 +121,9 @@ A second and separate loss sits alongside it. Ten committed batteries totalling 
 maximum-capacity sheet and nowhere in its summary sheet, which is the roster the templater reads, so they never enter the
 model at all: Elaine BESS (309.6 MW), Bulabul BESS 1 (300.0), Williamsdale BESS (250.0), Blind Creek Solar Farm BESS
 (245.7), Bellambi Heights BESS (204.0), Tailem Bend BESS Stage 3 (204.0), Pelican Point BESS (200.0), Summerfield BESS 1
-and 2 (153.7 each) and Goulburn River Solar Farm BESS (49.8). This is an inconsistency between two sheets of the IASR
-workbook rather than a templating fault, and it means the 2030 storage roster understates the committed battery fleet by
-about 2 GW, which in turn overstates the storage allowance by the same amount.
+and 2 (153.7 each) and Goulburn River Solar Farm BESS (49.8). The workbook itself is consistent: ISPyPSA's parser
+configuration (`src/ispypsa/iasr_table_caching/parser_configs/7.8/summary_mapping.yaml`) read the summary sheet only to
+row 648 while its data runs to row 732, which also dropped 29 anticipated batteries and 25 wind and solar generators.
 
 ## S004 -- AEMO draft 2026 ISP grid-scale storage milestone as reported
 

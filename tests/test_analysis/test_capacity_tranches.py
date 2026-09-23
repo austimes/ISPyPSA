@@ -18,6 +18,7 @@ from analysis.model.capacity_tranches import (
     _build_rate_tranches,
     _link_headroom_mw,
     add_priced_tranches,
+    campaign_tranches,
     load_build_rate_curve,
     tranche_usage,
 )
@@ -28,7 +29,7 @@ from analysis.model.relaxation_tranches import apply as relaxation_tranches_appl
 # ---------------------------------------------------------------------------
 
 
-def _one_bus_network(load_mw: float) -> pypsa.Network:
+def _one_bus_network(load_mw: float, generator: str = "wind") -> pypsa.Network:
     """A single-period, single-snapshot network whose one extendable generator must serve `load_mw`."""
     network = pypsa.Network()
     network.set_snapshots(pd.MultiIndex.from_tuples([(2030, "now")]))
@@ -37,7 +38,7 @@ def _one_bus_network(load_mw: float) -> pypsa.Network:
     network.add("Load", "load", bus="node", p_set=load_mw)
     network.add(
         "Generator",
-        "wind",
+        generator,
         bus="node",
         p_nom_extendable=True,
         build_year=2030,
@@ -88,6 +89,39 @@ def test_tranche_usage_fills_the_cheap_step_first(
 
     expected = tranches.assign(mw_used=expected_mw, premium_aud_per_yr=expected_premium)
     pd.testing.assert_frame_equal(result, expected, check_exact=False, rtol=1e-5)
+
+
+@pytest.mark.parametrize(
+    ("load_mw", "expected_mw", "expected_premium"),
+    [(8.0, [8.0, 0.0], [0.0, 0.0]), (15.0, [10.0, 5.0], [0.0, 35.0])],
+)
+def test_pipeline_build_above_the_allowance_pays_the_rush_charge(
+    load_mw, expected_mw, expected_premium, csv_str_to_df
+):
+    network = _one_bus_network(load_mw, generator="wind_sq_2030")
+    tables = {
+        "new_entrant_generators": csv_str_to_df("""
+            generator,  status
+            wind_sq,    New__Entrant
+        """),
+        "new_entrant_batteries": pd.DataFrame(columns=["storage_name", "status"]),
+    }
+
+    tranches, members = campaign_tranches(
+        network, tables, 2030, None, None, 1.0, 1.0, (10.0, 5.0), (7.0, 3.0)
+    )
+    add_priced_tranches(network, tranches, members)
+    network.optimize.solve_model(solver_name="highs")
+    result = tranche_usage(network, tranches)
+
+    expected = csv_str_to_df("""
+        kind,           group,                period,  tranche,  width_mw,  adder
+        pipeline_rush,  pipeline_generation,  2030,    1,        10.0,      0.0
+        pipeline_rush,  pipeline_generation,  2030,    2,        10.0,      7.0
+    """).assign(mw_used=expected_mw, premium_aud_per_yr=expected_premium)
+    pd.testing.assert_frame_equal(
+        result, expected, check_exact=False, rtol=1e-5, check_dtype=False
+    )
 
 
 # ---------------------------------------------------------------------------

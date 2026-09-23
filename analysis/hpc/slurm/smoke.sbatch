@@ -16,9 +16,9 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 cd "$REPO"
 # Trace directories come from the base chain's token file, named by that
 # chain's row in the launch manifest, so the gate reads the same stores as production.
-# The file covers every milestone; this chain solves the first two.
+# The file covers every milestone from 2026; this chain solves the next two, 2030 and 2035.
 TOKEN_FILE=$(awk -F'\t' '$1=="ext_step_change_sc" {print $2}' "$RUN_DIR/campaign/chains.tsv")
-TRACES=$(cut -d' ' -f1,2 "$TOKEN_FILE")
+TRACES=$(cut -d' ' -f2,3 "$TOKEN_FILE")
 # Placeholder NSW tonnages: round numbers chosen to bind without being deep, not a rung
 # of the campaign (whose caps are national and written into caps.csv).
 # $TRACES is deliberately unquoted: it is two "YEAR:DIR" tokens that must word-split.

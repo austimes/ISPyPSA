@@ -5,3 +5,4 @@ S003,Unserved-energy price and per-node limit written into every generated perio
 S004,Load-shedding acceptance rule and implied carbon price recovery.,,This fork,analysis/sharp/deliverables.py,ispypsa_fork_acceptance_rule,
 S005,Load shedding observed in the deepest-cap reference solve.,,This fork,"Working note rez_transmission_limits.md, not committed to this repository",ispypsa_fork_deepest_cap_shedding,
 S006,Demand trajectories supplying the source load each cap tonnage is computed against.,,This fork,analysis/hpc/demand_plan.json; see analysis/research/demand_plan/,ispypsa_fork_demand_plan,
+S007,Per-year NEM emissions intensity of the draft 2026 ISP Step Change scenario on the generated basis.,,"This fork, derived",analysis/research/aemo_scenario_intensity/aemo_scenario_intensity.csv,campaign_aemo_scenario_intensity_series,

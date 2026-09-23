@@ -123,13 +123,13 @@ def test_a_plain_launch_records_null_sensitivity_settings_and_the_whole_campaign
     main(run_set="sc5", dry_run=True)
 
     assumptions = _assumptions(tmp_path)
-    assert assumptions["increments"]["cells"] == 12
+    assert assumptions["increments"]["cells"] == 72
     assert assumptions == {
         "rez_limit_factor": None,
         "flow_path_limit_factor": None,
         "solve_flags": None,
         "max_cap": None,
-        "chains": 61,
+        "chains": 505,
         "increments": assumptions["increments"],
         "inputs": package.as_posix(),
     }
@@ -160,7 +160,7 @@ def test_a_branch_stage_launch_submits_the_grid_behind_the_base_job(
     main(run_set="sc5", stage="branch", after="12345", dry_run=True)
 
     command = capsys.readouterr().out
-    assert "--array=" + ",".join(str(row) for row in range(1, 61)) in command
+    assert "--array=" + ",".join(str(row) for row in range(1, 505)) in command
     assert "--dependency=afterok:12345" in command
 
 

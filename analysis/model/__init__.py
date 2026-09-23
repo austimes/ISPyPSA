@@ -68,6 +68,7 @@ def apply_model_patches(
     flow_path_limit_factor: float | None = None,
     new_entrant_cap_mw: float | None = None,
     new_entrant_storage_cap_mw: float | None = None,
+    rush_priced: bool = False,
 ):
     """Apply the eight fork-specific model patches, in order, to templated ISPyPSA tables.
 
@@ -81,6 +82,8 @@ def apply_model_patches(
         pin applies in this period; ``None`` leaves the generator menu uncapped.
     :param new_entrant_storage_cap_mw: NEM-wide new-entrant storage allowance in MW the near-term
         pipeline pin applies in this period; ``None`` leaves the battery menu uncapped.
+    :param rush_priced: Build above both allowances is priced by the pipeline rush charge, so the
+        pin's hard ceilings sit at twice each allowance.
     :return: The patched tables.
     """
     ispypsa_tables = _apply_pumped_storage_fix(ispypsa_tables, config)
@@ -93,6 +96,10 @@ def apply_model_patches(
         ispypsa_tables, config, flow_path_limit_factor
     )
     ispypsa_tables = _apply_pipeline_pin(
-        ispypsa_tables, config, new_entrant_cap_mw, new_entrant_storage_cap_mw
+        ispypsa_tables,
+        config,
+        new_entrant_cap_mw,
+        new_entrant_storage_cap_mw,
+        rush_priced,
     )
     return ispypsa_tables

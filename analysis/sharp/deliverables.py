@@ -1104,7 +1104,15 @@ def _submit_extract(layout: OutputLayout, n_chains: int, assemble_after: bool) -
     script = Path(__file__).resolve().parents[1] / "hpc" / "slurm" / "extract.sbatch"
     array_job = submit(script, f"0-{n_chains - 1}", {"STAGE": "extract"}, layout, env)
     if assemble_after:
-        submit(script, "0", {"STAGE": "assemble"}, layout, env, f"afterok:{array_job}")
+        submit(
+            script,
+            "0",
+            {"STAGE": "assemble"},
+            layout,
+            env,
+            f"afterok:{array_job}",
+            ("--cpus-per-task=1", "--mem=2G", "--time=00:10:00"),
+        )
 
 
 def main(

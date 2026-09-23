@@ -55,7 +55,7 @@ uv run msm solve --run-id ext_step_change_sc --output-root "$RUN_DIR" \
   --tns-price 89.93 --ccs-supply-curve none --gas-unblended \
   --use-gurobi --gurobi-method 2 --gurobi-bar-conv-tol 1e-8 \
   --co2-cap-t-schedule 2030:<tonnes> 2035:<tonnes> 2040:<tonnes> 2045:<tonnes> 2050:<tonnes> \
-  --pipeline-period 2030 --new-entrant-cap-mw 19000 --new-entrant-storage-cap-mw 6000 \
+  --pipeline-period 2030 --new-entrant-cap-mw 2030:19000 --new-entrant-storage-cap-mw 2030:6000 \
   --social-licence-premiums 0.15,0.60 --build-rate-premiums analysis/model/data/build_rate_premiums_central.csv
 ```
 

@@ -107,6 +107,28 @@ def test_biomass_cap_nets_existing_biomass_off_the_new_entrant_ceiling(csv_str_t
     pd.testing.assert_frame_equal(result["custom_constraints_rhs"], expected_rhs)
 
 
+def test_biomass_cap_interpolates_between_anchor_years_and_holds_after_2050(
+    csv_str_to_df,
+):
+    tables = {
+        "new_entrant_generators": csv_str_to_df("""
+            generator,   fuel_type,  lifetime
+            biomass_sq,  Biomass,    30
+        """),
+        "custom_constraints_lhs": _EMPTY_CC_LHS.copy(),
+        "custom_constraints_rhs": _EMPTY_CC_RHS.copy(),
+    }
+
+    result = biomass_cap_apply(tables, _config([2026, 2060]))
+
+    expected = csv_str_to_df("""
+        constraint_id,     constraint_type,  rhs
+        biomass_cap_2026,  <=,               1100.0
+        biomass_cap_2060,  <=,               5000.0
+    """)
+    pd.testing.assert_frame_equal(result["custom_constraints_rhs"], expected)
+
+
 def test_pipeline_pin_caps_generation_and_storage_at_their_own_allowances(
     csv_str_to_df,
 ):

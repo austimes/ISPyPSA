@@ -23,15 +23,18 @@ _CDP4_CAPACITY = (
 )
 _OUTPUT_STEM = Path(__file__).with_name("near_term_pipeline")
 
-#: Gigawatts on the model's 2030 roster, summed from the templated inputs of the reference run's 2030 solve (S003).
-#: Pipeline is committed plus anticipated plus additional policy-supported; storage is battery plus pumped hydro.
+#: Gigawatts on the model's 2030 roster, summed from the templated inputs of the reference run's 2030 solve (S003) and
+#: corrected for the parser fault that dropped IASR summary-sheet rows 649 to 732: wind and solar gain the 1.192 GW and
+#: 4.893 GW of restored generators dated by FY2030, and storage the 9.686 GW of restored committed and anticipated
+#: batteries (24.280 GW of batteries active in 2030). Pipeline is committed plus anticipated plus additional
+#: policy-supported; storage is battery plus pumped hydro.
 _ROSTER = {
-    "Wind": (11.749, 8.358),
-    "Solar, utility": (10.859, 8.741),
+    "Wind": (11.749, 9.550),
+    "Solar, utility": (10.859, 13.634),
     "Gas": (10.070, 1.324),
     "Coal": (15.285, 0.0),
     "Hydro, conventional": (6.885, 0.0),
-    "Storage": (4.840, 15.859),
+    "Storage": (4.840, 25.545),
 }
 
 #: The CDP4 column each carrier is measured against. Storage has no CDP4 column at all, so it takes the draft ISP's
@@ -57,8 +60,8 @@ _SEGMENT_COLOUR = {
 _ANNOTATION = (
     "The allowance is the gap between the fleet the model already holds at 2030 and the fleet AEMO's Step Change "
     "optimal development path reaches.<br>"
-    "Pooled it is about 19 GW of generation (--new-entrant-cap-mw) and 6 GW of storage "
-    "(--new-entrant-storage-cap-mw). Coal is not shown with<br>an allowance because closures follow "
+    "On the corrected roster it is about 13 GW of generation and no storage, because the storage pipeline already "
+    "exceeds the 27 GW milestone.<br>Coal is not shown with an allowance because closures follow "
     "announced years only, which leaves the model 2.3 GW above the path; conventional hydro has no new entrant in the "
     "model."
 )

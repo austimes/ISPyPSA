@@ -77,7 +77,8 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
 ## Authored assumptions with no AEMO source
 
 - The 168-hour and 336-hour pumped hydro storage classes and their extrapolated capital costs.
-- The 2060 hold of every trajectory table and trace at its last published year.
+- The 2060 hold of every trajectory table at its last published year, and the 2060 demand and weather traces relabelled
+  from FY2055.
 - The held-to-2060 gas and biomass supply curves.
 - The flat A$89.93 per tonne CCS transport-and-storage charge used in place of the supply curve.
 - The ageing-fleet maintenance cost premium.
@@ -105,4 +106,9 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
   1.19, with low_bracket at 0.92 times low. Rooftop solar needs no correction: both the trace store and the draft ISP
   totals already exclude it.
 - Fossil-only gas pricing (the gas un-blend switch) throughout the campaign.
+- Near-term pipeline pin and pre-2030 rush charge: new-entrant generator and battery build is capped at a per-year
+  allowance in 2026; in 2030 build up to each allowance is free and build above it pays a rush charge in A$/MW/yr,
+  converted from ShARP's A$37.45/MWh charge on growth installed in FY2030, up to a hard ceiling of twice the allowance.
+  Derived in [`research/near_term_pipeline/`](research/near_term_pipeline/) and
+  [`research/pre2030_rush_charge/`](research/pre2030_rush_charge/).
 - Gurobi barrier solver settings, tuned for this campaign's problem size.

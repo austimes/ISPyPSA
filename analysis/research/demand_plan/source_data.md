@@ -142,3 +142,75 @@ In this plan version `iasr_low` and `iasr_stress` are the S002 Slower Growth and
 0.97, and `iasr_low_bracket` is `iasr_low` multiplied by 0.92. Neither multiplier is stated in the file: the file carries only the resulting
 TWh, and the factors are recovered exactly by dividing the plan's knots by the S002 table above. The 0.97 itself is recorded as authored
 assumption A010, and no document in or beside this repository states it.
+
+## S001, measured per financial year
+
+The trace store's Step Change `OPSO_MODELLING` total over all 15 sub-regions per financial year, summed as
+`analysis/hpc/tracedirs.py` sums it (half-hourly MW x 0.5 h, July rolling into the next year), TWh:
+
+| FY | TWh | FY | TWh | FY | TWh | FY | TWh |
+| -: | --: | -: | --: | -: | --: | -: | --: |
+| 2026 | 178.116 | 2034 | 215.296 | 2042 | 243.442 | 2050 | 251.925 |
+| 2027 | 179.483 | 2035 | 219.336 | 2043 | 244.922 | 2051 | 251.984 |
+| 2028 | 181.121 | 2036 | 224.376 | 2044 | 246.224 | 2052 | 252.088 |
+| 2029 | 183.191 | 2037 | 229.470 | 2045 | 247.158 | 2053 | 251.659 |
+| 2030 | 189.818 | 2038 | 234.131 | 2046 | 248.818 | 2054 | 251.475 |
+| 2031 | 196.103 | 2039 | 237.622 | 2047 | 250.048 | 2055 | 251.825 |
+| 2032 | 203.635 | 2040 | 240.051 | 2048 | 251.214 | 2056 | 251.168 |
+| 2033 | 210.146 | 2041 | 241.796 | 2049 | 251.808 | | |
+
+FY2026 lacks its first half-hour (the store starts at 00:30 on 1 July 2025), a loss of under 0.01%.
+
+## S008 -- AEMO final 2026 ISP generation and storage outlook, Step Change
+
+**Source:** [`../aemo_scenario_cost/aemo_2026_isp_cdp4_costs_generation.csv`](../aemo_scenario_cost/aemo_2026_isp_cdp4_costs_generation.csv),
+the committed extract of the outlook's Generation sheet; the verbatim workbook path is under S001 of
+[`../aemo_scenario_cost/source_data.md`](../aemo_scenario_cost/source_data.md). Series used, GWh:
+
+| FY | Generation excluding rooftop and storage | Storage and DSP net generation |
+| -: | ---------------------------------------: | -----------------------------: |
+| 2027 | 190,599 | -941 |
+| 2030 | 210,467 | -7,230 |
+| 2035 | 259,031 | -13,056 |
+| 2040 | 294,160 | -16,240 |
+| 2045 | 317,019 | -17,843 |
+| 2050 | 332,097 | -19,242 |
+
+## S009 -- 2026 IASR workbook, hydrogen demand sheets
+
+**Source:** `2026-isp-inputs-and-assumptions-workbook.xlsm` in the campaign input directory, sheets
+`Hydrogen demand - Domestic`, `Hydrogen demand-Export&Commod` and `Other hydrogen assumptions`.
+
+Verbatim instruction repeated on each demand block:
+
+> "To estimate the electricity load required for the electrolysers, multiply 'Mts' by 'electrolysers electricity
+> consumption rate (kWh/kg H2)' detailed in the sheet 'Other hydrogen assumptions'."
+
+Verbatim heading of the green steel block:
+
+> "REZ-based Electricity demand for green steel production (TWh/annum)"
+
+Step Change totals over all sub-regions, and the resulting load with the PEM consumption rate:
+
+| FY | Domestic H2 (Mt) | Green-commodity H2 (Mt) | Export H2 (Mt) | Green steel (TWh) | PEM rate (kWh/kg) | Load (TWh) |
+| -: | ---------------: | ----------------------: | -------------: | ----------------: | ----------------: | ---------: |
+| 2030 | 0.005 | 0 | 0 | 1.023 | 53.69 | 1.3 |
+| 2035 | 0.148 | 0.010 | 0 | 1.023 | 48.95 | 8.8 |
+| 2040 | 0.332 | 0.012 | 0 | 1.023 | 44.62 | 16.4 |
+| 2045 | 0.504 | 0.045 | 0 | 1.023 | 43.00 | 24.6 |
+| 2050 | 0.605 | 0.077 | 0 | 1.023 | 43.00 | 30.3 |
+
+Balance-of-plant load, which the sheet sets at 0.054 of total electrolyser capacity in MW, is not included, because electrolyser capacity is a
+model output, not an input.
+
+## S010 -- ShARP post-2050 quantity rule
+
+**Source:** `library/roles/generate_grid_electricity/assumptions_ledger.csv`, row `A046`, and
+`overflow_supply_pathway_states.csv` in `austimes/sharp` at commit `eaf1ca27`.
+
+From A046's `rationale`, verbatim:
+
+> "Post-2050 quantities continue each corrected future's 2040-2050 absolute trend."
+
+`planned_quantity` of `electricity__grid_supply__current_policy_clean_transition`, TWh of national delivered electricity:
+299.3 (2040), 324.5 (2045), 339.7 (2050), 359.7 (2055), 379.7 (2060), 399.7 (2065), 419.7 (2070).

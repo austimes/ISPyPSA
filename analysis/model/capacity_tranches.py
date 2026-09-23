@@ -1,10 +1,11 @@
-"""Priced capacity tranches: the transmission social-licence curve and the build-rate curve.
+"""Priced capacity tranches: the transmission social-licence curve, the build-rate curve and the pipeline rush charge.
 
-Two campaign cost curves share one linopy mechanism, added to the model the same way the fuel supply curves are.
+Three campaign cost curves share one linopy mechanism, added to the model the same way the fuel supply curves are.
 A group of components (one expandable link, or one carrier's new build) gets a set of tranche variables whose
-widths are the megawatts available at each price step. A coupling constraint requires the group's installed
-capacity to be covered by its tranche variables, and each tranche's adder enters the objective, so the group's
-capacity pays a rising marginal price as it fills the cheap steps first.
+widths are the megawatts available at each price step. A coupling constraint sets the group's installed capacity
+equal to the sum of its tranche variables, and each tranche's adder enters the objective, so the group's capacity
+pays a rising marginal price as it fills the cheap steps first. The equality keeps a free first tranche from being
+bought beyond what was built, so the megawatts reported per tranche are the build it priced.
 
 **Transmission, above AEMO's published headroom.** Per expandable renewable energy zone (REZ) and corridor link,
 the first tranche is the published expansion headroom at no premium, the second the same width again at the first
@@ -16,6 +17,11 @@ its own. Each premium is a fraction of the link's own annuitised capital cost, f
 **Build rate, above the baseline additions of a period.** Per carrier, over the generators and storage units that
 are this period's genuine new build, with widths from the cumulative capacity steps of
 ``build_rate_premiums_central.csv`` and absolute A$/MW/yr adders from the same file.
+
+**Pipeline rush, above the near-term allowances.** In the pipeline period, the new-entrant generators and the
+new-entrant batteries the pipeline pin caps (:mod:`analysis.model.pipeline_pin`) form one group each: the first
+tranche is that menu's allowance at no premium, the second the same width again at the rush charge in A$/MW/yr.
+Together they end at twice the allowance, where the pin's own hard ceiling sits.
 
 **Landholder payments.** A flat per-megawatt adder on every expansion link's capital cost, converted from the New
 South Wales and Victorian per-kilometre host payment schemes at AEMO's own easement lengths. Applied before the
@@ -52,6 +58,12 @@ _COMPONENTS = {
     "Generator": "generators",
     "StorageUnit": "storage_units",
     "Link": "links",
+}
+
+#: Pipeline rush group to the templated new-entrant menu it meters, that menu's id column and its component.
+_PIPELINE_GROUPS = {
+    "pipeline_generation": ("new_entrant_generators", "generator", "Generator"),
+    "pipeline_storage": ("new_entrant_batteries", "storage_name", "StorageUnit"),
 }
 
 #: Link classes the transmission curve prices, and the classes the build-rate curve meters.
@@ -130,6 +142,8 @@ def campaign_tranches(
     build_rate_curve: pd.DataFrame | None,
     rez_factor: float,
     flow_path_factor: float,
+    pipeline_allowances_mw: tuple[float | None, float | None],
+    pipeline_rush_charge: tuple[float, ...] | None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Every priced capacity tranche of one solve and the components each group meters.
 
@@ -140,6 +154,9 @@ def campaign_tranches(
     :param build_rate_curve: Validated build-rate curve, or ``None``.
     :param rez_factor: Factor the run relaxed the REZ limits by.
     :param flow_path_factor: Factor the run relaxed the corridor limits by.
+    :param pipeline_allowances_mw: New-entrant generation and storage allowances of this period.
+    :param pipeline_rush_charge: Generation and storage rush charges in A$/MW/yr above the
+        allowances, or ``None``.
     :return: The tranche frame and the member frame.
     """
     tranches, members = [], []
@@ -154,6 +171,13 @@ def campaign_tranches(
     if build_rate_curve is not None:
         tranches.append(_build_rate_tranches(build_rate_curve, period))
         members.append(_build_rate_members(network, ispypsa_tables, period))
+    if pipeline_rush_charge is not None:
+        tranches.append(
+            _pipeline_rush_tranches(
+                pipeline_allowances_mw, pipeline_rush_charge, period
+            )
+        )
+        members.append(_pipeline_rush_members(network, ispypsa_tables, period))
     tranches = pd.concat(tranches, ignore_index=True)
     members = pd.concat(members, ignore_index=True)
     priced = tranches[tranches["group"].isin(members["group"])]
@@ -199,10 +223,15 @@ def allocate_premiums(
     network: pypsa.Network, usage: pd.DataFrame, members: pd.DataFrame
 ) -> None:
     """Spread each group's premium across its members as a uniform ``capital_premium`` column."""
-    rates = members["group"].map(_group_premium_rates(network, usage, members))
+    rates = members.assign(
+        rate=members["group"].map(_group_premium_rates(network, usage, members))
+    )
+    # A member of two groups, such as a new-entrant generator under both the build-rate and the
+    # pipeline rush curves, pays both premiums.
+    summed = rates.groupby(["component", "name"], as_index=False)["rate"].sum()
     for attribute in _COMPONENTS.values():
         getattr(network, attribute)["capital_premium"] = 0.0
-    for component, rows in members.assign(rate=rates).groupby("component"):
+    for component, rows in summed.groupby("component"):
         frame = getattr(network, _COMPONENTS[component])
         frame.loc[rows["name"], "capital_premium"] = rows["rate"].to_numpy()
 
@@ -386,6 +415,62 @@ def _new_build_rows(
     )
 
 
+def _pipeline_rush_tranches(
+    allowances_mw: tuple[float | None, float | None],
+    charges: tuple[float, ...],
+    period: int,
+) -> pd.DataFrame:
+    """Each menu's allowance free, then the same width again at its rush charge."""
+    groups = pd.Index(list(_PIPELINE_GROUPS))
+    widths = pd.Series(allowances_mw, dtype=float)
+    return pd.concat(
+        [
+            _tranche_rows("pipeline_rush", groups, period, 1, widths, widths * 0.0),
+            _tranche_rows(
+                "pipeline_rush", groups, period, 2, widths, pd.Series(charges)
+            ),
+        ],
+        ignore_index=True,
+    )
+
+
+def _pipeline_rush_members(
+    network: pypsa.Network, ispypsa_tables: dict[str, pd.DataFrame], period: int
+) -> pd.DataFrame:
+    """The new-entrant generators and batteries the pipeline pin caps, as this period's extendable components."""
+    return pd.concat(
+        [
+            _pipeline_menu_members(
+                group, network, ispypsa_tables[table], id_column, component, period
+            )
+            for group, (table, id_column, component) in _PIPELINE_GROUPS.items()
+        ],
+        ignore_index=True,
+    )
+
+
+def _pipeline_menu_members(
+    group: str,
+    network: pypsa.Network,
+    menu: pd.DataFrame,
+    id_column: str,
+    component: str,
+    period: int,
+) -> pd.DataFrame:
+    """One menu's ``New Entrant`` rows, named ``<id>_<period>`` as the translator builds them."""
+    frame = getattr(network, _COMPONENTS[component])
+    candidates = menu.loc[menu["status"].eq("New Entrant"), id_column].astype(str)
+    built = frame.index.isin(candidates + f"_{period}") & frame["p_nom_extendable"]
+    return pd.DataFrame(
+        {
+            "kind": "pipeline_rush",
+            "group": group,
+            "component": component,
+            "name": list(frame.index[built]),
+        }
+    )
+
+
 def _add_tranche_variables(model, rows: pd.DataFrame, group: str):
     """One capacity variable per tranche of a group, bounded by that tranche's width."""
     coords = pd.Index(rows["tranche"], name=f"{group}_tranche")
@@ -399,14 +484,14 @@ def _add_tranche_variables(model, rows: pd.DataFrame, group: str):
 def _couple_capacity_to_tranches(
     network: pypsa.Network, members: pd.DataFrame, purchases, group: str
 ) -> None:
-    """Require the group's installed capacity to be covered by its tranche variables."""
+    """Set the group's installed capacity equal to the sum of its tranche variables."""
     terms = tuple(
         (1.0, _get_variables(network.model, name, component, "p_nom"))
         for component, name in zip(members["component"], members["name"])
     )
     capacity = network.model.linexpr(*terms)
     network.model.add_constraints(
-        capacity - purchases.sum() <= 0, name=_variable_name(group)
+        capacity - purchases.sum() == 0, name=_variable_name(group)
     )
 
 

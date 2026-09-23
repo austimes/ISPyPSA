@@ -41,6 +41,28 @@ Worked example on the base chain `ext_step_change_sc`, whose source load is 202.
 | 2040 | 0.04136 | source | 1.00 x 0.04136 x 282.27e6 | 11,674,687 |
 | 2050 | 0.01385 | source | 1.00 x 0.01385 x 322.04e6 | 4,460,254 |
 
+The base chain's eight milestones, with the 2026 and post-2050 intensities (A009):
+
+| Year | Intensity (t CO2e/MWh) | Source basis | Source load (TWh) | Cap (t CO2e/y) |
+|---|---:|---|---:|---:|
+| 2026 | 0.55646 | Draft ISP Step Change FY2026: 106.284 Mt over 191 TWh generated | 190.1 | 105,783,046 |
+| 2030 | 0.19673 | Draft ISP Step Change FY2030 | 202.73 | 39,883,073 |
+| 2035 | 0.06450 | Draft ISP Step Change FY2035 | 246.38 | 15,891,510 |
+| 2040 | 0.04136 | Draft ISP Step Change FY2040 | 282.27 | 11,674,687 |
+| 2045 | 0.02714 | Draft ISP Step Change FY2045 | 307.49 | 8,345,279 |
+| 2050 | 0.01385 | Draft ISP Step Change FY2050 | 322.04 | 4,460,254 |
+| 2055 | 0.01385 | Held at 2050 | 341.9 | 4,735,315 |
+| 2060 | 0.01385 | Held at 2050 | 361.8 | 5,010,930 |
+
+The 2026 cap is 0.5% below AEMO's own FY2026 emissions, because the source load (190.1 TWh) sits just under AEMO's
+generation. It should not bind hard: 2026 is a calibration year. After 2050 AEMO publishes nothing, so the intensity is
+held at 2050, as the earlier plan held its 2060 rung. The absolute cap therefore rises with demand after 2050. ShARP's own
+post-2050 futures instead keep tightening, halving the gap to 99% renewables each decade, so holding is the looser of the
+two readings.
+
+**confidence: high** on 2026, read from the committed intensity series. **confidence: low** on 2055 and 2060, an
+authored hold with no source.
+
 Because the tonnage scales with demand, an increment cell's cap is its intensity level on the base intensity at its
 demand level on the base load: the 2030 cell at demand level 1.10 and intensity level 1.0 is capped at 43,871,380 t
 against the base cell's 39,883,073 t.

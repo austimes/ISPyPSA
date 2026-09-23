@@ -138,7 +138,7 @@ def extract_frontier_point(
 
 
 def _premiums_paid(run_root: Path) -> dict[str, float]:
-    """Social-licence and build-rate premiums the solve paid, zero where the run priced neither."""
+    """Social-licence, build-rate and pipeline rush premiums the solve paid, zero where the run priced none."""
     tranches = run_root / "outputs" / "capacity_tranches.json"
     paid = (
         pd.read_json(tranches).groupby("kind")["premium_aud_per_yr"].sum()
@@ -148,6 +148,7 @@ def _premiums_paid(run_root: Path) -> dict[str, float]:
     return {
         "social_licence_premium_aud_per_yr": float(paid.get("transmission", 0.0)),
         "build_rate_premium_aud_per_yr": float(paid.get("build_rate", 0.0)),
+        "pipeline_rush_premium_aud_per_yr": float(paid.get("pipeline_rush", 0.0)),
     }
 
 

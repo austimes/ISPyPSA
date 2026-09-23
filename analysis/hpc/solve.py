@@ -427,8 +427,9 @@ def main(
     seed_state_from: str | None = None,
     pin_base_stock: bool = False,
     pipeline_period: int | None = None,
-    new_entrant_cap_mw: float | None = None,
-    new_entrant_storage_cap_mw: float | None = None,
+    new_entrant_cap_mw: OptionalSchedule = None,
+    new_entrant_storage_cap_mw: OptionalSchedule = None,
+    pipeline_rush_charge: str | None = None,
     parsed_traces_directory_schedule: OptionalSchedule = None,
     rep_weeks: OptionalYears = None,
     named_weeks: bool = True,
@@ -476,12 +477,15 @@ def main(
     :param pin_base_stock: Hold the existing fleet at the level the seed chain retained,
         instead of letting this chain retire below it.
     :param pipeline_period: Last period the near-term pipeline pin applies to: those periods
-        cap new-entrant build at ``new_entrant_cap_mw`` and let closures follow announced
-        years only, with no economic early retirement.
-    :param new_entrant_cap_mw: NEM-wide ceiling in MW on new-entrant generator build in each
-        pinned period.
-    :param new_entrant_storage_cap_mw: NEM-wide ceiling in MW on new-entrant battery build in
-        each pinned period.
+        cap new-entrant build at their ``new_entrant_cap_mw`` entry and let closures follow
+        announced years only, with no economic early retirement.
+    :param new_entrant_cap_mw: ``YEAR:MW`` NEM-wide allowance on new-entrant generator build,
+        one entry per pinned period.
+    :param new_entrant_storage_cap_mw: ``YEAR:MW`` NEM-wide allowance on new-entrant battery
+        build, one entry per pinned period.
+    :param pipeline_rush_charge: Generation and storage rush charges in A$/MW/yr, e.g.
+        ``98000,26000``, on new-entrant build above the allowance in the pipeline period itself,
+        whose hard ceiling then rises to twice the allowance.
     :param parsed_traces_directory_schedule: ``YEAR:DIR`` trace store per period, one
         entry per period; defaults to the single trace store under ``IO_DIR``.
     :param rep_weeks: Numbered representative weeks sampled in each solve.
@@ -549,6 +553,8 @@ def main(
     biomass_curve = _curve_or_none(biomass_supply_curve)
     ccs_curve = _curve_or_none(ccs_supply_curve)
     build_rate_curve = _curve_or_none(build_rate_premiums)
+    generation_allowance = _parse_year_schedule(new_entrant_cap_mw or [], float)
+    storage_allowance = _parse_year_schedule(new_entrant_storage_cap_mw or [], float)
     regions = [region_filter] if region_filter else None
     tranches_dir = (
         _chain_state_dir(layout, run_id, "tranches", resume)
@@ -594,8 +600,9 @@ def main(
         "seeded_from": seeded,
         "pin_base_stock": pin_base_stock,
         "pipeline_period": pipeline_period,
-        "new_entrant_cap_mw": new_entrant_cap_mw,
-        "new_entrant_storage_cap_mw": new_entrant_storage_cap_mw,
+        "new_entrant_cap_mw": generation_allowance or None,
+        "new_entrant_storage_cap_mw": storage_allowance or None,
+        "pipeline_rush_charge": pipeline_rush_charge,
         "tranches_dir": str(tranches_dir) if tranches_dir else None,
         "output_root": str(layout.root),
         "carbon_price": carbon_price,
@@ -658,11 +665,10 @@ def main(
                     # is not a capacity decision in it.
                     reducible_existing=reducible_existing
                     and not _is_pipeline_period(year, pipeline_period),
-                    new_entrant_cap_mw=new_entrant_cap_mw
-                    if _is_pipeline_period(year, pipeline_period)
-                    else None,
-                    new_entrant_storage_cap_mw=new_entrant_storage_cap_mw
-                    if _is_pipeline_period(year, pipeline_period)
+                    new_entrant_cap_mw=generation_allowance.get(year),
+                    new_entrant_storage_cap_mw=storage_allowance.get(year),
+                    pipeline_rush_charge=pipeline_rush_charge
+                    if year == pipeline_period
                     else None,
                 ),
             ],

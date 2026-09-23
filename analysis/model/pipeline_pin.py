@@ -9,7 +9,9 @@ The allowance is applied as a NEM-wide capacity ceiling on every ``New Entrant``
 generator and battery menus, one constraint per component class because the custom-constraints
 framework sums one component type per constraint, so generation and storage carry their own
 ceiling. Both values are campaign inputs (``msm solve --new-entrant-cap-mw`` and
-``--new-entrant-storage-cap-mw``), not numbers this module chooses.
+``--new-entrant-storage-cap-mw``), not numbers this module chooses. Where build above the allowance
+is priced by the pipeline rush charge (:mod:`analysis.model.capacity_tranches`), the hard ceiling
+rises to ``RUSH_CEILING_FACTOR`` times the allowance.
 """
 
 from __future__ import annotations
@@ -22,6 +24,9 @@ from .capacity_cap import add_capacity_cap
 # applied as the tightest ceiling the solver can still see.
 _MINIMUM_CAP_MW = 1e-6
 
+#: Hard ceiling as a multiple of the allowance where build above the allowance pays the rush charge.
+RUSH_CEILING_FACTOR = 2.0
+
 _MENUS = (
     ("new_entrant_generators", "generator", "generator_capacity"),
     ("new_entrant_batteries", "storage_name", "storage_capacity"),
@@ -33,6 +38,7 @@ def apply(
     config,
     cap_mw: float | None = None,
     storage_cap_mw: float | None = None,
+    rush_priced: bool = False,
 ) -> dict[str, pd.DataFrame]:
     """Cap new-entrant generation at ``cap_mw`` MW and new-entrant storage at ``storage_cap_mw`` MW across the NEM.
 
@@ -40,6 +46,8 @@ def apply(
     :param config: The run's ISPyPSA configuration; the cap binds on its investment periods.
     :param cap_mw: NEM-wide new-entrant generation allowance in MW; ``None`` leaves the menu uncapped.
     :param storage_cap_mw: NEM-wide new-entrant storage allowance in MW; ``None`` leaves the menu uncapped.
+    :param rush_priced: Build above each allowance pays the rush charge, so each ceiling is
+        ``RUSH_CEILING_FACTOR`` times its allowance.
     :return: The patched tables.
     """
     for (table, id_col, term_type), cap in zip(_MENUS, (cap_mw, storage_cap_mw)):
@@ -49,7 +57,9 @@ def apply(
             ispypsa_tables,
             config,
             constraint_prefix=f"pipeline_{table}",
-            caps_by_year=_caps_by_year(config, cap),
+            caps_by_year=_caps_by_year(
+                config, cap * RUSH_CEILING_FACTOR if rush_priced else cap
+            ),
             new_entrant_table=table,
             new_entrant_id_col=id_col,
             new_entrant_predicate=lambda row: row.get("status") == "New Entrant",

@@ -9,14 +9,17 @@
 # depending on the array:
 #
 #   array_job = submit(extract.sbatch, "0-40", {"STAGE": "extract"}, layout, env)
-#   submit(extract.sbatch, "0", {"STAGE": "assemble"}, layout, env, f"afterok:{array_job}")
+#   submit(extract.sbatch, "0", {"STAGE": "assemble"}, layout, env, f"afterok:{array_job}",
+#          ("--cpus-per-task=1", "--mem=2G", "--time=00:10:00"))
 #
-# REPO, RUN_DIR and STAGE arrive through --export; the account, partition and stdout
-# path arrive as sbatch flags.
+# The header sizes one extract task; the assemble task needs less and overrides it on its own
+# sbatch line. REPO, RUN_DIR and STAGE arrive through --export; the account and stdout path
+# arrive as sbatch flags.
 #SBATCH --job-name=ispypsa-extract
-#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --time=04:00:00
+#SBATCH --partition=h2
+#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=2
+#SBATCH --mem=4G
+#SBATCH --time=00:20:00
 set -euo pipefail
 cd "$REPO"
 if [ "${STAGE:-extract}" = assemble ]; then

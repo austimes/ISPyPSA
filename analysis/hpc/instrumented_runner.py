@@ -311,6 +311,7 @@ def _run_staged_pipeline(
     flow_path_limit_factor: float | None = None,
     social_licence_premiums: str | None = None,
     build_rate_premiums: Path | None = None,
+    pipeline_rush_charge: str | None = None,
 ) -> dict:
     """Run the ISPyPSA pipeline with per-stage timing. Returns timings dict.
 
@@ -398,6 +399,7 @@ def _run_staged_pipeline(
         config.filter_by_nem_regions,
         config.filter_by_isp_sub_regions,
     )
+    rush_charge = capacity_tranches.parse_premiums(pipeline_rush_charge)
     ispypsa_tables = apply_model_patches(
         ispypsa_tables,
         config,
@@ -405,6 +407,7 @@ def _run_staged_pipeline(
         flow_path_limit_factor=flow_path_limit_factor,
         new_entrant_cap_mw=new_entrant_cap_mw,
         new_entrant_storage_cap_mw=new_entrant_storage_cap_mw,
+        rush_priced=rush_charge is not None,
     )
     # REQUIRED for the Draft 2026 trace store: drop VRE new entrants whose
     # (rez_id, isp_resource_type) has no 2026 trace (Q8 split; N10/N11 fixed
@@ -597,15 +600,15 @@ def _run_staged_pipeline(
         )
 
     # Priced capacity tranches, added to the same linopy model the CO2 cap and the fuel supply
-    # curves use: the transmission social-licence curve above AEMO's published headroom, and the
-    # per-carrier build-rate curve.
+    # curves use: the transmission social-licence curve above AEMO's published headroom, the
+    # per-carrier build-rate curve, and the pipeline rush charge above the near-term allowances.
     build_rate_curve = (
         capacity_tranches.load_build_rate_curve(build_rate_premiums, [current_year])
         if build_rate_premiums is not None
         else None
     )
     tranches, members = None, None
-    if premiums is not None or build_rate_curve is not None:
+    if premiums is not None or build_rate_curve is not None or rush_charge is not None:
         tranches, members = capacity_tranches.campaign_tranches(
             network,
             ispypsa_tables,
@@ -614,6 +617,8 @@ def _run_staged_pipeline(
             build_rate_curve,
             rez_limit_factor or 1.0,
             flow_path_limit_factor or 1.0,
+            (new_entrant_cap_mw, new_entrant_storage_cap_mw),
+            rush_charge,
         )
         capacity_tranches.add_priced_tranches(network, tranches, members)
         print(
@@ -981,6 +986,14 @@ def main():
         "adder_$/mw/yr) pricing each carrier's new build above the period's baseline "
         "additions. Default: no build-rate premium.",
     )
+    ap.add_argument(
+        "--pipeline-rush-charge",
+        type=str,
+        default=None,
+        help="Comma-separated generation and storage rush charges in A$/MW/yr, e.g. "
+        "'98000,26000', on new-entrant build above the near-term allowances, whose hard "
+        "ceilings then rise to twice the allowance. Default: the allowances are hard caps.",
+    )
     args = ap.parse_args()
     if args.carried_tranches_dir is not None and args.current_year is None:
         ap.error("--carried-tranches-dir requires --current-year.")
@@ -1055,6 +1068,7 @@ def main():
             flow_path_limit_factor=args.flow_path_limit_factor,
             social_licence_premiums=args.social_licence_premiums,
             build_rate_premiums=args.build_rate_premiums,
+            pipeline_rush_charge=args.pipeline_rush_charge,
         )
         record.update(timings)
         record["wall_clock_s"] = time.perf_counter() - t_total

@@ -3,7 +3,7 @@
 ## Purpose and scope
 
 The campaign charges every megawatt of new capacity at AEMO's published cost per megawatt, no matter how much is built in
-one five-year period. That makes the build rate free: a period that builds four times AEMO's own optimal development path
+one period. That makes the build rate free: a period that builds four times AEMO's own optimal development path
 (ODP) rate pays the same price per megawatt as a period that builds the ODP rate.
 
 This topic sets the second of the campaign's two stepwise build cost curves. Curve 1, in
@@ -23,8 +23,8 @@ period, fills the cheapest tranche first, and adds the tranche adders to the obj
 
 | Tranche                  | Cumulative width `cap_mw`                                       | Adder              | Meaning                                              |
 | ------------------------ | --------------------------------------------------------------- | ------------------ | ---------------------------------------------------- |
-| `step_change_rate`       | C1, the Step Change five-year addition                          | 0                  | Build at AEMO's own planned rate is priced as AEMO does |
-| `accelerated_rate`       | C2, the Accelerated Transition five-year addition, or 2 x C1     | a2 = +17.5% of annuitised capex | Build between the two published rates    |
+| `step_change_rate`       | C1, the Step Change addition over the period                    | 0                  | Build at AEMO's own planned rate is priced as AEMO does |
+| `accelerated_rate`       | C2, the Accelerated Transition addition, or 2 x C1               | a2 = +17.5% of annuitised capex | Build between the two published rates    |
 | `above_accelerated_rate` | blank, the uncapped backstop                                    | a3 = +45% of annuitised capex | Build past the fastest rate AEMO publishes |
 
 Five carrier groups carry rows: `Wind`, `Solar`, `Gas`, `Battery` and `Water`. These are the `Fuel type` values of the
@@ -40,43 +40,54 @@ therefore reweights *how much* is built in a period against how much is built in
 cumulative total. The campaign's chained myopic solves reinforce this: a period does not see later periods, so it cannot
 plan around a later tranche.
 
-## Widths: what the published paths say a five-year build rate is
+## Widths: what the published paths say a period's build rate is
 
 C1 and C2 are read from the draft 2026 ISP CDP4 capacity series in [`../../../iasr outputs/`](../../../iasr%20outputs/)
-(S001, S002), differencing the annual gigawatt series five years apart. Period 2030 covers 2026-2030, so its addition is
-capacity at 2030 minus capacity at 2025, and so on.
+(S001, S002), differencing the annual gigawatt series across each period's own span. The chain's periods are not all five
+years long, A012:
 
-| Carrier | 2030 | 2035 | 2040 | 2045 | 2050 | Basis |
-| ------- | ---: | ---: | ---: | ---: | ---: | ----- |
-| Wind, Step Change | 18 | 14 | 14 | 4 | -1 | S001 |
-| Wind, Accelerated Transition | 28 | 14 | 20 | 5 | 9 | S002 |
-| Solar, Step Change | 27 | 6 | 12 | 9 | 4 | S001 |
-| Solar, Accelerated Transition | 28 | 18 | 47 | 20 | 17 | S002 |
-| Gas, Step Change | 2 | 0 | 1 | 1 | 1 | S001 |
-| Gas, Accelerated Transition | 2 | 2 | 1 | 1 | 0 | S002 |
+| Period | Build years it covers | Span | Difference taken |
+| ------ | --------------------- | ---: | ---------------- |
+| 2026 | FY2026, the chain's first period | 1 year | capacity 2026 minus capacity 2025 |
+| 2030 | FY2027 to FY2030 | 4 years | capacity 2030 minus capacity 2026 |
+| 2035 to 2050 | the five years ending in the period | 5 years | capacity at the period minus capacity five years earlier |
+| 2055, 2060 | the five years ending in the period | 5 years | no CDP4 data beyond 2050, so the A002 floor, A015 |
+
+| Carrier | 2026 | 2030 | 2035 | 2040 | 2045 | 2050 | Basis |
+| ------- | ---: | ---: | ---: | ---: | ---: | ---: | ----- |
+| Wind, Step Change | 3 | 15 | 14 | 14 | 4 | -1 | S001 |
+| Wind, Accelerated Transition | 3 | 25 | 14 | 20 | 5 | 9 | S002 |
+| Solar, Step Change | 4 | 23 | 6 | 12 | 9 | 4 | S001 |
+| Solar, Accelerated Transition | 6 | 22 | 18 | 47 | 20 | 17 | S002 |
+| Gas, Step Change | 1 | 1 | 0 | 1 | 1 | 1 | S001 |
+| Gas, Accelerated Transition | 1 | 1 | 2 | 1 | 1 | 0 | S002 |
 
 Net capacity, gigawatts. The series is net of retirement, so late-period additions understate gross build: Step Change
 wind falls 1 GW between 2045 and 2050 because early wind farms reach end of life, not because nothing is built. Two
 corrections follow from that, A002 and A003, and the widths the model uses are:
 
-| Carrier | Tranche | 2030 | 2035 | 2040 | 2045 | 2050 |
-| ------- | ------- | ---: | ---: | ---: | ---: | ---: |
-| Wind | C1 | 18,000 | 14,000 | 14,000 | 9,800 | 9,800 |
-| Wind | C2 | 36,000 | 28,000 | 28,000 | 19,600 | 19,600 |
-| Solar | C1 | 27,000 | 11,600 | 12,000 | 11,600 | 11,600 |
-| Solar | C2 | 54,000 | 23,200 | 47,000 | 23,200 | 23,200 |
-| Gas | C1 | 2,000 | 1,000 | 1,000 | 1,000 | 1,000 |
-| Gas | C2 | 4,000 | 2,000 | 2,000 | 2,000 | 2,000 |
-| Battery | C1 | 6,000 | 6,000 | 6,000 | 6,000 | 6,000 |
-| Battery | C2 | 12,000 | 12,000 | 12,000 | 12,000 | 12,000 |
-| Water | C1 | 3,000 | 3,000 | 3,000 | 3,000 | 3,000 |
-| Water | C2 | 6,000 | 6,000 | 6,000 | 6,000 | 6,000 |
+| Carrier | Tranche | 2026 | 2030 | 2035 | 2040 | 2045 | 2050 | 2055 | 2060 |
+| ------- | ------- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Wind | C1 | 3,000 | 15,000 | 14,000 | 14,000 | 9,800 | 9,800 | 9,800 | 9,800 |
+| Wind | C2 | 6,000 | 30,000 | 28,000 | 28,000 | 19,600 | 19,600 | 19,600 | 19,600 |
+| Solar | C1 | 4,000 | 23,000 | 11,600 | 12,000 | 11,600 | 11,600 | 11,600 | 11,600 |
+| Solar | C2 | 8,000 | 46,000 | 23,200 | 47,000 | 23,200 | 23,200 | 23,200 | 23,200 |
+| Gas | C1 | 1,000 | 1,000 | 1,000 | 1,000 | 1,000 | 1,000 | 1,000 | 1,000 |
+| Gas | C2 | 2,000 | 2,000 | 2,000 | 2,000 | 2,000 | 2,000 | 2,000 | 2,000 |
+| Battery | C1 | 1,200 | 4,800 | 6,000 | 6,000 | 6,000 | 6,000 | 6,000 | 6,000 |
+| Battery | C2 | 2,400 | 9,600 | 12,000 | 12,000 | 12,000 | 12,000 | 12,000 | 12,000 |
+| Water | C1 | 600 | 2,400 | 3,000 | 3,000 | 3,000 | 3,000 | 3,000 | 3,000 |
+| Water | C2 | 1,200 | 4,800 | 6,000 | 6,000 | 6,000 | 6,000 | 6,000 | 6,000 |
 
-Megawatts per five-year period, cumulative. Wind, Solar and Gas are S001 and S002 under A002 and A003; Battery and Water
-are authored, A008 and A009, because the CDP4 export carries no storage series at all.
+Megawatts per period, cumulative. Wind, Solar and Gas are S001 and S002 under A002 and A003, with the floor scaled to
+the period's span (one fifth of the five-year floor for 2026, four fifths for 2030; no 2026 or 2030 addition falls below
+it); Battery and Water are authored, A008 and A009, because the CDP4 export carries no storage series at all, and are
+scaled by the same span fraction. In the 2026 period the widths are moot: the near-term pipeline pin allows no
+new-entrant build in FY2026 ([`../near_term_pipeline/`](../near_term_pipeline/)), so the rows exist only because every
+period needs a curve.
 
-The near-term widths are large against what the industry is currently delivering. Step Change wants 18 GW of wind and 27
-GW of utility solar between 2026 and 2030, or about 9 GW a year of new variable renewable energy (VRE), while the Clean
+The near-term widths are large against what the industry is currently delivering. Step Change wants 15 GW of wind and 23
+GW of utility solar between FY2027 and FY2030, or about 9.5 GW a year of new variable renewable energy (VRE), while the Clean
 Energy Council records "Just 2.3 GW of new renewable energy generation projects reached financial close in 2025, one of
 the lowest levels in a decade" (S006). C1 is therefore not a soft target the model will clear casually; it is roughly
 four times the recent commitment rate, and the first tranche already prices that at AEMO's own cost.
@@ -147,13 +158,16 @@ the basis used here is the same basis the objective already carries.
 
 ### The adders the model uses
 
-| Carrier | a2 2030 | a3 2030 | a2 2050 | a3 2050 |
-| ------- | ------: | ------: | ------: | ------: |
-| Wind | 43,095 | 110,815 | 33,455 | 86,028 |
-| Solar | 13,947 | 35,865 | 9,421 | 24,224 |
-| Gas | 26,011 | 66,887 | 19,633 | 50,486 |
-| Battery | 21,532 | 55,367 | 15,757 | 40,517 |
-| Water | 62,362 | 160,360 | 67,095 | 172,531 |
+| Carrier | a2 2026 | a3 2026 | a2 2030 | a3 2030 | a2 2050 | a3 2050 | a2 2055, 2060 | a3 2055, 2060 |
+| ------- | ------: | ------: | ------: | ------: | ------: | ------: | ------------: | ------------: |
+| Wind | 50,992 | 131,121 | 43,095 | 110,815 | 33,455 | 86,028 | 33,393 | 85,867 |
+| Solar | 22,860 | 58,784 | 13,947 | 35,865 | 9,421 | 24,224 | 9,251 | 23,789 |
+| Gas | 31,428 | 80,814 | 26,011 | 66,887 | 19,633 | 50,486 | 19,776 | 50,852 |
+| Battery | 27,449 | 70,584 | 21,532 | 55,367 | 15,757 | 40,517 | 15,471 | 39,783 |
+| Water | 67,497 | 173,565 | 62,362 | 160,360 | 67,095 | 172,531 | 68,147 | 175,235 |
+
+Each period's adders use that period's own financial-year capex column: 2025-26 for 2026, 2029-30 for 2030, and so on.
+The build cost table ends at 2053-54, so 2055 and 2060 both use that last column, A015.
 
 A$/MW/yr, 2025 dollars, full table in
 [`../../model/data/build_rate_premiums_central.csv`](../../model/data/build_rate_premiums_central.csv).

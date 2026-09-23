@@ -15,8 +15,8 @@ A trajectory is built only at the milestones it has authored knots for, so a sin
 gets one directory and its token file lists that one year.
 
 A plan whose milestones reach 2060 asks for a year past the end of the parsed store, which is built by relabelling: the
-FY2050 rows are copied forward exactly ten years and appended. Demand gets the 2060 scalar applied to the relabelled
-rows; VRE is relabelled once into a shared ``_vre_2060`` store and left unscaled.
+FY2055 rows are copied forward exactly five years and appended. Demand gets the 2060 scalar applied to the relabelled
+rows; VRE is relabelled once into a shared ``_vre_2060_fy2055`` store and left unscaled.
 
 Outputs under the output root:
 
@@ -49,9 +49,9 @@ from analysis.hpc.campaign_grid import all_demand_paths
 ANCHOR_YEAR = 2025
 ANCHOR_KIND = "anchor_customer_delivered"
 EXTENSION_YEAR = 2060
-EXTENSION_SOURCE_FY = 2050
-EXTENSION_SHIFT_YEARS = 10
-EXTENDED_VRE_DIR = "_vre_2060"
+EXTENSION_SOURCE_FY = 2055
+EXTENSION_SHIFT_YEARS = 5
+EXTENDED_VRE_DIR = f"_vre_{EXTENSION_YEAR}_fy{EXTENSION_SOURCE_FY}"
 LINKED_SUBDIRS = ("project", "zone")
 DEMAND_SUBDIR = "demand"
 HOURS_PER_INTERVAL = 0.5
@@ -119,7 +119,7 @@ def _measure_demand_energy(
 
 
 def _source_financial_year(milestone_year: int) -> int:
-    """Source financial year that supplies a milestone; 2060 is built from the last modelled year, FY2050."""
+    """Source financial year that supplies a milestone; 2060 is built from FY2055, the last milestone inside the parsed store."""
     return EXTENSION_SOURCE_FY if milestone_year == EXTENSION_YEAR else milestone_year
 
 
@@ -136,7 +136,7 @@ def _measure_source_energy(
 
 
 def _relabel_to_extension_year(frame: pd.DataFrame) -> pd.DataFrame:
-    """FY2050 rows copied forward ten years, so a store that stops before 2060 gains an FY2060."""
+    """FY2055 rows copied forward five years, so a store that stops before 2060 gains an FY2060."""
     rows = frame[_financial_year(frame["datetime"]) == EXTENSION_SOURCE_FY].copy()
     rows["datetime"] = rows["datetime"] + pd.DateOffset(years=EXTENSION_SHIFT_YEARS)
     return rows
@@ -181,7 +181,7 @@ def _write_scaled_demand(
 def _append_relabelled_vre(
     source: Path, dataset_dir: Path, subdir: str, reference_year: int
 ) -> None:
-    """Copy one VRE subdirectory unscaled, appending its FY2050 rows relabelled to FY2060."""
+    """Copy one VRE subdirectory unscaled, appending its FY2055 rows relabelled to FY2060."""
     for parquet in _parquets(source, subdir, reference_year):
         target = dataset_dir / subdir / parquet.relative_to(source / subdir)
         target.parent.mkdir(parents=True, exist_ok=True)

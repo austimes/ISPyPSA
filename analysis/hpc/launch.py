@@ -14,7 +14,8 @@ submission covers, so the base chain and the increment grid that seeds from it g
 directory and the grid is queued behind the base chain with ``--after <job id>``.
 
 ``submit`` is the single place that knows how a campaign job is handed to Slurm: the
-account, partition, stdout path and the exported variables (``RUN_DIR``, ``REPO`` and
+account, any partition override, stdout path, per-submission resource overrides and the
+exported variables (``RUN_DIR``, ``REPO`` and
 ``RESUME``) that the sbatch scripts read. The deliverables builder submits its own
 extract array through it as well, so the two entry points cannot disagree.
 """
@@ -43,8 +44,12 @@ def sbatch_command(
     layout: OutputLayout,
     env: Env,
     dependency: str | None = None,
+    resources: tuple[str, ...] = (),
 ) -> list[str]:
     """The ``sbatch`` command line for one array submission of ``script``.
+
+    The script's own ``#SBATCH`` header sets its partition, memory, time and cores; ``resources``
+    overrides them for this submission, e.g. ``("--mem=2G",)``.
 
     Variables reach the job through the submitting environment (see ``job_environment``)
     rather than ``--export`` items, whose comma separator would split flag values.
@@ -57,6 +62,7 @@ def sbatch_command(
         *([f"--partition={env.slurm_partition}"] if env.slurm_partition else []),
         f"--output={(layout.campaign / 'slurm').as_posix()}/%x-%A_%a.out",
         *([f"--dependency={dependency}"] if dependency else []),
+        *resources,
         script.as_posix(),
     ]
 
@@ -73,6 +79,7 @@ def submit(
     layout: OutputLayout,
     env: Env,
     dependency: str | None = None,
+    resources: tuple[str, ...] = (),
 ) -> str:
     """Submit one Slurm array job for this launch and return its job id.
 
@@ -82,9 +89,10 @@ def submit(
     :param layout: The launch directory the job writes into.
     :param env: Cluster account and partition.
     :param dependency: Slurm dependency expression, e.g. ``afterok:12345``.
+    :param resources: sbatch flags overriding the script's header for this submission.
     """
     (layout.campaign / "slurm").mkdir(parents=True, exist_ok=True)
-    command = sbatch_command(script, array, export, layout, env, dependency)
+    command = sbatch_command(script, array, export, layout, env, dependency, resources)
     environment = job_environment(export, layout)
     print(" ".join(f"{name}={value}" for name, value in environment.items()))
     print(" ".join(command))
@@ -145,7 +153,7 @@ def _increments_summary(plan: dict) -> dict | None:
     if grid is None:
         return None
     return {
-        "cells": len(grid["cells"]),
+        "cells": len(increments.cell_levels(grid)),
         "demand_levels": grid["demand_levels"],
         "intensity_levels": grid["intensity_levels"],
     }

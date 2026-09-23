@@ -210,14 +210,22 @@ def build_caps_table(plan: dict, git_commit: str) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=CAPS_COLUMNS)
 
 
-def _pipeline_args(plan: dict, year: int) -> str:
-    """Near-term pin flags, on the periods at or before the plan's pipeline period."""
-    if year > plan["pipeline_period"]:
+def _year_schedule(values: dict[str, float], years: list[int]) -> str:
+    """``YEAR:VALUE`` tokens of one per-year plan value over the given years."""
+    return " ".join(f"{year}:{values[str(year)]}" for year in years)
+
+
+def _pipeline_args(plan: dict, years: list[int]) -> str:
+    """Near-term pin flags for a chain's periods at or before the plan's pipeline period, with the rush charge."""
+    pinned = [year for year in years if year <= plan["pipeline_period"]]
+    if not pinned:
         return ""
+    rush = plan["pipeline_rush_charge_aud_per_mw_yr"]
     return (
         f" --pipeline-period {plan['pipeline_period']}"
-        f" --new-entrant-cap-mw {plan['new_entrant_cap_mw']}"
-        f" --new-entrant-storage-cap-mw {plan['new_entrant_storage_cap_mw']}"
+        f" --new-entrant-cap-mw {_year_schedule(plan['new_entrant_cap_mw_by_year'], pinned)}"
+        f" --new-entrant-storage-cap-mw {_year_schedule(plan['new_entrant_storage_cap_mw_by_year'], pinned)}"
+        f" --pipeline-rush-charge {rush['generation']},{rush['storage']}"
     )
 
 
@@ -232,7 +240,7 @@ def _base_chain_row(plan: dict, caps: pd.DataFrame) -> dict:
         "chain": BASE_CHAIN_KEY,
         "stage": BASE_STAGE,
         "args": f"--periods {periods} --co2-cap-t-schedule {schedule}"
-        + _pipeline_args(plan, plan["pipeline_period"]),
+        + _pipeline_args(plan, plan["milestone_years"]),
         "last_period": plan["milestone_years"][-1],
         "base_cell": "",
         "branch_year": "",
@@ -253,7 +261,7 @@ def _branch_chain_row(
         "stage": BRANCH_STAGE,
         "args": f"--periods {cell.year} --co2-cap-t-schedule {cell.year}:{cap_t} "
         f"--seed-state-from {base_run_id} --pin-base-stock"
-        + _pipeline_args(plan, cell.year),
+        + _pipeline_args(plan, [cell.year]),
         "last_period": cell.year,
         "base_cell": base_run_id,
         "branch_year": cell.year,

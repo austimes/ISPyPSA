@@ -1,33 +1,67 @@
 {
-  "version": "20260922-step-change-increment-grid-v1",
+  "version": "20260923-step-change-2026-2060-full-grid-v1",
   "delivery_fraction": 0.91,
   "anchor_2025_customer_delivered_twh": 193.911,
-  "milestone_years": [2030, 2035, 2040, 2045, 2050],
+  "milestone_years": [2026, 2030, 2035, 2040, 2045, 2050, 2055, 2060],
+  "increment_years": [2030, 2035, 2040, 2045, 2050, 2055, 2060],
   "demand_paths_source_twh": {
-    "iasr_step_change": {"2030": 202.73, "2035": 246.38, "2040": 282.27, "2045": 307.49, "2050": 322.04}
+    "iasr_step_change": {
+      "2026": 185.3,
+      "2030": 202.73,
+      "2035": 246.38,
+      "2040": 282.27,
+      "2045": 307.49,
+      "2050": 322.04,
+      "2055": 351.3,
+      "2060": 383.2
+    }
   },
-  "cap_intensity_t_per_mwh": {"2030": 0.19673, "2035": 0.0645, "2040": 0.04136, "2045": 0.02714, "2050": 0.01385},
+  "cap_intensity_t_per_mwh": {
+    "2026": 0.55646,
+    "2030": 0.19673,
+    "2035": 0.0645,
+    "2040": 0.04136,
+    "2045": 0.02714,
+    "2050": 0.01385,
+    "2055": 0.01385,
+    "2060": 0.01385
+  },
   "cap_intensity_basis": "source",
   "cap_intensity_csv": "analysis/research/aemo_scenario_intensity/aemo_scenario_intensity.csv",
   "pipeline_period": 2030,
-  "new_entrant_cap_mw": 19000,
-  "new_entrant_storage_cap_mw": 6000,
+  "new_entrant_cap_mw_by_year": {"2026": 500, "2030": 19000},
+  "new_entrant_storage_cap_mw_by_year": {"2026": 500, "2030": 6000},
+  "pipeline_rush_charge_aud_per_mw_yr": {"generation": 98000, "storage": 26000},
+  "placeholders": [
+    "demand_paths_source_twh.iasr_step_change.2055",
+    "demand_paths_source_twh.iasr_step_change.2060",
+    "new_entrant_cap_mw_by_year.2026",
+    "new_entrant_storage_cap_mw_by_year.2026",
+    "pipeline_rush_charge_aud_per_mw_yr.generation",
+    "pipeline_rush_charge_aud_per_mw_yr.storage"
+  ],
   "increment_grid": {
-    "demand_levels": {"d100": 1.0, "d105": 1.05, "d110": 1.1, "d120": 1.2, "d135": 1.35},
-    "intensity_levels": {"i100": 1.0, "i075": 0.75, "i050": 0.5, "i025": 0.25, "i010": 0.1},
-    "cells": [
-      ["d100", "i100"],
-      ["d105", "i100"],
-      ["d110", "i100"],
-      ["d120", "i100"],
-      ["d135", "i100"],
-      ["d100", "i075"],
-      ["d100", "i050"],
-      ["d100", "i025"],
-      ["d100", "i010"],
-      ["d110", "i050"],
-      ["d120", "i025"],
-      ["d135", "i050"]
-    ]
+    "demand_levels": {
+      "d080": 0.8,
+      "d090": 0.9,
+      "d095": 0.95,
+      "d100": 1.0,
+      "d105": 1.05,
+      "d110": 1.1,
+      "d120": 1.2,
+      "d135": 1.35
+    },
+    "intensity_levels": {
+      "i200": 2.0,
+      "i150": 1.5,
+      "i125": 1.25,
+      "i100": 1.0,
+      "i075": 0.75,
+      "i050": 0.5,
+      "i025": 0.25,
+      "i010": 0.1,
+      "i005": 0.05
+    },
+    "cells": "all"
   }
 }

@@ -53,11 +53,12 @@ differentiation needs AEMO Generation Information per-facility data.
 
 The series is AEMO's own modelled conventional-hydro generation under Step Change, so it carries AEMO's view of both water availability and
 how hard the fleet is worked. It declines from about 16.7 TWh in 2027 to about 9.8 TWh in 2050. Years outside 2027 to 2050 are clamped to
-the nearest published year, so a 2025 or 2026 period uses the 2027 figure and the campaign's 2060 milestone uses the 2050 figure.
+the nearest published year. The campaign's 2026 milestone therefore uses the FY2027 figure (16.670 TWh), and its 2055 and 2060
+milestones both use the FY2050 figure (9.834 TWh).
 
 **confidence: high** on the numbers, which are transcribed from a named AEMO workbook, sheet, column and sensitivity;
-**confidence: low** on the 2060 milestone, which reuses the 2050 budget because nothing is published beyond FY2050 and the campaign holds
-2050 conditions forward.
+**confidence: low** on the 2026, 2055 and 2060 milestones, which reuse the FY2027 and FY2050 budgets because nothing is
+published outside FY2027 to FY2050. FY2026 water is AEMO's first modelled year, not outturn.
 
 ## The region-filter skip
 

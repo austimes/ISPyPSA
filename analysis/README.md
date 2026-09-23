@@ -69,7 +69,7 @@ Copy `.example.env` to `.env` and set each variable for the machine you are on:
 | `IO_DIR` | Root of every input and run product: `\\fs1-cbr.nexus.csiro.au\{en-pathways}\work\AusTIMES2\data\ispypsa` on the workstation, `/datasets/work/en-pathways/work/AusTIMES2/data/ispypsa` on the cluster |
 | `MSM_INPUTS` | Optional. Input package to read instead of the newest one, as a directory name under `$IO_DIR/inputs` or an absolute path |
 | `MSM_SLURM_ACCOUNT` | Slurm account the campaign's jobs are charged to |
-| `MSM_SLURM_PARTITION` | Slurm partition the campaign's jobs are submitted to |
+| `MSM_SLURM_PARTITION` | Optional. Slurm partition overriding the one each sbatch script names in its header (`h24` for solves, `h2` for extraction); leave unset |
 | `GRB_LICENSE_FILE` | Gurobi licence file on the cluster |
 | `UV_CACHE_DIR` | `uv` package cache, kept on the cluster's local scratch filesystem |
 
@@ -102,16 +102,19 @@ One manifest holds both stages, so a resume or a stage-by-stage submission alway
 
 | Stage | Chains | What each one solves |
 | --- | --- | --- |
-| `base` | 1 | The Step Change base chain `ext_step_change_sc`, recursive-dynamic over 2030, 2035, 2040, 2045 and 2050, its annual cap set to the Step Change emissions intensity at each milestone |
-| `branch` | 60 | One conditioned single-year solve per increment-grid cell: 12 cells (a demand column, an intensity row and three interior cells) at each of the five milestone years |
+| `base` | 1 | The Step Change base chain `ext_step_change_sc`, recursive-dynamic over 2026 and every fifth year from 2030 to 2060, its annual cap set to the Step Change emissions intensity at each milestone |
+| `branch` | 504 | One conditioned single-year solve per increment-grid cell: every pair of 8 demand and 9 intensity levels (72 cells) at each of the plan's seven `increment_years`, 2030 to 2060 |
 
 `--stage base|branch|all` chooses which of the two to submit, and `--after <job id>` holds the submission behind a Slurm
 job, so the grid queues behind the base chain it seeds from. Each branch row carries its own flags in the manifest:
 `--periods <its year>`, its own `--co2-cap-t-schedule`, `--seed-state-from ext_step_change_sc` to copy the base chain's
 carried tranches and retention floors from before its year, and `--pin-base-stock` to hold the existing fleet at what
-the base chain retained rather than letting the cell retire below it. Every 2030 chain, base and branch alike, also
-carries `--pipeline-period 2030` with the two near-term allowances, `--new-entrant-cap-mw` over new-entrant generators
-and `--new-entrant-storage-cap-mw` over new-entrant batteries, so the near term matches the ISP pipeline. `--max-cap`
+the base chain retained rather than letting the cell retire below it. Every chain solving 2026 or 2030, base and branch
+alike, also carries `--pipeline-period 2030` with the two near-term allowances as `YEAR:MW` schedules,
+`--new-entrant-cap-mw` over new-entrant generators and `--new-entrant-storage-cap-mw` over new-entrant batteries, so
+the near term matches the ISP pipeline, and `--pipeline-rush-charge <generation>,<storage>`: in 2030 itself build above
+each allowance pays that rush charge in A$/MW/yr up to a hard ceiling of twice the allowance, while 2026 keeps its
+allowance as a hard cap. `--max-cap`
 belonged to the earlier ladder of cap chains and now raises, because this plan has one base chain and no ladder to
 narrow.
 
@@ -127,8 +130,9 @@ The two priced build curves are reached through `--solve-flags`. `--social-licen
 generation and network capacity above AEMO's published limits as stepped tranches and adds the state landholder
 payments to every expansion link; `--build-rate-premiums analysis/model/data/build_rate_premiums_central.csv` prices
 each carrier's new build above the period's baseline additions. Every solve writes what its tranches charged to
-`outputs/capacity_tranches.json`, which `msm extract` turns into the `social_licence_premium_aud_per_yr` and
-`build_rate_premium_aud_per_yr` columns of `results.csv` and the `premium_aud_per_yr` column of `transmission.csv`. So
+`outputs/capacity_tranches.json`, which `msm extract` turns into the `social_licence_premium_aud_per_yr`,
+`build_rate_premium_aud_per_yr` and `pipeline_rush_premium_aud_per_yr` columns of `results.csv` and the
+`premium_aud_per_yr` column of `transmission.csv`. So
 the campaign launches with:
 
 ```bash

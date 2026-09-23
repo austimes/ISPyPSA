@@ -1,6 +1,6 @@
 """Plot the build rate premium the campaign charges on new capacity, straight from the file the model reads.
 
-One panel per carrier group: cumulative new-build megawatts inside one five-year period against the adder in Australian
+One panel per carrier group: cumulative new-build megawatts inside one investment period against the adder in Australian
 dollars per megawatt per year, drawn as the step function the tranche block enforces. One line per investment period, so a
 reader can see both the widths falling as AEMO's planned build rate falls and the adders falling with capital cost. The
 uncapped backstop tranche has no width, so it is drawn as a tread running to twice the second tranche's cumulative cap.
@@ -28,18 +28,21 @@ _GROUPS = ("Wind", "Solar", "Gas", "Battery", "Water")
 
 #: One colour per investment period, darkening as the horizon advances.
 _PERIOD_COLOUR = {
+    2026: "#9ecae1",
     2030: "#1f77b4",
     2035: "#4c9f70",
     2040: "#e4a11b",
     2045: "#e4572e",
     2050: "#7b2d8e",
+    2055: "#8c564b",
+    2060: "#444444",
 }
 
 _ANNOTATION = (
-    "Widths: first tranche is the Step Change five-year capacity addition (floored at the horizon average), second is "
+    "Widths: first tranche is the Step Change capacity addition over the period (floored at the horizon average), second is "
     "the Accelerated Transition addition<br>"
     "or twice the first, whichever is larger. Adders: +17.5% and +45% of the group's annuitised capital cost in that "
-    "year. Every width is a five-year total,<br>"
+    "year. Every width covers its period: 1 year for 2026, 4 for 2030, 5 thereafter,<br>"
     "and each period is charged only the megawatts built in that period, so the premium prices compression where it "
     "occurs."
 )
@@ -98,7 +101,7 @@ def build_figure() -> go.Figure:
     figure.update_xaxes(title_text="new build in the period (MW)")
     figure.update_yaxes(title_text="adder (A$2025 per MW per year)")
     figure.update_layout(
-        title="Build rate premium charged on new capacity above AEMO's planned five-year build rate",
+        title="Build rate premium charged on new capacity above AEMO's planned build rate for the period",
         template="plotly_white",
         width=1300,
         height=780,

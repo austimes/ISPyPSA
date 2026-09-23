@@ -2,7 +2,7 @@
 
 The budget lives only in code, so both the published series and the clamping rule are imported from
 ``src/ispypsa/pypsa_build/generators.py`` rather than copied here. Megawatt-hours are converted to terawatt-hours (TWh) for reading; the
-campaign milestones are marked because the 2060 milestone is served entirely by the clamp.
+campaign milestones are marked because the 2026, 2055 and 2060 milestones are served entirely by the clamp.
 
 Run with ``uv run --with kaleido python analysis/research/hydro_energy_budget/plot_hydro_budget.py``; writes ``hydro_budget.html`` and
 ``hydro_budget.png`` beside this script.
@@ -98,7 +98,11 @@ def build_figure() -> go.Figure:
     figure = go.Figure()
     _add_published_trace(figure, published)
     _add_clamp_trace(figure, clamped)
-    _add_milestone_markers(figure, published | clamped, milestones)
+    _add_milestone_markers(
+        figure,
+        {year: _hydro_annual_budget_mwh(year) / _MWH_PER_TWH for year in milestones},
+        milestones,
+    )
     figure.update_layout(
         title="Annual conventional-hydro energy budget, and the clamp that serves every year past FY"
         f"{last_published}",
@@ -120,8 +124,8 @@ def build_figure() -> go.Figure:
     figure.add_annotation(
         text=(
             f"The published series ends at FY{last_published}. A period outside FY{min(published)} to FY{last_published} takes the nearest "
-            "published year's budget,<br>so the 2060 milestone is solved against FY"
-            f"{last_published}'s water and a 2025 or 2026 period would take FY{min(published)}'s."
+            "published year's budget,<br>so the 2055 and 2060 milestones are solved against FY"
+            f"{last_published}'s water and the 2026 milestone against FY{min(published)}'s."
         ),
         xref="paper",
         yref="paper",

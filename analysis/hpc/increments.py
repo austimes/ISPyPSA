@@ -2,11 +2,11 @@
 
 At each milestone year the base chain reports one point. The grid asks what a step in demand or a
 step in carbon pressure costs at that point, by re-solving the year on its own with the base stock
-pinned, the base state seeded in, and the annual cap set by the cell. The cells are L-shaped: a pure
-demand column at the base intensity, a pure intensity row at the base demand, and a few interior
-cells that test whether the two add.
+pinned, the base state seeded in, and the annual cap set by the cell. The grid is solved at the plan's
+own ``increment_years``, which may leave out base milestones such as a calibration year.
 
-The plan's ``increment_grid`` block holds the levels and the cells; each cell's demand level scales
+The plan's ``increment_grid`` block holds the levels and the cells, either ``"all"`` for every
+(demand, intensity) pair or an explicit list of pairs; each cell's demand level scales
 the base trajectory's load for that year, so every (year, demand level) pair is its own single-knot
 demand trajectory, ``<base trajectory>_b<year>_d<level>``. Those trajectories live under
 ``increment_demand_paths_source_twh`` and never under ``demand_paths_source_twh``, which carries the
@@ -16,6 +16,7 @@ base trajectories the marginals ladder is computed across.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import product
 
 GRID_KEY = "increment_grid"
 INCREMENT_PATHS_KEY = "increment_demand_paths_source_twh"
@@ -50,7 +51,7 @@ def base_trajectory(plan: dict) -> tuple[str, dict[str, float]]:
 
 
 def _cell(plan: dict, year: int, demand_level: str, intensity_level: str) -> Cell:
-    """Assemble one grid cell from its two level keys at one milestone year."""
+    """Assemble one grid cell from its two level keys at one increment year."""
     grid = plan[GRID_KEY]
     name, knots = base_trajectory(plan)
     demand_factor = grid["demand_levels"][demand_level]
@@ -65,19 +66,26 @@ def _cell(plan: dict, year: int, demand_level: str, intensity_level: str) -> Cel
     )
 
 
+def cell_levels(grid: dict) -> list[tuple[str, str]]:
+    """The grid's (demand level, intensity level) pairs: the full product for ``"all"``, else the listed pairs."""
+    if grid["cells"] == "all":
+        return list(product(grid["demand_levels"], grid["intensity_levels"]))
+    return [tuple(pair) for pair in grid["cells"]]
+
+
 def cells(plan: dict) -> list[Cell]:
-    """Every increment cell of the plan, grouped by milestone year; empty without a grid."""
+    """Every increment cell of the plan, grouped by increment year; empty without a grid."""
     if GRID_KEY not in plan:
         return []
     return [
         _cell(plan, year, demand_level, intensity_level)
-        for year in plan["milestone_years"]
-        for demand_level, intensity_level in plan[GRID_KEY]["cells"]
+        for year in plan["increment_years"]
+        for demand_level, intensity_level in cell_levels(plan[GRID_KEY])
     ]
 
 
 def demand_paths(plan: dict) -> dict[str, dict[str, float]]:
-    """Single-knot demand trajectories of the grid, one per (milestone year, demand level)."""
+    """Single-knot demand trajectories of the grid, one per (increment year, demand level)."""
     return {cell.trajectory: {str(cell.year): cell.source_twh} for cell in cells(plan)}
 
 

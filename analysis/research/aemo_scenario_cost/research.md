@@ -126,6 +126,26 @@ chain's surviving builds and existing-fleet FOM ([`../../sharp/frontier_points.p
 capital of its new builds only. The ShARP reference on the same panel ([`../sharp_grid_reference/`](../sharp_grid_reference/)) is restated
 to the same basis, so every line on the cost and demand panels shares one dollar year and one denominator.
 
+## Residual gaps
+
+Three differences between AEMO's cost and the campaign's remain after the common basis, and none is corrected. Each
+pulls the campaign's cost per MWh below AEMO's, so a campaign line sitting under the AEMO band is partly expected.
+
+| Gap | AEMO | Campaign | Direction and size |
+| --- | ---- | -------- | ------------------ |
+| Cost classes dropped (A003) | Retirement, system security, and distribution capital and O&M costs | None of these modelled | The common basis already removes them from AEMO; for Step Change they are 2.8 A$/MWh generated in 2030 and 5.1 A$/MWh in 2050 (retirement 2.02 and 3.40, system security 0.82 and 1.53, distribution 0.00 and 0.19, from the table above). Costs the campaign cannot see are left out of both sides rather than priced |
+| Transmission losses | Inter-regional loss equations (IASR "Network losses" sheet) and marginal loss factors | Lossless transport ([`../../../docs/method.md`](../../../docs/method.md)) | The campaign's generation meets its load with no loss, so it builds and runs less plant per MWh served. The published difference was not measured here; part of the 5% to 9% of AEMO generation left unexplained in [`../demand_plan/`](../demand_plan/) is candidate network loss |
+| Time sample and reliability | Full-year chronology, with the reliability standard enforced | 13 representative weeks per solve, no named peak weeks, no reliability standard ([`../campaign_method/`](../campaign_method/)) | Extreme peaks and long low-renewable spells enter only if a sampled week holds them, so firming capacity is under-built against AEMO. Direction: campaign cost lower; size not measured |
+
+**confidence: high** that each gap exists and on the dropped-class values; **confidence: low** on the size of the
+transmission-loss and sampling effects, which no run has isolated.
+
+The generation-to-operational-demand factor behind the common basis is measured in
+[`../demand_plan/`](../demand_plan/#generation-to-operational-demand-measured). The recommended per-year factor (0.995 in
+FY2027, 0.966 in FY2030, 0.942 by FY2050) would change every common-basis cost here by -2.5% (FY2027) to +3.0% (FY2050)
+against the 0.97 the CSV applies, and change `operational_demand_twh` by the inverse. The CSV keeps 0.97 until the
+dashboard adopts the per-year factor.
+
 ## Plot
 
 [`plot_aemo_scenario_cost.py`](plot_aemo_scenario_cost.py) reads the committed source extract
