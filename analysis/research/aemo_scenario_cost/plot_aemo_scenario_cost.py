@@ -6,7 +6,7 @@ long form, in thousands of real July 2023 dollars and gigawatt hours, so a cost 
 hour. The drawn measure is every cost class less fuel and emissions costs over generation excluding rooftop and storage, which matches
 the dashboard's conversion cost (cost excluding fuel and carbon per MWh). The ``common_cost_aud_per_mwh`` and ``operational_demand_twh``
 columns restate the same series on the campaign's own basis: cost classes the campaign models, per MWh of operational demand, in real
-June 2025 dollars.
+June 2025 dollars, where operational demand is each scenario's generation net of its storage losses (``operational_share``).
 
 Run with ``uv run --with kaleido python analysis/research/aemo_scenario_cost/plot_aemo_scenario_cost.py``; writes
 ``aemo_scenario_cost.csv``, ``.html`` and ``.png`` beside this script.
@@ -22,6 +22,7 @@ _HERE = Path(__file__).parent
 _SOURCE_CSV = _HERE / "aemo_2026_isp_cdp4_costs_generation.csv"
 _OUTPUT_STEM = _HERE / "aemo_scenario_cost"
 _GENERATION = "Generation excluding rooftop and storage"
+_STORAGE_NET = "Storage and DSP net generation"
 _SCENARIOS = ["Slower Growth", "Step Change", "Accelerated Transition"]
 _MILESTONE_YEARS = [2030, 2035, 2040, 2045, 2050]
 #: Cost classes with no counterpart in the campaign's model, left out of the common-basis cost (A003).
@@ -31,8 +32,6 @@ _UNMODELLED_CLASSES = [
     "Distribution capital costs",
     "Distribution O&M costs",
 ]
-#: Operational demand as a share of generation excluding rooftop and storage, the demand plan's authored factor (A004).
-_OPERATIONAL_SHARE = 0.97
 #: ABS All groups CPI, weighted average of eight capital cities (series A2325846C): June quarter 2025 over June quarter 2023 (A002).
 _CPI_JUL_2023_TO_JUN_2025 = 141.7 / 133.7
 
@@ -51,6 +50,8 @@ def cost_table() -> pd.DataFrame:
     """Cost per MWh generated excluding rooftop and storage for each scenario and year, split into fuel, emissions and the rest."""
     wide = _wide_series()
     costs, generation_gwh = wide["$000 real Jul-2023"], wide["GWh"][_GENERATION]
+    # Operational demand as a share of generation: generation net of storage losses over generation (A004).
+    share = (generation_gwh + wide["GWh"][_STORAGE_NET]) / generation_gwh
     per_year = {
         "cost_excl_fuel_emissions": costs.drop(
             columns=["Fuel costs", "Emissions costs"]
@@ -62,7 +63,7 @@ def cost_table() -> pd.DataFrame:
             columns=["Fuel costs", "Emissions costs", *_UNMODELLED_CLASSES]
         ).sum(axis=1)
         * _CPI_JUL_2023_TO_JUN_2025
-        / _OPERATIONAL_SHARE,
+        / share,
     }
     table = pd.DataFrame(
         {
@@ -71,8 +72,13 @@ def cost_table() -> pd.DataFrame:
         }
     )
     table["generation_twh"] = generation_gwh / 1000
-    table["operational_demand_twh"] = table["generation_twh"] * _OPERATIONAL_SHARE
-    return table.round(3).rename_axis(["year", "scenario"]).reset_index()
+    table["operational_demand_twh"] = table["generation_twh"] * share
+    return (
+        table.round(3)
+        .assign(operational_share=share.round(4))
+        .rename_axis(["year", "scenario"])
+        .reset_index()
+    )
 
 
 def build_figure(table: pd.DataFrame) -> go.Figure:

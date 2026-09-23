@@ -109,6 +109,27 @@ AEMO names the same index for rebasing its own dollar years; the quote is in
 basis year but no quarter, verbatim from `library/CONVENTIONS.md` at the pinned commit: "deflation to a common basis is the
 consumer's responsibility and must use the stated basis year."
 
+## S009 -- Overflow-growth bands
+
+**Source:** `overflow_supply_growth_bands.csv`. Two annual price bands on growth beyond plan, in A$2024/MWh, with no year
+column. The lower band, verbatim to its currency:
+
+> ```text
+> generate_grid_electricity,generate_grid_electricity__pathway_bundle,expected_growth,Expected annual overflow growth,1,12,2.155449,2024,MAUD_2024,...
+> ```
+
+The role README (S006) states how long a band's price is carried, verbatim: "Each positive increment retains its annual
+overflow-growth price from the year it is added through 2050."
+
+## S010 -- Overflow-growth adjustments
+
+**Source:** `overflow_supply_growth_adjustments.csv`. One-year adjustments on growth beyond plan, by installation year, in
+A$2024/MWh. Its only row, verbatim to its currency:
+
+> ```text
+> generate_grid_electricity,generate_grid_electricity__pathway_bundle,2030,renewable_target_short_lead_time,Short-lead-time overflow-growth adjustment,37.447769,2024,MAUD_2024,...
+> ```
+
 ## A001 -- Constant residual emissions factor
 
 Each ladder point's intensity assumes the non-renewable remainder emits at the planned year's residual factor, planned
@@ -122,8 +143,11 @@ files carry no row for that endpoint, so the extension is reconstructed here.
 
 ## A003 -- Extra-MWh price proxy
 
-The approximate price of one extra MWh is the ladder cost interpolated at the planned renewable share plus the overflow-scale
-premium. It leaves out ShARP's fuel and carbon allowances and its overflow-growth charge (S006).
+The approximate price of one extra MWh is the ladder cost interpolated at the planned renewable share, plus the
+overflow-scale premium (S004), the planned future's fuel allowance (S001) and the overflow-growth charge: the lower band
+(S009) in every year, plus the one-year adjustment in its installation year, FY2030 (S010). The lower band assumes a cell's
+growth beyond plan stays under 12 TWh a year, and it is applied after 2050 too, though S006 carries it only to 2050. The
+proxy leaves out ShARP's carbon allowance (S006).
 
 ## A004 -- No boundary factor on intensities
 
@@ -144,11 +168,13 @@ The ShARP intensity-arm line starts at (1, 0), the planned point, as the campaig
 Per-MWh costs are multiplied by the delivery factor, 0.7915, and quantities divided by the geographic and delivery factors
 together, 1.3 x 0.7915 (S007). The step assumes cost and energy scale with ShARP's national quantity in one flat ratio.
 
-## A008 -- Operational demand as 0.97 of generation
+## A008 -- Operational demand as generation net of storage losses
 
-NEM generation excluding rooftop becomes operational demand at 0.97, the demand plan's authored factor for storage charging and
-auxiliary load ([`../demand_plan/`](../demand_plan/), A010 there). The same factor sets AEMO's common basis in
-[`../aemo_scenario_cost/`](../aemo_scenario_cost/).
+NEM generation excluding rooftop becomes operational demand at Step Change's generation net of storage losses over
+generation, per year, the demand plan's measured factor ([`../demand_plan/`](../demand_plan/), A010 there). It is read from
+the `operational_share` column of [`../aemo_scenario_cost/aemo_scenario_cost.csv`](../aemo_scenario_cost/aemo_scenario_cost.csv),
+which sets AEMO's common basis the same way, and held at its FY2027 value for 2026 and its FY2050 value after 2050.
+
 
 ## A009 -- A$2024 as the 2024 mean index
 

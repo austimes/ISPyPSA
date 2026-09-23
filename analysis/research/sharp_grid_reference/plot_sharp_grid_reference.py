@@ -1,10 +1,12 @@
 """Derive ShARP's current-policy grid supply as a dashboard reference, with its clean ladder converted approximately to emissions intensity.
 
-Reads five files of the ShARP ``generate_grid_electricity`` role from the ``austimes/sharp`` GitHub repository at a pinned commit, through
-the authenticated ``gh`` command line, and keeps the ``current_policy_clean_transition`` future for 2030 to 2050. Each clean-ladder point's
-renewable fraction becomes an intensity by assuming the non-renewable remainder keeps the planned year's emissions factor. Columns prefixed
-``common_`` restate ShARP's national delivered quantities and costs on the campaign's basis: NEM operational demand in real June 2025
-dollars, with ``common_futures_min_twh`` and ``common_futures_max_twh`` the range over every ShARP grid future.
+Reads six files of the ShARP ``generate_grid_electricity`` role from the ``austimes/sharp`` GitHub repository at a pinned commit, through
+the authenticated ``gh`` command line, and keeps the ``current_policy_clean_transition`` future for the campaign's milestones, 2026 and 2030
+to 2060. Each clean-ladder point's renewable fraction becomes an intensity by assuming the non-renewable remainder keeps the planned year's
+emissions factor. Columns prefixed ``common_`` restate ShARP's national delivered quantities and costs on the campaign's basis: NEM
+operational demand in real June 2025 dollars, with ``common_futures_min_twh`` and ``common_futures_max_twh`` the range over every ShARP grid
+future. Operational demand is Step Change generation net of storage losses, the per-year share read from
+``../aemo_scenario_cost/aemo_scenario_cost.csv`` and held at its nearest measured year outside FY2027 to FY2050.
 
 Run with ``uv run --with kaleido python analysis/research/sharp_grid_reference/plot_sharp_grid_reference.py``; writes
 ``sharp_grid_reference.csv``, ``.html`` and ``.png`` beside this script.
@@ -24,22 +26,24 @@ import plotly.graph_objects as go
 _SHARP_COMMIT = "eaf1ca27"
 _ROLE_PATH = "library/roles/generate_grid_electricity"
 _METHOD = "electricity__grid_supply__current_policy_clean_transition"
-_YEARS = [2030, 2035, 2040, 2045, 2050]
+_YEARS = [2026, 2030, 2035, 2040, 2045, 2050, 2055, 2060]
 #: ShARP extends every clean ladder to a nominal 99% renewable endpoint at its final published interval's incremental price.
 _LADDER_END = 0.99
 _OUTPUT_STEM = Path(__file__).with_name("sharp_grid_reference")
 #: ShARP's A052 factors from NEM source generation to national delivered electricity (S007).
 _GEOGRAPHIC_FACTOR = 1.3
 _DELIVERY_FACTOR = 0.7914939324516337
-#: Operational demand as a share of NEM generation excluding rooftop, the demand plan's authored factor (A008).
-_OPERATIONAL_SHARE = 0.97
+#: Step Change operational demand as a share of generation per year, measured in the demand plan (A008).
+_AEMO_COST_CSV = (
+    _OUTPUT_STEM.parents[1] / "aemo_scenario_cost" / "aemo_scenario_cost.csv"
+)
 _QUANTITY_COLUMNS = ["planned_twh", "futures_min_twh", "futures_max_twh"]
 #: ABS All groups CPI, weighted average of eight capital cities (series A2325846C): June quarter 2025 over the 2024 mean (A009).
 _CPI_2024_TO_JUN_2025 = 141.7 / ((137.4 + 138.8 + 139.1 + 139.4) / 4)
 
 
-def _read_sharp(name: str) -> pd.DataFrame:
-    """One role CSV from the pinned ShARP commit, restricted to the milestone years."""
+def _fetch_sharp(name: str) -> pd.DataFrame:
+    """One role CSV from the pinned ShARP commit."""
     url = f"repos/austimes/sharp/contents/{_ROLE_PATH}/{name}?ref={_SHARP_COMMIT}"
     text = subprocess.run(
         ["gh", "api", url, "-H", "Accept: application/vnd.github.raw"],
@@ -47,8 +51,26 @@ def _read_sharp(name: str) -> pd.DataFrame:
         check=True,
         encoding="utf-8",
     ).stdout
-    frame = pd.read_csv(StringIO(text))
+    return pd.read_csv(StringIO(text))
+
+
+def _read_sharp(name: str) -> pd.DataFrame:
+    """One role CSV from the pinned ShARP commit, restricted to the milestone years."""
+    frame = _fetch_sharp(name)
     return frame[frame["year"].isin(_YEARS)]
+
+
+def _growth_charge() -> pd.Series:
+    """ShARP's overflow-growth price on one extra MWh per year: the lower persistent band, plus any one-year adjustment (A003)."""
+    bands = _fetch_sharp("overflow_supply_growth_bands.csv").set_index("band_order")
+    adjustments = _fetch_sharp("overflow_supply_growth_adjustments.csv")
+    one_year = adjustments.set_index("installation_year")[
+        "overflow_growth_adjustment_per_unit"
+    ]
+    return (
+        one_year.reindex(_YEARS, fill_value=0.0)
+        + bands.loc[1, "overflow_growth_premium_per_unit"]
+    )
 
 
 def _planned() -> pd.DataFrame:
@@ -63,6 +85,7 @@ def _planned() -> pd.DataFrame:
         {
             "planned_twh": states["planned_quantity"],
             "planned_renewable_fraction": states["planned_renewable_fraction"],
+            "fuel_allowance_aud_per_mwh": states["planned_fuel_cost_basis_per_unit"],
             "planned_cost_aud_per_mwh": methods["output_cost_per_unit"],
             "planned_t_co2e_per_mwh": methods["energy_emissions_by_pollutant"].map(
                 lambda cell: json.loads(cell)[0]["value"]
@@ -139,14 +162,20 @@ def reference_table() -> pd.DataFrame:
         "overflow_scale_premium_per_unit"
     ]
     planned["scale_premium_aud_per_mwh"] = premiums
-    planned["extra_mwh_price_aud_per_mwh"] = (
-        planned["planned_share_ladder_cost_aud_per_mwh"] + premiums
-    )
+    planned["growth_charge_aud_per_mwh"] = _growth_charge()
+    planned["extra_mwh_price_aud_per_mwh"] = planned[
+        [
+            "planned_share_ladder_cost_aud_per_mwh",
+            "scale_premium_aud_per_mwh",
+            "fuel_allowance_aud_per_mwh",
+            "growth_charge_aud_per_mwh",
+        ]
+    ].sum(axis=1)
     table = planned.join(_futures_range()).join(ladder).reset_index()
     table["ladder_t_co2e_per_mwh"] = (1 - table["ladder_renewable_fraction"]) * table[
         "residual_t_co2e_per_mwh"
     ]
-    return _common_basis(table).round(5)
+    return _common_basis(table.sort_values("year", kind="stable")).round(5)
 
 
 def _futures_range() -> pd.DataFrame:
@@ -160,13 +189,21 @@ def _futures_range() -> pd.DataFrame:
 
 def _common_basis(table: pd.DataFrame) -> pd.DataFrame:
     """Every A$/MWh column per MWh of NEM operational demand in June 2025 dollars, and every TWh column as NEM operational demand."""
-    cost = _DELIVERY_FACTOR / _OPERATIONAL_SHARE * _CPI_2024_TO_JUN_2025
-    energy = _OPERATIONAL_SHARE / (_GEOGRAPHIC_FACTOR * _DELIVERY_FACTOR)
+    share = _operational_share(table["year"])
+    cost = _DELIVERY_FACTOR / share * _CPI_2024_TO_JUN_2025
+    energy = share / (_GEOGRAPHIC_FACTOR * _DELIVERY_FACTOR)
     common = {
         **{f"common_{c}": table[c] * cost for c in table.filter(like="aud_per_mwh")},
         **{f"common_{c}": table[c] * energy for c in _QUANTITY_COLUMNS},
     }
     return table.assign(**common)
+
+
+def _operational_share(years: pd.Series) -> np.ndarray:
+    """Step Change's measured operational share of generation in each year, held at the nearest measured year beyond its span."""
+    aemo = pd.read_csv(_AEMO_COST_CSV)
+    step_change = aemo[aemo["scenario"].eq("Step Change")]
+    return np.interp(years, step_change["year"], step_change["operational_share"])
 
 
 def build_figure(table: pd.DataFrame) -> go.Figure:

@@ -3,6 +3,7 @@ import pypsa
 
 from analysis.env import OutputLayout
 from analysis.hpc.campaign_grid import order_pressures
+from analysis.sharp.campaign_rows import base_rows
 from analysis.sharp.deliverables import (
     MARGINAL_COLUMNS,
     _add_load_shedding,
@@ -15,7 +16,6 @@ from analysis.sharp.deliverables import (
     _templated_cost_rows,
     _transmission_frame,
     _write_input_costs,
-    base_rows,
 )
 
 _TRAJECTORY_ORDER = ["low", "central", "stress"]

@@ -93,8 +93,9 @@ The common-basis cost also leaves out generation, storage and electrolyser retir
 capital and O&M costs. The campaign's model carries no counterpart for any of the four. Flow path, REZ, and DSP and unserved energy costs
 stay in, because the campaign builds transmission and REZ capacity and prices unserved energy.
 
-## A004 -- Operational demand as 0.97 of generation
+## A004 -- Operational demand as generation net of storage losses
 
-Operational demand is taken as 0.97 of generation excluding rooftop and storage, the demand plan's authored factor for storage charging and
-auxiliary load ([`../demand_plan/`](../demand_plan/), A010 there). It sets both `operational_demand_twh` and the common-basis cost's
-denominator. AEMO publishes no such factor.
+Operational demand is taken as each scenario's generation excluding rooftop and storage plus its (negative) storage and DSP net
+generation, both from S001, per year: the demand plan's measured factor ([`../demand_plan/`](../demand_plan/), A010 there). The ratio
+is carried as `operational_share` and sets both `operational_demand_twh` and the common-basis cost's denominator. AEMO publishes no
+such factor.

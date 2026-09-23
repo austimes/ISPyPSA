@@ -111,6 +111,7 @@ SHARP_REFERENCE_CSV = (
 SHARP_NAME = "ShARP current policy (approx.)"
 SHARP_LINE = {"color": "#108010", "dash": "dash", "width": 1.5}
 SHARP_BAND_NAME = "ShARP clean ladder reach (approx.)"
+SHARP_COST_BAND_NAME = "ShARP whole-system cost (includes sunk capital)"
 SHARP_BAND_FILL = "rgba(10,80,10,0.2)"
 SHARP_FUTURES_NAME = "ShARP futures range"
 
@@ -130,12 +131,10 @@ FUEL_INPUTS = {
     "gj_per_mwh_biomass": ("Biomass", "dot"),
 }
 
-#: Milestone spacing of the campaign's chains. An increment cell is a single-year solve seeded from
-#: its base chain's state one step back, so its fan is drawn from the base point at that year.
-BRANCH_STEP = 5
-
-#: Hues for the increment-grid fans, lighter than the chain palette so the base chains read over them.
-INCREMENT_FAN_COLOURS = px.colors.qualitative.Light24
+#: Sequential scale the increment-grid fans are shaded along by intensity level, deepest cap first.
+#: It stops short of the scale's pale end so the lightest fan still reads on white.
+INCREMENT_FAN_SCALE = "Viridis"
+INCREMENT_FAN_SCALE_END = 0.9
 
 #: The one trajectory the cost decomposition is drawn for. Every trajectory and pressure at once
 #: would be fifty panels, too many to read.
@@ -188,7 +187,7 @@ HATCH_NOTE_LINE_HEIGHT = 24
 LABELS = {
     "avg_cost": "Average cost (A$/MWh)",
     "carrier": "Carrier",
-    "cell_label": "Cell: the base chain and each increment cell",
+    "cell_label": "Cell: the base chain, the grid's demand column and its intensity row",
     "component": "Cost component",
     "cost_per_mwh": "Cost (A$/MWh)",
     "co2e_total_kt_per_yr": "Emissions (kt CO2e/yr)",
@@ -210,6 +209,7 @@ LABELS = {
     "premium_aud_m_per_yr": "Premium paid (A$m/yr)",
     "curve": "Cost curve",
     "delta_cost_aud_m_per_yr": "Delta cost (A$m/yr)",
+    "additive_aud_m_per_yr": "Column plus row delta cost (A$m/yr)",
     "cumulative_mw": "Cumulative capacity (MW)",
     "adder": "Cost step (A$/MW/yr)",
     "group": "Curve group and period",
@@ -379,7 +379,7 @@ INCREMENT_COLOUR_MEASURES = {
     "delta_co2e_kt_per_yr": "Delta emissions (kt CO2e/yr)",
 }
 
-#: The level each arm of the L-shaped grid varies, against the level it holds at one.
+#: The level each arm of the grid varies, against the level it holds at one.
 INCREMENT_ARMS = {"demand_level": "intensity_level", "intensity_level": "demand_level"}
 
 #: A level key names a percentage of the base cell's own, prefixed by the axis it varies: ``d135`` is
@@ -389,6 +389,10 @@ INCREMENT_LEVEL_PER_CENT = 100.0
 
 #: What every figure calls the base cell's own bar or line, beside the increment cells' labels.
 BASE_CELL_LABEL = "base"
+
+#: Increment keys on the grid's pure demand column or pure intensity row, e.g. ``d100_i050`` and
+#: ``d135_i100``: one level held at the base cell's own. The mix and storage figures bar these only.
+INCREMENT_ARM_KEYS = r"^d100_|_i100$"
 
 
 def increment_keys(rows: pd.DataFrame) -> pd.Series:
@@ -415,20 +419,33 @@ INCREMENT_COST_PER_TWH = "delta_cost_per_extra_twh"
 INCREMENT_COST_PER_TWH_LABEL = "Delta cost (A$/yr per extra TWh)"
 
 #: What each cell of the grid says on hover: the two levels, the measure it is coloured by, and the
-#: duals, intensity and new build its own row carries.
-INCREMENT_HOVER = "d=%{x:.2f}, i=%{y:.2f}<br>%{z:.4g}<br>%{customdata}<extra></extra>"
+#: cost, emissions, fuel, duals, intensity and new build its own row carries.
+INCREMENT_HOVER = "d=%{x}, i=%{y}<br>%{z:.4g}<br>%{customdata}<extra></extra>"
+
+#: Size of the one number each grid cell shows, and the width it needs, in pixels. The grids are
+#: drawn without their numbers when the figure's nominal plotting width, shared over every cell
+#: across one row of grids, leaves a cell narrower than that.
+INCREMENT_TEXT_SIZE = 11
+INCREMENT_TEXT_WIDTH = 24
+NOMINAL_PLOT_WIDTH = 1100
+
+#: Year grids per row, so a seven-year grid wraps onto a second row rather than squeezing every
+#: demand column of every year across one.
+INCREMENT_GRIDS_PER_ROW = 4
 
 #: Columns a cell's hover lists beside the measure it is coloured by.
 INCREMENT_HOVER_COLUMNS = r"^fleet_intensity|^cap_dual_|^dual_|^delta_new_gw_"
 
-#: The interior cells' own cost delta and the sum of their two arms, as the bars name each.
-ADDITIVITY_SERIES = {
-    "interior_aud_per_yr": "Interior cell",
-    "additive_aud_per_yr": "Demand arm plus intensity arm",
-}
+#: The line an interior cell sits on when it costs exactly what its column and row cost together.
+ADDITIVE_LINE_NAME = "Additive: interior cell equals column plus row"
+ADDITIVE_LINE = {"color": "#8c8c8c", "dash": "dot", "width": 1}
 
-#: Height of the increment section, which stacks three curve rows, the grids and the duals table.
-INCREMENT_HEIGHT = 1450
+#: Heights of the increment section's rows, in pixels: each of the three curve rows, each row of
+#: grids, tall enough for nine intensity rows, the duals table, and the gap between rows.
+INCREMENT_CURVE_HEIGHT = 320
+INCREMENT_GRID_HEIGHT = 360
+INCREMENT_TABLE_HEIGHT = 300
+INCREMENT_ROW_GAP = 90
 
 
 def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
@@ -437,11 +454,12 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
     Each conditioned single-year solve is one cell, reported against the base cell it branched
     from. The demand arm prices extra energy at the base cell's cap, the intensity arm prices a
     deeper cap at the base cell's demand, each beside ShARP's approximate reference for the same
-    step where one exists for that year, and the bars below test whether an interior cell costs
-    what its two arms cost together, which is the additive form ShARP prices both through. The
-    grids show every cell at once, annotated with each consequence, with the button switching their
-    colouring between cost and emissions, and the table carries the implied carbon price each side
-    of the increment faced.
+    step, on the campaign's basis, where one exists for that year. One scatter per year tests
+    whether an interior cell costs what its column and row cost together, which is the additive
+    form ShARP prices both through. The grids show every cell at once, each marked with its change
+    in cost per MWh and everything else on hover, with the button switching their colouring between
+    cost and emissions, and the table carries the implied carbon price each side of the increment
+    faced.
 
     :param increments: The run's ``increments.csv``, one row per branch cell and year.
     """
@@ -450,12 +468,15 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
     blocks = [
         curves[curves["year"].eq(year)] for year in sorted(curves["year"].unique())
     ]
+    columns = min(len(blocks), INCREMENT_GRIDS_PER_ROW)
+    heights = _increment_row_heights(-(-len(blocks) // columns))
     figure = make_subplots(
-        rows=5,
-        cols=len(blocks),
-        specs=_increment_specs(len(blocks)),
+        rows=len(heights),
+        cols=columns,
+        specs=_increment_specs(len(blocks), columns),
         subplot_titles=_increment_titles(blocks),
-        vertical_spacing=0.06,
+        row_heights=heights,
+        vertical_spacing=INCREMENT_ROW_GAP / sum(heights),
     )
     for block in blocks:
         for row, level in enumerate(INCREMENT_ARMS, start=1):
@@ -463,13 +484,15 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
             figure.add_trace(arm, row=row, col=1)
     for row, reference in _sharp_arms(curves):
         figure.add_trace(reference, row=row, col=1)
-    for bar in _additivity_bars(cells):
-        figure.add_trace(bar, row=3, col=1)
-    for column, block in enumerate(blocks, start=1):
-        figure.add_trace(_increment_heatmap(block), row=4, col=column)
-    figure.add_trace(_cap_dual_table(cells), row=5, col=1)
+    for scatter in _additivity_scatters(cells):
+        figure.add_trace(scatter, row=3, col=1)
+    labelled = _cell_text_fits(cells, columns)
+    for index, block in enumerate(blocks):
+        heatmap = _increment_heatmap(block, labelled)
+        figure.add_trace(heatmap, row=4 + index // columns, col=1 + index % columns)
+    figure.add_trace(_cap_dual_table(cells), row=len(heights), col=1)
     return _button_row(
-        _label_increment_axes(figure), _increment_buttons(figure, blocks)
+        _label_increment_axes(figure, heights), _increment_buttons(figure, blocks)
     )
 
 
@@ -499,37 +522,65 @@ def _increment_curves(increments: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def _increment_specs(columns: int) -> list[list[dict | None]]:
-    """Three full-width rows, the two arms and the additivity check, then the grids and the table."""
+def _increment_row_heights(grid_rows: int) -> list[int]:
+    """Each row's height in pixels: the three curve rows, the rows of grids, then the table."""
+    grids = [INCREMENT_GRID_HEIGHT] * grid_rows
+    return [*[INCREMENT_CURVE_HEIGHT] * 3, *grids, INCREMENT_TABLE_HEIGHT]
+
+
+def _increment_specs(years: int, columns: int) -> list[list[dict | None]]:
+    """Three full-width rows, the two arms and the additivity check, then one grid per year wrapped over rows, then the table."""
     wide = [[{"colspan": columns}, *[None] * (columns - 1)] for _ in range(3)]
-    grids = [{} for _ in range(columns)]
+    grids = [
+        [{} if start + column < years else None for column in range(columns)]
+        for start in range(0, years, columns)
+    ]
     table = [{"colspan": columns, "type": "table"}, *[None] * (columns - 1)]
-    return [*wide, grids, table]
+    return [*wide, *grids, table]
 
 
 def _increment_titles(blocks: list[pd.DataFrame]) -> list[str]:
-    """Panel titles in subplot order: the arms, the additivity bars, each year's grid, the duals."""
+    """Panel titles in subplot order: the arms, the additivity check, each year's grid, the duals."""
     years = [str(block["year"].iloc[0]) for block in blocks]
     return [
         "Demand arm: cost of extra energy at the base cap",
         "Intensity arm: cost of a deeper cap at base demand",
-        "Additivity check: each interior cell against its own two arms (A$m/yr)",
+        "Additivity check: each interior cell against its column plus its row (A$m/yr)",
         *years,
         "Implied carbon price each side of the increment (A$/t)",
     ]
 
 
-def _additivity_bars(increments: pd.DataFrame) -> list[go.Bar]:
-    """Each interior cell's own cost delta beside the sum of its two arms, in A$m a year."""
+def _additivity_scatters(increments: pd.DataFrame) -> list[go.Scatter]:
+    """The additive line, then one scatter per year of each interior cell against its column plus row, A$m a year."""
     rows = _additivity_rows(increments)
+    reach = rows[["interior_aud_per_yr", "additive_aud_per_yr"]].stack() / 1e6
+    ends = [reach.min(), reach.max()]
+    line = go.Scatter(
+        x=ends, y=ends, name=ADDITIVE_LINE_NAME, mode="lines", line=ADDITIVE_LINE
+    )
     return [
-        go.Bar(x=rows["label"], y=rows[column] / 1e6, name=name, legendgroup=name)
-        for column, name in ADDITIVITY_SERIES.items()
+        line,
+        *[_additivity_scatter(year, cells) for year, cells in rows.groupby("year")],
     ]
 
 
+def _additivity_scatter(year: int, rows: pd.DataFrame) -> go.Scatter:
+    """One year's interior cells, grouped in the legend with that year's arms."""
+    return go.Scatter(
+        x=rows["additive_aud_per_yr"] / 1e6,
+        y=rows["interior_aud_per_yr"] / 1e6,
+        text=rows["label"],
+        name=str(year),
+        legendgroup=str(year),
+        showlegend=False,
+        mode="markers",
+        hovertemplate=f"{year} %{{text}}<br>column plus row %{{x:,.0f}}<br>interior %{{y:,.0f}}<extra></extra>",
+    )
+
+
 def _additivity_rows(increments: pd.DataFrame) -> pd.DataFrame:
-    """Interior cells against their arms: the cell's own delta, and its two arms' deltas summed."""
+    """Interior cells against their arms: the cell's year and label, its own delta, and its two arms' deltas summed."""
     interior = increments[
         increments["demand_level"].ne(1.0) & increments["intensity_level"].ne(1.0)
     ]
@@ -537,12 +588,10 @@ def _additivity_rows(increments: pd.DataFrame) -> pd.DataFrame:
         _arm_at(interior, _arm_cost(increments, level), level)
         for level in INCREMENT_ARMS
     ]
-    label = (
-        interior["year"].astype(str) + ": " + interior["increment"].map(increment_label)
-    )
     return pd.DataFrame(
         {
-            "label": label.to_numpy(),
+            "year": interior["year"].to_numpy(),
+            "label": interior["increment"].map(increment_label).to_numpy(),
             "interior_aud_per_yr": interior["delta_total_cost_aud_per_yr"].to_numpy(),
             "additive_aud_per_yr": arms[0] + arms[1],
         }
@@ -562,7 +611,7 @@ def _arm_at(interior: pd.DataFrame, arm: pd.Series, level: str) -> np.ndarray:
 
 
 def _increment_arm(block: pd.DataFrame, level: str, legend: bool) -> go.Scatter:
-    """One year's arm of the L-shaped grid: the cells varying ``level``, the other held at one."""
+    """One year's arm of the grid: the cells varying ``level``, the other held at one."""
     arm = block[block[INCREMENT_ARMS[level]].eq(1.0)].sort_values(level)
     measure = (
         INCREMENT_COST_PER_TWH
@@ -593,22 +642,22 @@ def _sharp_arms(curves: pd.DataFrame) -> list[tuple[int, go.Scatter]]:
 def _sharp_demand_arm(
     rows: pd.DataFrame, levels: pd.Series, legend: bool
 ) -> go.Scatter:
-    """ShARP's approximate price of one extra MWh, flat across the demand arm, in A$ per extra TWh."""
-    price = rows["extra_mwh_price_aud_per_mwh"].iloc[0] * MWH_PER_TWH
+    """ShARP's approximate price of one extra MWh on the campaign's basis, flat across the demand arm, in A$ per extra TWh."""
+    price = rows["common_extra_mwh_price_aud_per_mwh"].iloc[0] * MWH_PER_TWH
     label = f"{rows['year'].iloc[0]} extra-MWh price"
     return _sharp_line([levels.min(), levels.max()], [price, price], label, legend)
 
 
 def _sharp_intensity_arm(rows: pd.DataFrame) -> go.Scatter:
-    """ShARP's ladder cleaner than the planned share: intensity as a multiple of planned, cost above the planned share's."""
+    """ShARP's ladder cleaner than the planned share: intensity as a multiple of planned, cost above the planned share's on the campaign's basis."""
     planned = rows.iloc[0]
     cleaner = rows[
         rows["ladder_renewable_fraction"] > planned["planned_renewable_fraction"]
     ]
     x = cleaner["ladder_t_co2e_per_mwh"] / planned["planned_t_co2e_per_mwh"]
     y = (
-        cleaner["ladder_cost_aud_per_mwh"]
-        - planned["planned_share_ladder_cost_aud_per_mwh"]
+        cleaner["common_ladder_cost_aud_per_mwh"]
+        - planned["common_planned_share_ladder_cost_aud_per_mwh"]
     )
     label = f"{planned['year']} clean ladder"
     return _sharp_line([1.0, *x], [0.0, *y], label, False)
@@ -619,16 +668,22 @@ def _increment_grid(block: pd.DataFrame, measure: str) -> pd.DataFrame:
     return block.pivot(index="intensity_level", columns="demand_level", values=measure)
 
 
-def _increment_heatmap(block: pd.DataFrame) -> go.Heatmap:
-    """One year's grid, coloured by delta cost, annotated with each consequence, duals on hover."""
+def _cell_text_fits(increments: pd.DataFrame, grids_per_row: int) -> bool:
+    """Whether each grid cell, across one row of grids, is wide enough at the nominal plotting width for its number."""
+    cells_across = grids_per_row * increments["demand_level"].nunique()
+    return NOMINAL_PLOT_WIDTH / cells_across >= INCREMENT_TEXT_WIDTH
+
+
+def _increment_heatmap(block: pd.DataFrame, labelled: bool) -> go.Heatmap:
+    """One year's grid, coloured by delta cost, each cell marked with its whole A$/MWh where that fits, the rest on hover."""
     cells = _increment_grid(block, next(iter(INCREMENT_COLOUR_MEASURES)))
     return go.Heatmap(
         x=cells.columns,
         y=cells.index,
         z=cells.to_numpy(),
         text=_increment_labels(block).to_numpy(),
-        texttemplate="%{text}",
-        textfont_size=9,
+        texttemplate="%{text}" if labelled else "",
+        textfont_size=INCREMENT_TEXT_SIZE,
         customdata=_increment_hover_text(block).to_numpy(),
         coloraxis="coloraxis",
         hovertemplate=INCREMENT_HOVER,
@@ -636,18 +691,23 @@ def _increment_heatmap(block: pd.DataFrame) -> go.Heatmap:
 
 
 def _increment_labels(block: pd.DataFrame) -> pd.DataFrame:
-    """Each cell's annotation: the cost, emissions and fuel consequence of that increment."""
-    text = (
-        (block["delta_total_cost_aud_per_yr"] / 1e6).map("A${:,.0f}m/yr".format)
-        + block["delta_co2e_kt_per_yr"].map("<br>{:+,.0f} kt".format)
-        + block["delta_pj_gas"].map("<br>gas {:+.1f} PJ".format)
-        + block["delta_pj_coal"].map("<br>coal {:+.1f} PJ".format)
-    )
+    """Each cell's one number: its change in cost excluding fuel and carbon, in whole A$/MWh."""
+    text = block["delta_cost_per_mwh_excl_fuel_carbon"].map("{:.0f}".format)
     return _increment_grid(block.assign(label=text), "label")
 
 
+def _increment_consequences(block: pd.DataFrame) -> pd.Series:
+    """Each cell's cost, emissions and fuel consequence, one line each."""
+    return (
+        (block["delta_total_cost_aud_per_yr"] / 1e6).map("A${:,.0f}m/yr".format)
+        + block["delta_co2e_kt_per_yr"].map("<br>{:+,.0f} kt CO2e/yr".format)
+        + block["delta_pj_gas"].map("<br>gas {:+.1f} PJ".format)
+        + block["delta_pj_coal"].map("<br>coal {:+.1f} PJ".format)
+    )
+
+
 def _increment_hover_text(block: pd.DataFrame) -> pd.DataFrame:
-    """Each cell's hover: the intensity it reached, the duals both sides, and the new build."""
+    """Each cell's hover: its consequences, the intensity it reached, the duals both sides, and the new build."""
     shown = block.filter(regex=INCREMENT_HOVER_COLUMNS)
     text = shown.apply(
         lambda cell: "<br>".join(
@@ -655,7 +715,8 @@ def _increment_hover_text(block: pd.DataFrame) -> pd.DataFrame:
         ),
         axis=1,
     )
-    return _increment_grid(block.assign(hover=text), "hover")
+    hover = _increment_consequences(block) + "<br>" + text
+    return _increment_grid(block.assign(hover=hover), "hover")
 
 
 def _increment_buttons(figure: go.Figure, blocks: list[pd.DataFrame]) -> list[dict]:
@@ -676,21 +737,26 @@ def _increment_buttons(figure: go.Figure, blocks: list[pd.DataFrame]) -> list[di
     ]
 
 
-def _label_increment_axes(figure: go.Figure) -> go.Figure:
-    """Name each panel's axes and put every year's grid on one colour scale."""
+def _label_increment_axes(figure: go.Figure, heights: list[int]) -> go.Figure:
+    """Name each panel's axes, give every grid one cell per level, and put every year's grid on one colour scale."""
     figure.update_xaxes(title_text=LABELS["demand_level"], row=1, col=1)
     figure.update_yaxes(title_text=INCREMENT_COST_PER_TWH_LABEL, row=1, col=1)
     figure.update_xaxes(title_text=LABELS["intensity_level"], row=2, col=1)
     figure.update_yaxes(title_text=LABELS["cost_per_mwh"], row=2, col=1)
+    figure.update_xaxes(title_text=LABELS["additive_aud_m_per_yr"], row=3, col=1)
     figure.update_yaxes(title_text=LABELS["delta_cost_aud_m_per_yr"], row=3, col=1)
-    figure.update_xaxes(title_text=LABELS["demand_level"], row=4)
+    grid_rows = range(4, len(heights))
+    for row in grid_rows:
+        figure.update_xaxes(type="category", row=row)
+        figure.update_yaxes(type="category", row=row)
+    figure.update_xaxes(title_text=LABELS["demand_level"], row=grid_rows[-1], col=1)
     figure.update_yaxes(title_text=LABELS["intensity_level"], row=4, col=1)
     colourbar = {
         "title": {"text": next(iter(INCREMENT_COLOUR_MEASURES.values()))},
         "len": 0.2,
     }
     return figure.update_layout(
-        height=INCREMENT_HEIGHT,
+        height=sum(heights),
         legend_title_text=LABELS["year"],
         coloraxis={"colorscale": "Viridis", "colorbar": colourbar},
     )
@@ -735,10 +801,13 @@ def figure_pathway_intensities(
         figure.add_traces(overlay, rows=1, cols=column)
     for column, references in enumerate(_sharp_pathway(frame["year"]), start=1):
         figure.add_traces(references, rows=1, cols=column)
+    listed: set[str] = set()
     for key, colour in _increment_colours(branches).items():
         rows = branches[branches["increment"].eq(key)].sort_values("year")
+        legend = _intensity_key(key) not in listed
+        listed.add(_intensity_key(key))
         cost = _branch_fan(
-            frame, rows, "cost_per_mwh_excl_fuel_carbon", colour, key, True
+            frame, rows, "cost_per_mwh_excl_fuel_carbon", colour, key, legend
         )
         figure.add_trace(cost, row=1, col=1)
         figure.add_trace(
@@ -826,21 +895,24 @@ def _sharp_pathway(years: pd.Series) -> list[list[go.Scatter]]:
     if cleanest.empty:
         return []
     year = cleanest["year"]
+    bands = _sharp_bands(cleanest)
+    names = [name for name, _, _ in bands]
     return [
         [
-            *_sharp_band(
-                year, low, high, name, index == 0 or name == SHARP_FUTURES_NAME
-            ),
+            *_sharp_band(year, low, high, name, names.index(name) == index),
             _sharp_line(year, cleanest[column], "planned", index == 0),
         ]
         for index, (column, (name, low, high)) in enumerate(
-            zip(SHARP_PATHWAY_COLUMNS, _sharp_bands(cleanest))
+            zip(SHARP_PATHWAY_COLUMNS, bands)
         )
     ]
 
 
 def _sharp_bands(cleanest: pd.DataFrame) -> list[tuple[str, pd.Series, pd.Series]]:
-    """Per panel, a band's name and edges: the planned value to the cleanest ladder point, or every ShARP future for demand."""
+    """Per panel, a band's name and edges: the planned value to the cleanest ladder point, or every ShARP future for demand.
+
+    ShARP's cost re-costs the whole grid, sunk capital included, so its band is named for that.
+    """
     lift = (
         cleanest["common_ladder_cost_aud_per_mwh"]
         - cleanest["common_planned_share_ladder_cost_aud_per_mwh"]
@@ -851,7 +923,7 @@ def _sharp_bands(cleanest: pd.DataFrame) -> list[tuple[str, pd.Series, pd.Series
     cost, emissions, inputs, _ = (cleanest[c] for c in SHARP_PATHWAY_COLUMNS)
     futures = cleanest["common_futures_min_twh"], cleanest["common_futures_max_twh"]
     return [
-        (SHARP_BAND_NAME, cost, cost + lift),
+        (SHARP_COST_BAND_NAME, cost, cost + lift),
         (SHARP_BAND_NAME, emissions, emissions * residual),
         (SHARP_BAND_NAME, inputs, inputs * residual),
         (SHARP_FUTURES_NAME, *futures),
@@ -951,16 +1023,25 @@ def _fuel_burnt(chain: pd.DataFrame, column: str) -> bool:
     return column in chain and chain[column].fillna(0).ne(0).any()
 
 
+def _intensity_key(key: str) -> str:
+    """The intensity level of an increment key, e.g. ``i050`` of ``d110_i050``."""
+    return key.partition("_")[2]
+
+
 def _increment_colours(branches: pd.DataFrame | None) -> dict[str, str]:
-    """One colour per increment cell key, demand-major, cycling the fan palette."""
+    """One colour per increment cell key, shaded by its intensity level, keys listed intensity-major."""
     keys = sorted(branches["increment"].unique()) if branches is not None else []
-    return dict(zip(keys, cycle(INCREMENT_FAN_COLOURS)))
+    levels = sorted({_intensity_key(key) for key in keys})
+    stops = np.linspace(0, INCREMENT_FAN_SCALE_END, len(levels))
+    shades = dict(zip(levels, px.colors.sample_colorscale(INCREMENT_FAN_SCALE, stops)))
+    ordered = sorted(keys, key=lambda key: (_intensity_key(key), key))
+    return {key: shades[_intensity_key(key)] for key in ordered}
 
 
 def _fan_points(
     origins: pd.Series, rows: pd.DataFrame, column: str
 ) -> tuple[list, list]:
-    """One increment key's fan: each branch value joined back to its base point one step earlier.
+    """One increment key's fan: each branch value joined back to its base chain's previous milestone.
 
     A cell branching in the first milestone has no earlier base point, so it is drawn as a stub
     from the base point of its own year. ``None`` separates one segment from the next.
@@ -968,8 +1049,8 @@ def _fan_points(
     x: list = []
     y: list = []
     for row in rows.itertuples():
-        start = row.year - BRANCH_STEP
-        start = start if (row.base_cell, start) in origins.index else row.year
+        milestones = origins[row.base_cell].index
+        start = max(milestones[milestones < row.year], default=row.year)
         x += [start, row.year, None]
         y += [origins[row.base_cell, start], getattr(row, column), None]
     return x, y
@@ -984,14 +1065,14 @@ def _branch_fan(
     legend: bool = False,
     dash: str = "solid",
 ) -> go.Scatter:
-    """One increment key's fan in one intensity panel, thin and grouped with its other panels."""
+    """One increment key's fan in one intensity panel, thin, named and grouped by its intensity level."""
     x, y = _fan_points(frame.set_index(["cell", "year"])[column], rows, column)
     label = increment_label(key)
     return go.Scatter(
         x=x,
         y=y,
-        name=label,
-        legendgroup=key,
+        name=f"cells at {label.partition(', ')[2]}",
+        legendgroup=_intensity_key(key),
         showlegend=legend,
         mode="lines+markers",
         line={"color": colour, "dash": dash, "width": 1},
@@ -1100,6 +1181,7 @@ def _cost_components(frame: pd.DataFrame) -> pd.DataFrame:
 PREMIUM_LABELS = {
     "social_licence_premium_aud_per_yr": "Social licence (network)",
     "build_rate_premium_aud_per_yr": "Build rate",
+    "pipeline_rush_premium_aud_per_yr": "Pre-2030 rush",
 }
 
 
@@ -1139,6 +1221,7 @@ CURVE_LABELS = {
     "rez_resource": "REZ resource limit (curve 1a)",
     "transmission": "Network headroom (curve 1b)",
     "build_rate": "Build rate (curve 2)",
+    "pipeline_rush": "Pre-2030 rush",
 }
 
 #: Columns every curve source is read into, in order.
@@ -1321,11 +1404,79 @@ CDP4_CARRIER_NAMES = {
 PIPELINE_SEGMENTS = ["Existing", "Committed and anticipated", "New build"]
 AEMO_CAPACITY_SEGMENT = f"AEMO CDP4 {PIPELINE_YEAR}"
 
-#: The near-term allowances drawn as dashed lines, each keyed on the plan value it is read from.
+#: The near-term allowances drawn as dashed lines, each keyed on the plan's per-year value it is read from.
 ALLOWANCE_LABELS = {
-    "new_entrant_cap_mw": "New-entrant generator allowance",
-    "new_entrant_storage_cap_mw": "New-entrant storage allowance",
+    "new_entrant_cap_mw_by_year": "New-entrant generator allowance",
+    "new_entrant_storage_cap_mw_by_year": "New-entrant storage allowance",
 }
+
+#: The pre-2030 rush curve's two groups, as the page titles their panels, and its two tranches, as
+#: the page names and colours them: the free allowance, then the rush-charged build to the ceiling.
+RUSH_GROUPS = {"pipeline_generation": "Generation", "pipeline_storage": "Storage"}
+RUSH_TRANCHES = {1: ("Free allowance", "#2f9e8f"), 2: ("Rush-charged", "#d62728")}
+RUSH_LIMIT_LINE = {"dash": "dash", "width": 1}
+RUSH_HEIGHT = 900
+
+
+def figure_pipeline_rush(tranches: pd.DataFrame) -> go.Figure:
+    """New-entrant build in the pinned year per cell, split into the free allowance and the rush-charged tranche.
+
+    Generation and storage each stack their two tranches under dashed lines at the allowance and at
+    the hard ceiling the rush tranche ends at; the panel below bars the rush charge each cell paid.
+
+    :param tranches: One row per cell, group and tranche of kind ``pipeline_rush`` from the solves'
+        ``capacity_tranches.json``, with a ``cell_label`` naming the cell.
+    """
+    titles = [*RUSH_GROUPS.values(), "Rush charge paid (A$m/yr)"]
+    specs = [[{}, {}], [{"colspan": 2}, None]]
+    figure = make_subplots(rows=2, cols=2, specs=specs, subplot_titles=titles)
+    for group, rows in tranches.groupby("group"):
+        column = list(RUSH_GROUPS).index(group) + 1
+        for bar in _rush_bars(rows, column == 1):
+            figure.add_trace(bar, row=1, col=column)
+        _mark_rush_limits(figure, rows, column)
+    paid = tranches.groupby("cell_label", as_index=False)["premium_aud_per_yr"].sum()
+    figure.add_bar(
+        x=paid["cell_label"],
+        y=paid["premium_aud_per_yr"] / 1e6,
+        showlegend=False,
+        marker_color=RUSH_TRANCHES[2][1],
+        row=2,
+        col=1,
+    )
+    figure.update_xaxes(type="category")
+    figure.update_yaxes(title_text=LABELS["gw"], row=1, col=1)
+    return figure.update_layout(barmode="stack", height=RUSH_HEIGHT)
+
+
+def _rush_bars(rows: pd.DataFrame, legend: bool) -> list[go.Bar]:
+    """One group's build per cell, one stacked bar segment per tranche, in GW."""
+    ordered = rows.sort_values("cell_label")
+    return [
+        go.Bar(
+            x=ordered.loc[ordered["tranche"].eq(tranche), "cell_label"],
+            y=ordered.loc[ordered["tranche"].eq(tranche), "mw_used"] / 1e3,
+            name=name,
+            legendgroup=name,
+            showlegend=legend,
+            marker_color=colour,
+        )
+        for tranche, (name, colour) in RUSH_TRANCHES.items()
+    ]
+
+
+def _mark_rush_limits(figure: go.Figure, rows: pd.DataFrame, column: int) -> None:
+    """Dash one group's allowance, the free tranche's width, and its ceiling, where the rush tranche ends."""
+    widths = rows.drop_duplicates("tranche").set_index("tranche")["width_mw"] / 1e3
+    limits = {"allowance": widths[1], "ceiling": widths.sum()}
+    for name, gw in limits.items():
+        figure.add_hline(
+            y=gw,
+            line=RUSH_LIMIT_LINE,
+            annotation_text=f"{name}: {gw:g} GW",
+            row=1,
+            col=column,
+        )
 
 
 def figure_near_term_pipeline(
@@ -1525,7 +1676,7 @@ GRID_STYLE = """<style>
 def figure_tech_mix(
     frame: pd.DataFrame, branches: pd.DataFrame | None = None
 ) -> go.Figure:
-    """Stacked energy delivered by carrier, in TWh, the base cell then each increment cell, per year.
+    """Stacked energy delivered by carrier, in TWh, the base cell then the grid's demand column and intensity row, per year.
 
     Demand no generation served is stacked last, in red, so the shortfall a deep cap leaves reads off
     the top of the stack. Cells that failed acceptance are drawn hatched rather than dropped, so a
@@ -1559,7 +1710,7 @@ def figure_tech_mix(
 
 
 def _labelled_cells(frame: pd.DataFrame, branches: pd.DataFrame | None) -> pd.DataFrame:
-    """The base chain's rows and the increment cells' rows, each labelled as the bars name it.
+    """The base chain's rows and the grid's pure demand column and pure intensity row, each labelled as the bars name it.
 
     Sorted on the label, which puts the base cell's bar first and then runs the increment cells
     demand-major up each level, because plotly bars them in the order it meets them.
@@ -1567,7 +1718,8 @@ def _labelled_cells(frame: pd.DataFrame, branches: pd.DataFrame | None) -> pd.Da
     base = frame.assign(cell_label=BASE_CELL_LABEL)
     if branches is None or branches.empty:
         return base
-    labelled = branches.assign(cell_label=branches["increment"].map(increment_label))
+    arms = branches[branches["increment"].str.contains(INCREMENT_ARM_KEYS)]
+    labelled = arms.assign(cell_label=arms["increment"].map(increment_label))
     return pd.concat([base, labelled], ignore_index=True).sort_values("cell_label")
 
 
@@ -1595,7 +1747,7 @@ def _delivered_energy(cells: pd.DataFrame) -> pd.DataFrame:
 def figure_storage_build(
     frame: pd.DataFrame, branches: pd.DataFrame | None = None
 ) -> go.Figure:
-    """Installed storage power by duration class, the base cell then each increment cell, per year.
+    """Installed storage power by duration class, the base cell then the grid's demand column and intensity row, per year.
 
     Battery and pumped hydro share the duration colours and are told apart by hatching, so the
     figure reads as one storage stack rather than two.

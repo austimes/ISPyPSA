@@ -17,9 +17,10 @@ inputs on disk to read them from; the transmission build, from ``exports/transmi
 relaxation factors the run recorded in ``<run>/campaign/``; the increment grid, from
 ``exports/increments.csv`` where the campaign solved branch cells; the duals, from
 ``exports/per_chain/duals_<base cell>.csv``; the near-term pipeline, from the base solve's own
-templated ``ecaa_*`` rosters; and the priced build curves, from each base solve's
-``outputs/capacity_tranches.json`` and relaxation tranches plus the build-rate curve the run was
-launched with.
+templated ``ecaa_*`` rosters; the pre-2030 rush, from the ``pipeline_rush`` tranches of every
+pinned-year solve's ``outputs/capacity_tranches.json``; and the priced build curves, from each base
+solve's ``outputs/capacity_tranches.json`` and relaxation tranches plus the build-rate curve the run
+was launched with.
 
 The page carries plotly's javascript inline, so it opens straight off the data share with no
 server and no build step.
@@ -40,7 +41,7 @@ from plotly.offline import get_plotlyjs
 
 from analysis.dashboard import figures
 from analysis.env import MODEL_DATA, OutputLayout
-from analysis.sharp.deliverables import BRANCH_COLUMNS, base_rows
+from analysis.sharp.campaign_rows import BRANCH_COLUMNS, base_rows
 
 log = logging.getLogger(__name__)
 
@@ -192,8 +193,12 @@ def _status_label(frame: pd.DataFrame) -> pd.Series:
 
 #: Headings the increment-grid sections and the run-directory sections are keyed on.
 INTENSITIES_HEADING = "Pathway intensities (every chain, ShARP-style)"
-TECH_MIX_HEADING = "Technology mix: the base chain beside each increment cell"
-STORAGE_HEADING = "Storage build: the base chain beside each increment cell"
+TECH_MIX_HEADING = (
+    "Technology mix: the base chain beside the grid's demand column and intensity row"
+)
+STORAGE_HEADING = (
+    "Storage build: the base chain beside the grid's demand column and intensity row"
+)
 PREMIUMS_HEADING = "Premiums paid above AEMO's limits and baseline build rates"
 MARGINALS_HEADING = (
     "Demand-marginal cost and intensity (step to the next demand trajectory)"
@@ -415,13 +420,42 @@ def _ecaa_roster(inputs: Path) -> pd.DataFrame:
 
 
 def _allowances(layout: OutputLayout) -> dict[str, float]:
-    """The new-entrant build allowances the run's near-term pin was launched with, in GW."""
-    recorded = {**_plan(layout), **_assumptions(layout)}
+    """The new-entrant build allowances the run's plan set for the pinned year, in GW."""
+    plan, year = _plan(layout), str(figures.PIPELINE_YEAR)
     return {
-        label: recorded[key] / 1e3
+        label: plan[key][year] / 1e3
         for key, label in figures.ALLOWANCE_LABELS.items()
-        if recorded.get(key)
+        if plan.get(key, {}).get(year)
     }
+
+
+def _figure_pipeline_rush(layout: OutputLayout) -> go.Figure | None:
+    """The pinned year's new-entrant build and rush charge per cell, or nothing where no solve priced a rush."""
+    results = pd.read_csv(layout.exports / "results.csv")
+    pinned = results[results["year"].eq(figures.PIPELINE_YEAR)]
+    tranches = [
+        _rush_tranches(layout.run_dir(f"{row.cell}_{row.year}"), label)
+        for row, label in zip(pinned.itertuples(), _cell_labels(pinned))
+    ]
+    drawn = pd.concat(tranches)
+    return None if drawn.empty else figures.figure_pipeline_rush(drawn)
+
+
+def _rush_tranches(run: Path, label: str) -> pd.DataFrame:
+    """One solve's pre-2030 rush tranches, labelled with its cell, or none where it priced no rush."""
+    priced = run / "outputs" / "capacity_tranches.json"
+    tranches = (
+        pd.read_json(priced) if priced.is_file() else pd.DataFrame(columns=["kind"])
+    )
+    return tranches[tranches["kind"].eq("pipeline_rush")].assign(cell_label=label)
+
+
+def _cell_labels(rows: pd.DataFrame) -> pd.Series:
+    """Each results row as the bars name it: ``base`` for a base chain row, its two levels for a branch."""
+    if not set(BRANCH_COLUMNS) <= set(rows):
+        return pd.Series(figures.BASE_CELL_LABEL, index=rows.index)
+    keys = figures.increment_keys(rows).fillna(figures.BASE_CELL_LABEL)
+    return keys.map(figures.increment_label)
 
 
 def _figure_duals(layout: OutputLayout) -> go.Figure | None:
@@ -466,7 +500,11 @@ RUN_SECTIONS = {
         (
             f"Near-term pipeline: {figures.PIPELINE_YEAR} capacity by carrier",
             _figure_near_term_pipeline,
-        )
+        ),
+        (
+            f"Pre-2030 rush: {figures.PIPELINE_YEAR} new-entrant build against the allowance",
+            _figure_pipeline_rush,
+        ),
     ],
     STORAGE_HEADING: [
         (

@@ -75,6 +75,7 @@ from analysis.hpc.campaign_grid import (
     trajectories_from_plan,
 )
 from analysis.hpc.launch import submit
+from analysis.sharp.campaign_rows import BRANCH_COLUMNS, base_rows
 from analysis.sharp.frontier_points import extract_chain
 
 REPORTING_FLOOR_MW = 1.0
@@ -98,9 +99,6 @@ FUEL_BURNING_FLOOR_PCT = 0.5
 # Pumped hydro units carry the carrier "Water", the same carrier the conventional hydro
 # generators carry, so the storage half of the mix is renamed to keep the two apart.
 STORAGE_MIX_LABELS = {"Water": "Pumped hydro"}
-#: Increment-grid columns of ``chains_index.csv``, carried onto the frontier and manifest frames.
-#: A campaign without an increment grid has none of them, and every row of it is a base row.
-BRANCH_COLUMNS = ["base_cell", "branch_year", "demand_level", "intensity_level"]
 #: Long-form columns of the per-chain constraint-dual table.
 DUAL_COLUMNS = ["cell", "year", "constraint", "dual"]
 
@@ -887,13 +885,6 @@ IMPLIED_PRICE_COLUMN = "implied_carbon_price_aud_per_t"
 #: How many constraint duals the increment table carries: the largest by absolute value
 #: anywhere in the campaign, which is as many as a reader can scan in one table.
 MAX_DUAL_COLUMNS = 20
-
-
-def base_rows(results: pd.DataFrame) -> pd.DataFrame:
-    """The campaign's base chains. A run with no increment grid is all base rows."""
-    if "base_cell" not in results:
-        return results
-    return results[results["base_cell"].isna()]
 
 
 def _add_fuel_pj(results: pd.DataFrame) -> pd.DataFrame:

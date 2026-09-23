@@ -85,41 +85,57 @@ by hand from the source CSV.
 
 The dashboard draws AEMO on the campaign's own basis, not as published. The campaign's conversion cost divides by the load its model
 serves, which is AEMO operational demand with no transmission losses modelled ([`../../../docs/method.md`](../../../docs/method.md)), and
-its costs are in real 30 June 2025 dollars (S002). Two CSV columns restate AEMO on that basis:
+its costs are in real 30 June 2025 dollars (S002). Three CSV columns restate AEMO on that basis:
 
 ```text
+operational_share       = (generation excluding rooftop and storage + storage and DSP net generation)
+                          / generation excluding rooftop and storage
 common_cost_aud_per_mwh = (14 cost classes - fuel - emissions - retirement - system security - distribution capital - distribution O&M)
-                          / generation excluding rooftop and storage / 0.97 x CPI June quarter 2025 / CPI June quarter 2023
-operational_demand_twh  = generation excluding rooftop and storage x 0.97
+                          / generation excluding rooftop and storage / operational_share x CPI June quarter 2025 / CPI June quarter 2023
+operational_demand_twh  = generation excluding rooftop and storage x operational_share
 ```
+
+Storage and DSP net generation is negative, so `operational_share` is each scenario's generation net of its own storage
+losses, as a share of generation, per year: the demand plan's measured factor (A004).
 
 | Difference | As published | Common basis | Factor | Basis |
 |---|---|---|---|---|
 | Dollar year | Real July 2023 dollars (S001) | Real 30 June 2025 dollars (S002) | 141.7 / 133.7 = 1.0598 | A002 (S003, S004) |
 | Cost scope | 14 classes less fuel and emissions | Also less retirement, system security and distribution capital and O&M | Classes dropped | A003 |
-| Denominator | Generation excluding rooftop and storage (A001) | Operational demand, the load the campaign serves | 1 / 0.97 = 1.031 | A004 |
+| Denominator | Generation excluding rooftop and storage (A001) | Operational demand, the load the campaign serves | 1 / `operational_share`, 1.005 (Step Change 2027) to 1.061 (2050) | A004 |
 
 Common-basis cost, A$/MWh of operational demand in real June 2025 dollars, and operational demand in TWh:
 
 | Year | Cost, Slower Growth | Cost, Step Change | Cost, Accelerated Transition | Demand, Slower Growth | Demand, Step Change | Demand, Accelerated Transition |
 |---|---:|---:|---:|---:|---:|---:|
-| 2030 | 47.4 | 45.5 | 52.2 | 169.0 | 204.2 | 214.8 |
-| 2035 | 67.5 | 64.9 | 79.3 | 194.6 | 251.3 | 296.3 |
-| 2040 | 80.8 | 83.5 | 99.5 | 217.8 | 285.3 | 362.5 |
-| 2045 | 83.0 | 90.0 | 107.8 | 240.3 | 307.5 | 418.8 |
-| 2050 | 91.1 | 96.8 | 110.9 | 265.4 | 322.1 | 477.8 |
+| 2030 | 48.6 | 45.7 | 52.4 | 165.0 | 203.2 | 213.7 |
+| 2035 | 69.3 | 66.3 | 81.7 | 189.5 | 246.0 | 287.8 |
+| 2040 | 82.4 | 85.7 | 102.6 | 213.4 | 277.9 | 351.3 |
+| 2045 | 84.5 | 92.5 | 111.3 | 236.2 | 299.2 | 405.9 |
+| 2050 | 92.5 | 99.7 | 113.7 | 261.2 | 312.9 | 465.9 |
 
-Inflation and the smaller denominator raise every figure by 9.3%, and dropping the unmodelled classes takes some of that back. Against
-the published series, the common basis runs 8% lower to 2% higher in 2030, where retirement costs are heaviest, and 3% to 7% higher from
-2035 on.
+The operational share behind those figures:
+
+| Year | Slower Growth | Step Change | Accelerated Transition |
+|---|---:|---:|---:|
+| 2030 | 0.947 | 0.966 | 0.965 |
+| 2035 | 0.944 | 0.950 | 0.942 |
+| 2040 | 0.950 | 0.945 | 0.940 |
+| 2045 | 0.954 | 0.944 | 0.940 |
+| 2050 | 0.955 | 0.942 | 0.946 |
+
+Inflation and the smaller denominator raise Step Change's figures by 9.7% in 2030 and 12.5% in 2050, and dropping the unmodelled
+classes takes some of that back.
 
 **confidence: high** on the price-index factor: both index values are ABS-published, and AEMO's own IASR names the same All groups index.
 
 **confidence: medium** on the dropped classes: the campaign has no retirement, system security or distribution cost, but AEMO does not
 split its generation capital and O&M the way the campaign splits sunk and new-build capital.
 
-**confidence: low** on the 0.97: it is the demand plan's authored placeholder, not an AEMO figure
-([`../demand_plan/`](../demand_plan/), A010 there).
+**confidence: medium** on `operational_share`: the ratios are sums of AEMO-published rows, but using them as the factor
+assumes the campaign's storage losses match AEMO's and leaves AEMO's electrolyser load, network losses and the rest of
+the gap to operational demand inside the load ([`../demand_plan/`](../demand_plan/#generation-to-operational-demand-measured),
+A010 there).
 
 One scope difference remains. The campaign counts pre-2030 existing-fleet capital as sunk and adds annualised capital and FOM of the
 chain's surviving builds and existing-fleet FOM ([`../../sharp/frontier_points.py`](../../sharp/frontier_points.py)); AEMO annualises the
@@ -141,10 +157,10 @@ pulls the campaign's cost per MWh below AEMO's, so a campaign line sitting under
 transmission-loss and sampling effects, which no run has isolated.
 
 The generation-to-operational-demand factor behind the common basis is measured in
-[`../demand_plan/`](../demand_plan/#generation-to-operational-demand-measured). The recommended per-year factor (0.995 in
-FY2027, 0.966 in FY2030, 0.942 by FY2050) would change every common-basis cost here by -2.5% (FY2027) to +3.0% (FY2050)
-against the 0.97 the CSV applies, and change `operational_demand_twh` by the inverse. The CSV keeps 0.97 until the
-dashboard adopts the per-year factor.
+[`../demand_plan/`](../demand_plan/#generation-to-operational-demand-measured) and applied per scenario and year (A004).
+Step Change's `operational_share` column is also the factor the ShARP reference is restated with
+([`../sharp_grid_reference/`](../sharp_grid_reference/)).
+
 
 ## Plot
 
