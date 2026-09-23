@@ -71,8 +71,9 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
   corridor. Derived in [`research/social_licence_premium/research.md`](research/social_licence_premium/research.md).
 - **Build-rate premium** - off unless a run passes `--build-rate-premiums <csv>`, in which case each carrier's new build
   in a period pays the stepped A$/MW/yr adders of that file above its cumulative capacity steps. The shipped
-  [`model/data/build_rate_premiums_central.csv`](model/data/build_rate_premiums_central.csv) is an uncapped zero-adder
-  backstop, so a run passing it prices nothing until the file carries researched numbers.
+  [`model/data/build_rate_premiums_central.csv`](model/data/build_rate_premiums_central.csv) carries free steps up to
+  the Step Change build rate and two priced steps above it, derived in
+  [`research/build_rate_premium/research.md`](research/build_rate_premium/research.md).
 - **Transmission corridor limit relaxation** - off unless a run passes `--flow-path-limit-factor`, in which case the
   expansion headroom of every flow path between sub-regions is multiplied by that factor; REZ-to-sub-region
   connections and REZ group constraints belong to the REZ factor, so the two levers are independent.
