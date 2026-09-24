@@ -94,16 +94,15 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     """Join the five export CSVs into one row per cell and milestone year.
 
     :param exports: The run's ``exports/`` directory.
-    :return: Trajectory and pressure keys, delivered energy, both emissions intensities, cost and
+    :return: Trajectory and pressure keys, delivered energy, both emissions intensities in g CO2e/kWh, cost and
         its components, the cap and its shadow price, boundary flag, solve status and the
         per-carrier energy delivered, per-fuel input intensities, priced-curve premiums and
         storage power, for the campaign's base chains. Increment-grid branches come from
         :func:`tidy_branches` instead.
     """
-    results = base_rows(
-        pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
-    )
+    results = base_rows(_results(exports))
     marginals = pd.read_csv(exports / "marginals.csv").rename(columns=MARGINAL_MEASURES)
+    marginals["marginal_intensity"] *= figures.G_PER_KWH_PER_T_PER_MWH
     manifest = pd.read_csv(exports / "manifest.csv")[MANIFEST_KEYS]
     acceptance = pd.read_csv(exports / "acceptance_per_cell.csv")[
         ["cell", "year", *ACCEPTANCE_TESTS]
@@ -143,7 +142,7 @@ def tidy_branches(exports: Path) -> pd.DataFrame:
         ``increment`` key naming its two levels. A run with no increment grid returns those columns
         with no rows.
     """
-    results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
+    results = _results(exports)
     if not set(BRANCH_COLUMNS) <= set(results):
         return pd.DataFrame(columns=["base_cell", "year", "increment", "status"])
     manifest = pd.read_csv(exports / "manifest.csv")[["cell", "year", "model_status"]]
@@ -159,6 +158,14 @@ def tidy_branches(exports: Path) -> pd.DataFrame:
     )
     return branches.assign(
         increment=figures.increment_keys(branches), status=_status_label(branches)
+    )
+
+
+def _results(exports: Path) -> pd.DataFrame:
+    """``results.csv`` with its measures renamed and fleet intensity in g CO2e/kWh."""
+    results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
+    return results.assign(
+        fleet_intensity=results["fleet_intensity"] * figures.G_PER_KWH_PER_T_PER_MWH
     )
 
 

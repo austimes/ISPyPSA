@@ -229,12 +229,12 @@ def test_tidy_frame_joins_every_export(exports, csv_str_to_df):
 
     expected = csv_str_to_df("""
         cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, fleet_intensity, avg_cost, total_cost, twh_Wind, social_licence_premium_aud_per_yr, build_rate_premium_aud_per_yr, marginal_cost, marginal_intensity, model_status, co2_cap_annual_t, implied_carbon_price_aud_per_t, test1_serves_demand, test4_termination, storage_Battery_2_2to4h, storage_Water_6_over24h, status,     pressure_name
-        a,    central,    c0,       price,         0.0,            2030, 100.0,         False,    40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.40,            30.0,     3000.0,     0.5, 12000000.0, 3000000.0,        60.0,          0.80,               Optimal,      ,                 0.0,                            True,                True,              1.0,                     ,                        solved,     uncapped__(A$0/t)
-        b,    high,       c0,       price,         0.0,            2030, 120.0,         True,     60000.0,              0.2,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                      0.50,            35.0,     4200.0,     0.4, 14000000.0, 3500000.0,        70.0,          0.90,               Optimal,      ,                 0.0,                            True,                True,              1.2,                     ,                        solved,     uncapped__(A$0/t)
-        c,    low,        c0,       price,         0.0,            2030, 80.0,          False,    24000.0,              0.0,               34.0,                          5.0,                          1.0,                            800000000.0,              160000000.0,                      0.30,            40.0,     3200.0,     0.6, 9000000.0, 2000000.0,        50.0,          0.60,               Optimal,      ,                 0.0,                            True,                True,              0.8,                     ,                        solved,     uncapped__(A$0/t)
-        d,    low,        c0,       price,         0.0,            2040, 90.0,          False,    22500.0,              3.0,               39.0,                          5.0,                          1.0,                            900000000.0,              180000000.0,                      0.25,            45.0,     4050.0,     0.7, 10000000.0, 2500000.0,        ,              ,                   Infeasible,   ,                 0.0,                            False,               True,              0.9,                     ,                        unaccepted, uncapped__(A$0/t)
-        e,    central,    cap0005,  cap,           0.005,          2030, 105.0,         False,    10500.0,              0.0,               48.0,                          4.0,                          3.0,                            1500000000.0,             210000000.0,                      0.10,            55.0,     5775.0,     0.8, 20000000.0, 6000000.0,        90.0,          0.50,               Optimal,      10500.0,          120.0,                          True,                True,              2.0,                     0.5,                     solved,     cap__0.005__t__CO2e/MWh__by__2050
-        f,    central,    cap0005,  cap,           0.005,          2040, 110.0,         False,    5500.0,               0.0,               58.0,                          4.0,                          3.0,                            1700000000.0,             220000000.0,                      0.05,            65.0,     7150.0,     0.9, 24000000.0, 7000000.0,        ,              ,                   Optimal,      5500.0,           900.0,                          True,                True,              2.4,                     0.5,                     solved,     cap__0.005__t__CO2e/MWh__by__2050
+        a,    central,    c0,       price,         0.0,            2030, 100.0,         False,    40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      400.0,            30.0,     3000.0,     0.5, 12000000.0, 3000000.0,        60.0,          800.0,               Optimal,      ,                 0.0,                            True,                True,              1.0,                     ,                        solved,     uncapped__(A$0/t)
+        b,    high,       c0,       price,         0.0,            2030, 120.0,         True,     60000.0,              0.2,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                      500.0,            35.0,     4200.0,     0.4, 14000000.0, 3500000.0,        70.0,          900.0,               Optimal,      ,                 0.0,                            True,                True,              1.2,                     ,                        solved,     uncapped__(A$0/t)
+        c,    low,        c0,       price,         0.0,            2030, 80.0,          False,    24000.0,              0.0,               34.0,                          5.0,                          1.0,                            800000000.0,              160000000.0,                      300.0,            40.0,     3200.0,     0.6, 9000000.0, 2000000.0,        50.0,          600.0,               Optimal,      ,                 0.0,                            True,                True,              0.8,                     ,                        solved,     uncapped__(A$0/t)
+        d,    low,        c0,       price,         0.0,            2040, 90.0,          False,    22500.0,              3.0,               39.0,                          5.0,                          1.0,                            900000000.0,              180000000.0,                      250.0,            45.0,     4050.0,     0.7, 10000000.0, 2500000.0,        ,              ,                   Infeasible,   ,                 0.0,                            False,               True,              0.9,                     ,                        unaccepted, uncapped__(A$0/t)
+        e,    central,    cap0005,  cap,           0.005,          2030, 105.0,         False,    10500.0,              0.0,               48.0,                          4.0,                          3.0,                            1500000000.0,             210000000.0,                      100.0,            55.0,     5775.0,     0.8, 20000000.0, 6000000.0,        90.0,          500.0,               Optimal,      10500.0,          120.0,                          True,                True,              2.0,                     0.5,                     solved,     cap__5__g__CO2e/kWh__by__2050
+        f,    central,    cap0005,  cap,           0.005,          2040, 110.0,         False,    5500.0,               0.0,               58.0,                          4.0,                          3.0,                            1700000000.0,             220000000.0,                      50.0,            65.0,     7150.0,     0.9, 24000000.0, 7000000.0,        ,              ,                   Optimal,      5500.0,           900.0,                          True,                True,              2.4,                     0.5,                     solved,     cap__5__g__CO2e/kWh__by__2050
     """)
     pd.testing.assert_frame_equal(result, expected)
 
@@ -257,7 +257,7 @@ def test_tidy_frame_logs_cell_years_with_no_marginal(exports, caplog):
     [
         ("c0", "uncapped (A$0/t)"),
         ("c150", "carbon price A$150/t"),
-        ("cap0005", "cap 0.005 t CO2e/MWh by 2050"),
+        ("cap0005", "cap 5 g CO2e/kWh by 2050"),
         ("sc", "Step Change intensity path"),
     ],
 )
@@ -319,7 +319,7 @@ def test_increment_surfaces_mark_each_cost_and_hover_every_consequence(increment
     )
     assert grid.customdata.tolist()[0][0] == (
         "A$1,500m/yr<br>-300 kt CO2e/yr<br>gas -2.0 PJ<br>coal -8.0 PJ<br>"
-        "delta_new_gw_Wind: 6<br>fleet_intensity_t_per_mwh: 0.0025<br>"
+        "delta_new_gw_Wind: 6<br>fleet_intensity_g_per_kwh: 2.5<br>"
         "cap_dual_base: 50<br>cap_dual_branch: 400"
     )
 
@@ -541,7 +541,7 @@ def test_demand_marginals_faces_each_step_with_both_measures(exports):
         "up to central",
         "up to high",
         "Demand-marginal cost (A$/MWh)",
-        "Demand-marginal intensity (t CO2e/MWh)",
+        "Demand-marginal intensity (g CO2e/kWh)",
     }
 
 

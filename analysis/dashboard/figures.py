@@ -69,11 +69,11 @@ DURATION_LABELS = {
 }
 
 #: The four pathway panels in page order, each titled with the unit its y axis carries. Emissions are in
-#: Mt CO2e/TWh and fuel inputs in PJ/TWh, which are the ShARP units and numerically the t CO2e/MWh and
-#: GJ/MWh the campaign exports. Cost and demand are per MWh and TWh of NEM operational demand.
+#: g CO2e/kWh, 1,000 times the t CO2e/MWh the campaign exports, and fuel inputs in PJ/TWh, the ShARP unit and
+#: numerically the GJ/MWh the campaign exports. Cost and demand are per MWh and TWh of NEM operational demand.
 INTENSITY_PANELS = [
     ("Conversion cost intensity", "A$2025/MWh"),
-    ("Emissions intensity", "Mt CO2e/TWh"),
+    ("Emissions intensity", "g CO2e/kWh"),
     ("Input intensity", "PJ/TWh"),
     ("Demand", "TWh"),
 ]
@@ -92,12 +92,19 @@ AEMO_INTENSITY_CSV = (
 AEMO_COST_CSV = (
     PACKAGE_ROOT / "research" / "aemo_scenario_cost" / "aemo_scenario_cost.csv"
 )
-#: The AEMO series each pathway panel draws, by panel column: its CSV, value column and the ISP it comes from, which is
-#: also its legend group.
+#: Emissions intensity in g CO2e/kWh per t CO2e/MWh, the unit every figure shows it in.
+G_PER_KWH_PER_T_PER_MWH = 1e3
+#: The AEMO series each pathway panel draws, by panel column: its CSV, value column, the ISP it comes from, which is
+#: also its legend group, and the factor to the panel's unit.
 AEMO_PANELS = {
-    1: (AEMO_COST_CSV, "common_cost_aud_per_mwh", "AEMO 2026 ISP"),
-    2: (AEMO_INTENSITY_CSV, "t_co2e_per_mwh", "AEMO draft ISP"),
-    4: (AEMO_COST_CSV, "operational_demand_twh", "AEMO 2026 ISP"),
+    1: (AEMO_COST_CSV, "common_cost_aud_per_mwh", "AEMO 2026 ISP", 1),
+    2: (
+        AEMO_INTENSITY_CSV,
+        "t_co2e_per_mwh",
+        "AEMO draft ISP",
+        G_PER_KWH_PER_T_PER_MWH,
+    ),
+    4: (AEMO_COST_CSV, "operational_demand_twh", "AEMO 2026 ISP", 1),
 }
 AEMO_SCENARIOS = ["Slower Growth", "Step Change", "Accelerated Transition"]
 AEMO_LINE_COLOUR = "#101080"
@@ -118,7 +125,7 @@ SHARP_FUTURES_NAME = "ShARP futures range"
 #: ShARP's planned columns the pathway panels draw, in ``INTENSITY_PANELS`` order.
 SHARP_PATHWAY_COLUMNS = [
     "common_planned_cost_aud_per_mwh",
-    "planned_t_co2e_per_mwh",
+    "planned_g_co2e_per_kwh",
     "planned_pj_per_twh",
     "common_planned_twh",
 ]
@@ -195,17 +202,17 @@ LABELS = {
     "demand_level": "Demand level (multiple of the base cell's)",
     "intensity_level": "Intensity level (multiple of the base cell's cap)",
     "duration_class": "Storage duration",
-    "fleet_intensity": "Fleet-average intensity (t CO2e/MWh)",
+    "fleet_intensity": "Fleet-average intensity (g CO2e/kWh)",
     "implied_carbon_price_aud_per_t": "Implied carbon price (A$/t)",
-    "intensity": "Emissions intensity (t CO2e/MWh)",
+    "intensity": "Emissions intensity (g CO2e/kWh)",
     "link": "Transmission link",
-    "marginal_intensity": "Demand-marginal intensity (t CO2e/MWh)",
+    "marginal_intensity": "Demand-marginal intensity (g CO2e/kWh)",
     "p_nom_opt_mw": "Link capacity, existing plus expansion (MW)",
     # Short, because a facet row is only tall enough for a title of about a dozen characters.
     "power_gw": "Power (GW)",
     "pressure_name": "Pressure",
-    "pressure_short": "Pressure (A$/t priced, or cap in t CO2e/MWh)",
-    "pressure_value": "Cap target intensity in 2050 (t CO2e/MWh)",
+    "pressure_short": "Pressure (A$/t priced, or cap in g CO2e/kWh)",
+    "pressure_value": "Cap target intensity in 2050 (g CO2e/kWh)",
     "premium_aud_m_per_yr": "Premium paid (A$m/yr)",
     "curve": "Cost curve",
     "delta_cost_aud_m_per_yr": "Delta cost (A$m/yr)",
@@ -225,7 +232,7 @@ LABELS = {
 #: Facet row titles for the two consequences of stepping up one demand trajectory.
 MARGINAL_LABELS = {
     "marginal_cost": "Demand-marginal cost (A$/MWh)",
-    "marginal_intensity": "Demand-marginal intensity (t CO2e/MWh)",
+    "marginal_intensity": "Demand-marginal intensity (g CO2e/kWh)",
 }
 
 
@@ -234,21 +241,24 @@ def pressure_label(key: str) -> str:
 
     :param key: Pressure key, e.g. ``c150`` or ``cap0005``.
     :return: e.g. ``carbon price A$150/t``, ``uncapped (A$0/t)``,
-        ``cap 0.005 t CO2e/MWh by 2050`` or ``Step Change intensity path``.
+        ``cap 5 g CO2e/kWh by 2050`` or ``Step Change intensity path``.
     """
     if key == BASE_CHAIN_KEY:
         return "Step Change intensity path"
     pressure = parse_pressure(key)
     if pressure.kind == CAP_KIND:
-        return f"cap {pressure.value:g} t CO2e/MWh by 2050"
+        return f"cap {pressure.value * G_PER_KWH_PER_T_PER_MWH:g} g CO2e/kWh by 2050"
     if pressure.value == 0:
         return "uncapped (A$0/t)"
     return f"carbon price A${pressure.value:g}/t"
 
 
 def pressure_short(key: str) -> str:
-    """Compact pressure label for a crowded axis, e.g. ``$150`` for a price or ``.005`` for a cap."""
-    return parse_pressure(key).short
+    """Compact pressure label for a crowded axis, e.g. ``$150`` for a price or ``5`` for a cap in g CO2e/kWh."""
+    pressure = parse_pressure(key)
+    if pressure.kind == CAP_KIND and key != BASE_CHAIN_KEY:
+        return f"{pressure.value * G_PER_KWH_PER_T_PER_MWH:g}"
+    return pressure.short
 
 
 def _pressure_ladder(frame: pd.DataFrame) -> list[str]:
@@ -463,7 +473,12 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
 
     :param increments: The run's ``increments.csv``, one row per branch cell and year.
     """
-    cells = _numeric_levels(increments.assign(increment=increment_keys(increments)))
+    grams = increments["fleet_intensity_t_per_mwh"] * G_PER_KWH_PER_T_PER_MWH
+    cells = _numeric_levels(
+        increments.assign(
+            increment=increment_keys(increments), fleet_intensity_t_per_mwh=grams
+        ).rename(columns={"fleet_intensity_t_per_mwh": "fleet_intensity_g_per_kwh"})
+    )
     curves = _increment_curves(cells)
     blocks = [
         curves[curves["year"].eq(year)] for year in sorted(curves["year"].unique())
@@ -794,9 +809,9 @@ def figure_pathway_intensities(
         cols=len(INTENSITY_PANELS),
         subplot_titles=[f"{title} \u00b7 {unit}" for title, unit in INTENSITY_PANELS],
     )
-    isps = [isp for _, _, isp in AEMO_PANELS.values()]
-    for index, (column, (csv, value, isp)) in enumerate(AEMO_PANELS.items()):
-        span = _aemo_scenario_span(csv, value, frame["year"].min())
+    isps = [isp for _, _, isp, _ in AEMO_PANELS.values()]
+    for index, (column, (csv, value, isp, scale)) in enumerate(AEMO_PANELS.items()):
+        span = _aemo_scenario_span(csv, value, frame["year"].min()) * scale
         overlay = _aemo_overlay(span, isp, isps.index(isp) == index)
         figure.add_traces(overlay, rows=1, cols=column)
     for column, references in enumerate(_sharp_pathway(frame["year"]), start=1):
@@ -892,6 +907,10 @@ def _sharp_reference(years: pd.Series) -> pd.DataFrame:
 def _sharp_pathway(years: pd.Series) -> list[list[go.Scatter]]:
     """Per panel, ShARP's band behind its planned line, or nothing without matching years."""
     cleanest = _sharp_reference(years).drop_duplicates("year", keep="last")
+    cleanest = cleanest.assign(
+        planned_g_co2e_per_kwh=cleanest["planned_t_co2e_per_mwh"]
+        * G_PER_KWH_PER_T_PER_MWH
+    )
     if cleanest.empty:
         return []
     year = cleanest["year"]
