@@ -15,13 +15,19 @@ import pandas as pd
 import pypsa
 import pytest
 
+from analysis.env import OutputLayout
 from analysis.sharp.frontier_points import (
     _assemble_frontier_row,
     _carried_vintage_capex,
     _existing_fleet_fom,
+    _load_weighted_marginal_price,
+    _new_build_gw,
+    _one_vintage_capex,
+    _prior_networks,
     _solve_diagnostics,
     _surviving_new_builds,
 )
+from analysis.sharp.method_years import _active_capex
 
 # ---------------------------------------------------------------------------
 # _surviving_new_builds — vintage isolation + retirement
@@ -78,18 +84,23 @@ def test_surviving_new_builds_excludes_custom_constraint_bus():
 # ---------------------------------------------------------------------------
 
 
-def _save_vintage_network(tmp_path: Path, vintage_year: int, gens: list[dict]) -> Path:
+def _save_vintage_network(
+    tmp_path: Path, vintage_year: int, gens: list[dict], path: Path | None = None
+) -> Path:
     n = pypsa.Network()
     n.investment_periods = [vintage_year]
     n.snapshots = pd.MultiIndex.from_tuples(
         [(vintage_year, pd.Timestamp(f"{vintage_year}-07-01 00:00"))]
     )
     n.add("Bus", "n")
+    solved = ("p_nom_opt", "capital_premium")
     for g in gens:
-        attrs = {k: v for k, v in g.items() if k not in ("name", "p_nom_opt")}
+        attrs = {k: v for k, v in g.items() if k not in ("name", *solved)}
         n.add("Generator", g["name"], bus="n", **attrs)
-    n.generators["p_nom_opt"] = [g["p_nom_opt"] for g in gens]
-    path = tmp_path / f"v{vintage_year}.nc"
+    for column in (c for c in solved if c in gens[0]):
+        n.generators[column] = [g[column] for g in gens]
+    path = path or tmp_path / f"v{vintage_year}.nc"
+    path.parent.mkdir(parents=True, exist_ok=True)
     n.export_to_netcdf(path)
     return path
 
@@ -167,6 +178,70 @@ def test_carried_vintage_capex_retires_expired_vintage(tmp_path):
 
     assert result["carried_capex_aud_per_yr"] == 100.0 * 800.0
     assert result["carried_gw"] == 0.8
+
+
+def test_branch_reads_its_carried_vintages_from_the_base_chain(tmp_path):
+    """An increment-grid branch solves one year on its own, so the vintages it still pays
+    for sit in the BASE chain's earlier networks, never in its own run directory."""
+    layout = OutputLayout(tmp_path)
+    _save_vintage_network(
+        tmp_path,
+        2030,
+        [
+            dict(
+                name="wind_2030",
+                p_nom_extendable=True,
+                build_year=2030,
+                lifetime=30.0,
+                capital_cost=200.0,
+                p_nom_opt=1000.0,
+            ),
+        ],
+        path=layout.network("ext_step_change_sc_2030"),
+    )
+
+    prior = _prior_networks(layout, "ext_step_change_sc", [2030, 2035], year=2035)
+    result = _carried_vintage_capex(prior, at_year=2035)
+
+    assert result["carried_capex_aud_per_yr"] == 200.0 * 1000.0
+    assert result["carried_gw"] == 1.0
+
+
+# ---------------------------------------------------------------------------
+# _new_build_gw and _load_weighted_marginal_price — the increment-grid columns
+# ---------------------------------------------------------------------------
+
+
+def test_new_build_and_marginal_price_report_the_years_own_decision():
+    """New build is the year's own extendable capacity per carrier, so the carried wind of an
+    earlier vintage is left out, and the price is the load-weighted bus price."""
+    n = pypsa.Network()
+    n.snapshots = pd.date_range("2035-01-01", periods=2, freq="h")
+    n.add("Bus", ["nsw", "vic"])
+    n.add("Load", "nsw_load", bus="nsw", p_set=[100.0, 300.0])
+    n.add("Load", "vic_load", bus="vic", p_set=[100.0, 100.0])
+    for name, carrier, extendable, build_year in [
+        ("wind_2035", "Wind", True, 2035),
+        ("solar_2035", "Solar", True, 2035),
+        ("wind_2030", "Wind", False, 2030),
+    ]:
+        n.add(
+            "Generator",
+            name,
+            bus="nsw",
+            carrier=carrier,
+            p_nom_extendable=extendable,
+            build_year=build_year,
+            lifetime=30.0,
+        )
+    n.generators["p_nom_opt"] = [2000.0, 500.0, 9000.0]
+    n.buses_t.marginal_price = pd.DataFrame(
+        {"nsw": [50.0, 150.0], "vic": [40.0, 60.0]}, index=n.snapshots
+    )
+
+    assert _new_build_gw(n, 2035) == {"new_gw_Solar": 0.5, "new_gw_Wind": 2.0}
+    # (50x100 + 150x300 + 40x100 + 60x100) AUD / 600 MWh delivered
+    assert _load_weighted_marginal_price(n) == pytest.approx(100.0)
 
 
 # ---------------------------------------------------------------------------
@@ -446,3 +521,49 @@ def test_tolerance_robust_false_when_metric_above_tolerance(tmp_path):
     result = _solve_diagnostics(record)
 
     assert result["tolerance_robust"] is False
+
+
+# ---------------------------------------------------------------------------
+# capital_premium — the priced capacity curves reaching the cost columns
+# ---------------------------------------------------------------------------
+
+
+def test_one_vintage_capex_bills_the_capital_premium(tmp_path):
+    nc_path = _save_vintage_network(
+        tmp_path,
+        2030,
+        [
+            dict(
+                name="wind_2030",
+                p_nom_extendable=True,
+                build_year=2030,
+                lifetime=30.0,
+                capital_cost=200.0,
+                capital_premium=50.0,
+                p_nom_opt=1000.0,
+            ),
+        ],
+    )
+
+    capex, gw = _one_vintage_capex(nc_path, vintage_year=2030, at_year=2040)
+
+    assert capex == 250.0 * 1000.0
+    assert gw == 1.0
+
+
+def test_active_capex_bills_the_capital_premium_and_leaves_premium_less_frames_alone():
+    priced = pd.DataFrame(
+        {
+            "build_year": [2030.0],
+            "lifetime": [30.0],
+            "capital_cost": [200.0],
+            "capital_premium": [50.0],
+            "p_nom_opt": [1000.0],
+        }
+    )
+
+    assert _active_capex(priced, 2040, "p_nom_opt") == 250.0 * 1000.0
+    assert (
+        _active_capex(priced.drop(columns="capital_premium"), 2040, "p_nom_opt")
+        == 200.0 * 1000.0
+    )

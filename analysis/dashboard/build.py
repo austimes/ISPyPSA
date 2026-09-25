@@ -8,10 +8,19 @@ frame, one row per cell-year, and every figure in :mod:`analysis.dashboard.figur
 source commit shown in the page heading is read from the run's solve records,
 ``<run>/records/*.json``, and the assumptions table from its ``<run>/campaign/``.
 
-Three sections read the run directory rather than the tidy frame: the assumptions table, the
-technology cost inputs, which come from ``exports/input_costs.csv`` where the assemble stage found
-templated inputs on disk to read them from, and the transmission build, which comes from
-``exports/transmission.csv`` and the relaxation factors the run recorded in ``<run>/campaign/``.
+The technology mix, the storage build and the pathway intensities draw the increment grid's branch
+cells beside the base chain, from the branch rows of the same exports.
+
+Several sections read the run directory rather than the tidy frame: the assumptions table; the
+technology cost inputs, from ``exports/input_costs.csv`` where the assemble stage found templated
+inputs on disk to read them from; the transmission build, from ``exports/transmission.csv`` and the
+relaxation factors the run recorded in ``<run>/campaign/``; the increment grid, from
+``exports/increments.csv`` where the campaign solved branch cells; the duals, from
+``exports/per_chain/duals_<base cell>.csv``; the near-term pipeline, from the base solve's own
+templated ``ecaa_*`` rosters; the pre-2030 rush, from the ``pipeline_rush`` tranches of every
+pinned-year solve's ``outputs/capacity_tranches.json``; and the priced build curves, from each base
+solve's ``outputs/capacity_tranches.json`` and relaxation tranches plus the build-rate curve the run
+was launched with.
 
 The page carries plotly's javascript inline, so it opens straight off the data share with no
 server and no build step.
@@ -22,6 +31,7 @@ from __future__ import annotations
 import json
 import logging
 import webbrowser
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -30,7 +40,8 @@ import plotly.graph_objects as go
 from plotly.offline import get_plotlyjs
 
 from analysis.dashboard import figures
-from analysis.env import OutputLayout
+from analysis.env import MODEL_DATA, OutputLayout
+from analysis.sharp.campaign_rows import BRANCH_COLUMNS, base_rows
 
 log = logging.getLogger(__name__)
 
@@ -83,12 +94,15 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     """Join the five export CSVs into one row per cell and milestone year.
 
     :param exports: The run's ``exports/`` directory.
-    :return: Trajectory and pressure keys, delivered energy, both emissions intensities, cost and
+    :return: Trajectory and pressure keys, delivered energy, both emissions intensities in g CO2e/kWh, cost and
         its components, the cap and its shadow price, boundary flag, solve status and the
-        per-carrier energy delivered, per-fuel input intensities and storage power.
+        per-carrier energy delivered, per-fuel input intensities, priced-curve premiums and
+        storage power, for the campaign's base chains. Increment-grid branches come from
+        :func:`tidy_branches` instead.
     """
-    results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
+    results = base_rows(_results(exports))
     marginals = pd.read_csv(exports / "marginals.csv").rename(columns=MARGINAL_MEASURES)
+    marginals["marginal_intensity"] *= figures.G_PER_KWH_PER_T_PER_MWH
     manifest = pd.read_csv(exports / "manifest.csv")[MANIFEST_KEYS]
     acceptance = pd.read_csv(exports / "acceptance_per_cell.csv")[
         ["cell", "year", *ACCEPTANCE_TESTS]
@@ -96,7 +110,10 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     storage = _storage_power_columns(pd.read_csv(exports / "storage.csv"))
     carriers = list(results.filter(regex=r"^twh_"))
     fuels = list(results.filter(regex=r"^gj_per_mwh_"))
-    frame = results[[*RESULT_KEYS, *RESULT_MEASURES.values(), *carriers, *fuels]].merge(
+    premiums = list(results.filter(regex=r"_premium_aud_per_yr$"))
+    frame = results[
+        [*RESULT_KEYS, *RESULT_MEASURES.values(), *carriers, *fuels, *premiums]
+    ].merge(
         marginals[
             ["pressure", "year", "trajectory", "marginal_cost", "marginal_intensity"]
         ],
@@ -113,6 +130,42 @@ def tidy_frame(exports: Path) -> pd.DataFrame:
     return frame.assign(
         status=_status_label(frame),
         pressure_name=frame["pressure"].map(figures.pressure_label),
+    )
+
+
+def tidy_branches(exports: Path) -> pd.DataFrame:
+    """The increment grid's branch rows of ``results.csv``, keyed on the increment cell each solved.
+
+    :param exports: The run's ``exports/`` directory.
+    :return: One row per branch cell, carrying the base cell it branched from, its branch year, the
+        measures the pathway-intensity panels draw, its storage power and solve status, and an
+        ``increment`` key naming its two levels. A run with no increment grid returns those columns
+        with no rows.
+    """
+    results = _results(exports)
+    if not set(BRANCH_COLUMNS) <= set(results):
+        return pd.DataFrame(columns=["base_cell", "year", "increment", "status"])
+    manifest = pd.read_csv(exports / "manifest.csv")[["cell", "year", "model_status"]]
+    acceptance = pd.read_csv(exports / "acceptance_per_cell.csv")[
+        ["cell", "year", *ACCEPTANCE_TESTS]
+    ]
+    storage = _storage_power_columns(pd.read_csv(exports / "storage.csv"))
+    branches = (
+        results[results["base_cell"].notna()]
+        .merge(manifest, on=["cell", "year"], how="left")
+        .merge(acceptance, on=["cell", "year"], how="left")
+        .merge(storage, on=["cell", "year"], how="left")
+    )
+    return branches.assign(
+        increment=figures.increment_keys(branches), status=_status_label(branches)
+    )
+
+
+def _results(exports: Path) -> pd.DataFrame:
+    """``results.csv`` with its measures renamed and fleet intensity in g CO2e/kWh."""
+    results = pd.read_csv(exports / "results.csv").rename(columns=RESULT_MEASURES)
+    return results.assign(
+        fleet_intensity=results["fleet_intensity"] * figures.G_PER_KWH_PER_T_PER_MWH
     )
 
 
@@ -145,22 +198,32 @@ def _status_label(frame: pd.DataFrame) -> pd.Series:
     return pd.Series(np.where(accepted, "solved", "unaccepted"), index=frame.index)
 
 
+#: Headings the increment-grid sections and the run-directory sections are keyed on.
+INTENSITIES_HEADING = "Pathway intensities (every chain, ShARP-style)"
+TECH_MIX_HEADING = (
+    "Technology mix: the base chain beside the grid's demand column and intensity row"
+)
+STORAGE_HEADING = (
+    "Storage build: the base chain beside the grid's demand column and intensity row"
+)
+PREMIUMS_HEADING = "Premiums paid above AEMO's limits and baseline build rates"
+MARGINALS_HEADING = (
+    "Demand-marginal cost and intensity (step to the next demand trajectory)"
+)
+
 #: Page heading to section builder, in the order the dashboard shows them. A builder returns either
 #: a plotly figure or ready-made html, and ``None`` where the run holds too little to draw.
 SECTIONS = {
-    "Pathway intensities (every chain, ShARP-style)": figures.figure_pathway_intensities,
-    "Cost frontier": figures.figure_cost_frontier,
-    "Cost against emissions intensity": figures.figure_cost_families,
-    "Cost surface as heatmap": figures.figure_cost_heatmap,
-    "Technology mix": figures.figure_tech_mix,
-    "Storage build": figures.figure_storage_build,
-    "Cost pathway over time": figures.figure_cost_pathway,
-    "Implied carbon price of each cap": figures.figure_implied_carbon_price,
-    "Demand-marginal cost and intensity (step to the next demand trajectory)": figures.figure_demand_marginals,
+    INTENSITIES_HEADING: figures.figure_pathway_intensities,
+    TECH_MIX_HEADING: figures.figure_tech_mix,
+    STORAGE_HEADING: figures.figure_storage_build,
+    PREMIUMS_HEADING: figures.figure_premiums_paid,
     "Cost decomposition, central trajectory": figures.figure_cost_decomposition,
-    "Summary measure matrix": figures.figure_summary_matrix,
-    "Searched parameter grid": figures.html_search_grid,
+    MARGINALS_HEADING: figures.figure_demand_marginals,
 }
+
+#: The sections drawn from the increment grid as well as the base chains.
+BRANCH_SECTIONS = {INTENSITIES_HEADING, TECH_MIX_HEADING, STORAGE_HEADING}
 
 #: Heading of the run-assumptions table, which the tests name.
 ASSUMPTIONS_HEADING = "Assumptions"
@@ -248,11 +311,17 @@ def _drawn_sections(
     frame: pd.DataFrame, layout: OutputLayout
 ) -> list[tuple[str, go.Figure | str | None]]:
     """Every section in page order, each run-directory section spliced under the one it follows."""
+    branches = tidy_branches(layout.exports)
+    sections = {
+        heading: partial(build_from_frame, branches=branches)
+        if heading in BRANCH_SECTIONS
+        else build_from_frame
+        for heading, build_from_frame in SECTIONS.items()
+    }
     drawn = []
-    for heading, build_from_frame in SECTIONS.items():
+    for heading, build_from_frame in sections.items():
         drawn.append((heading, build_from_frame(frame)))
-        if heading in RUN_SECTIONS:
-            title, build_from_run = RUN_SECTIONS[heading]
+        for title, build_from_run in RUN_SECTIONS.get(heading, []):
             drawn.append((title, build_from_run(layout)))
     return drawn
 
@@ -281,10 +350,144 @@ def _figure_transmission_limits(layout: OutputLayout) -> go.Figure | None:
     )
 
 
+def _figure_increment_surfaces(layout: OutputLayout) -> go.Figure | None:
+    """The run's increment grid, or nothing where the campaign solved no branch cells."""
+    increments = layout.exports / "increments.csv"
+    if not increments.exists():
+        return None
+    return figures.figure_increment_surfaces(pd.read_csv(increments))
+
+
+#: Solve flag naming the build-rate curve a run was launched with.
+BUILD_RATE_FLAG = "--build-rate-premiums"
+
+
+def _base_results(layout: OutputLayout) -> pd.DataFrame:
+    """The campaign's base chain rows of ``results.csv``, one per cell and milestone year."""
+    return base_rows(pd.read_csv(layout.exports / "results.csv"))
+
+
+def _figure_build_cost_curves(layout: OutputLayout) -> go.Figure | None:
+    """The build curves the run priced, or nothing where no base solve priced a tranche."""
+    steps = [
+        _tranche_steps(layout.run_dir(f"{row.cell}_{row.year}"))
+        for row in _base_results(layout).itertuples()
+    ]
+    drawn = [frame for frame in [*steps, _build_rate_steps(layout)] if not frame.empty]
+    if not drawn:
+        return None
+    return figures.figure_build_cost_curves(
+        pd.concat(drawn).drop_duplicates(["curve", "group", "tranche"])
+    )
+
+
+def _tranche_steps(run: Path) -> pd.DataFrame:
+    """One solve's priced capacity tranches and REZ relaxation tranches, as curve steps."""
+    priced = run / "outputs" / "capacity_tranches.json"
+    relax = run / "pypsa_friendly" / "custom_constraints_generators.csv"
+    steps = [
+        figures.tranche_curve_steps(pd.read_json(priced)) if priced.exists() else None,
+        figures.relax_curve_steps(pd.read_csv(relax)) if relax.exists() else None,
+    ]
+    read = [frame for frame in steps if frame is not None]
+    return pd.concat(read) if read else pd.DataFrame(columns=figures.CURVE_STEP_COLUMNS)
+
+
+def _build_rate_steps(layout: OutputLayout) -> pd.DataFrame:
+    """The build-rate curve the run was launched with, or nothing where its flags named none."""
+    flags = (_assumptions(layout).get("solve_flags") or "").split()
+    if BUILD_RATE_FLAG not in flags:
+        return pd.DataFrame(columns=figures.CURVE_STEP_COLUMNS)
+    named = Path(flags[flags.index(BUILD_RATE_FLAG) + 1]).name
+    return figures.build_rate_curve_steps(pd.read_csv(MODEL_DATA / named))
+
+
+def _figure_near_term_pipeline(layout: OutputLayout) -> go.Figure | None:
+    """The pinned near-term fleet, or nothing where the base solve's templated inputs are gone."""
+    base = _base_results(layout)
+    pinned = base[base["year"].eq(figures.PIPELINE_YEAR)]
+    rosters = [
+        layout.run_dir(f"{cell}_{figures.PIPELINE_YEAR}") / "ispypsa_inputs"
+        for cell in pinned["cell"]
+    ]
+    on_disk = [inputs for inputs in rosters if inputs.is_dir()]
+    if not on_disk:
+        return None
+    return figures.figure_near_term_pipeline(
+        _ecaa_roster(on_disk[0]), pinned, _allowances(layout)
+    )
+
+
+def _ecaa_roster(inputs: Path) -> pd.DataFrame:
+    """The existing, committed and anticipated generators and batteries one solve was templated with."""
+    rosters = [
+        pd.read_csv(inputs / f"ecaa_{name}.csv") for name in ("generators", "batteries")
+    ]
+    return pd.concat(rosters, ignore_index=True)
+
+
+def _allowances(layout: OutputLayout) -> dict[str, float]:
+    """The new-entrant build allowances the run's plan set for the pinned year, in GW."""
+    plan, year = _plan(layout), str(figures.PIPELINE_YEAR)
+    return {
+        label: plan[key][year] / 1e3
+        for key, label in figures.ALLOWANCE_LABELS.items()
+        if plan.get(key, {}).get(year)
+    }
+
+
+def _figure_pipeline_rush(layout: OutputLayout) -> go.Figure | None:
+    """The pinned year's new-entrant build and rush charge per cell, or nothing where no solve priced a rush."""
+    results = pd.read_csv(layout.exports / "results.csv")
+    pinned = results[results["year"].eq(figures.PIPELINE_YEAR)]
+    tranches = [
+        _rush_tranches(layout.run_dir(f"{row.cell}_{row.year}"), label)
+        for row, label in zip(pinned.itertuples(), _cell_labels(pinned))
+    ]
+    drawn = pd.concat(tranches)
+    return None if drawn.empty else figures.figure_pipeline_rush(drawn)
+
+
+def _rush_tranches(run: Path, label: str) -> pd.DataFrame:
+    """One solve's pre-2030 rush tranches, labelled with its cell, or none where it priced no rush."""
+    priced = run / "outputs" / "capacity_tranches.json"
+    tranches = (
+        pd.read_json(priced) if priced.is_file() else pd.DataFrame(columns=["kind"])
+    )
+    return tranches[tranches["kind"].eq("pipeline_rush")].assign(cell_label=label)
+
+
+def _cell_labels(rows: pd.DataFrame) -> pd.Series:
+    """Each results row as the bars name it: ``base`` for a base chain row, its two levels for a branch."""
+    if not set(BRANCH_COLUMNS) <= set(rows):
+        return pd.Series(figures.BASE_CELL_LABEL, index=rows.index)
+    keys = figures.increment_keys(rows).fillna(figures.BASE_CELL_LABEL)
+    return keys.map(figures.increment_label)
+
+
+def _figure_duals(layout: OutputLayout) -> go.Figure | None:
+    """The run's duals, or nothing where no base chain exported a constraint dual table."""
+    exported = [
+        path
+        for cell in _base_results(layout)["cell"].unique()
+        if (path := layout.exports / "per_chain" / f"duals_{cell}.csv").exists()
+    ]
+    if not exported:
+        return None
+    duals = pd.concat([pd.read_csv(path) for path in exported], ignore_index=True)
+    return figures.figure_duals(pd.read_csv(layout.exports / "manifest.csv"), duals)
+
+
 def _html_assumptions(layout: OutputLayout) -> str:
     """The assumptions the run was launched under, one row per assumption, styled like the searched grid."""
     rows = pd.DataFrame(_assumptions(layout).items(), columns=["assumption", "value"])
     return figures.GRID_STYLE + rows.to_html(index=False, classes="grid")
+
+
+def _plan(layout: OutputLayout) -> dict[str, object]:
+    """The demand plan the launch copied into the run, or nothing where it copied none."""
+    plan = layout.campaign / "demand_plan.json"
+    return json.loads(plan.read_text(encoding="utf-8")) if plan.exists() else {}
 
 
 def _assumptions(layout: OutputLayout) -> dict[str, object]:
@@ -298,17 +501,33 @@ def _assumptions(layout: OutputLayout) -> dict[str, object]:
 
 
 #: Sections built from the run directory rather than the tidy frame, each keyed on the ``SECTIONS``
-#: heading it is shown under, and holding its own heading and builder.
+#: heading they follow, and holding their own heading and builder.
 RUN_SECTIONS = {
-    "Cost decomposition, central trajectory": (
-        "Technology cost inputs",
-        _figure_input_costs,
-    ),
-    "Technology mix": (
-        "REZ and corridor expansion against IASR and relaxed limits",
-        _figure_transmission_limits,
-    ),
-    "Storage build": (ASSUMPTIONS_HEADING, _html_assumptions),
+    TECH_MIX_HEADING: [
+        (
+            f"Near-term pipeline: {figures.PIPELINE_YEAR} capacity by carrier",
+            _figure_near_term_pipeline,
+        ),
+        (
+            f"Pre-2030 rush: {figures.PIPELINE_YEAR} new-entrant build against the allowance",
+            _figure_pipeline_rush,
+        ),
+    ],
+    STORAGE_HEADING: [
+        (
+            "REZ and corridor expansion against IASR and relaxed limits",
+            _figure_transmission_limits,
+        ),
+        ("Technology cost inputs", _figure_input_costs),
+    ],
+    PREMIUMS_HEADING: [
+        ("Build cost curves (inputs)", _figure_build_cost_curves),
+        ("Increment surfaces", _figure_increment_surfaces),
+    ],
+    MARGINALS_HEADING: [
+        ("Duals", _figure_duals),
+        (ASSUMPTIONS_HEADING, _html_assumptions),
+    ],
 }
 
 

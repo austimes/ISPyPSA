@@ -6,13 +6,14 @@ place that knows how those names decompose, how each axis is labelled for a read
 and what order the two axes are presented in. Both the deliverables builder and the
 dashboard data builder read the axes from here so a chain is never labelled two ways.
 
-Pressure keys come in two families:
+Pressure keys come in three families:
 
 * ``c<N>`` -- a carbon price of A$N per tonne CO2e, held constant along the chain.
   ``c0`` is the uncapped incumbent.
-* ``cap<digits>`` -- an absolute annual CO2e cap schedule, named by its 2050 target
-  intensity in t/MWh delivered with the leading ``0.`` stripped: ``cap002`` is
-  0.02 t/MWh, ``cap00005`` is 0.0005 t/MWh.
+* ``cap<digits>`` -- an absolute annual CO2e cap, named by its target intensity in t/MWh
+  with the leading ``0.`` stripped: ``cap002`` is 0.02 t/MWh, ``cap00005`` is 0.0005 t/MWh.
+* ``sc`` -- the Step Change base chain, whose cap follows the scenario's own intensity path
+  and so carries no single target intensity.
 
 Presentation order runs the prices cheapest to dearest, then the caps shallow to
 deep, which is the order of increasing decarbonisation pressure within each family.
@@ -24,8 +25,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from analysis.hpc import increments
+
 PRICE_KIND = "price"
 CAP_KIND = "cap"
+
+# The Step Change base chain's cap follows the scenario's own intensity path, so it is named
+# for the scenario rather than for a single target intensity.
+BASE_CHAIN_KEY = "sc"
 
 _CHAIN_PREFIX = "ext_"
 _TRAJECTORY_PREFIX = "iasr_"
@@ -75,13 +82,22 @@ class Trajectory:
         return max(self.source_twh.values())
 
 
+def cap_key(intensity: float) -> str:
+    """Chain key for a cap intensity, the inverse of :func:`parse_pressure`: 0.0645 -> ``cap00645``."""
+    return "cap" + f"{intensity:g}".replace(".", "")
+
+
 def parse_pressure(key: str) -> Pressure:
     """Decompose one pressure key into its family, value and labels.
 
-    :param key: ``c<N>`` for a carbon price or ``cap<digits>`` for a cap schedule.
+    :param key: ``c<N>`` for a carbon price, ``cap<digits>`` for a cap schedule, or ``sc`` for
+        the Step Change base chain, whose cap follows the scenario's own intensity path and so
+        has no single target intensity.
     :return: The parsed pressure.
-    :raises ValueError: If the key belongs to neither family.
+    :raises ValueError: If the key belongs to no family.
     """
+    if key == BASE_CHAIN_KEY:
+        return Pressure(key, "Step Change", "SC", CAP_KIND, float("nan"))
     if key.startswith("cap"):
         # The key is the whole decimal with the point removed, so 0.02 is "cap002" and
         # 0.0005 is "cap00005". Putting the point back after the leading zero inverts
@@ -125,11 +141,28 @@ def split_chain_id(chain_id: str) -> tuple[str, str]:
     return trajectory, pressure
 
 
+def all_demand_paths(plan: dict) -> dict[str, dict[str, float]]:
+    """Base demand trajectories of the plan plus the increment grid's single-knot branches.
+
+    The branches are read from the recorded ``increment_demand_paths_source_twh`` block and
+    derived from the ``increment_grid`` block; a plan may carry either or both, and the two
+    describe the same trajectories.
+
+    :param plan: The demand plan JSON.
+    :return: Source TWh keyed by financial year as a string, per trajectory.
+    """
+    return (
+        plan["demand_paths_source_twh"]
+        | plan.get(increments.INCREMENT_PATHS_KEY, {})
+        | increments.demand_paths(plan)
+    )
+
+
 def trajectories_from_plan(plan: dict) -> list[Trajectory]:
     """Demand trajectories of the campaign, ordered smallest to largest load.
 
     :param plan: The demand plan JSON, keyed on ``demand_paths_source_twh``.
-    :return: One trajectory per demand path, ordered by peak source load.
+    :return: One trajectory per base and increment demand path, ordered by peak source load.
     """
     trajectories = [
         Trajectory(
@@ -137,6 +170,6 @@ def trajectories_from_plan(plan: dict) -> list[Trajectory]:
             label=name.removeprefix(_TRAJECTORY_PREFIX).replace("_", " ").capitalize(),
             source_twh={int(year): twh for year, twh in path.items()},
         )
-        for name, path in plan["demand_paths_source_twh"].items()
+        for name, path in all_demand_paths(plan).items()
     ]
     return sorted(trajectories, key=lambda t: t.peak_source_twh)

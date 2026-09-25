@@ -30,6 +30,7 @@ import subprocess
 import threading
 import time
 import traceback
+from contextlib import suppress
 from pathlib import Path
 
 import psutil
@@ -277,6 +278,19 @@ def _parse_highs_log(log_text: str) -> dict:
     return out
 
 
+def _scalar_constraint_duals(model) -> dict[str, float]:
+    """Dual of every scalar constraint of a solved linopy model, keyed by constraint name.
+
+    Dimensioned constraints (one row per snapshot or bus) carry no single dual and are
+    skipped, as are constraints whose dual the solver did not report.
+    """
+    duals = {}
+    for name, constraint in model.constraints.items():
+        with suppress(Exception):
+            duals[name] = float(constraint.dual)
+    return duals
+
+
 # ----- staged pipeline runner --------------------------------------------
 
 
@@ -289,9 +303,16 @@ def _run_staged_pipeline(
     reducible_existing: bool = False,
     retention_floor_dir: Path | None = None,
     existing_fom_keeping: bool = False,
+    pin_base_stock: bool = False,
+    new_entrant_cap_mw: float | None = None,
+    new_entrant_storage_cap_mw: float | None = None,
     co2_cap_t: float | None = None,
     rez_limit_factor: float | None = None,
     flow_path_limit_factor: float | None = None,
+    social_licence_premiums: str | None = None,
+    build_rate_premiums: Path | None = None,
+    pipeline_rush_charge: str | None = None,
+    pipeline_rush_ceiling_mw: str | None = None,
 ) -> dict:
     """Run the ISPyPSA pipeline with per-stage timing. Returns timings dict.
 
@@ -302,7 +323,7 @@ def _run_staged_pipeline(
     the accumulated brownfield stock built across the chain.
     """
 
-    from analysis.model import apply_model_patches
+    from analysis.model import apply_model_patches, capacity_tranches
     from analysis.model.flagged_exclusions_2026 import (
         exclude_ecaa_without_trace,
         exclude_flagged_new_entrants,
@@ -379,11 +400,16 @@ def _run_staged_pipeline(
         config.filter_by_nem_regions,
         config.filter_by_isp_sub_regions,
     )
+    rush_charge = capacity_tranches.parse_premiums(pipeline_rush_charge)
+    rush_ceilings = capacity_tranches.parse_premiums(pipeline_rush_ceiling_mw)
     ispypsa_tables = apply_model_patches(
         ispypsa_tables,
         config,
         rez_limit_factor=rez_limit_factor,
         flow_path_limit_factor=flow_path_limit_factor,
+        new_entrant_cap_mw=new_entrant_cap_mw,
+        new_entrant_storage_cap_mw=new_entrant_storage_cap_mw,
+        rush_ceilings_mw=rush_ceilings,
     )
     # REQUIRED for the Draft 2026 trace store: drop VRE new entrants whose
     # (rez_id, isp_resource_type) has no 2026 trace (Q8 split; N10/N11 fixed
@@ -443,7 +469,11 @@ def _run_staged_pipeline(
         else:
             keeping_cost = 0.0
         timings["retirement"] = make_existing_reducible(
-            pypsa_friendly["generators"], existing_names, floor, keeping_cost
+            pypsa_friendly["generators"],
+            existing_names,
+            floor,
+            keeping_cost,
+            pin=pin_base_stock,
         )
         print(f"\n=== REDUCIBLE EXISTING === {timings['retirement']}", flush=True)
 
@@ -495,6 +525,16 @@ def _run_staged_pipeline(
             f"{timings['phes_build_limit_carried_adjust']}",
             flush=True,
         )
+
+    # Social-licence seam. Both patches change pypsa_friendly tables, so they must land before
+    # build_pypsa_network: a capital_cost or a relaxation generator changed after the linopy
+    # model exists never reaches the objective.
+    premiums = capacity_tranches.parse_premiums(social_licence_premiums)
+    if premiums is not None:
+        from analysis.model import relaxation_tranches
+
+        relaxation_tranches.apply(pypsa_friendly, premiums)
+        capacity_tranches.add_landholder_adders(pypsa_friendly)
 
     # Capacity-expansion modelling choice: zero p_min_pu so AEMO's
     # min-stable-level (a unit-commitment concept = the floor WHEN a unit is on)
@@ -561,6 +601,33 @@ def _run_staged_pipeline(
             flush=True,
         )
 
+    # Priced capacity tranches, added to the same linopy model the CO2 cap and the fuel supply
+    # curves use: the transmission social-licence curve above AEMO's published headroom, the
+    # per-carrier build-rate curve, and the pipeline rush charge above the near-term allowances.
+    build_rate_curve = (
+        capacity_tranches.load_build_rate_curve(build_rate_premiums, [current_year])
+        if build_rate_premiums is not None
+        else None
+    )
+    tranches, members = None, None
+    if premiums is not None or build_rate_curve is not None or rush_charge is not None:
+        tranches, members = capacity_tranches.campaign_tranches(
+            network,
+            ispypsa_tables,
+            current_year,
+            premiums,
+            build_rate_curve,
+            rez_limit_factor or 1.0,
+            flow_path_limit_factor or 1.0,
+            (new_entrant_cap_mw, new_entrant_storage_cap_mw),
+            rush_charge,
+            rush_ceilings,
+        )
+        capacity_tranches.add_priced_tranches(network, tranches, members)
+        print(
+            f"\n=== CAPACITY TRANCHES === {len(tranches)} priced tranches", flush=True
+        )
+
     # HiGHS C++ writes directly to OS fd 1. When this runner is launched by
     # `msm solve`, fd 1 is the per-run log file - so HiGHS output is captured
     # without any in-process redirect. When run standalone, HiGHS output goes
@@ -579,6 +646,22 @@ def _run_staged_pipeline(
 
     if not solve_ok:
         return timings
+
+    # Before the NetCDF is written, so the per-component capital_premium the cost extractors bill
+    # is saved with the network.
+    if tranches is not None:
+        usage = capacity_tranches.tranche_usage(network, tranches)
+        capacity_tranches.allocate_premiums(network, usage, members)
+        usage.to_json(
+            outputs_dir / "capacity_tranches.json", orient="records", indent=2
+        )
+        timings["capacity_premium_aud_per_yr"] = (
+            usage.groupby("kind")["premium_aud_per_yr"].sum().to_dict()
+        )
+        print(
+            f"\n=== CAPACITY PREMIUMS === {timings['capacity_premium_aud_per_yr']}",
+            flush=True,
+        )
 
     t = time.perf_counter()
     save_pypsa_network(network, outputs_dir, "capacity_expansion")
@@ -618,6 +701,7 @@ def _run_staged_pipeline(
         except Exception as e:  # dual genuinely unavailable - report, not drop
             constraint_report[f"{cname}_dual"] = None
             constraint_report[f"{cname}_dual_error"] = f"{type(e).__name__}: {e}"
+        constraint_report["duals"] = _scalar_constraint_duals(network.model)
         timings["constraint_report"] = constraint_report
         (outputs_dir / "constraint_duals.json").write_text(
             json.dumps(constraint_report, indent=2, default=str)
@@ -840,6 +924,27 @@ def main():
         "unit for free. This is the recurring cost retirement saves.",
     )
     ap.add_argument(
+        "--pin-base-stock",
+        action="store_true",
+        help="Hold the reducible existing fleet at the retained level carried in, instead "
+        "of letting this solve retire below it (p_nom_min = p_nom_max = retained). Used by "
+        "the increment grid's conditioned single-year solves.",
+    )
+    ap.add_argument(
+        "--new-entrant-cap-mw",
+        type=float,
+        default=None,
+        help="Near-term pipeline pin: NEM-wide ceiling in MW on new-entrant generator build "
+        "in this period, added as a custom_constraint. Default: no ceiling.",
+    )
+    ap.add_argument(
+        "--new-entrant-storage-cap-mw",
+        type=float,
+        default=None,
+        help="Near-term pipeline pin: NEM-wide ceiling in MW on new-entrant battery build "
+        "in this period, added as a custom_constraint. Default: no ceiling.",
+    )
+    ap.add_argument(
         "--co2-cap-t",
         type=float,
         default=None,
@@ -865,6 +970,39 @@ def main():
         "REZ-to-sub-region connection by this factor, as a sensitivity against the IASR "
         "limits. AEMO's REZ group constraints are not scaled. Default: IASR limits "
         "unchanged.",
+    )
+    ap.add_argument(
+        "--social-licence-premiums",
+        type=str,
+        default=None,
+        help="Comma-separated premium fractions, e.g. '0.15,0.60'. Prices REZ "
+        "generation above AEMO's published resource limits as two bounded relaxation "
+        "tranches, and REZ and corridor capacity above published headroom as link "
+        "tranches, and adds the NSW and Victorian landholder payments to every "
+        "expansion link. Default: no social-licence premium.",
+    )
+    ap.add_argument(
+        "--build-rate-premiums",
+        type=Path,
+        default=None,
+        help="Build-rate premium curve CSV (group, tranche, financial_year, cap_mw, "
+        "adder_$/mw/yr) pricing each carrier's new build above the period's baseline "
+        "additions. Default: no build-rate premium.",
+    )
+    ap.add_argument(
+        "--pipeline-rush-charge",
+        type=str,
+        default=None,
+        help="Comma-separated generation and storage rush charges in A$/MW/yr, e.g. "
+        "'71400,24900', on new-entrant build above the near-term allowances, up to "
+        "--pipeline-rush-ceiling-mw. Default: the allowances are hard caps.",
+    )
+    ap.add_argument(
+        "--pipeline-rush-ceiling-mw",
+        type=str,
+        default=None,
+        help="Comma-separated generation and storage hard ceilings in MW on new-entrant "
+        "build where the rush charge applies, e.g. '26000,6000'.",
     )
     args = ap.parse_args()
     if args.carried_tranches_dir is not None and args.current_year is None:
@@ -932,9 +1070,16 @@ def main():
             reducible_existing=args.reducible_existing,
             retention_floor_dir=args.retention_floor_dir,
             existing_fom_keeping=args.existing_fom_keeping,
+            pin_base_stock=args.pin_base_stock,
+            new_entrant_cap_mw=args.new_entrant_cap_mw,
+            new_entrant_storage_cap_mw=args.new_entrant_storage_cap_mw,
             co2_cap_t=args.co2_cap_t,
             rez_limit_factor=args.rez_limit_factor,
             flow_path_limit_factor=args.flow_path_limit_factor,
+            social_licence_premiums=args.social_licence_premiums,
+            build_rate_premiums=args.build_rate_premiums,
+            pipeline_rush_charge=args.pipeline_rush_charge,
+            pipeline_rush_ceiling_mw=args.pipeline_rush_ceiling_mw,
         )
         record.update(timings)
         record["wall_clock_s"] = time.perf_counter() - t_total

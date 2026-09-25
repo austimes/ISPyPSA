@@ -7,13 +7,13 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from analysis.hpc.tracedirs import _reset_dataset_dir, build
+from analysis.hpc.tracedirs import EXTENDED_VRE_DIR, _reset_dataset_dir, build
 
 DATASET_DIR = "isp_2026"
 REFERENCE_YEAR = 2018
 DEMAND_PARTITION = f"demand/scenario=Step%20Change/reference_year={REFERENCE_YEAR}"
 SUBREGIONS = ("CNSW", "NNSW")
-STORE_FINANCIAL_YEARS = (2048, 2049, 2050)
+STORE_FINANCIAL_YEARS = (2049, 2050, 2055)
 DEMAND_MW = 100.0
 # Two August days, two sub-regions, 100 MW flat: 2 x 96 intervals x 100 MW x 0.5 h.
 SOURCE_FY_MWH = 9600.0
@@ -96,7 +96,7 @@ def _write_parquet(path: Path, frame: pd.DataFrame) -> None:
 
 @pytest.fixture
 def source_store(tmp_path: Path) -> Path:
-    """Read-only parsed trace store holding demand, project and zone partitions for FY2048 to FY2050."""
+    """Read-only parsed trace store holding demand, project and zone partitions for FY2049, FY2050 and FY2055."""
     store = tmp_path / "source" / DATASET_DIR
     _write_parquet(store / DEMAND_PARTITION / "data_0.parquet", _demand_frame())
     _write_parquet(
@@ -120,6 +120,7 @@ def plan_file(tmp_path: Path) -> Path:
             "unit_flat": {"2049": 0.0096, "2050": 0.0096, "2060": 0.0096},
             "unit_scaled": {"2049": 0.0192, "2050": 0.0048, "2060": 0.0192},
         },
+        "increment_demand_paths_source_twh": {"unit_branch": {"2050": 0.0192}},
         "anchor_2025_customer_delivered_twh": 193.911,
     }
     path = tmp_path / "plan.json"
@@ -156,8 +157,17 @@ def test_manifest_lands_realised_energy_on_every_target(built, csv_str_to_df):
         unit_scaled,  2049,  2.0,     9600.0,         19200.0,          test-plan-v1,  False
         unit_scaled,  2050,  0.5,     9600.0,         4800.0,           test-plan-v1,  False
         unit_scaled,  2060,  2.0,     9600.0,         19200.0,          test-plan-v1,  True
+        unit_branch,  2050,  2.0,     9600.0,         19200.0,          test-plan-v1,  False
     """)
     pd.testing.assert_frame_equal(result, expected)
+
+
+def test_a_single_knot_trajectory_builds_only_its_own_year(built):
+    tokens = (built / "unit_branch.txt").read_text(encoding="utf-8").split()
+
+    directory = (built / "unit_branch" / "2050").resolve()
+    assert tokens == [f"2050:{directory.as_posix()}"]
+    assert [path.name for path in sorted((built / "unit_branch").iterdir())] == ["2050"]
 
 
 def test_unit_scalar_still_rewrites_the_demand_file(built, source_store):
@@ -171,7 +181,7 @@ def test_unit_scalar_still_rewrites_the_demand_file(built, source_store):
     pd.testing.assert_frame_equal(result, expected)
 
 
-def test_extension_year_appends_fy2050_shifted_ten_years(built, source_store):
+def test_extension_year_appends_fy2055_shifted_five_years(built, source_store):
     written = (
         built
         / "unit_scaled"
@@ -184,10 +194,10 @@ def test_extension_year_appends_fy2050_shifted_ten_years(built, source_store):
     result = pd.read_parquet(written)
 
     source = pd.read_parquet(source_store / DEMAND_PARTITION / "data_0.parquet")
-    source_fy_2050 = source[source["datetime"] >= "2049-07-01"]
-    expected = source_fy_2050.assign(
-        datetime=source_fy_2050["datetime"] + pd.DateOffset(years=10),
-        value=source_fy_2050["value"] * 2.0,
+    source_fy_2055 = source[source["datetime"] >= "2054-07-01"]
+    expected = source_fy_2055.assign(
+        datetime=source_fy_2055["datetime"] + pd.DateOffset(years=5),
+        value=source_fy_2055["value"] * 2.0,
     ).reset_index(drop=True)
     appended = result[result["datetime"] >= "2059-07-01"].reset_index(drop=True)
     pd.testing.assert_frame_equal(appended, expected)
@@ -197,7 +207,7 @@ def test_extension_year_appends_fy2050_shifted_ten_years(built, source_store):
 def test_extended_vre_store_gains_an_unscaled_fy2060(built, source_store):
     written = (
         built
-        / "_vre_2060"
+        / EXTENDED_VRE_DIR
         / DATASET_DIR
         / f"project/reference_year={REFERENCE_YEAR}/data_0.parquet"
     )
@@ -207,9 +217,9 @@ def test_extended_vre_store_gains_an_unscaled_fy2060(built, source_store):
     source = pd.read_parquet(
         source_store / f"project/reference_year={REFERENCE_YEAR}/data_0.parquet"
     )
-    source_fy_2050 = source[source["datetime"] >= "2049-07-01"]
-    expected = source_fy_2050.assign(
-        datetime=source_fy_2050["datetime"] + pd.DateOffset(years=10)
+    source_fy_2055 = source[source["datetime"] >= "2054-07-01"]
+    expected = source_fy_2055.assign(
+        datetime=source_fy_2055["datetime"] + pd.DateOffset(years=5)
     ).reset_index(drop=True)
     appended = result[result["datetime"] >= "2059-07-01"].reset_index(drop=True)
     pd.testing.assert_frame_equal(appended, expected)
@@ -231,8 +241,8 @@ def test_vre_matches_one_shared_store(built, source_store):
         (source_store / "zone").resolve(),
     ]
     assert [link.resolve() for link in extension_links] == [
-        (built / "_vre_2060" / DATASET_DIR / "project").resolve(),
-        (built / "_vre_2060" / DATASET_DIR / "zone").resolve(),
+        (built / EXTENDED_VRE_DIR / DATASET_DIR / "project").resolve(),
+        (built / EXTENDED_VRE_DIR / DATASET_DIR / "zone").resolve(),
     ]
 
 
@@ -246,7 +256,7 @@ def test_a_later_build_reuses_the_shared_extension_store(
         "2060": 0.0096,
     }
     plan_file.write_text(json.dumps(plan), encoding="utf-8")
-    sentinel = built / "_vre_2060" / DATASET_DIR / "kept.txt"
+    sentinel = built / EXTENDED_VRE_DIR / DATASET_DIR / "kept.txt"
     sentinel.write_text("kept", encoding="utf-8")
 
     build(
@@ -258,7 +268,7 @@ def test_a_later_build_reuses_the_shared_extension_store(
 
     assert sentinel.read_text(encoding="utf-8") == "kept"
     assert (built / "unit_added" / "2060" / DATASET_DIR / "project").resolve() == (
-        built / "_vre_2060" / DATASET_DIR / "project"
+        built / EXTENDED_VRE_DIR / DATASET_DIR / "project"
     ).resolve()
 
 
@@ -281,7 +291,7 @@ def test_a_later_build_repairs_a_vre_link_left_behind_by_a_moved_store(
     assert milestone_link.resolve() == (source_store / "project").resolve()
     assert (
         extension_link.resolve()
-        == (built / "_vre_2060" / DATASET_DIR / "project").resolve()
+        == (built / EXTENDED_VRE_DIR / DATASET_DIR / "project").resolve()
     )
     assert (
         len(list(milestone_link.glob(f"reference_year={REFERENCE_YEAR}/*.parquet")))

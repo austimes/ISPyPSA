@@ -8,8 +8,9 @@ shows how much of the deep-cap cost sits in the REZ ceilings rather than in the 
 The factor multiplies, in the templated ISPyPSA tables:
 
   * ``renewable_energy_zones`` -- the REZ-to-sub-region transmission limit that becomes each REZ link's
-    ``p_nom``, and the wind, solar and land-use resource and build limits that become the REZ resource and
-    build limit custom constraints.
+    ``p_nom``, and the hard land-use build limits. The soft onshore wind and solar resource limits are left at
+    AEMO's published level: ``relaxation_tranches`` prices capacity above them as a stepped premium instead, so
+    scaling them here as well would give that capacity away free.
   * ``rez_transmission_expansion_costs`` -- ``additional_network_capacity_mw``, the headroom each REZ
     expansion option may add on top of that transmission limit. The per-MW expansion costs are untouched, so
     relaxed capacity is still paid for at AEMO's published price.
@@ -32,15 +33,13 @@ import pandas as pd
 log = logging.getLogger(__name__)
 
 # MW limit columns per templated table. Prices and penalty factors are excluded: relaxing a limit must not
-# also change what the capacity costs.
+# also change what the capacity costs. The soft onshore wind and solar resource limits are excluded too, because
+# `relaxation_tranches` prices capacity above them rather than lifting them.
 _SCALED_COLUMNS = {
     "renewable_energy_zones": [
         "rez_transmission_network_limit_summer_typical",
-        "wind_generation_total_limits_mw_high",
-        "wind_generation_total_limits_mw_medium",
         "wind_generation_total_limits_mw_offshore_floating",
         "wind_generation_total_limits_mw_offshore_fixed",
-        "solar_pv_plus_solar_thermal_limits_mw_solar",
         "land_use_limits_mw_wind",
         "land_use_limits_mw_solar",
     ],

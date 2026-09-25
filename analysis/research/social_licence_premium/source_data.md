@@ -2,10 +2,10 @@
 
 Verbatim evidence behind [`research.md`](research.md). Source ids match [`source_ledger.csv`](source_ledger.csv).
 
-Sources S001 to S008 and S013 were read first-hand: the workbook and its cache from the share, and document text
-extracted from the published PDFs and web pages named below. Sources S009 to S012 were located by web search and are
-recorded with what the search established and nothing more; none of those four carries a quote, because none of those
-documents was read directly.
+Sources S001 to S008, S013 and S014 were read first-hand: the workbook and its cache from the share, the templated
+network of a campaign run, and document text extracted from the published PDFs and web pages named below. Sources S009
+to S012 were located by web search and are recorded with what the search established and nothing more; none of those four
+carries a quote, because none of those documents was read directly.
 
 ## S001 -- AEMO 2024 ISP, Appendix 8, Social Licence
 
@@ -276,3 +276,59 @@ in megawatts, `Easement length (km)` and `Indicative cost estimate ($2025, $ mil
 positive value in all three fields gives 65 REZ options and 33 flow-path options, from which the capacity-weighted
 easement lengths of 0.1494 km/MW and 0.1121 km/MW and the capacity-weighted expansion costs of A$1,075,349/MW and
 A$1,150,983/MW in `research.md` are computed as simple totals-over-totals.
+
+## S014 -- The templated 2030 network, and what it actually charges
+
+**Source:** `pypsa_friendly/generators.csv`, `pypsa_friendly/links.csv`,
+`pypsa_friendly/custom_constraints_generators.csv`, `pypsa_friendly/custom_constraints_rhs.csv` and
+`ispypsa_inputs/renewable_energy_zones.csv` under
+`outputs/2026-09-21T16.08_ext41_rezx4_corrx4/runs/ext_central_c0_2030__cost_optimal/` in the campaign output directory on
+the share.
+
+No quote; these are data tables written by the fork's own model builder, so they show what the model charges rather than
+what the workbook says it should. Every denominator in `research.md` comes from here.
+
+**The relax generators.** `custom_constraints_generators.csv` has 144 rows: 135 named `<constraint>_relax_2030` and 9
+named `<REZ>_exp_2030`. All 135 relax rows carry `capital_cost` of exactly 15,305.78 A$/MW/yr and `p_nom` of 0 with
+`p_nom_extendable` true, which is what makes them unbounded. Their names take three suffixes, 45 of each:
+`WH_resource_limit`, `WM_resource_limit` and `Solar_resource_limit`, so there are three soft resource limits per REZ and
+one relax generator for each.
+
+The 15,305.78 reconciles exactly with the published penalty. `renewable_energy_zones.csv` carries
+`rez_resource_limit_violation_penalty_factor_$/mw` of 300,000 on all 45 REZ rows, and 300,000 x 0.03 / (1 - 1.03^-30) =
+15,305.78. The 3.0% is the regulated transmission WACC from `transmission_wacc.csv`, which
+`create_pypsa_friendly._config_with_transmission_wacc` substitutes for the run's own 7.0% WACC on the custom-constraint
+path, and 30 years is the configured annuitisation lifetime.
+
+**The hard limits.** `custom_constraints_rhs.csv` has 270 rows. The 117 `*_resource_limit` rows, totalling 897 GW, are
+the soft limits the relax generators bypass. The `Solar_build_limit`, `Wind_build_limit`, `WFL_build_limit` and
+`WFX_build_limit` rows carry no relax generator at all, so those are hard, and they are the land-use limits A011 uses as
+the outer ceiling.
+
+**The expansion links.** `links.csv` has 104 rows of which 38 are named `<isp_name>_exp_2030` and are extendable. Their
+annuitised `capital_cost`:
+
+| | Count | Minimum | Median | Maximum |
+| --- | ---: | ---: | ---: | ---: |
+| `isp_type` rez | 28 | 535 | 35,689 | 193,121 |
+| `isp_type` flow_path | 10 | 3,676 | 18,781 | 84,255 |
+
+A$/MW/yr. The spread inside each type is what A004 is about: a flat adder would be meaningless on both ends of a range
+this wide.
+
+**The new-entrant candidates.** Filtering `generators.csv` to rows whose name is not on the ECAA roster in
+`ispypsa_inputs/ecaa_generators.csv` and whose `isp_technology_type` is `Wind` or `Large scale Solar PV` leaves 117
+candidates across 39 REZs:
+
+| Technology | Count | Minimum | Median | Maximum |
+| ---------- | ----: | ------: | -----: | ------: |
+| Wind | 78 | 261,124 | 301,823 | 354,269 |
+| Large scale Solar PV | 39 | 91,320 | 118,980 | 152,165 |
+
+A$/MW/yr annuitised, including connection cost and fixed operating cost. Taking a median per REZ across both
+technologies gives 261,124 to 354,269 with a median of 301,823, which is the base A010 applies the 15% and 60% to.
+
+This table is also what corrects the campaign's earlier "about 22% of median wind capex" description of the AEMO penalty.
+Taking a median across all 188 wind rows in `generators.csv` gives about 67,600 A$/MW/yr, because most of those rows are
+existing wind farms whose `capital_cost` is fixed operating cost alone; against that number the penalty is 22.6%.
+Against a wind candidate the model could actually build, it is 5.1%.

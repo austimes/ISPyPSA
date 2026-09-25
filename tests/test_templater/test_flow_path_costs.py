@@ -256,6 +256,32 @@ def test_template_sub_regional_flow_path_costs_use_first_year_with_valid_costs()
     assert abs(tas_vic_row["2025_26_$/mw"].iloc[0] - (100 / 100)) < 1e-6
 
 
+def test_least_cost_options_survive_renamed_ids_and_options(csv_str_to_df):
+    aug_table = csv_str_to_df("""
+        id,        option,                                nominal_capacity_increase
+        NNSW-SQ,   NNSW-SQ Option 1,                      700
+        NNSW-SQ,   NNSW-SQ Option 2,                      3000
+        WNV-SNSW,  WNV-SNSW Option 1 (Project VNI West),  1890
+    """)
+    cost_table = csv_str_to_df("""
+        id,             option,                 2024_25,  2025_26
+        NNSW–SQ,  NNSW–SQ Option 1,  700000,   800000
+        NNSW-SQ,        NNSW-SQ Option 2,       600000,   900000
+        VIC-SNSW,       WNV-SNSW Option 1,      1890000,  1890000
+    """)
+
+    result = _get_least_cost_options(aug_table, cost_table, _FLOW_PATH_CONFIG)
+
+    expected = csv_str_to_df("""
+        flow_path,  option,                                additional_network_capacity_mw,  2024_25_$/mw,  2025_26_$/mw
+        NNSW-SQ,    NNSW-SQ Option 2,                      3000,                            200.0,         300.0
+        WNV-SNSW,   WNV-SNSW Option 1 (Project VNI West),  1890,                            1000.0,        1000.0
+    """)
+    pd.testing.assert_frame_equal(
+        result.reset_index(drop=True), expected, check_dtype=False
+    )
+
+
 def test_get_least_cost_options_logs_unmatched(caplog):
     """
     Test that _get_least_cost_options logs dropped flow_path/option_name pairs from both tables.

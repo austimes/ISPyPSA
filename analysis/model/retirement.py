@@ -51,6 +51,7 @@ def make_existing_reducible(
     existing_names: set[str] | list[str],
     retention_floor: dict[str, float] | None = None,
     keeping_cost_per_mw: float | dict[str, float] = 0.0,
+    pin: bool = False,
 ) -> dict:
     """Turn the existing (ECAA) generators into a downward-only capacity
     decision. Mutates `generators` in place; returns a diagnostics dict.
@@ -64,6 +65,10 @@ def make_existing_reducible(
     name also keeps this consistent with extract_retained_existing (which uses
     the same name set). Call BEFORE inject_carried_tranches so carried new-build
     vintages are left fixed.
+
+    `pin=True` makes the retained level an equality (p_nom_min = p_nom_max)
+    instead of a ceiling, so a conditioned single-year solve cannot retire below
+    the stock it was seeded with.
     """
     names_set = {str(n) for n in existing_names}
     existing = generators["name"].astype(str).isin(names_set)
@@ -87,7 +92,7 @@ def make_existing_reducible(
         cap = pd.concat([installed, prior], axis=1).min(axis=1)
 
     generators.loc[existing, "p_nom_max"] = cap.to_numpy()
-    generators.loc[existing, "p_nom_min"] = 0.0
+    generators.loc[existing, "p_nom_min"] = cap.to_numpy() if pin else 0.0
     generators.loc[existing, "p_nom"] = cap.to_numpy()
     generators.loc[existing, "p_nom_extendable"] = True
 
@@ -117,6 +122,7 @@ def make_existing_reducible(
         ),
         "keeping_cost_per_mw": kc_summary,
         "monotone_floor_applied": bool(retention_floor),
+        "base_stock_pinned": pin,
     }
 
 

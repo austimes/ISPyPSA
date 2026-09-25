@@ -2,6 +2,7 @@ import json
 import shlex
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 from cyclopts import App
@@ -23,10 +24,10 @@ SBATCH_SUBSTITUTIONS = {
     "${RESUME:-}": "--resume",
     "${SOLVE_FLAGS:-}": "",
     "$SLURM_CPUS_PER_TASK": "64",
-    "$RUN_ID": "ext_central_c0",
-    "$RUN_DIR": "/io/outputs/2026-09-18T10.00_ext41",
+    "$RUN_ID": "ext_step_change_sc",
+    "$RUN_DIR": "/io/outputs/2026-09-18T10.00_sc5",
     "$TRACES": "2030:/io/tracedirs/c/2030 2040:/io/tracedirs/c/2040",
-    "$ARGS": "--carbon-price 0",
+    "$ARGS": "--periods 2030 2040 --co2-cap-t-schedule 2030:6e6 2040:2e6",
 }
 
 
@@ -182,6 +183,111 @@ def test_completed_record_is_none_when_status_not_completed(tmp_path):
     assert _completed_record(layout, "chain_2030") is None
 
 
+def _runner_flags_for(monkeypatch, tmp_path: Path, year: int, **kwargs) -> list[str]:
+    """The runner flags one period is launched with, with the solve itself stubbed out."""
+    captured: list[str] = []
+
+    def capture(cfg, run_id, budget_min, layout, runner_flags):
+        captured.extend(runner_flags)
+        return {"status": "failed"}
+
+    monkeypatch.setattr(solve, "_run_one_period", capture)
+    with pytest.raises(SystemExit):
+        solve.main(
+            run_id=f"pin_{year}", output_root=tmp_path / "run", periods=[year], **kwargs
+        )
+    return captured
+
+
+def test_pinned_periods_take_their_own_allowances_and_only_the_pipeline_period_the_rush(
+    monkeypatch, tmp_path
+):
+    _point_io_dir_at(monkeypatch, tmp_path)
+    pin = {
+        "reducible_existing": True,
+        "pipeline_period": 2030,
+        "new_entrant_cap_mw": ["2026:500", "2030:19000"],
+        "new_entrant_storage_cap_mw": ["2026:400", "2030:6000"],
+        "pipeline_rush_charge": "71400,24900",
+        "pipeline_rush_ceiling_mw": "26000,6000",
+    }
+
+    early = _runner_flags_for(monkeypatch, tmp_path, 2026, **pin)
+    pinned = _runner_flags_for(monkeypatch, tmp_path, 2030, **pin)
+    later = _runner_flags_for(monkeypatch, tmp_path, 2035, **pin)
+
+    assert early[-4:] == [
+        "--new-entrant-cap-mw",
+        "500.0",
+        "--new-entrant-storage-cap-mw",
+        "400.0",
+    ]
+    assert pinned[-8:] == [
+        "--new-entrant-cap-mw",
+        "19000.0",
+        "--new-entrant-storage-cap-mw",
+        "6000.0",
+        "--pipeline-rush-charge",
+        "71400,24900",
+        "--pipeline-rush-ceiling-mw",
+        "26000,6000",
+    ]
+    assert "--reducible-existing" not in early + pinned
+    assert "--reducible-existing" in later and "--new-entrant-cap-mw" not in later
+    assert "--pipeline-rush-charge" not in later
+    assert "--pipeline-rush-ceiling-mw" not in early + later
+
+
+def _seed_state(layout: OutputLayout, run_id: str, years: list[int]) -> None:
+    """A finished chain's carried state: one tranche and one retention directory per year."""
+    for year in years:
+        for name in ("tranches", "retention"):
+            directory = layout.chain_dir(run_id) / name / str(year)
+            directory.mkdir(parents=True)
+            (directory / "state.parquet").write_bytes(b"")
+
+
+def test_seeding_copies_only_the_years_before_the_branch_period(tmp_path):
+    layout = OutputLayout(tmp_path)
+    _seed_state(layout, "ext_step_change_sc", [2030, 2035, 2040])
+
+    seeded = solve._seed_chain_state(layout, "ext_step_change_sc", "branch", 2040)
+
+    branch = layout.chain_dir("branch")
+    assert seeded == {"run_id": "ext_step_change_sc", "years": [2030, 2035]}
+    assert sorted(p.name for p in (branch / "tranches").iterdir()) == ["2030", "2035"]
+    assert sorted(p.name for p in (branch / "retention").iterdir()) == ["2030", "2035"]
+
+
+def test_seeding_from_a_chain_with_no_state_is_refused(tmp_path):
+    layout = OutputLayout(tmp_path)
+
+    with pytest.raises(FileNotFoundError, match="no carried state"):
+        solve._seed_chain_state(layout, "ext_step_change_sc", "branch", 2040)
+
+
+def test_pin_base_stock_holds_the_existing_fleet_at_the_retained_level():
+    from analysis.model.retirement import make_existing_reducible
+
+    generators = pd.DataFrame(
+        {"name": ["Coal A"], "p_nom": [700.0], "p_nom_extendable": [False]}
+    )
+
+    make_existing_reducible(generators, ["Coal A"], {"Coal A": 400.0}, pin=True)
+
+    expected = pd.DataFrame(
+        {
+            "name": ["Coal A"],
+            "p_nom": [400.0],
+            "p_nom_extendable": [True],
+            "p_nom_max": [400.0],
+            "p_nom_min": [400.0],
+            "capital_cost": [0.0],
+        }
+    )
+    pd.testing.assert_frame_equal(generators, expected)
+
+
 def _sbatch_solve_tokens(script: str) -> list[str]:
     """The ``msm solve`` argument list one sbatch script runs, with its shell expansions filled in."""
     text = (SLURM_DIR / script).read_text(encoding="utf-8").replace("\\\n", " ")
@@ -195,7 +301,7 @@ def _sbatch_solve_tokens(script: str) -> list[str]:
 
 @pytest.mark.parametrize(
     "script, periods",
-    [("chain.sbatch", [2030, 2040, 2050, 2060]), ("smoke.sbatch", [2030, 2040])],
+    [("chain.sbatch", [2030, 2040]), ("smoke.sbatch", [2030, 2035])],
 )
 def test_sbatch_command_lines_bind_to_the_solve_cli(script, periods):
     app = App()

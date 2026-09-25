@@ -1,13 +1,60 @@
 {
-  "version": "20260921-isp-range-v2",
+  "version": "20260923-step-change-2026-2060-full-grid-v2",
   "delivery_fraction": 0.91,
-  "milestone_years": [2030, 2040, 2050, 2060],
+  "anchor_2025_customer_delivered_twh": 193.911,
+  "milestone_years": [2026, 2030, 2035, 2040, 2045, 2050, 2055, 2060],
+  "increment_years": [2030, 2035, 2040, 2045, 2050, 2055, 2060],
   "demand_paths_source_twh": {
-    "iasr_low_bracket": {"2030": 155.3, "2040": 196.3, "2050": 239.2, "2060": 286.5},
-    "iasr_low": {"2030": 168.8, "2040": 213.4, "2050": 260.0, "2060": 311.4},
-    "iasr_central": {"2030": 183, "2040": 268, "2050": 365, "2060": 431},
-    "iasr_high": {"2030": 185, "2040": 282, "2050": 393, "2060": 460},
-    "iasr_stress": {"2027": 199.8, "2029": 209.5, "2030": 214.4, "2040": 363.8, "2050": 476.3, "2060": 568.4}
+    "iasr_step_change": {
+      "2026": 190.1,
+      "2030": 202.73,
+      "2035": 246.38,
+      "2040": 282.27,
+      "2045": 307.49,
+      "2050": 322.04,
+      "2055": 341.9,
+      "2060": 361.8
+    }
   },
-  "anchor_2025_customer_delivered_twh": 193.911
+  "cap_intensity_t_per_mwh": {
+    "2026": 0.55646,
+    "2030": 0.19673,
+    "2035": 0.0645,
+    "2040": 0.04136,
+    "2045": 0.02714,
+    "2050": 0.01385,
+    "2055": 0.01385,
+    "2060": 0.01385
+  },
+  "cap_intensity_basis": "source",
+  "cap_intensity_csv": "analysis/research/aemo_scenario_intensity/aemo_scenario_intensity.csv",
+  "pipeline_period": 2030,
+  "new_entrant_cap_mw_by_year": {"2026": 0, "2030": 13000},
+  "new_entrant_storage_cap_mw_by_year": {"2026": 0, "2030": 0},
+  "pipeline_rush_charge_aud_per_mw_yr": {"generation": 71400, "storage": 24900},
+  "pipeline_rush_ceiling_mw": {"generation": 26000, "storage": 6000},
+  "increment_grid": {
+    "demand_levels": {
+      "d080": 0.8,
+      "d090": 0.9,
+      "d095": 0.95,
+      "d100": 1.0,
+      "d105": 1.05,
+      "d110": 1.1,
+      "d120": 1.2,
+      "d135": 1.35
+    },
+    "intensity_levels": {
+      "i200": 2.0,
+      "i150": 1.5,
+      "i125": 1.25,
+      "i100": 1.0,
+      "i075": 0.75,
+      "i050": 0.5,
+      "i025": 0.25,
+      "i010": 0.1,
+      "i005": 0.05
+    },
+    "cells": "all"
+  }
 }

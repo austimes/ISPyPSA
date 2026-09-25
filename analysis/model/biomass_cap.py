@@ -19,6 +19,9 @@ Caps (NEM-wide biomass new-entrant capacity, MW):
   2045: 4,000
   2050: 5,000      -- ARENA Bioenergy Roadmap 2021 ambitious upper bound
 
+A milestone between two of these years takes the linear interpolation (2026: 1,100), and one after
+2050 holds the 2050 cap.
+
 At ~90 % CF the 2050 cap of 5 GW corresponds to ~39 TWh annual generation --
 still optimistic relative to the ~5-15 TWh range AEMO/industry projections
 suggest, but a defensible ceiling given the data available.
@@ -57,6 +60,7 @@ from __future__ import annotations
 
 import logging
 
+import numpy as np
 import pandas as pd
 
 from .capacity_cap import add_capacity_cap
@@ -80,7 +84,7 @@ def apply(ispypsa_tables: dict[str, pd.DataFrame], config) -> dict[str, pd.DataF
         ispypsa_tables,
         config,
         constraint_prefix="biomass_cap",
-        caps_by_year=_BIOMASS_CAP_MW_BY_YEAR,
+        caps_by_year=_caps_by_year(config),
         new_entrant_table="new_entrant_generators",
         new_entrant_id_col="generator",
         new_entrant_predicate=lambda row: row.get("fuel_type") == "Biomass",
@@ -88,3 +92,12 @@ def apply(ispypsa_tables: dict[str, pd.DataFrame], config) -> dict[str, pd.DataF
         existing_predicate=lambda row: row.get("fuel_type") == "Biomass",
         term_type="generator_capacity",
     )
+
+
+def _caps_by_year(config) -> dict[int, float]:
+    """The cap at every investment period, interpolated between the anchor years and held beyond the last."""
+    periods = list(config.temporal.capacity_expansion.investment_periods)
+    caps = np.interp(
+        periods, list(_BIOMASS_CAP_MW_BY_YEAR), list(_BIOMASS_CAP_MW_BY_YEAR.values())
+    )
+    return dict(zip(periods, caps.tolist()))

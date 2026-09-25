@@ -3,38 +3,39 @@
 import re
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import pytest
-from plotly.subplots import make_subplots
 
 from analysis.dashboard import figures
 from analysis.dashboard.build import (
     ASSUMPTIONS_HEADING,
+    RUN_SECTIONS,
     SECTIONS,
+    _figure_build_cost_curves,
+    _figure_duals,
+    _figure_near_term_pipeline,
+    _figure_pipeline_rush,
     main,
+    tidy_branches,
     tidy_frame,
 )
 from analysis.dashboard.figures import (
     CARRIER_COLOURS,
     COST_COMPONENTS,
-    GRID_SIZE,
     HATCH_NOTE,
     INPUT_COST_LABELS,
-    add_axis_match_buttons,
+    SHARP_BAND_NAME,
+    SHARP_NAME,
     figure_cost_decomposition,
-    figure_cost_frontier,
-    figure_cost_heatmap,
-    figure_cost_pathway,
     figure_demand_marginals,
-    figure_implied_carbon_price,
     figure_input_costs,
     figure_pathway_intensities,
     figure_storage_build,
     figure_tech_mix,
-    html_search_grid,
+    increment_label,
     pressure_label,
 )
+from analysis.env import OutputLayout
 
 
 def _write_campaign(run: Path, name: str, text: str) -> None:
@@ -56,13 +57,13 @@ def exports(tmp_path, csv_str_to_df) -> Path:
     """Write a six-row set of export CSVs: three trajectories priced, and one cap chain."""
     tables = {
         "results": """
-            cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, twh_Wind
-            a,    central,    c0,       price,         0.0,            2030, 100.0,         False,    0.40,                 30.0,                 3000.0,                40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.5
-            b,    high,       c0,       price,         0.0,            2030, 120.0,         True,     0.50,                 35.0,                 4200.0,                60000.0,              0.2,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                      0.4
-            c,    low,        c0,       price,         0.0,            2030, 80.0,          False,    0.30,                 40.0,                 3200.0,                24000.0,              0.0,               34.0,                          5.0,                          1.0,                            800000000.0,              160000000.0,                      0.6
-            d,    low,        c0,       price,         0.0,            2040, 90.0,          False,    0.25,                 45.0,                 4050.0,                22500.0,              3.0,               39.0,                          5.0,                          1.0,                            900000000.0,              180000000.0,                      0.7
-            e,    central,    cap0005,  cap,           0.005,          2030, 105.0,         False,    0.10,                 55.0,                 5775.0,                10500.0,              0.0,               48.0,                          4.0,                          3.0,                            1500000000.0,             210000000.0,                      0.8
-            f,    central,    cap0005,  cap,           0.005,          2040, 110.0,         False,    0.05,                 65.0,                 7150.0,                5500.0,               0.0,               58.0,                          4.0,                          3.0,                            1700000000.0,             220000000.0,                      0.9
+            cell,    base_cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, social_licence_premium_aud_per_yr, build_rate_premium_aud_per_yr, twh_Wind
+            a,    ,             central,    c0,       price,         0.0,            2030, 100.0,         False,    0.40,                 30.0,                 3000.0,                40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                   12000000.0,                        3000000.0,                     0.5
+            b,    ,             high,       c0,       price,         0.0,            2030, 120.0,         True,     0.50,                 35.0,                 4200.0,                60000.0,              0.2,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                   14000000.0,                        3500000.0,                     0.4
+            c,    ,             low,        c0,       price,         0.0,            2030, 80.0,          False,    0.30,                 40.0,                 3200.0,                24000.0,              0.0,               34.0,                          5.0,                          1.0,                            800000000.0,              160000000.0,                   9000000.0,                         2000000.0,                     0.6
+            d,    ,             low,        c0,       price,         0.0,            2040, 90.0,          False,    0.25,                 45.0,                 4050.0,                22500.0,              3.0,               39.0,                          5.0,                          1.0,                            900000000.0,              180000000.0,                   10000000.0,                        2500000.0,                     0.7
+            e,    ,             central,    cap0005,  cap,           0.005,          2030, 105.0,         False,    0.10,                 55.0,                 5775.0,                10500.0,              0.0,               48.0,                          4.0,                          3.0,                            1500000000.0,             210000000.0,                   20000000.0,                        6000000.0,                     0.8
+            f,    ,             central,    cap0005,  cap,           0.005,          2040, 110.0,         False,    0.05,                 65.0,                 7150.0,                5500.0,               0.0,               58.0,                          4.0,                          3.0,                            1700000000.0,             220000000.0,                   24000000.0,                        7000000.0,                     0.9
         """,
         "marginals": """
             pressure, year, from_level,  to_level, marginal_cost_aud_per_mwh, marginal_co2e_t_per_mwh
@@ -106,12 +107,17 @@ def exports(tmp_path, csv_str_to_df) -> Path:
 
 @pytest.fixture
 def two_cell_exports(tmp_path, csv_str_to_df) -> Path:
-    """Write a two-cell set of export CSVs, too few for the cost surface to be interpolated."""
+    """Write a two-cell set of export CSVs, too few for the cost surface to be interpolated.
+
+    The third results row is an increment-grid branch of the first, which every figure on the
+    page leaves to the increment section.
+    """
     tables = {
         "results": """
-            cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, twh_Wind
-            a,    central,    c0,       price,         0.0,            2030, 100.0,         False,    0.40,                 30.0,                 3000.0,                40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.5
-            b,    high,       c0,       price,         0.0,            2030, 120.0,         True,     0.50,                 35.0,                 4200.0,                60000.0,              0.0,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                      0.4
+            cell, base_cell, trajectory,       pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, twh_Wind
+            a,    ,          central,          c0,       price,         0.0,            2030, 100.0,         False,    0.40,                 30.0,                 3000.0,                40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.5
+            b,    ,          high,             c0,       price,         0.0,            2030, 120.0,         True,     0.50,                 35.0,                 4200.0,                60000.0,              0.0,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                      0.4
+            c,    a,         central_b2030_d110, c0,     price,         0.0,            2030, 110.0,         False,    0.38,                 32.0,                 3520.0,                41800.0,              0.0,               27.0,                          4.0,                          1.0,                            1100000000.0,             200000000.0,                      0.6
         """,
         "marginals": """
             pressure, year, from_level, to_level, marginal_cost_aud_per_mwh, marginal_co2e_t_per_mwh
@@ -134,49 +140,6 @@ def two_cell_exports(tmp_path, csv_str_to_df) -> Path:
         """,
     }
     return _write_exports(tmp_path / "run_b" / "exports", tables, csv_str_to_df)
-
-
-@pytest.fixture
-def collinear_exports(tmp_path, csv_str_to_df) -> Path:
-    """Write four accepted cells that share one marginal intensity, so their points lie on a line."""
-    tables = {
-        "results": """
-            cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, twh_Wind
-            a,    low,        c0,       price,         0.0,            2030, 80.0,          False,    0.30,                 25.0,                 2000.0,                24000.0,              0.0,               20.0,                          4.0,                          1.0,                            800000000.0,              160000000.0,                      0.5
-            b,    central,    c0,       price,         0.0,            2030, 90.0,          False,    0.35,                 30.0,                 2700.0,                31500.0,              0.0,               25.0,                          4.0,                          1.0,                            900000000.0,              180000000.0,                      0.5
-            c,    high,       c0,       price,         0.0,            2030, 100.0,         False,    0.40,                 35.0,                 3500.0,                40000.0,              0.0,               30.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.5
-            d,    very_high,  c0,       price,         0.0,            2030, 110.0,         False,    0.45,                 40.0,                 4400.0,                49500.0,              0.0,               35.0,                          4.0,                          1.0,                            1100000000.0,             220000000.0,                      0.5
-        """,
-        "marginals": """
-            pressure, year, from_level,  to_level,   marginal_cost_aud_per_mwh, marginal_co2e_t_per_mwh
-            c0,       2030, low_bracket, low,        50.0,                      0.50
-            c0,       2030, low,         central,    60.0,                      0.50
-            c0,       2030, central,     high,       70.0,                      0.50
-            c0,       2030, high,        very_high,  80.0,                      0.50
-        """,
-        "manifest": """
-            cell, year, model_status, co2_cap_annual_t, implied_carbon_price_aud_per_t
-            a,    2030, Optimal,      ,                 0.0
-            b,    2030, Optimal,      ,                 0.0
-            c,    2030, Optimal,      ,                 0.0
-            d,    2030, Optimal,      ,                 0.0
-        """,
-        "acceptance_per_cell": """
-            cell, year, test1_serves_demand, test4_termination
-            a,    2030, True,                True
-            b,    2030, True,                True
-            c,    2030, True,                True
-            d,    2030, True,                True
-        """,
-        "storage": """
-            cell, year, carrier, duration_class, power_gw
-            a,    2030, Battery, 2_2to4h,        0.8
-            b,    2030, Battery, 2_2to4h,        0.9
-            c,    2030, Battery, 2_2to4h,        1.0
-            d,    2030, Battery, 2_2to4h,        1.1
-        """,
-    }
-    return _write_exports(tmp_path / "run_line" / "exports", tables, csv_str_to_df)
 
 
 @pytest.fixture
@@ -223,19 +186,61 @@ def grid_exports(tmp_path, csv_str_to_df) -> Path:
     return _write_exports(tmp_path / "run_grid" / "exports", tables, csv_str_to_df)
 
 
+@pytest.fixture
+def branch_exports(tmp_path, csv_str_to_df) -> Path:
+    """Write one base chain and three increment cells branching off it: one on each arm, one of them unaccepted, and one interior."""
+    tables = {
+        "results": """
+            cell,   base_cell, branch_year, demand_level, intensity_level, trajectory,  pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_t_per_mwh, avg_cost_aud_per_mwh, total_cost_aud_per_yr, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, twh_Wind, twh_Battery
+            ext_sc, ,          ,            ,             ,                step_change, sc,       cap,           0.02,           2030, 100.0,         False,    0.020,                30.0,                 3000.0,                2000.0,               0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                   100.0,    3.0
+            ext_d1, ext_sc,    2030,        d110,         i100,            step_change, cap002,   cap,           0.02,           2030, 110.0,         False,    0.020,                32.0,                 3520.0,                2200.0,               0.0,               27.0,                          4.0,                          1.0,                            1100000000.0,             200000000.0,                   110.0,    4.0
+            ext_i1, ext_sc,    2030,        d100,         i050,            step_change, cap001,   cap,           0.01,           2030, 95.0,          True,     0.010,                38.0,                 3610.0,                950.0,                1.0,               33.0,                          4.0,                          1.0,                            1200000000.0,             200000000.0,                   95.0,     5.0
+            ext_x1, ext_sc,    2030,        d110,         i050,            step_change, cap001,   cap,           0.01,           2030, 104.5,         False,    0.010,                40.0,                 4180.0,                1045.0,               0.0,               35.0,                          4.0,                          1.0,                            1300000000.0,             200000000.0,                   104.5,    6.0
+        """,
+        "marginals": """
+            pressure, year, from_level, to_level, marginal_cost_aud_per_mwh, marginal_co2e_t_per_mwh
+        """,
+        "manifest": """
+            cell,   year, model_status, co2_cap_annual_t, implied_carbon_price_aud_per_t
+            ext_sc, 2030, Optimal,      2000000.0,        120.0
+            ext_d1, 2030, Optimal,      2200000.0,        130.0
+            ext_i1, 2030, Optimal,      950000.0,         400.0
+        """,
+        "acceptance_per_cell": """
+            cell,   year, test1_serves_demand, test4_termination
+            ext_sc, 2030, True,                True
+            ext_d1, 2030, True,                True
+            ext_i1, 2030, False,               True
+        """,
+        "storage": """
+            cell,   year, carrier, duration_class, power_gw
+            ext_sc, 2030, Battery, 2_2to4h,        1.0
+            ext_sc, 2030, Water,   6_over24h,      0.5
+            ext_d1, 2030, Battery, 2_2to4h,        1.2
+            ext_i1, 2030, Battery, 2_2to4h,        1.4
+            ext_i1, 2030, Water,   6_over24h,      0.7
+        """,
+    }
+    return _write_exports(tmp_path / "run_branch" / "exports", tables, csv_str_to_df)
+
+
 def test_tidy_frame_joins_every_export(exports, csv_str_to_df):
     result = tidy_frame(exports)
 
     expected = csv_str_to_df("""
-        cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, fleet_intensity, avg_cost, total_cost, twh_Wind, marginal_cost, marginal_intensity, model_status, co2_cap_annual_t, implied_carbon_price_aud_per_t, test1_serves_demand, test4_termination, storage_Battery_2_2to4h, storage_Water_6_over24h, status,     pressure_name
-        a,    central,    c0,       price,         0.0,            2030, 100.0,         False,    40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      0.40,            30.0,     3000.0,     0.5,        60.0,          0.80,               Optimal,      ,                 0.0,                            True,                True,              1.0,                     ,                        solved,     uncapped__(A$0/t)
-        b,    high,       c0,       price,         0.0,            2030, 120.0,         True,     60000.0,              0.2,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                      0.50,            35.0,     4200.0,     0.4,        70.0,          0.90,               Optimal,      ,                 0.0,                            True,                True,              1.2,                     ,                        solved,     uncapped__(A$0/t)
-        c,    low,        c0,       price,         0.0,            2030, 80.0,          False,    24000.0,              0.0,               34.0,                          5.0,                          1.0,                            800000000.0,              160000000.0,                      0.30,            40.0,     3200.0,     0.6,        50.0,          0.60,               Optimal,      ,                 0.0,                            True,                True,              0.8,                     ,                        solved,     uncapped__(A$0/t)
-        d,    low,        c0,       price,         0.0,            2040, 90.0,          False,    22500.0,              3.0,               39.0,                          5.0,                          1.0,                            900000000.0,              180000000.0,                      0.25,            45.0,     4050.0,     0.7,        ,              ,                   Infeasible,   ,                 0.0,                            False,               True,              0.9,                     ,                        unaccepted, uncapped__(A$0/t)
-        e,    central,    cap0005,  cap,           0.005,          2030, 105.0,         False,    10500.0,              0.0,               48.0,                          4.0,                          3.0,                            1500000000.0,             210000000.0,                      0.10,            55.0,     5775.0,     0.8,        90.0,          0.50,               Optimal,      10500.0,          120.0,                          True,                True,              2.0,                     0.5,                     solved,     cap__0.005__t__CO2e/MWh__by__2050
-        f,    central,    cap0005,  cap,           0.005,          2040, 110.0,         False,    5500.0,               0.0,               58.0,                          4.0,                          3.0,                            1700000000.0,             220000000.0,                      0.05,            65.0,     7150.0,     0.9,        ,              ,                   Optimal,      5500.0,           900.0,                          True,                True,              2.4,                     0.5,                     solved,     cap__0.005__t__CO2e/MWh__by__2050
+        cell, trajectory, pressure, pressure_kind, pressure_value, year, delivered_twh, boundary, co2e_total_kt_per_yr, use_pct_of_demand, cost_per_mwh_excl_fuel_carbon, diagnostic_fuel_cost_per_mwh, diagnostic_carbon_cost_per_mwh, carried_capex_aud_per_yr, existing_fleet_fom_aud_per_yr, fleet_intensity, avg_cost, total_cost, twh_Wind, social_licence_premium_aud_per_yr, build_rate_premium_aud_per_yr, marginal_cost, marginal_intensity, model_status, co2_cap_annual_t, implied_carbon_price_aud_per_t, test1_serves_demand, test4_termination, storage_Battery_2_2to4h, storage_Water_6_over24h, status,     pressure_name
+        a,    central,    c0,       price,         0.0,            2030, 100.0,         False,    40000.0,              0.0,               25.0,                          4.0,                          1.0,                            1000000000.0,             200000000.0,                      400.0,            30.0,     3000.0,     0.5, 12000000.0, 3000000.0,        60.0,          800.0,               Optimal,      ,                 0.0,                            True,                True,              1.0,                     ,                        solved,     uncapped__(A$0/t)
+        b,    high,       c0,       price,         0.0,            2030, 120.0,         True,     60000.0,              0.2,               29.0,                          5.0,                          1.0,                            1200000000.0,             240000000.0,                      500.0,            35.0,     4200.0,     0.4, 14000000.0, 3500000.0,        70.0,          900.0,               Optimal,      ,                 0.0,                            True,                True,              1.2,                     ,                        solved,     uncapped__(A$0/t)
+        c,    low,        c0,       price,         0.0,            2030, 80.0,          False,    24000.0,              0.0,               34.0,                          5.0,                          1.0,                            800000000.0,              160000000.0,                      300.0,            40.0,     3200.0,     0.6, 9000000.0, 2000000.0,        50.0,          600.0,               Optimal,      ,                 0.0,                            True,                True,              0.8,                     ,                        solved,     uncapped__(A$0/t)
+        d,    low,        c0,       price,         0.0,            2040, 90.0,          False,    22500.0,              3.0,               39.0,                          5.0,                          1.0,                            900000000.0,              180000000.0,                      250.0,            45.0,     4050.0,     0.7, 10000000.0, 2500000.0,        ,              ,                   Infeasible,   ,                 0.0,                            False,               True,              0.9,                     ,                        unaccepted, uncapped__(A$0/t)
+        e,    central,    cap0005,  cap,           0.005,          2030, 105.0,         False,    10500.0,              0.0,               48.0,                          4.0,                          3.0,                            1500000000.0,             210000000.0,                      100.0,            55.0,     5775.0,     0.8, 20000000.0, 6000000.0,        90.0,          500.0,               Optimal,      10500.0,          120.0,                          True,                True,              2.0,                     0.5,                     solved,     cap__5__g__CO2e/kWh__by__2050
+        f,    central,    cap0005,  cap,           0.005,          2040, 110.0,         False,    5500.0,               0.0,               58.0,                          4.0,                          3.0,                            1700000000.0,             220000000.0,                      50.0,            65.0,     7150.0,     0.9, 24000000.0, 7000000.0,        ,              ,                   Optimal,      5500.0,           900.0,                          True,                True,              2.4,                     0.5,                     solved,     cap__5__g__CO2e/kWh__by__2050
     """)
     pd.testing.assert_frame_equal(result, expected)
+
+
+def test_tidy_frame_keeps_the_base_chains_only(two_cell_exports):
+    assert list(tidy_frame(two_cell_exports)["cell"]) == ["a", "b"]
 
 
 def test_tidy_frame_logs_cell_years_with_no_marginal(exports, caplog):
@@ -252,106 +257,99 @@ def test_tidy_frame_logs_cell_years_with_no_marginal(exports, caplog):
     [
         ("c0", "uncapped (A$0/t)"),
         ("c150", "carbon price A$150/t"),
-        ("cap0005", "cap 0.005 t CO2e/MWh by 2050"),
+        ("cap0005", "cap 5 g CO2e/kWh by 2050"),
+        ("sc", "Step Change intensity path"),
     ],
 )
 def test_pressure_label_spells_out_each_family(key, expected):
     assert pressure_label(key) == expected
 
 
-def test_pressure_label_wraps_on_the_given_separator():
-    assert pressure_label("cap0005", "<br>") == "cap<br>0.005<br>t CO2e/MWh<br>by 2050"
+@pytest.fixture
+def increments(csv_str_to_df) -> pd.DataFrame:
+    """One year of the grid: its base cell, one arm cell each way, and one interior cell."""
+    return csv_str_to_df("""
+        base_cell, cell,    year, demand_level, intensity_level, delta_delivered_twh, delta_total_cost_aud_per_yr, delta_cost_per_mwh_excl_fuel_carbon, delta_co2e_kt_per_yr, delta_pj_gas, delta_pj_coal, delta_new_gw_Wind, fleet_intensity_t_per_mwh, cap_dual_base, cap_dual_branch
+        ext_sc,    ext_d0,  2035, d100,         i100,            0.0,                 0.0,                         0.0,                                 0.0,                  0.0,          0.0,           0.0,               0.0050,                    50.0,          50.0
+        ext_sc,    ext_d1,  2035, d110,         i100,            20.0,                2.0e9,                       5.0,                                 100.0,                3.0,          1.0,           4.0,               0.0050,                    50.0,          60.0
+        ext_sc,    ext_i1,  2035, d100,         i050,            0.0,                 1.5e9,                       8.0,                                 -300.0,               -2.0,         -8.0,          6.0,               0.0025,                    50.0,          400.0
+        ext_sc,    ext_x1,  2035, d110,         i050,            20.0,                4.0e9,                       12.0,                                -200.0,               1.0,          -7.0,          9.0,               0.0026,                    50.0,          450.0
+    """)
 
 
-def test_cost_frontier_draws_a_ladder_line_beside_each_trajectory(exports):
-    figure = figure_cost_frontier(tidy_frame(exports))
+def test_increment_surfaces_draw_both_arms_the_grid_and_the_duals(increments):
+    figure = figures.figure_increment_surfaces(increments)
 
-    # One marker trace per trajectory and year, and a ladder line beside each of them.
-    modes = [trace.mode for trace in figure.data]
-    assert modes == ["markers"] * 5 + ["lines"] * 5
-
-
-def test_cost_frontier_buttons_retype_every_faceted_x_axis(exports):
-    figure = figure_cost_frontier(tidy_frame(exports))
-
-    linear, log = figure.layout.updatemenus[0].buttons
-    assert [linear.label, log.label] == ["Linear", "Log"]
-    assert log.args[0] == {"xaxis.type": "log", "xaxis2.type": "log"}
-
-
-def test_cost_heatmap_blanks_the_cells_the_interpolation_could_not_reach(exports):
-    figure = figure_cost_heatmap(tidy_frame(exports))
-
-    # Only 2030 holds enough solved cells to interpolate, so the figure is a single panel.
-    (cells,) = figure.data
-    assert (cells.type, cells.z.shape, cells.coloraxis) == (
+    # The two arms, ShARP's reference on each, the additive line and the year's additivity scatter,
+    # one grid for the single year, and the duals.
+    assert [trace.type for trace in figure.data] == [
+        "scatter",
+        "scatter",
+        "scatter",
+        "scatter",
+        "scatter",
+        "scatter",
         "heatmap",
-        (GRID_SIZE, GRID_SIZE),
-        "coloraxis",
+        "table",
+    ]
+    grid = figure.data[6]
+    assert (list(grid.x), list(grid.y)) == ([1.0, 1.1], [0.5, 1.0])
+    assert grid.z.tolist() == [[8.0, 12.0], [0.0, 5.0]]
+    # The button swaps every grid's colouring to the emissions consequence instead.
+    emissions = figure.layout.updatemenus[0].buttons[1]
+    assert emissions.args[0]["z"][0].tolist() == [[-300.0, -200.0], [0.0, 100.0]]
+
+
+def test_increment_surfaces_read_each_arm_from_the_level_keys(increments):
+    figure = figures.figure_increment_surfaces(increments)
+
+    demand, intensity = figure.data[:2]
+    # The demand arm prices extra energy, so the base cell delivering none has no ratio to plot.
+    assert (list(demand.x), demand.y[1]) == ([1.0, 1.1], 1.0e8)
+    assert (list(intensity.x), list(intensity.y)) == ([0.5, 1.0], [8.0, 0.0])
+
+
+def test_increment_surfaces_mark_each_cost_and_hover_every_consequence(increments):
+    figure = figures.figure_increment_surfaces(increments)
+
+    grid = figure.data[6]
+    assert (grid.text.tolist(), grid.texttemplate) == (
+        [["8", "12"], ["0", "5"]],
+        "%{text}",
     )
-    # Grid points outside the solved cells' hull stay NaN, which plotly draws as a gap.
-    assert np.isnan(cells.z).any()
-    assert figure.layout.coloraxis.colorbar.title.text == "Average cost (A$/MWh)"
-    assert figure.layout.yaxis.title.text == "Demand-marginal intensity (t CO2e/MWh)"
+    assert grid.customdata.tolist()[0][0] == (
+        "A$1,500m/yr<br>-300 kt CO2e/yr<br>gas -2.0 PJ<br>coal -8.0 PJ<br>"
+        "delta_new_gw_Wind: 6<br>fleet_intensity_g_per_kwh: 2.5<br>"
+        "cap_dual_base: 50<br>cap_dual_branch: 400"
+    )
 
 
-def test_cost_heatmap_offers_to_share_its_panels_axes(exports):
-    figure = figure_cost_heatmap(tidy_frame(exports))
-
-    assert [button.label for button in figure.layout.updatemenus[0].buttons] == [
-        "Shared axes",
-        "Independent axes",
+def test_increment_surfaces_leave_cramped_grids_unmarked(increments):
+    demand_column = increments.iloc[[1]]
+    levels = [
+        demand_column.assign(demand_level=f"d{level}") for level in range(100, 150)
     ]
 
+    figure = figures.figure_increment_surfaces(pd.concat(levels))
 
-def test_axis_match_buttons_tie_every_panel_to_the_first():
-    figure = add_axis_match_buttons(make_subplots(rows=1, cols=3))
-
-    shared, independent = figure.layout.updatemenus[0].buttons
-    assert shared.args[0] == {
-        "xaxis2.matches": "x",
-        "xaxis3.matches": "x",
-        "yaxis2.matches": "y",
-        "yaxis3.matches": "y",
-    }
-    assert independent.args[0] == {
-        "xaxis2.matches": None,
-        "xaxis3.matches": None,
-        "yaxis2.matches": None,
-        "yaxis3.matches": None,
+    assert {trace.texttemplate for trace in figure.data if trace.type == "heatmap"} == {
+        ""
     }
 
 
-def test_cost_heatmap_is_dropped_when_no_year_holds_enough_cells(two_cell_exports):
-    assert figure_cost_heatmap(tidy_frame(two_cell_exports)) is None
+def test_increment_surfaces_check_the_interior_cell_against_its_column_plus_row(
+    increments,
+):
+    figure = figures.figure_increment_surfaces(increments)
 
-
-def test_cost_heatmap_skips_a_year_whose_cells_lie_on_a_line(collinear_exports, caplog):
-    with caplog.at_level("WARNING"):
-        figure = figure_cost_heatmap(tidy_frame(collinear_exports))
-
-    assert figure is None
-    assert (
-        "No cost surface for 2030: its accepted cells cannot be triangulated"
-    ) in caplog.text
-
-
-def test_cost_heatmap_logs_nothing_when_every_year_interpolates(exports, caplog):
-    with caplog.at_level("WARNING"):
-        figure_cost_heatmap(tidy_frame(exports))
-
-    assert "No cost surface" not in caplog.text
-
-
-def test_cost_pathway_draws_one_line_per_pressure_and_trajectory(exports):
-    figure = figure_cost_pathway(tidy_frame(exports))
-
-    assert [(trace.name, trace.xaxis) for trace in figure.data] == [
-        ("uncapped (A$0/t)", "x"),
-        ("uncapped (A$0/t)", "x2"),
-        ("uncapped (A$0/t)", "x3"),
-        ("cap 0.005 t CO2e/MWh by 2050", "x2"),
-    ]
+    # The interior cell costs A$4,000m against A$3,500m for its demand column and intensity row together.
+    line, interior = figure.data[4:6]
+    assert (list(interior.x), list(interior.y), interior.name) == (
+        [3500.0],
+        [4000.0],
+        "2035",
+    )
+    assert list(line.x) == list(line.y) == [3500.0, 4000.0]
 
 
 def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_df):
@@ -365,34 +363,68 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
 
     figure = figure_pathway_intensities(frame)
 
-    # The AEMO reference overlay, then cost and emissions for both chains, then the fuels each chain
-    # burns: coal and gas, gas and biomass.
+    # The AEMO overlays on the cost, emissions and demand panels, ShARP's band and planned line on each panel (plus its line less sunk
+    # capital on the cost panel), then cost and emissions for
+    # both chains, the fuels each chain burns (coal and gas, gas and biomass) and its demand.
     assert [(trace.name, trace.line.dash) for trace in figure.data] == [
         (None, None),
-        ("AEMO scenario range", None),
+        ("AEMO 2026 ISP scenario range", None),
+        ("AEMO 2026 ISP: Slower Growth", "dot"),
+        ("AEMO 2026 ISP: Step Change", "dot"),
+        ("AEMO 2026 ISP: Accelerated Transition", "dot"),
+        (None, None),
+        ("AEMO draft ISP scenario range", None),
         ("AEMO draft ISP: Slower Growth", "dot"),
         ("AEMO draft ISP: Step Change", "dot"),
         ("AEMO draft ISP: Accelerated Transition", "dot"),
+        (None, None),
+        ("AEMO 2026 ISP scenario range", None),
+        ("AEMO 2026 ISP: Slower Growth", "dot"),
+        ("AEMO 2026 ISP: Step Change", "dot"),
+        ("AEMO 2026 ISP: Accelerated Transition", "dot"),
+        (None, None),
+        ("ShARP whole-system cost (includes sunk capital)", None),
+        ("ShARP current policy (approx.)", "dash"),
+        ("ShARP excluding sunk capital (2026 value held flat, approx.)", "dot"),
+        (None, None),
+        ("ShARP clean ladder reach (approx.)", None),
+        ("ShARP current policy (approx.)", "dash"),
+        (None, None),
+        ("ShARP clean ladder reach (approx.)", None),
+        ("ShARP current policy (approx.)", "dash"),
+        (None, None),
+        ("ShARP futures range", None),
+        ("ShARP current policy (approx.)", "dash"),
         ("central demand, uncapped (A$0/t)", "solid"),
         ("central demand, uncapped (A$0/t)", "solid"),
         ("central demand, uncapped (A$0/t)", "solid"),
         ("central demand, uncapped (A$0/t)", "dash"),
+        ("central demand, uncapped (A$0/t)", "solid"),
         ("high demand, carbon price A$150/t", "solid"),
         ("high demand, carbon price A$150/t", "solid"),
         ("high demand, carbon price A$150/t", "dash"),
         ("high demand, carbon price A$150/t", "dot"),
+        ("high demand, carbon price A$150/t", "solid"),
     ]
     assert [trace.name for trace in figure.data if trace.showlegend] == [
-        "AEMO scenario range",
+        "AEMO 2026 ISP scenario range",
+        "AEMO 2026 ISP: Slower Growth",
+        "AEMO 2026 ISP: Step Change",
+        "AEMO 2026 ISP: Accelerated Transition",
+        "AEMO draft ISP scenario range",
         "AEMO draft ISP: Slower Growth",
         "AEMO draft ISP: Step Change",
         "AEMO draft ISP: Accelerated Transition",
+        "ShARP whole-system cost (includes sunk capital)",
+        "ShARP current policy (approx.)",
+        "ShARP clean ladder reach (approx.)",
+        "ShARP futures range",
         "central demand, uncapped (A$0/t)",
         "high demand, carbon price A$150/t",
     ]
 
 
-def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_emissions_panel(
+def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_cost_emissions_and_demand_panels(
     csv_str_to_df,
 ):
     frame = csv_str_to_df("""
@@ -403,22 +435,104 @@ def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_emissions_panel(
 
     figure = figure_pathway_intensities(frame)
 
-    overlay = [trace for trace in figure.data if trace.legendgroup == "AEMO draft ISP"]
-    assert [trace.name for trace in overlay] == [
-        None,
-        "AEMO scenario range",
-        "AEMO draft ISP: Slower Growth",
-        "AEMO draft ISP: Step Change",
-        "AEMO draft ISP: Accelerated Transition",
+    # The final ISP's cost and demand share one legend group; the draft ISP's emissions keep their own.
+    ranges = [
+        trace for trace in figure.data if str(trace.name).endswith("scenario range")
     ]
-    assert {trace.yaxis for trace in overlay} == {"y2"}
-    assert min(overlay[2].x) == 2030
+    assert [(trace.name, trace.yaxis, trace.showlegend) for trace in ranges] == [
+        ("AEMO 2026 ISP scenario range", "y", True),
+        ("AEMO draft ISP scenario range", "y2", True),
+        ("AEMO 2026 ISP scenario range", "y4", False),
+    ]
+    # Step Change in 2030, restated per MWh and TWh of operational demand in June 2025 dollars.
+    step_change = [t for t in figure.data if t.name == "AEMO 2026 ISP: Step Change"]
+    assert [(trace.x[0], round(trace.y[0], 1)) for trace in step_change] == [
+        (2030, 45.7),
+        (2030, 203.2),
+    ]
 
 
-def test_implied_carbon_price_leaves_out_the_price_chains(exports):
-    figure = figure_implied_carbon_price(tidy_frame(exports))
+@pytest.mark.parametrize(
+    ("year", "expected"),
+    [(2035, ["y", "y2", "y2", "y3", "y3", "y4", "y", "y2"]), (2036, [])],
+)
+def test_sharp_reference_is_drawn_only_for_years_it_covers(
+    csv_str_to_df, increments, year, expected
+):
+    frame = csv_str_to_df("""
+        cell,    trajectory, pressure, pressure_name,    delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        central, central,    c0,       uncapped (A$0/t), 100.0,         25.0,                          0.40
+    """).assign(year=year)
 
-    assert [list(trace.y) for trace in figure.data] == [[120.0], [900.0]]
+    pathways = figure_pathway_intensities(frame)
+    arms = figures.figure_increment_surfaces(increments.assign(year=year))
+
+    # The planned line on the cost panel, whose band carries its own name, a reach band and planned line on the emissions and input
+    # panels, the planned line on the demand panel, then the extra-MWh price and the clean ladder on the arms.
+    sharp = [
+        trace
+        for trace in [*pathways.data, *arms.data]
+        if trace.name in (SHARP_BAND_NAME, SHARP_NAME)
+    ]
+    assert [trace.yaxis for trace in sharp] == expected
+
+
+def test_pathway_intensities_fans_each_increment_out_of_its_base_point(csv_str_to_df):
+    frame = csv_str_to_df("""
+        cell,   trajectory,  pressure, pressure_name,              year, delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        ext_sc, step_change, sc,       Step Change intensity path, 2026, 100.0,         25.0,                          0.40
+        ext_sc, step_change, sc,       Step Change intensity path, 2030, 110.0,         30.0,                          0.20
+    """)
+    branches = csv_str_to_df("""
+        cell,        base_cell, year, increment, delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        ext_b2030_a, ext_sc,    2030, d110_i050, 121.0,         45.0,                          0.10
+        ext_b2030_b, ext_sc,    2030, d100_i050, 110.0,         40.0,                          0.12
+    """)
+
+    figure = figure_pathway_intensities(frame, branches)
+
+    # One fan per cell and panel, out of the base point at the previous milestone, and one legend
+    # entry for the two cells sharing an intensity level.
+    fans = [trace for trace in figure.data if trace.name == "cells at i=0.50"]
+    assert [(trace.xaxis, trace.showlegend) for trace in fans] == [
+        ("x", True),
+        ("x2", False),
+        ("x4", False),
+        ("x", False),
+        ("x2", False),
+        ("x4", False),
+    ]
+    assert (list(fans[3].x), list(fans[3].y)) == (
+        [2026, 2030, None],
+        [25.0, 45.0, None],
+    )
+    assert (list(fans[4].x), list(fans[4].y)) == (
+        [2026, 2030, None],
+        [0.40, 0.10, None],
+    )
+    assert (list(fans[5].x), list(fans[5].y)) == (
+        [2026, 2030, None],
+        [100.0, 121.0, None],
+    )
+
+
+def test_pathway_intensities_stubs_a_first_milestone_increment_off_its_own_year(
+    csv_str_to_df,
+):
+    frame = csv_str_to_df("""
+        cell,   trajectory,  pressure, pressure_name,              year, delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        ext_sc, step_change, sc,       Step Change intensity path, 2030, 100.0,         25.0,                          0.40
+        ext_sc, step_change, sc,       Step Change intensity path, 2035, 110.0,         30.0,                          0.20
+    """)
+    branches = csv_str_to_df("""
+        cell,      base_cell, year, increment, delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        ext_b2030, ext_sc,    2030, d110_i050, 110.0,         28.0,                          0.38
+    """)
+
+    figure = figure_pathway_intensities(frame, branches)
+
+    stub = next(trace for trace in figure.data if trace.name == "cells at i=0.50")
+    assert (list(stub.x), list(stub.y)) == ([2030, 2030, None], [25.0, 28.0, None])
 
 
 def test_demand_marginals_faces_each_step_with_both_measures(exports):
@@ -429,7 +543,7 @@ def test_demand_marginals_faces_each_step_with_both_measures(exports):
         "up to central",
         "up to high",
         "Demand-marginal cost (A$/MWh)",
-        "Demand-marginal intensity (t CO2e/MWh)",
+        "Demand-marginal intensity (g CO2e/kWh)",
     }
 
 
@@ -447,6 +561,22 @@ def test_storage_build_lists_each_duration_once_across_both_carriers(exports):
     assert [trace.name for trace in figure.data if trace.showlegend] == [
         "2 to 4 h",
         "over 24 h",
+    ]
+
+
+def test_storage_build_bars_the_base_cell_beside_each_increment(branch_exports):
+    frame = tidy_frame(branch_exports)
+    branches = tidy_branches(branch_exports)
+
+    figure = figure_storage_build(frame, branches)
+
+    # One trace per duration and carrier, each barring the base cell and then both increments.
+    assert [
+        (trace.name, trace.marker.pattern.shape, list(trace.x), list(trace.y))
+        for trace in figure.data
+    ] == [
+        ("2 to 4 h", "", ["base", "d=1.00, i=0.50", "d=1.10, i=1.00"], [1.0, 1.4, 1.2]),
+        ("over 24 h", "/", ["base", "d=1.00, i=0.50"], [0.5, 0.7]),
     ]
 
 
@@ -483,29 +613,6 @@ def test_input_costs_draws_one_panel_per_category_with_build_cost_on_a_log_axis(
     assert coloured["Biomass"] == CARRIER_COLOURS["Biomass"]
 
 
-def test_search_grid_heads_each_column_with_its_spelled_out_name(grid_exports):
-    html = html_search_grid(tidy_frame(grid_exports))
-
-    headings = re.findall(r"<th>(.*?)</th>", html)
-    assert headings == [
-        "Demand trajectory",
-        "Year",
-        "Delivered energy (TWh)",
-        "uncapped (A$0/t)",
-        "carbon price A$150/t",
-    ]
-
-
-def test_search_grid_classes_each_cell_by_its_solve_status(grid_exports):
-    html = html_search_grid(tidy_frame(grid_exports))
-
-    assert '<span class="solved">30.1</span>' in html
-    assert '<span class="solved">55.0 (boundary)</span>' in html
-    assert '<span class="unaccepted">25.0</span>' in html
-    assert '<span class="missing"></span>' in html
-    assert '<span class="unplanned"></span>' in html
-
-
 def test_tech_mix_hatches_unaccepted_cells_and_renames_water(grid_exports):
     figure = figure_tech_mix(tidy_frame(grid_exports))
 
@@ -524,7 +631,7 @@ def test_tech_mix_dots_storage_discharge_on_top_of_the_generation_carriers(expor
 
     figure = figure_tech_mix(frame)
 
-    # The ``high`` trajectory's one cell, bottom of the stack to the top.
+    # The 2030 facet's stack, bottom to top.
     stack = [
         (trace.name, trace.marker.pattern.shape)
         for trace in figure.data
@@ -545,25 +652,43 @@ def test_tech_mix_lists_each_carrier_in_the_legend_once_then_unserved(grid_expor
     assert listed == ["Hydro (conventional)", "Wind", "Unserved"]
 
 
-def test_tech_mix_stacks_energy_delivered_in_twh(exports):
-    figure = figure_tech_mix(tidy_frame(exports))
+def test_tech_mix_bars_the_base_cell_beside_each_increment(branch_exports):
+    frame = tidy_frame(branch_exports)
+    branches = tidy_branches(branch_exports)
 
-    # The ``high`` trajectory's one cell: 0.4 TWh of wind, and 0.2% of its 120 TWh demand unserved.
-    high = [(trace.name, list(trace.y)) for trace in figure.data if trace.xaxis == "x"]
-    assert high == [("Wind", [0.4]), ("Unserved", [120.0 * 0.2 / 100])]
+    figure = figure_tech_mix(frame, branches)
+
+    # One trace per carrier, each barring the base cell and then both increments, storage dotted,
+    # and the unaccepted increment's segments hatched.
+    assert [
+        (trace.name, trace.marker.pattern.shape, list(trace.x), list(trace.y))
+        for trace in figure.data
+    ] == [
+        ("Wind", "", ["base", "d=1.10, i=1.00"], [100.0, 110.0]),
+        ("Wind", "/", ["d=1.00, i=0.50"], [95.0]),
+        ("Battery", ".", ["base", "d=1.00, i=0.50", "d=1.10, i=1.00"], [3.0, 5.0, 4.0]),
+        ("Unserved", "", ["base", "d=1.10, i=1.00"], [0.0, 0.0]),
+        ("Unserved", "/", ["d=1.00, i=0.50"], [0.95]),
+    ]
     assert figure.layout.yaxis.title.text == "Energy delivered (TWh)"
 
 
-def test_tech_mix_labels_facets_with_the_manifest_pressure_names(grid_exports):
-    figure = figure_tech_mix(tidy_frame(grid_exports))
+def test_tech_mix_facets_each_year_and_notes_its_hatching(branch_exports):
+    figure = figure_tech_mix(tidy_frame(branch_exports), tidy_branches(branch_exports))
 
-    assert {note.text for note in figure.layout.annotations} == {
-        "uncapped<br>(A$0/t)",
-        "carbon price<br>A$150/t",
-        "central",
-        "low",
-        HATCH_NOTE,
-    }
+    assert [note.text for note in figure.layout.annotations] == ["2030", HATCH_NOTE]
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("base", "base"),
+        ("d135_i050", "d=1.35, i=0.50"),
+        ("d100_i100", "d=1.00, i=1.00"),
+    ],
+)
+def test_increment_label_spells_out_both_levels(key, expected):
+    assert increment_label(key) == expected
 
 
 def test_main_writes_one_html_page(exports):
@@ -571,11 +696,21 @@ def test_main_writes_one_html_page(exports):
 
     text = page.read_text(encoding="utf-8")
     assert page == exports.parent / "dashboard.html"
-    assert "<h2>Cost frontier</h2>" in text
-    assert "<h2>Storage build</h2>" in text
-    # Every section's box, plus the assumptions table that sits under the technology mix.
+    # Every tidy-frame section's box, plus the assumptions table: the only run-directory section
+    # this run holds the inputs to draw.
     assert text.count('<div class="divider"') == len(SECTIONS) + 1
     assert text.count('querySelectorAll(".divider")') == 1
+
+
+def test_main_heads_the_sections_in_page_order(exports):
+    page = main(exports.parent)
+
+    headings = re.findall(r"<h2>(.*?)</h2>", page.read_text(encoding="utf-8"))
+    assert headings == [*SECTIONS, ASSUMPTIONS_HEADING]
+
+
+def test_main_splices_each_run_section_under_the_heading_it_follows():
+    assert set(RUN_SECTIONS) <= set(SECTIONS)
 
 
 def test_main_leaves_every_figure_to_fill_its_own_box(exports):
@@ -584,19 +719,10 @@ def test_main_leaves_every_figure_to_fill_its_own_box(exports):
     # Everything past plotly's bundle: the figures, the boxes holding them and the page script.
     text = page.read_text(encoding="utf-8").partition("</script>")[2]
     assert '"height":' not in text
-    assert (
-        text.count('<div class="box" style="overflow: auto; height:')
-        == len(SECTIONS) + 1
+    assert text.count('<div class="box" style="overflow: auto; height:') == (
+        len(SECTIONS) + 1
     )
     assert text.count('"Fullscreen"') == 1
-
-
-def test_main_renders_a_run_too_small_to_interpolate(two_cell_exports):
-    page = main(two_cell_exports.parent)
-
-    text = page.read_text(encoding="utf-8")
-    assert "<h2>Cost surface as heatmap</h2>" not in text
-    assert "<h2>Technology mix</h2>" in text
 
 
 def _assumptions_table(page: Path) -> list[str]:
@@ -659,16 +785,181 @@ def test_transmission_limits_draw_the_deepest_central_cap_against_both_ceilings(
 
     # The shallower cap and the REZ connection with no published limit are both left out, and a
     # flow path's own corridor capacity is AEMO's, so only its expansion headroom divides by four.
+    # The premium step is one more helping of published headroom above AEMO's limit.
     assert "ext_central_cap0005" in figure.layout.title.text
     assert [(list(bar.x), list(bar.y)) for bar in figure.data if bar.type == "bar"] == [
         (["Q1-NQ"], [3500.0]),
         (["CQ-NQ"], [2000.0]),
     ]
     assert [
-        (dash.name, list(dash.y)) for dash in figure.data if dash.type == "scatter"
+        (dash.name, list(dash.y))
+        for dash in figure.data
+        if dash.type == "scatter" and dash.mode == "markers"
     ] == [
         ("AEMO IASR limit", [2040.0]),
+        ("2x AEMO limit (premium step)", [3330.0]),
         ("Relaxed limit", [8160.0]),
         ("AEMO IASR limit", [2700.0]),
+        ("2x AEMO limit (premium step)", [4200.0]),
         ("Relaxed limit", [7200.0]),
     ]
+
+
+def test_transmission_limits_shade_the_two_priced_tranches(csv_str_to_df):
+    links = csv_str_to_df("""
+        cell,                 year,  link,   kind,       p_nom_mw,  p_nom_opt_mw,  expansion_limit_mw,  transmission_limit_mw
+        ext_central_cap0005,  2050,  Q1-NQ,  rez,        3000.0,    3500.0,        5160.0,              3000.0
+    """)
+
+    figure = figures.figure_transmission_limits(links, 4.0, 4.0)
+
+    # Each band is a floor and a ceiling filled down to it, and both sit ahead of the bars.
+    bands = [
+        trace
+        for trace in figure.data
+        if trace.type == "scatter" and trace.mode == "lines"
+    ]
+    assert [(band.name, list(band.y), band.fill) for band in bands] == [
+        ("First premium tranche", [2040.0], None),
+        ("First premium tranche", [3330.0], "tonexty"),
+        ("Second premium tranche", [3330.0], None),
+        ("Second premium tranche", [8160.0], "tonexty"),
+    ]
+    assert [trace.type for trace in figure.data].index("bar") == len(bands)
+
+
+def test_build_cost_curves_step_each_group_and_mark_what_the_run_used(csv_str_to_df):
+    tranches = csv_str_to_df("""
+        kind,          group,  period, tranche, width_mw, adder,   mw_used
+        transmission,  Q1-NQ,  2035,   1,       1000.0,   0.0,     1000.0
+        transmission,  Q1-NQ,  2035,   2,       1000.0,   15000.0, 400.0
+        transmission,  Q1-NQ,  2035,   3,       ,         60000.0, 0.0
+    """)
+
+    figure = figures.figure_build_cost_curves(figures.tranche_curve_steps(tranches))
+
+    # The unbounded backstop is drawn half again past the bounded steps below it.
+    staircase, used = figure.data
+    assert (list(staircase.x), list(staircase.y)) == (
+        [0.0, 1000.0, 2000.0, 3000.0],
+        [0.0, 15000.0, 60000.0, 60000.0],
+    )
+    assert (used.name, list(used.x), list(used.y)) == (
+        figures.CURVE_USAGE_NAME,
+        [1000.0, 1400.0],
+        [0.0, 15000.0],
+    )
+
+
+def test_build_cost_curves_are_dropped_when_the_run_priced_none(exports):
+    assert _figure_build_cost_curves(OutputLayout(exports.parent)) is None
+
+
+def test_relax_curve_steps_name_each_group_by_its_limit_and_period(csv_str_to_df):
+    generators = csv_str_to_df("""
+        name,                           p_nom_max, capital_cost
+        N2_resource_limit_relax1_2035,   1500.0,    20000.0
+        N2_resource_limit_relax2_2035,   3000.0,    30000.0
+        N2_resource_limit_relax_2035,    ,          15000.0
+    """)
+
+    steps = figures.relax_curve_steps(generators)
+
+    expected = csv_str_to_df("""
+        curve,                          group,                   tranche, width_mw, adder,   mw_used
+        REZ resource limit (curve 1a),  N2_resource_limit 2035,  1,       1500.0,   20000.0,
+        REZ resource limit (curve 1a),  N2_resource_limit 2035,  2,       3000.0,   30000.0,
+    """)
+    pd.testing.assert_frame_equal(
+        steps.reset_index(drop=True), expected, check_dtype=False
+    )
+
+
+def test_near_term_pipeline_stacks_the_roster_against_aemos_own_fleet(csv_str_to_df):
+    roster = csv_str_to_df("""
+        fuel_type,   status,       maximum_capacity_mw
+        Black Coal,  Existing,     10000.0
+        Brown Coal,  Existing,     4000.0
+        Wind,        Existing,     6000.0
+        Wind,        Committed,    3000.0
+        Battery,     Anticipated,  2000.0
+        Biomass,     Existing,     500.0
+    """)
+    built = csv_str_to_df("""
+        cell,    year, new_gw_Wind, new_gw_Solar, new_gw_Biomass
+        ext_sc,  2030, 4.0,         5.0,          0.5
+    """)
+
+    figure = figures.figure_near_term_pipeline(
+        roster, built, {"Generator allowance": 19.0}
+    )
+
+    # One stacked segment per trace, then AEMO's own 2030 capacity dashed beside the stacks.
+    assert [(trace.name, list(trace.x), list(trace.y)) for trace in figure.data] == [
+        ("Existing", ["Coal", "Wind"], [14.0, 6.0]),
+        ("Committed and anticipated", ["Battery", "Wind"], [2.0, 3.0]),
+        ("New build", ["Solar", "Wind"], [5.0, 4.0]),
+        (
+            "AEMO CDP4 2030",
+            ["Coal", "Gas", "Hydro", "Wind", "Solar"],
+            [13.0, 12.0, 7.0, 26.0, 32.0],
+        ),
+    ]
+    assert figure.layout.shapes[0].y0 == 19.0
+
+
+def test_near_term_pipeline_is_dropped_when_no_templated_inputs_remain(exports):
+    assert _figure_near_term_pipeline(OutputLayout(exports.parent)) is None
+
+
+def test_pipeline_rush_stacks_each_cells_tranches_under_its_limits(csv_str_to_df):
+    tranches = csv_str_to_df("""
+        cell_label,      group,                tranche, width_mw, mw_used, premium_aud_per_yr
+        base,            pipeline_generation,  1,       13000.0,  13000.0, 0.0
+        base,            pipeline_generation,  2,       13000.0,  2000.0,  142800000.0
+        d=1.35__i=1.00,  pipeline_generation,  1,       13000.0,  13000.0, 0.0
+        d=1.35__i=1.00,  pipeline_generation,  2,       13000.0,  9000.0,  642600000.0
+    """)
+
+    figure = figures.figure_pipeline_rush(tranches)
+
+    # The free and rush-charged tranches stacked per cell, then the rush charge each cell paid.
+    assert [(bar.name, list(bar.y)) for bar in figure.data] == [
+        ("Free allowance", [13.0, 13.0]),
+        ("Rush-charged", [2.0, 9.0]),
+        (None, [142.8, 642.6]),
+    ]
+    assert [shape.y0 for shape in figure.layout.shapes] == [13.0, 26.0]
+
+
+def test_pipeline_rush_is_dropped_when_no_solve_priced_one(exports):
+    assert _figure_pipeline_rush(OutputLayout(exports.parent)) is None
+
+
+def test_duals_bar_each_cap_and_table_the_largest_constraints(csv_str_to_df):
+    manifest = csv_str_to_df("""
+        cell,    year, implied_carbon_price_aud_per_t
+        ext_sc,  2030, 120.0
+        ext_sc,  2035, 900.0
+    """)
+    duals = csv_str_to_df("""
+        cell,    year, constraint,             dual
+        ext_sc,  2030, Q1-NQ_expansion_limit,  -80.0
+        ext_sc,  2030, N2_resource_limit,      -1500.0
+        ext_sc,  2035, N2_resource_limit,      -3000.0
+    """)
+
+    figure = figures.figure_duals(manifest, duals)
+
+    bar, table = figure.data
+    assert (list(bar.x), list(bar.y)) == (["2030", "2035"], [120.0, 900.0])
+    # Each year lists its own constraints, the largest by absolute dual first.
+    assert [list(column) for column in table.cells.values] == [
+        [2030, 2030, 2035],
+        ["N2_resource_limit", "Q1-NQ_expansion_limit", "N2_resource_limit"],
+        [-1500.0, -80.0, -3000.0],
+    ]
+
+
+def test_duals_are_dropped_when_no_chain_exported_them(exports):
+    assert _figure_duals(OutputLayout(exports.parent)) is None

@@ -8,6 +8,7 @@ from analysis.model import apply_model_patches
 from analysis.model.biomass_cap import apply as biomass_cap_apply
 from analysis.model.flow_path_limits import apply as flow_path_limits_apply
 from analysis.model.maintenance_overlay import apply as maintenance_overlay_apply
+from analysis.model.pipeline_pin import apply as pipeline_pin_apply
 from analysis.model.pumped_storage_fix import apply as pumped_storage_fix_apply
 from analysis.model.repowering import apply as repowering_apply
 from analysis.model.rez_limits import apply as rez_limits_apply
@@ -106,6 +107,98 @@ def test_biomass_cap_nets_existing_biomass_off_the_new_entrant_ceiling(csv_str_t
     pd.testing.assert_frame_equal(result["custom_constraints_rhs"], expected_rhs)
 
 
+def test_biomass_cap_interpolates_between_anchor_years_and_holds_after_2050(
+    csv_str_to_df,
+):
+    tables = {
+        "new_entrant_generators": csv_str_to_df("""
+            generator,   fuel_type,  lifetime
+            biomass_sq,  Biomass,    30
+        """),
+        "custom_constraints_lhs": _EMPTY_CC_LHS.copy(),
+        "custom_constraints_rhs": _EMPTY_CC_RHS.copy(),
+    }
+
+    result = biomass_cap_apply(tables, _config([2026, 2060]))
+
+    expected = csv_str_to_df("""
+        constraint_id,     constraint_type,  rhs
+        biomass_cap_2026,  <=,               1100.0
+        biomass_cap_2060,  <=,               5000.0
+    """)
+    pd.testing.assert_frame_equal(result["custom_constraints_rhs"], expected)
+
+
+def test_pipeline_pin_caps_generation_and_storage_at_their_own_allowances(
+    csv_str_to_df,
+):
+    new_entrants = csv_str_to_df("""
+        generator,   status,       lifetime
+        wind_sq,     New__Entrant,  25
+        coal_sq,     Existing,     30
+    """)
+    batteries = csv_str_to_df("""
+        storage_name,  status,       lifetime
+        bess_sq,       New__Entrant,  20
+    """)
+    tables = {
+        "new_entrant_generators": new_entrants,
+        "new_entrant_batteries": batteries,
+        "custom_constraints_lhs": _EMPTY_CC_LHS.copy(),
+        "custom_constraints_rhs": _EMPTY_CC_RHS.copy(),
+    }
+
+    result = pipeline_pin_apply(
+        tables, _config([2030]), cap_mw=19000, storage_cap_mw=6000
+    )
+
+    expected_lhs = csv_str_to_df("""
+        constraint_id,                          term_type,           term_id,       coefficient
+        pipeline_new_entrant_generators_2030,   generator_capacity,  wind_sq_2030,  1.0
+        pipeline_new_entrant_batteries_2030,    storage_capacity,    bess_sq_2030,  1.0
+    """)
+    pd.testing.assert_frame_equal(result["custom_constraints_lhs"], expected_lhs)
+
+    expected_rhs = csv_str_to_df("""
+        constraint_id,                          constraint_type,  rhs
+        pipeline_new_entrant_generators_2030,   <=,               19000.0
+        pipeline_new_entrant_batteries_2030,    <=,               6000.0
+    """)
+    pd.testing.assert_frame_equal(result["custom_constraints_rhs"], expected_rhs)
+
+
+def test_pipeline_pin_caps_at_the_rush_ceilings_where_the_rush_is_priced(
+    csv_str_to_df,
+):
+    tables = {
+        "new_entrant_generators": csv_str_to_df("""
+            generator,  status,        lifetime
+            wind_sq,    New__Entrant,  25
+        """),
+        "new_entrant_batteries": csv_str_to_df("""
+            storage_name,  status,        lifetime
+            bess_sq,       New__Entrant,  20
+        """),
+        "custom_constraints_lhs": _EMPTY_CC_LHS.copy(),
+        "custom_constraints_rhs": _EMPTY_CC_RHS.copy(),
+    }
+
+    result = pipeline_pin_apply(
+        tables,
+        _config([2030]),
+        cap_mw=13000,
+        storage_cap_mw=0,
+        rush_ceilings_mw=(26000, 6000),
+    )
+
+    expected_rhs = csv_str_to_df("""
+        constraint_id,                          constraint_type,  rhs
+        pipeline_new_entrant_generators_2030,   <=,               26000.0
+        pipeline_new_entrant_batteries_2030,    <=,               6000.0
+    """)
+    pd.testing.assert_frame_equal(result["custom_constraints_rhs"], expected_rhs)
+
+
 def test_pumped_storage_fix_removes_pumped_hydro_from_the_generator_roster(
     csv_str_to_df,
 ):
@@ -150,7 +243,7 @@ def _rez_tables(csv_str_to_df) -> dict[str, pd.DataFrame]:
     }
 
 
-def test_rez_limits_doubles_every_rez_limit_and_leaves_prices_and_fork_caps_alone(
+def test_rez_limits_doubles_the_hard_limits_and_leaves_prices_soft_limits_and_fork_caps_alone(
     csv_str_to_df, caplog
 ):
     tables = _rez_tables(csv_str_to_df)
@@ -160,8 +253,8 @@ def test_rez_limits_doubles_every_rez_limit_and_leaves_prices_and_fork_caps_alon
 
     expected_rez = csv_str_to_df("""
         rez_id,  isp_sub_region_id,  carrier,  wind_generation_total_limits_mw_high,  wind_generation_total_limits_mw_medium,  wind_generation_total_limits_mw_offshore_floating,  wind_generation_total_limits_mw_offshore_fixed,  solar_pv_plus_solar_thermal_limits_mw_solar,  rez_resource_limit_violation_penalty_factor_$/mw,  rez_transmission_network_limit_summer_typical,  land_use_limits_mw_wind,  land_use_limits_mw_solar
-        Q1,      NQ,                 AC,       1140.0,                                3420.0,                                 0.0,                                                0.0,                                             2200.0,                                       300000.0,                                          1500.0,                                        13528.0,                 32468.0
-        Q2,      NQ,                 AC,       9400.0,                                27800.0,                                0.0,                                                0.0,                                             16000.0,                                      300000.0,                                          1400.0,                                        55058.0,                 132142.0
+        Q1,      NQ,                 AC,       570.0,                                 1710.0,                                 0.0,                                                0.0,                                             1100.0,                                       300000.0,                                          1500.0,                                        13528.0,                 32468.0
+        Q2,      NQ,                 AC,       4700.0,                                13900.0,                                0.0,                                                0.0,                                             8000.0,                                       300000.0,                                          1400.0,                                        55058.0,                 132142.0
     """)
     pd.testing.assert_frame_equal(result["renewable_energy_zones"], expected_rez)
 
