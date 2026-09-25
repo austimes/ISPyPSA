@@ -1,7 +1,7 @@
 existing_committed_anticipated_additional_generator_summary:
   sheet_name: "Summary Mapping"
   header_rows: [4, 5, 6]
-  end_row: 648
+  end_row: 732  # v7.8-adjusted: was 648; FINAL data ends r732 (Note r733)
   column_range: "B:AF"
   forward_fill_values: False
 
@@ -10,8 +10,8 @@ consumer_energy_resources_summary:
   header_rows: [4, 5, 6]
   skip_rows:
     start: 7
-    end: 654
-  end_row: 704
+    end: 736  # v7.8-adjusted: was 654; CER header r734, data from r737
+  end_row: 786  # v7.8-adjusted: was 704; CER data ends r786
   column_range: "B:AF"
   forward_fill_values: False
 

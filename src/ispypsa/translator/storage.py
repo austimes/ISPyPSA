@@ -6,6 +6,7 @@ import pandas as pd
 from ispypsa.translator.helpers import (
     _add_investment_periods_as_build_years,
     _annuitised_investment_costs,
+    _extend_trajectory_to_periods,
     _get_commissioning_or_build_year_as_int,
     _get_financial_year_int_from_string,
 )
@@ -142,6 +143,12 @@ def _translate_new_entrant_batteries(
         return pd.DataFrame()
 
     battery_attributes = _NEW_ENTRANT_BATTERY_ATTRIBUTES.copy()
+    # Workbook build limits (PHES menu): candidates carrying a finite
+    # `build_limit_mw` get it as PyPSA `p_nom_max`; rows without one (all
+    # battery candidates) keep a NaN limit here and are filled with inf once
+    # the ECAA and new-entrant tables are concatenated.
+    if "build_limit_mw" in new_entrant_batteries.columns:
+        battery_attributes["build_limit_mw"] = "p_nom_max"
     # Decide which column to rename to be the bus column.
     if regional_granularity == "sub_regions":
         bus_column = "sub_region_id"
@@ -261,6 +268,11 @@ def _add_new_entrant_battery_build_costs(
     new_entrant_batteries["build_year"] = new_entrant_batteries["build_year"].astype(
         "int64"
     )
+
+    build_costs = _extend_trajectory_to_periods(
+        build_costs, "build_year", sorted(new_entrant_batteries["build_year"].unique())
+    )
+
     # return battery table with build costs merged in
     new_entrants_with_build_costs = new_entrant_batteries.merge(build_costs, how="left")
 
