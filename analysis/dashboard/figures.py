@@ -39,6 +39,9 @@ CARRIER_COLOURS = {
     "Pumped hydro": "#7fb8dd",
 }
 
+#: Cost-input names that are a carrier's main new-entrant technology, drawn in that carrier's colour.
+INPUT_COST_CARRIERS = {"Large scale Solar PV": "Solar"}
+
 #: Carrier columns whose CSV name reads differently on the page.
 CARRIER_LABELS = {"Water": "Hydro (conventional)"}
 
@@ -121,6 +124,13 @@ SHARP_BAND_NAME = "ShARP clean ladder reach (approx.)"
 SHARP_COST_BAND_NAME = "ShARP whole-system cost (includes sunk capital)"
 SHARP_BAND_FILL = "rgba(10,80,10,0.2)"
 SHARP_FUTURES_NAME = "ShARP futures range"
+#: ShARP's sunk capital in 2026, A$2025 per MWh of operational demand, derived in ``research/sharp_grid_reference/`` (S011).
+#: It is held flat because ShARP publishes no later split, so it overstates the offset as the 2026 fleet retires.
+SHARP_SUNK_CAPITAL_2026 = 27.7
+SHARP_EXCLUDING_SUNK_NAME = (
+    "ShARP excluding sunk capital (2026 value held flat, approx.)"
+)
+SHARP_EXCLUDING_SUNK_LINE = {**SHARP_LINE, "dash": "dot"}
 
 #: ShARP's planned columns the pathway panels draw, in ``INTENSITY_PANELS`` order.
 SHARP_PATHWAY_COLUMNS = [
@@ -916,7 +926,7 @@ def _sharp_pathway(years: pd.Series) -> list[list[go.Scatter]]:
     year = cleanest["year"]
     bands = _sharp_bands(cleanest)
     names = [name for name, _, _ in bands]
-    return [
+    panels = [
         [
             *_sharp_band(year, low, high, name, names.index(name) == index),
             _sharp_line(year, cleanest[column], "planned", index == 0),
@@ -925,6 +935,20 @@ def _sharp_pathway(years: pd.Series) -> list[list[go.Scatter]]:
             zip(SHARP_PATHWAY_COLUMNS, bands)
         )
     ]
+    panels[0].append(_sharp_excluding_sunk(year, cleanest[SHARP_PATHWAY_COLUMNS[0]]))
+    return panels
+
+
+def _sharp_excluding_sunk(years: pd.Series, cost: pd.Series) -> go.Scatter:
+    """ShARP's planned cost less its 2026 sunk capital, the basis the campaign and AEMO count capital on."""
+    return go.Scatter(
+        x=years,
+        y=cost - SHARP_SUNK_CAPITAL_2026,
+        name=SHARP_EXCLUDING_SUNK_NAME,
+        mode="lines",
+        line=SHARP_EXCLUDING_SUNK_LINE,
+        hovertemplate=f"{SHARP_EXCLUDING_SUNK_NAME}<br>%{{x:.3g}}: %{{y:.3g}}<extra></extra>",
+    )
 
 
 def _sharp_bands(cleanest: pd.DataFrame) -> list[tuple[str, pd.Series, pd.Series]]:
@@ -1675,11 +1699,12 @@ def figure_input_costs(costs: pd.DataFrame) -> go.Figure:
 
 
 def _carrier_named_colours(names: pd.Series) -> dict[str, str]:
-    """Pin the cost inputs named after a generation carrier to that carrier's colour."""
+    """Pin the cost inputs named after a generation carrier, or its main new-entrant technology, to that carrier's colour."""
+    carriers = {name: INPUT_COST_CARRIERS.get(name, name) for name in names.unique()}
     return {
-        name: CARRIER_COLOURS[name]
-        for name in names.unique()
-        if name in CARRIER_COLOURS
+        name: CARRIER_COLOURS[carrier]
+        for name, carrier in carriers.items()
+        if carrier in CARRIER_COLOURS
     }
 
 
@@ -1721,7 +1746,7 @@ def figure_tech_mix(
         labels=LABELS,
         height=DECOMPOSITION_HEIGHT,
     )
-    figure.update_xaxes(type="category")
+    figure.update_xaxes(type="category", matches=None, title_text="")
     figure.update_layout(legend_title_text="Carrier")
     _colour_legend_entries(figure)
     _strip_facet_titles(figure)
@@ -1791,7 +1816,7 @@ def figure_storage_build(
         labels=LABELS,
         height=DECOMPOSITION_HEIGHT,
     )
-    figure.update_xaxes(type="category")
+    figure.update_xaxes(type="category", matches=None, title_text="")
     figure.update_layout(legend_title_text=LABELS["duration_class"])
     _colour_legend_entries(figure)
     _strip_facet_titles(figure)

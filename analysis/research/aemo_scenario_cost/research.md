@@ -147,23 +147,27 @@ existing fleet, which carries fixed operating cost but no capital, and annualise
 ([`../sharp_grid_reference/`](../sharp_grid_reference/)) shares the dollar year and denominator, but not this scope: ShARP re-costs the
 whole existing grid, sunk capital included.
 
-With the scope matched, the 2030 gap lies in how much new-entrant capacity each model builds. Capacity in 2030, GW, against the IASR
-roster that carries no capital in either model:
+With the scope matched, the 2030 gap lies in how much new-entrant capacity each model builds. Generation, storage and electrolyser
+capital in 2030 is A$1.2 billion per year for the campaign's Step Change base and A$4.4 billion for AEMO's Step Change, in real June
+2025 dollars (S001 `Costs` sheet, times the 1.0598 dollar-year factor). AEMO's capacity for 2029-30 is taken at 1 July 2029 (S006, and
+the `Capacity` sheet of S001), so its new-entrant build is that capacity less the IASR roster commissioned by that date:
 
-| Technology | IASR roster, no capital | Campaign Step Change base | AEMO Step Change (S006) |
-|---|---:|---:|---:|
-| Onshore wind | 21.6 | 24.4 | 29.8 |
-| Utility solar | 24.2 | 29.5 | 31.2 |
-| Batteries | 32.3 | 32.3 | 33.3 |
+| Technology | AEMO 2029-30 (GW) | IASR roster by 1 July 2029 (GW) | AEMO new entrants (GW) | Campaign 2030 new build (GW) | Difference (GW) | Annualised capital (A$k/MW/yr) | Difference (A$bn/yr) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Onshore wind | 29.8 | 17.6 | 12.2 | 2.6 | 9.6 | 242 | 2.33 |
+| Utility solar | 31.2 | 22.9 | 8.3 | 5.3 | 3.0 | 86 | 0.26 |
+| Batteries | 33.3 | 28.2 | 5.1 | 0.0 | 5.1 | 87 | 0.45 |
+| Total | | | | | | | 3.03 |
 
-Generation, storage and electrolyser capital in 2030, A$ billion per year in real June 2025 dollars: 1.2 for the campaign's Step Change
-base and 4.4 for AEMO's Step Change (S001, times the 1.0598 dollar-year factor). AEMO's 2030 fleet holds about 5 GW more wind and 2 GW
-more solar than the campaign's, and every GW above the roster carries capital. The rest of the A$3.2 billion gap is not decomposed; it
-needs the outlook's per-technology build and cost sheets.
+The annualised capital is the IASR's 2028-29 Step Change build cost (A$2,860/kW wind, A$1,066/kW solar, A$858/kW two-hour battery)
+at its Step Change WACC (7.5%, 7.0% and 8.0%) over the lifetimes the model uses (30, 30 and 20 years), before connection costs and
+locational cost factors (S002). The same rates reproduce the campaign's own 2030 capital: 2.6 GW of wind and 5.3 GW of solar at these
+rates is A$1.1 billion a year. The extra wind, solar and batteries AEMO builds by 2030 account for about A$3.0 billion of the A$3.2
+billion gap; connection costs, gas builds and the rounding in the capacity match cover the rest.
 
 **confidence: high** that the capital scopes match: AEMO states it (S005), and the roster sums reproduce the campaign's 2026 battery,
-wind and solar capacity. **confidence: medium** on the capacity comparison: AEMO's batteries are its medium and shallow storage (S006),
-and the campaign's capacities come from its Step Change base chain exports.
+wind and solar capacity. **confidence: medium** on the decomposition: AEMO's batteries are its medium and shallow storage (S006), the
+roster cut-off uses each project's commissioning date, and the rates leave out connection costs.
 
 ## Residual gaps
 
@@ -174,7 +178,7 @@ pulls the campaign's cost per MWh below AEMO's, so a campaign line sitting under
 | --- | ---- | -------- | ------------------ |
 | Cost classes dropped (A003) | Retirement, system security, and distribution capital and O&M costs | None of these modelled | The common basis already removes them from AEMO; for Step Change they are 2.8 A$/MWh generated in 2030 and 5.1 A$/MWh in 2050 (retirement 2.02 and 3.40, system security 0.82 and 1.53, distribution 0.00 and 0.19, from the table above). Costs the campaign cannot see are left out of both sides rather than priced |
 | Transmission losses | Inter-regional loss equations (IASR "Network losses" sheet) and marginal loss factors | Lossless transport ([`../../../docs/method.md`](../../../docs/method.md)) | The campaign's generation meets its load with no loss, so it builds and runs less plant per MWh served. The published difference was not measured here; part of the 5% to 9% of AEMO generation left unexplained in [`../demand_plan/`](../demand_plan/) is candidate network loss |
-| Time sample and reliability | Full-year chronology, with the reliability standard enforced | 13 representative weeks per solve, no named peak weeks, no reliability standard ([`../campaign_method/`](../campaign_method/)) | Extreme peaks and long low-renewable spells enter only if a sampled week holds them, so firming capacity is under-built against AEMO. Direction: campaign cost lower; size not measured |
+| Time sample and reliability | Sampled chronology (days per month or weeks per year, chosen by net load) over several rolled reference years, then a fitted chronology; minimum reserve levels and firm-capacity constraints, raised until a half-hourly time-sequential model meets the reliability standard (S007) | 13 representative weeks per solve, no named peak weeks, no reliability standard ([`../campaign_method/`](../campaign_method/)) | Extreme peaks and long low-renewable spells enter only if a sampled week holds them, so firming capacity is under-built against AEMO. Direction: campaign cost lower; size not measured |
 
 **confidence: high** that each gap exists and on the dropped-class values; **confidence: low** on the size of the
 transmission-loss and sampling effects, which no run has isolated.

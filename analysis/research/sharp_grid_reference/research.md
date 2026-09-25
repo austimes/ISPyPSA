@@ -170,6 +170,28 @@ The dashboard labels the planned-cost band on its cost panel "ShARP whole-system
 re-costs every existing and committed asset each year, while the campaign and AEMO count new investment plus the existing
 fleet's operating cost, so the ShARP band sits above them by the sunk capital it carries.
 
+ShARP publishes no split of its planned cost into sunk and forward parts: `output_cost_per_unit` is one authored total per
+year (S006). The one bound comes from ShARP's own National Electricity Market (NEM) stock research, which prices forward cost
+with inherited capital set to zero (S011):
+
+| 2026 | A$2024 per delivered MWh | Common basis, A$2025 per MWh of operational demand |
+|---|---:|---:|
+| ShARP planned cost, current policy | 61.56 | 50.0 |
+| ShARP forward cost, inherited capital sunk (reference world) | 27.48 | 22.3 |
+| Difference: sunk capital and other boundary differences | 34.08 | 27.7 |
+| Campaign Step Change base | | 20.8 |
+
+The common-basis column applies the reference's own 2026 conversion, 50.03 / 61.56. The difference is close to the
+A$29.2/MWh gap between the ShARP line and the campaign's 2026 base, so most of that gap is sunk capital. The bound holds for
+2026 only: after 2026 the
+research's forward cost spreads widely across its worlds, and the two sources differ in scope (a national authored trajectory
+against a NEM stock model), so no per-year sunk series follows. The dashboard's cost panel draws "ShARP excluding sunk
+capital" as the planned line less the 2026 figure, A$27.7/MWh, held flat to 2060. Holding it flat overstates the offset in
+later years, because the 2026 fleet whose capital it carries retires and demand grows.
+
+**confidence: low** on the 2026 bound as a sunk-capital figure: the research rows are not accepted as ShARP Library data, and
+its forward cost carries an integration allowance of about A$8/MWh that the campaign does not model.
+
 The futures range spans the six grid methods in S001: the two current-policy methods share one quantity path, the incumbent
 and delayed-with-gas futures set the floor from 2030 on, and the early near-zero future sets the ceiling (A010). The
 current-policy demand lands 1% to 1.5% below the campaign's Step Change knots in 2026 to 2035 and 2.6% to 3.9% below from

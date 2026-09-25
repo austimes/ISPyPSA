@@ -130,6 +130,17 @@ A$2024/MWh. Its only row, verbatim to its currency:
 > generate_grid_electricity,generate_grid_electricity__pathway_bundle,2030,renewable_target_short_lead_time,Short-lead-time overflow-growth adjustment,37.447769,2024,MAUD_2024,...
 > ```
 
+## S011 -- ShARP NEM stock research, forward cost with inherited capital sunk
+
+**Source:** `research/roles/generate_grid_electricity/research.md` and `research/roles/generate_grid_electricity/nem_annual.csv`
+in `austimes/sharp` at commit `6a3d51a59`. On the cost basis, verbatim:
+
+> "Inherited capital is sunk in this forward comparison; inherited maintenance still costs money."
+
+The 2026 reference-world value of `nonenergy_aud_mwh_delivered`, A$2024 per delivered MWh, is 27.476379. The role README at the
+same commit notes that the planned figure recovers existing assets, verbatim: "the combined figure it is taken out of also
+recovers the cost of already-built plant."
+
 ## A001 -- Constant residual emissions factor
 
 Each ladder point's intensity assumes the non-renewable remainder emits at the planned year's residual factor, planned

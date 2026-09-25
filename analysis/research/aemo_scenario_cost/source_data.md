@@ -25,6 +25,10 @@ Sheet `Costs`, titled "Annual costs by class ($000s)": the `CDP4 (ODP)` rows, 14
 The 14 classes, as extracted: generation, storage and electrolyser capital, FOM, VOM and retirement costs; fuel costs; DSP+USE costs;
 flow path capital and O&M costs; REZ capital and O&M costs; distribution capital and O&M costs; system security costs; emissions costs.
 
+Sheet `Capacity`, titled "Installed Generator Capacity by Technology" (MW), note verbatim: "Capacity calculated on 1 July. In early
+study years some wind and solar projects enter later in the financial year and are reflected in the following financial year's
+capacity." Its `CDP4 (ODP)` rows sum to the same 2029-30 wind, utility solar and utility storage capacity as S006.
+
 Sheet `Generation`, titled "Annual as-generated generation by technology (GWh)": the `CDP4 (ODP)` rows summed into three series,
 "Generation excluding rooftop and storage", "Rooftop and other small-scale solar generation" and "Storage and DSP net generation".
 
@@ -96,6 +100,23 @@ Page 117, verbatim:
 Step Change, financial year ending)", values in MW. The 2029-30 column, verbatim: "Onshore wind" 29818.2, "Utility solar" 31188.8,
 "Utility storage" 35779.8. Sheet "Figure 20" splits utility storage into Snowy 2.0 (2.202 GW), deep, medium and shallow storage; medium
 and shallow storage together are 33.3 GW in 2029-30.
+
+## S007 -- ISP Methodology, time sampling and reliability
+
+**Source:** AEMO, *ISP Methodology*, June 2025,
+<https://www.aemo.com.au/-/media/files/stakeholder_consultation/consultations/nem-consultations/2024/2026-isp-methodology/isp-methodology-june-2025.pdf>.
+Verbatim:
+
+> "The SSLT uses the "sampled" chronology setting which preserves a specified number of periods (typically day(s) per month
+> or week(s) per year) for modelling." (p.41)
+
+> "'Sampled' and 'fitted' chronology settings are used for the SSLT and DLT models, respectively" (p.41)
+
+> "AEMO uses a 'rolling reference years' approach in the capacity outlook models." (p.26)
+
+> "If the time-sequential models show the reliability standard is being exceeded, then the reserve levels are increased." (p.44)
+
+> "The time-sequential model optimises electricity dispatch for every hourly or half-hourly interval" (p.61)
 
 ## A001 -- Generation excluding rooftop and storage as the denominator
 

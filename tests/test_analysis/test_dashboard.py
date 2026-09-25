@@ -363,7 +363,8 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
 
     figure = figure_pathway_intensities(frame)
 
-    # The AEMO overlays on the cost, emissions and demand panels, ShARP's band and planned line on each panel, then cost and emissions for
+    # The AEMO overlays on the cost, emissions and demand panels, ShARP's band and planned line on each panel (plus its line less sunk
+    # capital on the cost panel), then cost and emissions for
     # both chains, the fuels each chain burns (coal and gas, gas and biomass) and its demand.
     assert [(trace.name, trace.line.dash) for trace in figure.data] == [
         (None, None),
@@ -384,6 +385,7 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
         (None, None),
         ("ShARP whole-system cost (includes sunk capital)", None),
         ("ShARP current policy (approx.)", "dash"),
+        ("ShARP excluding sunk capital (2026 value held flat, approx.)", "dot"),
         (None, None),
         ("ShARP clean ladder reach (approx.)", None),
         ("ShARP current policy (approx.)", "dash"),
