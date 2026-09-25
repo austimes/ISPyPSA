@@ -74,6 +74,29 @@ quarters of 2023 and 2025.
 > "Australian dollars have been updated from $ 2019 to $ 2020 using All groups CPI index values - June 2020 from the Australian Bureau of
 > Statistics"
 
+## S005 -- 2026 ISP, costs counted in the optimal development path
+
+**Source:** AEMO, *2026 Integrated System Plan for the National Electricity Market*, June 2026,
+<https://www.aemo.com.au/-/media/files/major-publications/isp/2026/2026-integrated-system-plan-isp.pdf>. Page 115, "ISP Explainer:
+Calculating the ODP's benefits and costs", verbatim:
+
+> "Existing, committed and anticipated investment decisions are not costed or re-evaluated, as they do not affect future planning."
+
+> "Similarly, capital costs of committed and anticipated projects are common to all potential development paths and therefore do not
+> affect the cost-benefit analysis."
+
+Page 117, verbatim:
+
+> "some generation, storage and transmission projects have progressed to become 'committed', 'anticipated' or 'policy-supported'
+> projects, so $48 billion is excluded in the costs of the 2026 ODP."
+
+## S006 -- 2026 ISP chart data, Step Change capacity
+
+**Source:** AEMO 2026 ISP chart data workbook, `2026-isp-chart-data.xlsx`, sheet "Figure 1", titled "NEM capacity (GW, 2010 to 2050,
+Step Change, financial year ending)", values in MW. The 2029-30 column, verbatim: "Onshore wind" 29818.2, "Utility solar" 31188.8,
+"Utility storage" 35779.8. Sheet "Figure 20" splits utility storage into Snowy 2.0 (2.202 GW), deep, medium and shallow storage; medium
+and shallow storage together are 33.3 GW in 2029-30.
+
 ## A001 -- Generation excluding rooftop and storage as the denominator
 
 The drawn measure divides by generation excluding rooftop and storage. Rooftop output never crosses the NEM, and storage and DSP net

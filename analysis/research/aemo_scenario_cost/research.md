@@ -75,8 +75,9 @@ Step Change cost classes per MWh generated, showing what drives the rise:
 | Distribution capital and operation and maintenance | 0.00 | 0.19 |
 | DSP and unserved energy | 0.00 | 0.01 |
 
-Every scenario starts near A$20/MWh in 2027 and more than doubles by 2030. AEMO annualises the capital of new builds only, so the early
-years carry little capital; the rise tracks the new fleet's annualised capital accumulating, not a change in the cost of running the grid.
+Every scenario starts near A$20/MWh in 2027 and more than doubles by 2030. AEMO costs only investment decisions still to be made:
+existing, committed, anticipated and policy-supported projects carry no capital (S005), so the early years carry little capital; the rise
+tracks the new fleet's annualised capital accumulating, not a change in the cost of running the grid.
 
 **confidence: high** on the arithmetic: every number is a sum and a ratio of AEMO-published rows, and the five milestone years reproduce
 by hand from the source CSV.
@@ -137,10 +138,32 @@ assumes the campaign's storage losses match AEMO's and leaves AEMO's electrolyse
 the gap to operational demand inside the load ([`../demand_plan/`](../demand_plan/#generation-to-operational-demand-measured),
 A010 there).
 
-One scope difference remains. The campaign counts pre-2030 existing-fleet capital as sunk and adds annualised capital and FOM of the
-chain's surviving builds and existing-fleet FOM ([`../../sharp/frontier_points.py`](../../sharp/frontier_points.py)); AEMO annualises the
-capital of its new builds only. The ShARP reference on the same panel ([`../sharp_grid_reference/`](../sharp_grid_reference/)) is restated
-to the same basis, so every line on the cost and demand panels shares one dollar year and one denominator.
+### Capital scope
+
+The campaign and AEMO count capital on the same set of assets. AEMO leaves existing, committed, anticipated and policy-supported
+projects uncosted (S005). The campaign loads the IASR's whole existing, committed, anticipated and additional policy-supported roster as
+existing fleet, which carries fixed operating cost but no capital, and annualises the capital of its own new-entrant builds only
+([`../../sharp/frontier_points.py`](../../sharp/frontier_points.py)). The ShARP reference on the same panel
+([`../sharp_grid_reference/`](../sharp_grid_reference/)) shares the dollar year and denominator, but not this scope: ShARP re-costs the
+whole existing grid, sunk capital included.
+
+With the scope matched, the 2030 gap lies in how much new-entrant capacity each model builds. Capacity in 2030, GW, against the IASR
+roster that carries no capital in either model:
+
+| Technology | IASR roster, no capital | Campaign Step Change base | AEMO Step Change (S006) |
+|---|---:|---:|---:|
+| Onshore wind | 21.6 | 24.4 | 29.8 |
+| Utility solar | 24.2 | 29.5 | 31.2 |
+| Batteries | 32.3 | 32.3 | 33.3 |
+
+Generation, storage and electrolyser capital in 2030, A$ billion per year in real June 2025 dollars: 1.2 for the campaign's Step Change
+base and 4.4 for AEMO's Step Change (S001, times the 1.0598 dollar-year factor). AEMO's 2030 fleet holds about 5 GW more wind and 2 GW
+more solar than the campaign's, and every GW above the roster carries capital. The rest of the A$3.2 billion gap is not decomposed; it
+needs the outlook's per-technology build and cost sheets.
+
+**confidence: high** that the capital scopes match: AEMO states it (S005), and the roster sums reproduce the campaign's 2026 battery,
+wind and solar capacity. **confidence: medium** on the capacity comparison: AEMO's batteries are its medium and shallow storage (S006),
+and the campaign's capacities come from its Step Change base chain exports.
 
 ## Residual gaps
 
