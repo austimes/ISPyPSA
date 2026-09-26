@@ -1,6 +1,7 @@
 import logging
 import re
 
+import numpy as np
 import pandas as pd
 
 
@@ -69,6 +70,35 @@ def _get_commissioning_or_build_year_as_int(
             commissioning_year = int(commissioning_date.year) + 1
         # Cap at default_build_year to align early generators with model start
         return max(commissioning_year, default_build_year)
+
+
+def _years_from_build_to_closure(ecaa_units: pd.DataFrame) -> pd.Series:
+    """Return each ECAA unit's lifetime from its build year to its closure year.
+
+    Expects the build year in `commissioning_date` (as an int) and a
+    `closure_year` column where values <= 0 mean no closure year, which gives an
+    infinite lifetime.
+    """
+    closure_year = ecaa_units["closure_year"]
+    lifetime = closure_year - ecaa_units["commissioning_date"]
+    return lifetime.where(closure_year > 0, np.inf).astype(float)
+
+
+def _drop_units_built_after_final_period(
+    ecaa_units: pd.DataFrame, name_column: str, final_period: int
+) -> pd.DataFrame:
+    """Drop ECAA units whose build year falls after the final investment period.
+
+    Such units are never active in any modelled period, so keeping them would only
+    add idle capacity to the network.
+    """
+    late = ecaa_units["commissioning_date"] > final_period
+    if late.any():
+        logging.info(
+            f"ECAA units commissioning after the final investment period "
+            f"({final_period}) excluded: {sorted(ecaa_units.loc[late, name_column])}"
+        )
+    return ecaa_units[~late]
 
 
 def _get_financial_year_int_from_string(

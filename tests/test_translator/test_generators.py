@@ -28,7 +28,9 @@ from ispypsa.translator.snapshots import (
 )
 
 
-def test_translate_ecaa_generators(csv_str_to_df, translated_generator_column_order):
+def test_translate_ecaa_generators(
+    csv_str_to_df, translated_generator_column_order, caplog
+):
     """Test translation of existing generators (ECAA) to PyPSA format."""
     # Set up input data using csv_str_to_df
     ecaa_generators_csv = """
@@ -43,10 +45,12 @@ def test_translate_ecaa_generators(csv_str_to_df, translated_generator_column_or
     ispypsa_tables = {
         "ecaa_generators": ecaa_generators,
     }
-    investment_periods = [2025, 2026]
+    investment_periods = [2025, 2030]
 
     # Call the function under test
-    result = _translate_ecaa_generators(ispypsa_tables, investment_periods)
+    with caplog.at_level("INFO"):
+        result = _translate_ecaa_generators(ispypsa_tables, investment_periods)
+    assert "commissioning after the final investment period" not in caplog.text
 
     # Define expected output. The `__→ ` substitution in `csv_str_to_df` means
     # carriers in this fixture do collapse to canonical names ("Black__Coal" →
@@ -75,6 +79,38 @@ def test_translate_ecaa_generators(csv_str_to_df, translated_generator_column_or
         check_exact=False,
         atol=1e-3,
     )
+
+
+def test_translate_ecaa_generators_build_year_from_commissioning_date(
+    csv_str_to_df, caplog
+):
+    """Units enter in the financial year of their commissioning date and retire at closure."""
+    ecaa_generators = csv_str_to_df("""
+    generator,  technology_type,  region_id,  sub_region_id,  fuel_type,  fuel_cost_mapping,  minimum_load_mw,  vom_$/mwh_sent_out,  heat_rate_gj/mwh,  commissioning_date,  closure_year,  maximum_capacity_mw,  rez_id
+    Eraring,    Steam,            NSW,        CNSW,           Coal,       Eraring,            200.0,            2.0,                 9.0,               ,                    2027,          2880.0,               NaN
+    SolarA,     Solar,            NSW,        CNSW,           Solar,      SolarA,             0.0,              0.0,                 0.0,               2026-02-01,          -1,            100.0,                NaN
+    WindB,      Wind,             NSW,        CNSW,           Wind,       WindB,              0.0,              0.0,                 0.0,               2026-07-01,          2057,          200.0,                NaN
+    WindC,      Wind,             NSW,        CNSW,           Wind,       WindC,              0.0,              0.0,                 0.0,               2031-03-01,          2061,          300.0,                NaN
+    """)
+
+    with caplog.at_level("INFO"):
+        result = _translate_ecaa_generators(
+            {"ecaa_generators": ecaa_generators}, [2026, 2030]
+        )
+
+    expected = csv_str_to_df("""
+    name,     build_year,  lifetime
+    Eraring,  2025,        2.0
+    SolarA,   2026,        Infinity
+    WindB,    2027,        30.0
+    """).replace("Infinity", np.inf)
+    pd.testing.assert_frame_equal(
+        result[["name", "build_year", "lifetime"]].reset_index(drop=True), expected
+    )
+    assert (
+        "ECAA units commissioning after the final investment period (2030) "
+        "excluded: ['WindC']"
+    ) in caplog.text
 
 
 def test_translate_ecaa_generators_region_handling(csv_str_to_df):
