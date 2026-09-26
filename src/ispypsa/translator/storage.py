@@ -6,9 +6,11 @@ import pandas as pd
 from ispypsa.translator.helpers import (
     _add_investment_periods_as_build_years,
     _annuitised_investment_costs,
+    _drop_units_built_after_final_period,
     _extend_trajectory_to_periods,
     _get_commissioning_or_build_year_as_int,
     _get_financial_year_int_from_string,
+    _years_from_build_to_closure,
 )
 from ispypsa.translator.mappings import (
     _BATTERY_ATTRIBUTE_ORDER,
@@ -44,17 +46,23 @@ def _translate_ecaa_batteries(
         `pd.DataFrame`: `PyPSA` style ECAA battery attributes in tabular format.
     """
 
-    ecaa_batteries = ispypsa_tables["ecaa_batteries"]
+    ecaa_batteries = ispypsa_tables["ecaa_batteries"].copy()
     if ecaa_batteries.empty:
         logging.warning(
             "Templated table 'ecaa_batteries' is empty - no ECAA batteries will be included in this model."
         )
         return pd.DataFrame()
 
-    # calculate lifetime based on expected closure_year - build_year:
-    ecaa_batteries["lifetime"] = ecaa_batteries["closure_year"].map(
-        lambda x: float(x - investment_periods[0]) if x > 0 else np.inf
+    ecaa_batteries["commissioning_date"] = ecaa_batteries["commissioning_date"].apply(
+        _get_commissioning_or_build_year_as_int,
+        default_build_year=investment_periods[0],
+        year_type=year_type,
     )
+    ecaa_batteries = _drop_units_built_after_final_period(
+        ecaa_batteries, "storage_name", investment_periods[-1]
+    )
+    # calculate lifetime based on expected closure_year - build_year:
+    ecaa_batteries["lifetime"] = _years_from_build_to_closure(ecaa_batteries)
     ecaa_batteries = ecaa_batteries[ecaa_batteries["lifetime"] > 0].copy()
 
     battery_attributes = _ECAA_BATTERY_ATTRIBUTES.copy()
@@ -75,12 +83,6 @@ def _translate_ecaa_batteries(
         ecaa_batteries.loc[rez_mask, bus_column] = ecaa_batteries.loc[
             rez_mask, "rez_id"
         ]
-
-    ecaa_batteries["commissioning_date"] = ecaa_batteries["commissioning_date"].apply(
-        _get_commissioning_or_build_year_as_int,
-        default_build_year=investment_periods[0],
-        year_type=year_type,
-    )
 
     ecaa_batteries["p_nom_extendable"] = False
     ecaa_batteries["capital_cost"] = 0.0

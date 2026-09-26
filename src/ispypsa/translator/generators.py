@@ -13,9 +13,11 @@ from ispypsa.templater.helpers import (
 from ispypsa.translator.helpers import (
     _add_investment_periods_as_build_years,
     _annuitised_investment_costs,
+    _drop_units_built_after_final_period,
     _extend_trajectory_to_periods,
     _get_commissioning_or_build_year_as_int,
     _get_financial_year_int_from_string,
+    _years_from_build_to_closure,
 )
 from ispypsa.translator.mappings import (
     _CARRIER_TO_FUEL_COST_TABLES,
@@ -86,16 +88,22 @@ def _translate_ecaa_generators(
         `pd.DataFrame`: `PyPSA` style ECAA generator attributes in tabular format.
     """
 
-    ecaa_generators = ispypsa_tables["ecaa_generators"]
+    ecaa_generators = ispypsa_tables["ecaa_generators"].copy()
     if ecaa_generators.empty:
         # TODO: log
         # raise error?
         return pd.DataFrame()
 
-    # calculate lifetime based on expected closure_year - build_year:
-    ecaa_generators["lifetime"] = ecaa_generators["closure_year"].map(
-        lambda x: float(x - investment_periods[0] + 1) if x > 0 else np.inf
+    ecaa_generators["commissioning_date"] = ecaa_generators["commissioning_date"].apply(
+        _get_commissioning_or_build_year_as_int,
+        default_build_year=investment_periods[0] - 1,
+        year_type=year_type,
     )
+    ecaa_generators = _drop_units_built_after_final_period(
+        ecaa_generators, "generator", investment_periods[-1]
+    )
+    # calculate lifetime based on expected closure_year - build_year:
+    ecaa_generators["lifetime"] = _years_from_build_to_closure(ecaa_generators)
     ecaa_generators = ecaa_generators[ecaa_generators["lifetime"] > 0].copy()
 
     gen_attributes = _ECAA_GENERATOR_ATTRIBUTES.copy()
@@ -117,11 +125,6 @@ def _translate_ecaa_generators(
             rez_mask, "rez_id"
         ]
 
-    ecaa_generators["commissioning_date"] = ecaa_generators["commissioning_date"].apply(
-        _get_commissioning_or_build_year_as_int,
-        default_build_year=investment_periods[0] - 1,
-        year_type=year_type,
-    )
     # Add marginal_cost col with a string mapping to the name of parquet file
     ecaa_generators["marginal_cost"] = ecaa_generators["generator"].apply(
         lambda gen_name: _snakecase_string(re.sub(r"[/\\]", " ", gen_name))
