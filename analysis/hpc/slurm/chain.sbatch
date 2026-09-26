@@ -25,7 +25,8 @@ IFS=$'\t' read -r RUN_ID TRACES ARGS < <(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" "$
 # --resume keeps a chain's carried state and skips periods that already solved, which the
 # per-period base jobs rely on and which is a no-op in a freshly stamped launch directory; a
 # run directory must never be reused once its inputs change, so stamp a new launch instead.
-# Crossover is off for every solve: the barrier solution at BarConvTol 1e-8 is the answer.
+# Crossover is off unless GUROBI_CROSSOVER is set (e.g. -1 to re-solve sub-optimal barrier cells):
+# the barrier solution at BarConvTol 1e-8 is the answer.
 # $ARGS and the trace-token file are deliberately unquoted: $ARGS carries the row's own
 # "--periods ..." and cap schedule (a mixed-year branch array cannot share one export), and
 # the token file holds one "YEAR:DIR" token per milestone. Both must word-split.
@@ -34,5 +35,5 @@ uv run --no-sync msm solve --run-id "$RUN_ID" --output-root "$RUN_DIR" \
   --parsed-traces-directory-schedule $(cat "$TRACES") \
   --rep-weeks 1 6 10 14 19 22 26 32 35 39 41 45 50 \
   --tns-price 89.93 --ccs-supply-curve none --gas-unblended \
-  --use-gurobi --gurobi-method 2 --gurobi-crossover 0 --gurobi-bar-conv-tol 1e-8 --gurobi-threads $SLURM_CPUS_PER_TASK \
+  --use-gurobi --gurobi-method 2 --gurobi-crossover ${GUROBI_CROSSOVER:-0} --gurobi-bar-conv-tol 1e-8 --gurobi-threads $SLURM_CPUS_PER_TASK \
   --highs-threads $SLURM_CPUS_PER_TASK --budget-min 600 --resume $ARGS
