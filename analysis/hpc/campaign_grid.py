@@ -24,6 +24,7 @@ shadow price its solve reports -- so they are never interleaved.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from analysis.hpc import increments
 
@@ -83,8 +84,12 @@ class Trajectory:
 
 
 def cap_key(intensity: float) -> str:
-    """Chain key for a cap intensity, the inverse of :func:`parse_pressure`: 0.0645 -> ``cap00645``."""
-    return "cap" + f"{intensity:g}".replace(".", "")
+    """Chain key for a cap intensity, the inverse of :func:`parse_pressure`: 0.0645 -> ``cap00645``.
+
+    The intensity is rounded to six significant figures and written in positional notation, so
+    0.00006925 is ``cap000006925`` rather than an exponent.
+    """
+    return "cap" + format(Decimal(f"{intensity:g}"), "f").replace(".", "")
 
 
 def parse_pressure(key: str) -> Pressure:

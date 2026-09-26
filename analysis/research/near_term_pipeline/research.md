@@ -20,8 +20,8 @@ Step Change intensity schedule replaces.
 | `--pipeline-period 2030` | 2030 | Turns the pin on for every solve year at or before 2030, so 2026 and 2030 |
 | New-entrant generation allowance, 2026 | 0 MW, A008 | FY2026 is complete; everything built in it is on the existing and committed roster |
 | New-entrant storage allowance, 2026 | 0 MW, A008 | As above |
-| New-entrant generation allowance, 2030 | 19,000 MW, A003; 13,000 MW once the restored generators have traces, A010 | One NEM-wide cap over every `New Entrant` generator in the 2030 solve |
-| New-entrant storage allowance, 2030 | 0 MW on the corrected battery roster, A009 | One NEM-wide cap over every `New Entrant` battery in the 2030 solve |
+| New-entrant generation allowance, 2030 | 20,500 MW, A011 | One NEM-wide cap over every `New Entrant` generator in the 2030 solve |
+| New-entrant storage allowance, 2030 | 5,100 MW, A011 | One NEM-wide cap over every `New Entrant` battery in the 2030 solve |
 | Build above the 2030 allowance | Rush charge, [`../pre2030_rush_charge/`](../pre2030_rush_charge/) | Priced rather than forbidden, up to a hard ceiling |
 | No economic early retirement | A004 | `make_existing_reducible` is skipped for the pinned period, so plant closes on its announced year and not before |
 | 2030 carbon cap | 0.19673 t CO2e/MWh generated, A007 | The Step Change scenario's own 2030 intensity, replacing the authored 0.12 anchor |
@@ -53,7 +53,11 @@ The pipeline already in the model is therefore **18.4 GW of generation and 15.9 
 battery. Its composition matters: the pipeline is overwhelmingly wind, solar and batteries, so the near term is already
 decarbonising fast without any new-entrant build at all.
 
-## The 2030 allowance
+## The draft-ISP 2030 allowance
+
+This section is a history-free record of the yardstick used while only the draft 2026 ISP was available. It is not the
+campaign's setting; the setting the campaign uses is derived against the final 2026 ISP, in
+[The allowance against the final 2026 ISP](#the-allowance-against-the-final-2026-isp).
 
 AEMO's Step Change optimal development path (ODP) is the yardstick: the campaign's base chain follows the Step Change
 emissions intensity, so its 2030 fleet should be able to reach the Step Change 2030 fleet and not much further. The
@@ -74,12 +78,13 @@ Gigawatts. Two roundings are worth naming: the CDP4 series is published in whole
 while the model's 2030 is the 2029-30 financial year, so a half-year offset and up to 0.5 GW of rounding sit in every
 row.
 
-**On the roster above, the settings are 19,000 MW of generation and 6,000 MW of storage.** The storage figure, and
-eventually the generation figure, fall on the corrected roster, see
-[The allowance on the corrected pipeline](#the-allowance-on-the-corrected-pipeline). The form is one NEM-wide
-megawatt cap over new-entrant generators, and a second over new-entrant batteries. Generation and storage are capped
-separately because they are separate supply chains, and because the custom-constraints framework sums one component
-type per constraint in any case.
+**On the roster above, the draft-ISP derivation gives 19,000 MW of generation and 6,000 MW of storage.** The storage
+figure, and eventually the generation figure, fall on the corrected roster, see
+[The allowance on the corrected pipeline](#the-allowance-on-the-corrected-pipeline); neither is the campaign's setting,
+which is derived against the final 2026 ISP instead. The form of the cap is one NEM-wide megawatt limit over
+new-entrant generators, and a second over new-entrant batteries. Generation and storage are capped separately because
+they are separate supply chains, and because the custom-constraints framework sums one component type per constraint
+in any case.
 
 Within generation the cap is deliberately one pooled number rather than a per-carrier schedule, A002. Splitting it per
 carrier would pin the 2030 technology mix to AEMO's, which would make the 2030 increment grid a re-reading of AEMO's own answer instead of
@@ -164,9 +169,11 @@ Storage at 2030, gigawatts:
 | With the parser and date fixes | 24.280 | 6.075 | 30.4 | 3.4 over |
 | With all three fixes | 31.8 | 6.075 | 37.9 | 10.9 over |
 
-**The 2030 storage allowance is 0 MW** (A009). The corrected pipeline already holds more storage than AEMO's draft path
-wanted by 2030. It still does when pumped hydro counts only where its commissioning date falls by FY2030 (3.3 GW, total
-27.5 GW). The 6 GW figure derived above is the gap to a roster missing 9.7 GW of committed and anticipated batteries.
+**On this draft-ISP reading, the 2030 storage allowance is 0 MW** (A009); this is not the campaign's setting, see
+[The allowance against the final 2026 ISP](#the-allowance-against-the-final-2026-isp). The corrected pipeline already
+holds more storage than AEMO's draft path wanted by 2030. It still does when pumped hydro counts only where its
+commissioning date falls by FY2030 (3.3 GW, total 27.5 GW). The 6 GW figure derived above is the gap to a roster
+missing 9.7 GW of committed and anticipated batteries.
 
 Generation at 2030, gigawatts, once the 25 restored generators have traces (A010):
 
@@ -178,14 +185,42 @@ Generation at 2030, gigawatts, once the 25 restored generators have traces (A010
 | **Total** | | | | | **12.8** |
 
 The restored rows are the 20 solar and 5 wind projects whose summary-sheet rows lie below row 648, where the faulty
-parser configuration stopped reading; Hexham Wind Farm (720.8 MW) is left out because it commissions in FY2031. **The 2030 generation allowance is
-19,000 MW while those generators stay out of the solve, and 13,000 MW once they are in.** The allowance stands in for
-missing pipeline, so it should shrink only when the pipeline actually enters.
+parser configuration stopped reading; Hexham Wind Farm (720.8 MW) is left out because it commissions in FY2031. **On
+this draft-ISP reading, the 2030 generation allowance is 19,000 MW while those generators stay out of the solve, and
+13,000 MW once they are in.** Neither figure is the campaign's setting, see
+[The allowance against the final 2026 ISP](#the-allowance-against-the-final-2026-isp). The allowance stands in for
+missing pipeline, so on this reading it should shrink only when the pipeline actually enters.
 
-**confidence: low** on the storage allowance. It is zero on every roster reading, but it still rests on a secondary report
-of a draft-ISP milestone, and the final 2026 ISP's own 2030 storage figure was not available to check it. **confidence:
-medium** on 13,000 MW, which depends on the restored generators' dates and on matching their names across the two
-workbook sheets.
+**confidence: low** on the draft-ISP storage allowance. It is zero on every roster reading, but it still rests on a
+secondary report of a draft-ISP milestone. **confidence: medium** on the draft-ISP 13,000 MW figure, which depends on
+the restored generators' dates and on matching their names across the two workbook sheets.
+
+## The allowance against the final 2026 ISP
+
+The final 2026 ISP replaces the draft-ISP CDP4 series used above. The campaign's 2030 new-entrant allowance is measured
+against the final ISP directly, using the same roster cut the cost-gap decomposition in
+[`../aemo_scenario_cost/`](../aemo_scenario_cost/#capital-scope) already reports.
+
+AEMO's final 2026 ISP Step Change optimal development path reaches, by 1 July 2029 (the model's 2030 period is the
+2029-30 financial year), 29.8 GW of wind, 31.2 GW of utility solar and 33.3 GW of grid-scale batteries, its medium and
+shallow storage (S006). The IASR roster of existing, committed, anticipated and additional policy-supported projects
+commissioned by that date already holds 17.6 GW of wind, 22.9 GW of solar and 28.2 GW of batteries (S007). The
+remainder is genuinely new-entrant capacity:
+
+| Carrier | Final 2026 ISP, 1 July 2029 (GW) | IASR roster by 1 July 2029 (GW) | New-entrant allowance (GW) |
+| ------- | --------------------------------: | -------------------------------: | --------------------------: |
+| Wind | 29.8 | 17.6 | 12.2 |
+| Solar, utility | 31.2 | 22.9 | 8.3 |
+| **Generation total** | | | **20.5** |
+| Batteries | 33.3 | 28.2 | **5.1** |
+
+**The 2030 settings are 20,500 MW of generation and 5,100 MW of storage** (A011), with hard ceilings of twice each
+allowance: 41,000 MW of generation and 10,200 MW of storage
+([`../pre2030_rush_charge/`](../pre2030_rush_charge/)). These figures are the campaign's setting; the draft-ISP
+readings above (19,000 MW / 6,000 MW, and the corrected-pipeline reading of 13,000 MW / 0 MW) are not.
+
+**confidence: high** on the final ISP capacity figures, read from the ISP's own chart data workbook. **confidence:
+medium** on the roster totals, which depend on filtering the IASR roster to a single commissioning-date cutoff.
 
 ## The base cap schedule
 
@@ -211,6 +246,7 @@ it no longer has the means to.
 
 ## Plot
 
-[`plot_near_term_pipeline.py`](plot_near_term_pipeline.py) draws the 2030 fleet by carrier on the corrected roster, restored generators included, as a stacked bar of existing,
-committed, anticipated and policy-supported capacity, with the allowance stacked on top and AEMO's Step Change 2030
-capacity marked beside it. It writes `near_term_pipeline.html` and `near_term_pipeline.png` beside itself.
+[`plot_near_term_pipeline.py`](plot_near_term_pipeline.py) draws the 2030 fleet by carrier as a stacked bar of existing plant and pipeline, with
+the allowance stacked on top and the target capacity marked beside it. Wind, utility solar and batteries are stacked to the IASR roster
+commissioned by 1 July 2029 and marked against the final 2026 ISP; gas, coal and conventional hydro are still stacked to the corrected model
+roster and marked against the draft-ISP CDP4 series. It writes `near_term_pipeline.html` and `near_term_pipeline.png` beside itself.

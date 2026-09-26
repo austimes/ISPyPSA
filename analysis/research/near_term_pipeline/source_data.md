@@ -2,9 +2,10 @@
 
 Verbatim evidence behind [`research.md`](research.md). Source ids match [`source_ledger.csv`](source_ledger.csv).
 
-Every source except S004 was read first-hand: two data files in this repository, two cache tables and four templated
-input files from the share. S004 carries a quote from a fetched web page but not from the underlying AEMO document, which
-was not read for this topic.
+Every source except S004, S006 and S007 was read first-hand: two data files in this repository, two cache tables and
+four templated input files from the share. S004 carries a quote from a fetched web page but not from the underlying
+AEMO document, which was not read for this topic. S006 and S007 restate figures already read and reported by
+[`../aemo_scenario_cost/`](../aemo_scenario_cost/) rather than being read again here.
 
 ## S001 -- AEMO draft 2026 ISP, Step Change CDP4 capacity series
 
@@ -151,3 +152,21 @@ No quote; a data table with columns `year`, `scenario`, `generation_twh`, `emiss
 reproduced in `research.md`. The derivation of the series, and its own confidence, are in
 [`../aemo_scenario_intensity/research.md`](../aemo_scenario_intensity/research.md); this topic only records that the base
 chain's cap schedule now reads from it.
+
+## S006 -- AEMO final 2026 ISP chart data, Step Change capacity at 2029-30
+
+**Source:** [`../aemo_scenario_cost/source_data.md`](../aemo_scenario_cost/source_data.md), S006 there: AEMO 2026 ISP
+chart data workbook, `2026-isp-chart-data.xlsx`, sheet "Figure 1" (titled "NEM capacity (GW, 2010 to 2050, Step Change,
+financial year ending)", values in MW) and sheet "Figure 20". The 2029-30 column, verbatim from that topic: "Onshore
+wind" 29818.2, "Utility solar" 31188.8, "Utility storage" 35779.8; Figure 20 splits utility storage into Snowy 2.0
+(2.202 GW), deep, medium and shallow storage, of which medium and shallow storage (batteries) together are 33.3 GW in
+2029-30. This is the final 2026 ISP, superseding the draft-ISP CDP4 series (S001) as the yardstick for the new-entrant
+allowance.
+
+## S007 -- IASR roster commissioned by 1 July 2029
+
+**Source:** [`../aemo_scenario_cost/research.md`](../aemo_scenario_cost/research.md#capital-scope), table under "Capital
+scope": "IASR roster by 1 July 2029 (GW)" column, wind 17.6, utility solar 22.9, batteries 28.2. That topic sums the
+same maximum-capacity roster as S002 here, filtered to a commissioning date on or before 1 July 2029, for its own
+cost-gap decomposition; this topic reuses the same totals as the roster already in the model when the final-ISP
+allowance is measured.

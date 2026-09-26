@@ -27,7 +27,7 @@ SBATCH_SUBSTITUTIONS = {
     "$RUN_ID": "ext_step_change_sc",
     "$RUN_DIR": "/io/outputs/2026-09-18T10.00_sc5",
     "$TRACES": "2030:/io/tracedirs/c/2030 2040:/io/tracedirs/c/2040",
-    "$ARGS": "--periods 2030 2040 --co2-cap-t-schedule 2030:6e6 2040:2e6",
+    "$ARGS": "--periods 2030 2040 --co2-cap-t-schedule 2030:6e6 2040:2e6 --next-period-only",
 }
 
 
@@ -109,6 +109,33 @@ def test_cli_parses_every_period_of_a_chain(monkeypatch, tmp_path):
     )
     assert chain_record["periods"] == [2030, 2040]
     assert chain_record["co2_cap_t_schedule"] == {"2030": 6000000.0, "2040": 2000000.0}
+
+
+def test_next_period_only_resumes_the_chain_and_solves_one_more_period(
+    monkeypatch, tmp_path
+):
+    _point_io_dir_at(monkeypatch, tmp_path)
+    layout = OutputLayout(tmp_path / "run")
+    _write_record(layout, "step_2030", "completed")
+    layout.network("step_2030").parent.mkdir(parents=True)
+    layout.network("step_2030").write_bytes(b"")
+    solved = []
+
+    def record_period(cfg, run_id, *args, **kwargs):
+        solved.append(run_id)
+        return {"status": "completed"}
+
+    monkeypatch.setattr(solve, "_run_one_period", record_period)
+
+    solve.main(
+        run_id="step",
+        output_root=layout.root,
+        periods=[2030, 2040, 2050],
+        resume=True,
+        next_period_only=True,
+    )
+
+    assert solved == ["step_2040"]
 
 
 def test_parse_year_schedule_casts_values():

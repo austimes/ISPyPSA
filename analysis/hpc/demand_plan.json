@@ -1,5 +1,5 @@
 {
-  "version": "20260923-step-change-2026-2060-full-grid-v2",
+  "version": "20260925-step-change-2026-2060-log-grid-v3",
   "delivery_fraction": 0.91,
   "anchor_2025_customer_delivered_twh": 193.911,
   "milestone_years": [2026, 2030, 2035, 2040, 2045, 2050, 2055, 2060],
@@ -29,31 +29,30 @@
   "cap_intensity_basis": "source",
   "cap_intensity_csv": "analysis/research/aemo_scenario_intensity/aemo_scenario_intensity.csv",
   "pipeline_period": 2030,
-  "new_entrant_cap_mw_by_year": {"2026": 0, "2030": 13000},
-  "new_entrant_storage_cap_mw_by_year": {"2026": 0, "2030": 0},
+  "new_entrant_cap_mw_by_year": {"2026": 0, "2030": 20500},
+  "new_entrant_storage_cap_mw_by_year": {"2026": 0, "2030": 5100},
   "pipeline_rush_charge_aud_per_mw_yr": {"generation": 71400, "storage": 24900},
-  "pipeline_rush_ceiling_mw": {"generation": 26000, "storage": 6000},
+  "pipeline_rush_ceiling_mw": {"generation": 41000, "storage": 10200},
   "increment_grid": {
     "demand_levels": {
+      "d060": 0.6,
       "d080": 0.8,
-      "d090": 0.9,
-      "d095": 0.95,
       "d100": 1.0,
-      "d105": 1.05,
-      "d110": 1.1,
       "d120": 1.2,
-      "d135": 1.35
+      "d140": 1.4,
+      "d160": 1.6,
+      "d180": 1.8,
+      "d200": 2.0
     },
     "intensity_levels": {
-      "i200": 2.0,
-      "i150": 1.5,
-      "i125": 1.25,
-      "i100": 1.0,
-      "i075": 0.75,
-      "i050": 0.5,
-      "i025": 0.25,
-      "i010": 0.1,
-      "i005": 0.05
+      "i2000": 2.0,
+      "i1000": 1.0,
+      "i0410": 0.41,
+      "i0170": 0.17,
+      "i0070": 0.07,
+      "i0030": 0.03,
+      "i0012": 0.012,
+      "i0005": 0.005
     },
     "cells": "all"
   }

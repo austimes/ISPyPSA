@@ -8,28 +8,38 @@ Verbatim evidence behind [`research.md`](research.md). Source ids match [`source
 
 On what one array task is, verbatim:
 
-> "One array task = one campaign chain: a recursive-dynamic solve over the milestones 2030/2040/2050/2060. The array index is the 0-based
-> line number in $RUN_DIR/campaign/chains.tsv, so `msm launch` writes the manifest and submits the array together."
+> "One array task = one campaign chain: a recursive-dynamic solve over the periods its own manifest row names. The array index is the 0-based
+> line number in $RUN_DIR/campaign/chains.tsv, so `msm launch` writes the manifest and submits the array together. The base row carries
+> --next-period-only, so `msm launch` submits it once per milestone period, each job chained behind the one before."
 
 The allocation, verbatim:
 
 > ```bash
-> #SBATCH --nodes=1 --ntasks=1 --cpus-per-task=64
-> #SBATCH --mem=240G
-> #SBATCH --time=3-00:00:00
+> #SBATCH --partition=h24
+> #SBATCH --nodes=1 --ntasks=1 --cpus-per-task=32
+> #SBATCH --mem=96G
+> #SBATCH --time=12:00:00
 > ```
+
+On crossover, verbatim comment: "Crossover is off for every solve: the barrier solution at BarConvTol 1e-8 is the answer." On memory sizing,
+verbatim: "The partition, memory, time and cores are set below, at least 1.25x the use observed per solve (a barrier-only 2060 solve peaks at about
+71 GB)."
 
 The solve command, verbatim:
 
 > ```bash
 > uv run --no-sync msm solve --run-id "$RUN_ID" --output-root "$RUN_DIR" \
->   --periods 2030 2040 2050 2060 --recursive-dynamic --reducible-existing --existing-fom-keeping \
+>   --recursive-dynamic --reducible-existing --existing-fom-keeping \
 >   --parsed-traces-directory-schedule $(cat "$TRACES") \
->   --rep-weeks 1 6 10 14 19 22 26 32 35 39 41 45 50 --no-named-weeks \
+>   --rep-weeks 1 6 10 14 19 22 26 32 35 39 41 45 50 \
 >   --tns-price 89.93 --ccs-supply-curve none --gas-unblended \
->   --use-gurobi --gurobi-method 2 --gurobi-bar-conv-tol 1e-8 --gurobi-threads $SLURM_CPUS_PER_TASK \
->   --highs-threads $SLURM_CPUS_PER_TASK --budget-min 600 ${RESUME:-} $ARGS
+>   --use-gurobi --gurobi-method 2 --gurobi-crossover 0 --gurobi-bar-conv-tol 1e-8 --gurobi-threads $SLURM_CPUS_PER_TASK \
+>   --highs-threads $SLURM_CPUS_PER_TASK --budget-min 600 --resume $ARGS
 > ```
+
+The `--periods` flag and `--no-named-weeks` flag carried by the earlier one-job-per-chain script are both gone: periods are no longer named on the
+command line because each job solves the single next unsolved period the manifest row and `--resume` determine, and named weeks are left on the
+config template's default rather than disabled.
 
 ## S002 -- Generated period config
 
@@ -133,3 +143,14 @@ review of solved ISPyPSA networks (see [`../demand_plan/source_data.md`](../dema
 > "each network's generator snapshot weights: 4,368 snapshots annualised to 8,760 hours"
 
 which confirms the weighting convention rather than only the count.
+
+## S006 -- AEMO ISP Methodology, rationale for the named stress weeks
+
+**Source:** AEMO, *ISP Methodology*, June 2025,
+<https://www.aemo.com.au/-/media/files/stakeholder_consultation/consultations/nem-consultations/2024/2026-isp-methodology/isp-methodology-june-2025.pdf>,
+page 43. No local copy of the document is held in this repository, so the page is cited without a verbatim quote.
+
+The page is the basis given for turning the two named stress weeks on: AEMO's own net-load-based time sampling deliberately includes the
+peak-demand and residual-peak weeks rather than leaving their inclusion to chance. Other pages of the same document are quoted verbatim in
+[`../aemo_scenario_cost/source_data.md`](../aemo_scenario_cost/source_data.md) (S007 there, pages 26, 41, 44 and 61), on the sampled and fitted
+chronology settings and the reliability-standard check; none of those quotes covers page 43.

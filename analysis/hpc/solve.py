@@ -371,6 +371,19 @@ def _completed_record(layout: OutputLayout, run_id: str) -> dict | None:
     return record if record.get("status") == "completed" else None
 
 
+def _needs_state(
+    state_dir: Path | None, year: int, already_solved: dict | None
+) -> bool:
+    """True where a completed period's carried state must be saved.
+
+    Always after a fresh solve; on resume only when that state is missing, because increment
+    cells may be copying the base chain's earlier state while a later base period solves.
+    """
+    return state_dir is not None and (
+        already_solved is None or not (state_dir / str(year)).exists()
+    )
+
+
 def _save_new_built_tranche(
     layout: OutputLayout, run_id: str, year: int, tranches_dir: Path
 ) -> dict:
@@ -461,6 +474,7 @@ def main(
     highs_threads: int | None = None,
     budget_min: float = 720,
     resume: bool = False,
+    next_period_only: bool = False,
 ) -> None:
     """Solve one chain of single-period ISPyPSA runs, one per milestone year.
 
@@ -541,6 +555,8 @@ def main(
     :param budget_min: Per-period wall-clock budget in minutes; a longer solve is killed.
     :param resume: Keep carried state and skip periods that already solved, so a
         requeued job continues from the first unsolved period.
+    :param next_period_only: Stop after the first period this call solves, so with ``--resume``
+        each Slurm job steps the chain on by one period.
     """
     env = Env.from_env()
     layout = OutputLayout(output_root)
@@ -680,11 +696,15 @@ def main(
             ],
         )
         record["per_period_wall_s"] = time.time() - period_started
-        if record.get("status") == "completed" and tranches_dir is not None:
+        if record.get("status") == "completed" and _needs_state(
+            tranches_dir, year, already_solved
+        ):
             record["tranche_extracted"] = _save_new_built_tranche(
                 layout, sub_run_id, year, tranches_dir
             )
-        if record.get("status") == "completed" and retention_dir is not None:
+        if record.get("status") == "completed" and _needs_state(
+            retention_dir, year, already_solved
+        ):
             record["retention_floor"] = _save_retention_floor(
                 layout, sub_run_id, year, retention_dir
             )
@@ -699,6 +719,8 @@ def main(
         )
         if record.get("status") != "completed":
             print(f"  Period {year} status: {record.get('status')}; aborting chain")
+            break
+        if next_period_only and already_solved is None:
             break
 
     chain_record["ended_at_iso"] = time.strftime("%Y-%m-%dT%H:%M:%S")

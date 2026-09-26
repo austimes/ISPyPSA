@@ -1,7 +1,8 @@
 """Plot what a campaign chain actually looks at: which weeks of the year are sampled, and which years are solved.
 
-Both panels are read from the submission script and the config template rather than transcribed. The week list and the milestone list come
-from ``analysis/hpc/slurm/chain.sbatch``; the names of the two optional stress weeks come from the config template in
+The week list is read from the submission script rather than transcribed; the milestone list is read from the demand plan, which is where
+``msm launch`` sources it to build each chain's own ``--periods`` argument (chain.sbatch no longer names the periods itself, because each
+Slurm job solves only the next unsolved period). The names of the two optional stress weeks come from the config template in
 ``analysis/hpc/solve.py``. Those two weeks are selected from the demand and renewable traces at solve time and so have no fixed week number,
 which is why they are drawn as a disabled row rather than at a position.
 
@@ -11,6 +12,7 @@ Run with ``uv run --with kaleido python analysis/research/campaign_method/plot_c
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -20,6 +22,7 @@ from plotly.subplots import make_subplots
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _SBATCH = _REPO_ROOT / "analysis" / "hpc" / "slurm" / "chain.sbatch"
 _SOLVE = _REPO_ROOT / "analysis" / "hpc" / "solve.py"
+_DEMAND_PLAN = _REPO_ROOT / "analysis" / "hpc" / "demand_plan.json"
 _OUTPUT_STEM = Path(__file__).with_name("campaign_sampling")
 
 _WEEKS_IN_YEAR = 52
@@ -30,8 +33,6 @@ _HOURS_IN_YEAR = 8760
 
 # "--rep-weeks 1 6 10 ... 50" in the submission script, up to the next flag.
 _REP_WEEKS_PATTERN = re.compile(r"--rep-weeks((?:\s+\d+)+)")
-# "--periods 2030 2040 2050 2060" in the submission script.
-_PERIODS_PATTERN = re.compile(r"--periods((?:\s+\d+)+)")
 # The config template's named-week list, e.g. 'named_representative_weeks: {"[residual-peak-demand, peak-demand]" if named_weeks else "~"}'.
 _NAMED_WEEKS_PATTERN = re.compile(r'"\[([^\]]+)\]" if named_weeks')
 
@@ -39,6 +40,11 @@ _NAMED_WEEKS_PATTERN = re.compile(r'"\[([^\]]+)\]" if named_weeks')
 def _integers(source: str, pattern: re.Pattern[str]) -> list[int]:
     """Whitespace-separated integers following a command-line flag."""
     return [int(token) for token in pattern.search(source).group(1).split()]
+
+
+def _milestone_years() -> list[int]:
+    """The chain's milestone years, from the demand plan `msm launch` builds each chain's `--periods` argument from."""
+    return json.loads(_DEMAND_PLAN.read_text(encoding="utf-8"))["milestone_years"]
 
 
 def _named_week_names(source: str) -> list[str]:
@@ -166,7 +172,7 @@ def build_figure() -> go.Figure:
     """Assemble the two-panel campaign sampling figure."""
     sbatch = _SBATCH.read_text(encoding="utf-8")
     weeks = _integers(sbatch, _REP_WEEKS_PATTERN)
-    periods = _integers(sbatch, _PERIODS_PATTERN)
+    periods = _milestone_years()
     names = _named_week_names(_SOLVE.read_text(encoding="utf-8"))
     weighting = _HOURS_IN_YEAR / (len(weeks) * _SNAPSHOTS_PER_WEEK / 2)
     figure = make_subplots(

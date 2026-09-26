@@ -81,20 +81,19 @@ product and export lives under `IO_DIR`.
 
 ## Workflow
 
-Running the campaign is five `msm` commands, in order, the first of them once per launch stage:
+Running the campaign is five `msm` commands, in order:
 
 | Step | Where | Command | What it produces |
 | --- | --- | --- | --- |
-| 1 | Cluster login node | `msm launch --run-set sc5 --stage base` | Stamps `$IO_DIR/outputs/<stamp>_sc5/`, builds any missing trace directories, writes the chain manifest and the input package it read, and submits the base chain to Slurm |
-| 1b | Cluster login node | `msm launch --run <dir> --stage branch --after <base job id>` | Submits the increment grid into the same launch directory, held until the base chain it seeds from finishes |
+| 1 | Cluster login node | `msm launch --run-set sc5` | Stamps `$IO_DIR/outputs/<stamp>_sc5/`, builds any missing trace directories, writes the chain manifest and the input package it read, and submits the base chain and the increment grid to Slurm as the dependent jobs listed under "What a launch runs" |
 | 2 | Cluster compute nodes (automatic) | `msm solve --run-id ... --output-root ...` | One chain of single-period solves, one call per Slurm array task |
 | 3 | Cluster login node | `msm extract --run <dir>` | Reads the solved networks and writes the `exports/` CSVs (submits itself as a Slurm array job when Slurm is present, or pass `--local` to run in-process) |
 | 4 | Anywhere `IO_DIR` is mounted | `msm sharp --run <dir>` | The ShARP deliverable CSVs under `exports/sharp/` |
 | 5 | Anywhere `IO_DIR` is mounted | `msm dashboard --run <dir> --show` | `<dir>/dashboard.html`, a self-contained page colleagues can open straight from the share |
 
-Steps 1 to 3 need Slurm; steps 4 and 5 do not. `msm launch --run <dir> --resume` re-submits only the chains whose own
-final period has not completed, which for a branch cell is its single year. Run `uv run msm <command> --help` for every
-flag.
+Steps 1 to 3 need Slurm; steps 4 and 5 do not. `msm launch --run <dir> --resume` re-submits only the base periods and
+increment cells that have not completed, with the same dependencies, and reuses the launch's manifest unchanged, so it
+takes no limit factors or solve flags. Run `uv run msm <command> --help` for every flag.
 
 ## What a launch runs
 
@@ -103,10 +102,22 @@ One manifest holds both stages, so a resume or a stage-by-stage submission alway
 | Stage | Chains | What each one solves |
 | --- | --- | --- |
 | `base` | 1 | The Step Change base chain `ext_step_change_sc`, recursive-dynamic over 2026 and every fifth year from 2030 to 2060, its annual cap set to the Step Change emissions intensity at each milestone |
-| `branch` | 504 | One conditioned single-year solve per increment-grid cell: every pair of 8 demand and 9 intensity levels (72 cells) at each of the plan's seven `increment_years`, 2030 to 2060 |
+| `branch` | 448 | One conditioned single-year solve per increment-grid cell: every pair of 8 demand and 8 intensity levels (64 cells) at each of the plan's seven `increment_years`, 2030 to 2060 |
 
-`--stage base|branch|all` chooses which of the two to submit, and `--after <job id>` holds the submission behind a Slurm
-job, so the grid queues behind the base chain it seeds from. Each branch row carries its own flags in the manifest:
+`msm launch` submits the two stages as one Slurm job per base period and one array per increment year:
+
+| Job | Runs | Waits for (`afterok`) |
+| --- | --- | --- |
+| `base_<year>`, one per milestone | Manifest row 0, which carries `--next-period-only`, so each job resumes the base chain and solves its next period | The base job of the milestone before, or `--after <job id>` for the first |
+| `branch_<year>`, one per increment year | That year's 64 manifest rows as one array | The base job of the milestone before that year, whose carried state its cells are seeded from |
+
+A failed base period therefore holds back only the increment years after it. `--stage base|branch|all` chooses which
+stage to submit, and `--after <job id>` holds the first base job, and any increment year whose seed period this
+submission does not solve, behind another Slurm job. Every job runs `chain.sbatch` on partition `h24` with 32 cores,
+96 GB of memory and a 12-hour limit, and every solve is barrier-only (`--gurobi-crossover 0`) over 13 numbered and 2
+named stress weeks; [`research/campaign_method/`](research/campaign_method/) records why.
+
+Each branch row carries its own flags in the manifest:
 `--periods <its year>`, its own `--co2-cap-t-schedule`, `--seed-state-from ext_step_change_sc` to copy the base chain's
 carried tranches and retention floors from before its year, and `--pin-base-stock` to hold the existing fleet at what
 the base chain retained rather than letting the cell retire below it. Every chain solving 2026 or 2030, base and branch
@@ -121,8 +132,9 @@ narrow.
 `--rez-limit-factor N` relaxes every renewable energy zone (REZ) transmission, expansion and resource limit by `N` in
 each chain of the launch, leaving the interconnector flow paths and every published cost alone;
 `--flow-path-limit-factor N` relaxes the interconnector and intra-region flow-path expansion limits the same way; and
-`--solve-flags` appends extra `msm solve` tokens to every chain (for example `--solve-flags="--gurobi-crossover 0"` for
-a barrier-only feasibility screen; the equals form is needed because the value starts with a dash). Every launch writes
+`--solve-flags` appends extra `msm solve` tokens to every chain (the equals form, `--solve-flags="..."`, is needed
+because the value starts with a dash). All three are written into every row of `campaign/chains.tsv`, the one place a
+job reads its flags from. Every launch writes
 `campaign/assumptions.json` - its limit factors, solve flags, chain count, increment grid and input package - which the
 dashboard lists in its assumptions table, so each page states what its own run was launched under.
 
@@ -138,8 +150,7 @@ the campaign launches with:
 ```bash
 FACTORS='--rez-limit-factor 4.0 --flow-path-limit-factor 4.0'
 PREMIUMS='--social-licence-premiums 0.15,0.60 --build-rate-premiums analysis/model/data/build_rate_premiums_central.csv'
-uv run msm launch --run-set sc5 --stage base $FACTORS --solve-flags="$PREMIUMS"
-uv run msm launch --run <dir> --stage branch --after <base job id> $FACTORS --solve-flags="$PREMIUMS"
+uv run msm launch --run-set sc5 $FACTORS --solve-flags="$PREMIUMS"
 ```
 
 ## Importing inputs and run products produced outside `IO_DIR`
@@ -159,6 +170,12 @@ Inputs and run products are brought onto `$IO_DIR` by hand, with no command in t
   reference-year-2018 parse spanning FY2026 to FY2055 (`ISP_PARSE_YEARS=2018`), plus an `old_store_fill.parquet` in
   each carrying the v2 traces of the ten solar projects and the N9a and N9b zones the FINAL release lacks; every other
   file is copied unchanged from `isp2026_final_v2`.
+- The `isp2026_final_v4` package rebuilds `workbook_cache_final/` with `isp-workbook-parser` 2.9.0's own v7.8 table
+  configurations, which read every table to its final-workbook extent; `iasr/`, `traces/` and `tracedirs/` are copied
+  from `isp2026_final_v3`, and the first `msm launch` against the package rewrites the copied trace directories'
+  shared wind and solar links and trajectory files to point inside it.
+  [research/workbook_parser_upgrade/](research/workbook_parser_upgrade/) records every table and model input that
+  differs.
 - A run solved on local or scratch storage is `rsync`ed into one stamped launch directory,
   `$IO_DIR/outputs/<stamp>_<run_set>/`, carrying its `configs/`, `logs/`, `records/`, `runs/`, `campaign/` and
   `exports/` subdirectories.

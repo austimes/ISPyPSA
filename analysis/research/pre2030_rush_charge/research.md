@@ -16,17 +16,17 @@ models price a 2030 rush the same way.
 | Tranche in the 2030 period | Width | Adder (A$/MW/yr, real June 2025 dollars) |
 | -------------------------- | ----- | ---------------------------------------: |
 | Generation within the allowance | the generation allowance | 0 |
-| Generation above the allowance | up to the 26,000 MW hard ceiling | **71,400** |
+| Generation above the allowance | up to the 41,000 MW hard ceiling | **71,400** |
 | Storage within the allowance | the storage allowance | 0 |
-| Storage above the allowance | up to the 6,000 MW hard ceiling | **24,900** |
+| Storage above the allowance | up to the 10,200 MW hard ceiling | **24,900** |
 
 The charge applies in the 2030 period only. ShARP's adjustment "expires after that year" (S001), so the adder must not be
 carried into later periods as capital cost.
 
-The hard ceilings are `pipeline_rush_ceiling_mw` in the demand plan, set apart from the allowances (A007). The generation
-ceiling of 26,000 MW is twice the 13,000 MW allowance, so a 2030 rush can at most double the new build AEMO's path leaves
-room for. The storage ceiling of 6,000 MW is the storage allowance derived on the roster before its battery fixes, kept
-so the model can still buy priced 2030 storage now that the corrected roster leaves a free allowance of zero.
+The hard ceilings are `pipeline_rush_ceiling_mw` in the demand plan, set apart from the allowances (A007). Both ceilings
+are twice their allowance ([`../near_term_pipeline/`](../near_term_pipeline/), A011 there): 41,000 MW for generation,
+twice the 20,500 MW allowance, and 10,200 MW for storage, twice the 5,100 MW allowance. A rush can at most double the
+new build the final 2026 ISP leaves room for.
 
 ## Derivation
 
@@ -74,8 +74,8 @@ new build, so the figure describes how the model works batteries in 2030, not a 
 | -------- | ----: | ---- |
 | `pipeline_rush_charge_aud_per_mw_yr.generation` | 71,400 | A$/MW/yr, real June 2025 dollars |
 | `pipeline_rush_charge_aud_per_mw_yr.storage` | 24,900 | A$/MW/yr, real June 2025 dollars |
-| `pipeline_rush_ceiling_mw.generation` | 26,000 | MW |
-| `pipeline_rush_ceiling_mw.storage` | 6,000 | MW |
+| `pipeline_rush_ceiling_mw.generation` | 41,000 | MW |
+| `pipeline_rush_ceiling_mw.storage` | 10,200 | MW |
 | Generation, without the 0.7915 delivery factor | 90,300 | A$/MW/yr |
 | Storage, without the 0.7915 delivery factor | 31,500 | A$/MW/yr |
 
@@ -96,7 +96,7 @@ discharged MWh is a convention, and the discharge hours come from one campaign r
 | ------ | ------ |
 | One charge per MW for every technology | At 71,400 A$/MW/yr, solar pays about A$34/MWh generated and wind about A$24/MWh; only the mix averages A$30.29/MWh. A rush of solar is therefore charged more per MWh than ShARP charges |
 | ShARP's persistent overflow-growth band is left out | ShARP adds A$2.155449/MWh on the first 12 TWh/year of growth, for a combined A$39.603218/MWh rush price (S001). Including it would raise both adders by 5.8% |
-| Storage allowance of zero | With the 2030 storage allowance at 0 MW ([`../near_term_pipeline/`](../near_term_pipeline/), A009 there), every megawatt of 2030 storage new build pays the rush charge, up to the 6,000 MW ceiling |
+| Nonzero storage allowance | With the 2030 storage allowance at 5,100 MW ([`../near_term_pipeline/`](../near_term_pipeline/), A011 there), only 2030 storage new build above that allowance pays the rush charge, up to the 10,200 MW ceiling |
 | Draft CDP4 capacity factor | Final 2026 ISP capacity by fuel was not available; the draft path's new build mix may differ |
 
 ## Plot

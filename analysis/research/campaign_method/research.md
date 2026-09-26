@@ -27,32 +27,41 @@ about +17% and renewable share by about -7.7 percentage points, so a greenfield 
 
 ## Time sampling
 
-| Setting                              | Value                                                      |
-|--------------------------------------|------------------------------------------------------------|
-| Representative weeks                 | 13: weeks 1, 6, 10, 14, 19, 22, 26, 32, 35, 39, 41, 45, 50 |
-| Named weeks (peak and residual-peak) | Off, by `--no-named-weeks`                                 |
-| Resolution                           | 30 minutes                                                 |
-| Reference year cycle                 | 2018                                                       |
-| Snapshots per period                 | 13 x 7 x 48 = 4,368, weighted to annualise to 8,760 hours  |
+| Setting                               | Value                                                                            |
+|----------------------------------------|-----------------------------------------------------------------------------------|
+| Representative weeks (numbered)       | 13: weeks 1, 6, 10, 14, 19, 22, 26, 32, 35, 39, 41, 45, 50                        |
+| Named weeks (peak and residual-peak)  | On: `named_representative_weeks: [residual-peak-demand, peak-demand]`             |
+| Weeks sampled per solve               | Up to 15 (fewer if a named week coincides with a numbered one)                    |
+| Resolution                            | 30 minutes                                                                        |
+| Reference year cycle                  | 2018                                                                              |
+| Snapshots per period                  | up to 15 x 7 x 48 = 5,040, weighted to annualise to 8,760 hours                   |
 
-Thirteen weeks spread roughly evenly through the year gives about a quarter of the year's half-hours at a weighting of about 2.0. Turning named weeks
-off means the sample carries no deliberately included peak-demand or residual-peak week, so extreme hours enter only if one of the thirteen happens to
-contain them.
+Fifteen weeks, two of them the peak-demand and residual-peak (net load) weeks chosen from that solve's own demand and renewable traces, cover about
+29% of the year's half-hours at a weighting of about 3.5. Turning the named weeks on follows AEMO's own net-load-based time sampling, which
+deliberately includes the peak and residual-peak weeks rather than leaving their inclusion to chance (AEMO ISP Methodology, June 2025, p.43, S006;
+no local copy of the document is held in this repository, so the page is cited without a verbatim quote). The added coverage raises solve time by
+about 15% against the 13 numbered weeks alone.
 
 **confidence: high** on the settings, read from [`analysis/hpc/slurm/chain.sbatch`](../../hpc/slurm/chain.sbatch) and the config template in
-[`analysis/hpc/solve.py`](../../hpc/solve.py); **confidence: low** on the choice of those particular thirteen weeks, for which no selection method or
-basis is recorded.
+[`analysis/hpc/solve.py`](../../hpc/solve.py); **confidence: low** on the choice of the 13 numbered weeks, for which no selection method or basis is
+recorded, and on the 15% solve-time estimate, which is not backed by a measured comparison in this topic.
 
 ## Solver settings
 
-| Setting      | Value                                  | Meaning                                                                                    |
-|--------------|----------------------------------------|--------------------------------------------------------------------------------------------|
-| Solver       | Gurobi                                 | Selected by `--use-gurobi`; the config's own `solver` field says `highs` and is overridden |
-| `Method`     | 2                                      | Barrier, rather than primal or dual simplex                                                |
-| `BarConvTol` | 1e-8                                   | Barrier convergence tolerance, the solver default rather than a relaxed one                |
-| `Threads`    | 64                                     | Matched to the allocated cores                                                             |
-| Budget       | 600 minutes per solve                  | Wall-clock ceiling passed as `--budget-min`                                                |
-| Allocation   | 1 node, 64 cores, 240 GiB, 3-day limit | One Slurm array task per chain                                                             |
+| Setting       | Value                                | Meaning                                                                                     |
+|----------------|---------------------------------------|------------------------------------------------------------------------------------------------|
+| Solver        | Gurobi                               | Selected by `--use-gurobi`; the config's own `solver` field says `highs` and is overridden  |
+| `Method`      | 2                                     | Barrier, rather than primal or dual simplex                                                 |
+| `BarConvTol`  | 1e-8                                  | Barrier convergence tolerance, the solver default rather than a relaxed one                 |
+| Crossover     | 0 (off)                               | No simplex cross-over to a vertex solution; the barrier point at `BarConvTol` is the answer  |
+| `Threads`     | 32                                    | Matched to the allocated cores                                                               |
+| Budget        | 600 minutes per solve                | Wall-clock ceiling passed as `--budget-min`                                                  |
+| Allocation    | 1 node, 32 cores, 96 GiB, 12-hour limit | One Slurm job per milestone period, see [Job layout](#job-layout)                           |
+
+Crossover was turned off (A008) because it took 2 to 4 hours per period on the earlier grid and diverged in the 2060 solve; barrier-only needs about
+96 GiB of memory at 2060, observed peaking at 68 to 71 GiB. The caveat is that without crossover there is no exact vertex: every constraint dual,
+including the pipeline cap dual, is an interior-point dual rather than a vertex-exact one. That is adequate at the 1e-8 barrier convergence tolerance
+but is not the same guarantee crossover gives.
 
 Other flags carried by every chain: `--reducible-existing` and `--existing-fom-keeping` for how existing plant may retire and what it still costs,
 `--tns-price 89.93` as a flat transport-and-storage adder on captured carbon dioxide, `--ccs-supply-curve none`, and
@@ -61,6 +70,20 @@ Other flags carried by every chain: `--reducible-existing` and `--existing-fom-k
 transmission and REZ transmission expansion enabled.
 
 **confidence: high** on every setting, all read from the submission script and config template.
+
+## Job layout
+
+The base chain, `ext_step_change_sc`, is one manifest row, but `msm launch` submits it as one Slurm job per milestone period rather than one job for
+the whole chain: each job is chained behind the one before with an `afterok` dependency (A009), resumes the chain's carried state and solves only
+the next unsolved period (`--next-period-only` in the base row's own arguments, `--resume` always passed by `chain.sbatch`). A failed base-period job
+therefore blocks only the milestones after it, not the ones already solved.
+
+Each increment year's branch array depends, again `afterok`, on the base job of the milestone it seeds its state from, so a branch cell never starts
+before its seed year has solved. The increment grid is 8 demand levels by 8 intensity levels, 64 cells per year, over the seven increment years 2030
+to 2060: 448 branch rows in total.
+
+**confidence: high**, read from [`analysis/hpc/slurm/chain.sbatch`](../../hpc/slurm/chain.sbatch) and the demand plan's own increment grid
+([`../demand_plan/`](../demand_plan/)).
 
 ## The 2060 hold
 
@@ -82,6 +105,6 @@ what 2060 might actually look like.
 
 ## Plot
 
-[`plot_campaign_sampling.py`](plot_campaign_sampling.py) draws the 13 sampled weeks against the full 52-week year, the two named stress weeks
-as a disabled row with no fixed position, and the milestone sequence with the 2060 hold marked. It writes `campaign_sampling.html` and
-`campaign_sampling.png` beside itself.
+[`plot_campaign_sampling.py`](plot_campaign_sampling.py) draws the 13 numbered weeks against the full 52-week year, the two named stress weeks as a
+row with no fixed position (coloured by whether `chain.sbatch` enables them), and the milestone sequence with the 2060 hold marked. It writes
+`campaign_sampling.html` and `campaign_sampling.png` beside itself.

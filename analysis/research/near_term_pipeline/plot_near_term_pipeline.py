@@ -3,7 +3,10 @@
 Each carrier is a stack of what the model already holds at 2030 -- existing plant, then the committed, anticipated and
 policy-supported pipeline -- with the new-entrant allowance stacked on top and AEMO's own Step Change 2030 capacity drawn
 as a marker. Where the stack reaches the marker the allowance is exactly the gap; where the stack overshoots it, the model
-holds more than the path does and no allowance is offered. Derivations and sources are in ``research.md``.
+holds more than the path does and no allowance is offered. Wind, utility solar and batteries are measured against the
+final 2026 ISP and the IASR roster commissioned by 1 July 2029; gas, coal and conventional hydro are still measured
+against the draft-ISP CDP4 series, for which no final-ISP reading was derived. Derivations and sources are in
+``research.md``.
 
 Run with ``uv run --with kaleido python analysis/research/near_term_pipeline/plot_near_term_pipeline.py``; writes
 ``near_term_pipeline.html`` and ``near_term_pipeline.png`` beside this script.
@@ -23,30 +26,30 @@ _CDP4_CAPACITY = (
 )
 _OUTPUT_STEM = Path(__file__).with_name("near_term_pipeline")
 
-#: Gigawatts on the model's 2030 roster, summed from the templated inputs of the reference run's 2030 solve (S003) and
-#: corrected for the parser fault that dropped IASR summary-sheet rows 649 to 732: wind and solar gain the 1.192 GW and
-#: 4.893 GW of restored generators dated by FY2030, and storage the 9.686 GW of restored committed and anticipated
-#: batteries (24.280 GW of batteries active in 2030). Pipeline is committed plus anticipated plus additional
-#: policy-supported; storage is battery plus pumped hydro.
+#: Gigawatts on the roster each carrier is measured against. Wind, solar and storage are measured against the IASR
+#: roster commissioned by 1 July 2029 (17.6, 22.9 and 28.2 GW respectively, S007): existing plant unchanged, with the
+#: remainder folded into pipeline. Gas, coal and conventional hydro are still measured against the corrected model
+#: roster (S002, S003): committed plus anticipated plus additional policy-supported; storage there is battery plus
+#: pumped hydro.
 _ROSTER = {
-    "Wind": (11.749, 9.550),
-    "Solar, utility": (10.859, 13.634),
+    "Wind": (11.749, 5.851),
+    "Solar, utility": (10.859, 12.041),
     "Gas": (10.070, 1.324),
     "Coal": (15.285, 0.0),
     "Hydro, conventional": (6.885, 0.0),
-    "Storage": (4.840, 25.545),
+    "Storage": (4.840, 23.360),
 }
 
-#: The CDP4 column each carrier is measured against. Storage has no CDP4 column at all, so it takes the draft ISP's
-#: reported grid-scale battery and pumped hydro milestone of 27 GW by 2030 (S004) instead.
+#: The CDP4 column each carrier is measured against, for the carriers still read from the draft-ISP series.
 _CDP4_COLUMN = {
-    "Wind": "Wind",
-    "Solar, utility": "Solar (Utility)",
     "Gas": "Gas",
     "Coal": "Coal",
     "Hydro, conventional": "Hydro",
 }
-_STORAGE_2030_GW = 27.0
+
+#: Final 2026 ISP Step Change capacity at 1 July 2029 (S006): wind, utility solar and grid-scale batteries (medium
+#: and shallow storage). Supersedes the draft-ISP CDP4 reading for these three carriers.
+_FINAL_ISP_2030_GW = {"Wind": 29.8, "Solar, utility": 31.2, "Storage": 33.3}
 
 #: Carriers the model offers no new entrant for, or already exceeds the path in, so no allowance is drawn.
 _NO_NEW_ENTRANT = ("Coal", "Hydro, conventional")
@@ -58,17 +61,16 @@ _SEGMENT_COLOUR = {
 }
 
 _ANNOTATION = (
-    "The allowance is the gap between the fleet the model already holds at 2030 and the fleet AEMO's Step Change "
-    "optimal development path reaches.<br>"
-    "On the corrected roster it is about 13 GW of generation and no storage, because the storage pipeline already "
-    "exceeds the 27 GW milestone.<br>Coal is not shown with an allowance because closures follow "
-    "announced years only, which leaves the model 2.3 GW above the path; conventional hydro has no new entrant in the "
-    "model."
+    "Wind, utility solar and batteries are measured against the final 2026 ISP and the IASR roster commissioned by "
+    "1 July 2029: the allowance is 20.5 GW of generation (12.2 GW wind, 8.3 GW solar) and 5.1 GW of batteries.<br>"
+    "Gas, coal and conventional hydro are still measured against the draft-ISP CDP4 series. Coal is not shown with "
+    "an allowance because closures follow announced years only, which leaves the model 2.3 GW above the path; "
+    "conventional hydro has no new entrant in the model."
 )
 
 
 def _cdp4_2030() -> pd.Series:
-    """Read AEMO's Step Change 2030 installed capacity by fuel, in gigawatts."""
+    """Read AEMO's draft-ISP Step Change 2030 installed capacity by fuel, in gigawatts."""
     frame = pd.read_csv(_CDP4_CAPACITY)
     frame["year"] = frame["date"].str.extract(r"(\d{4})").astype(int)
     return frame.set_index("year").loc[2030]
@@ -76,8 +78,8 @@ def _cdp4_2030() -> pd.Series:
 
 def _target_gw(carrier: str, cdp4: pd.Series) -> float:
     """Return the 2030 capacity target for one carrier, in gigawatts."""
-    if carrier == "Storage":
-        return _STORAGE_2030_GW
+    if carrier in _FINAL_ISP_2030_GW:
+        return _FINAL_ISP_2030_GW[carrier]
     return float(cdp4[_CDP4_COLUMN[carrier]])
 
 

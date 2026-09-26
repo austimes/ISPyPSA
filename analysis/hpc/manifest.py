@@ -4,7 +4,8 @@ One launch is two stages, both written into the same manifest so a resume or a s
 submission always reads a complete picture:
 
 * the ``base`` stage, one recursive-dynamic chain ``ext_step_change_sc`` solved over every
-  milestone year of the plan, its annual cap set to the Step Change intensity path;
+  milestone year of the plan, its annual cap set to the Step Change intensity path; its row
+  carries ``--next-period-only``, so each Slurm job running it solves one more period;
 * the ``branch`` stage, one conditioned single-year solve per increment cell
   (:mod:`analysis.hpc.increments`), seeded from the base chain's state at the prior milestone
   with the base stock pinned.
@@ -24,7 +25,8 @@ Naming:
   written as a decimal with the point removed (:func:`campaign_grid.cap_key`).
 
 Because the branch solves are single-year and each one is a different year, ``--periods`` rides
-in each row's args rather than in ``chain.sbatch``.
+in each row's args rather than in ``chain.sbatch``. The launch's limit factors and extra solve
+flags ride there too, so ``chains.tsv`` alone decides what every row solves.
 
 Outputs in one launch's ``campaign/`` directory:
 
@@ -232,7 +234,7 @@ def _pipeline_args(plan: dict, years: list[int]) -> str:
 
 
 def _base_chain_row(plan: dict, caps: pd.DataFrame) -> dict:
-    """The base chain: every milestone year in one recursive-dynamic chain."""
+    """The base chain: every milestone year in one recursive-dynamic chain, one period per job."""
     base = caps[caps["chain"] == BASE_CHAIN_KEY]
     periods = " ".join(str(year) for year in plan["milestone_years"])
     schedule = " ".join(f"{year}:{t}" for year, t in zip(base["year"], base["cap_t"]))
@@ -241,7 +243,7 @@ def _base_chain_row(plan: dict, caps: pd.DataFrame) -> dict:
         "trajectory": base["trajectory"].iloc[0],
         "chain": BASE_CHAIN_KEY,
         "stage": BASE_STAGE,
-        "args": f"--periods {periods} --co2-cap-t-schedule {schedule}"
+        "args": f"--periods {periods} --co2-cap-t-schedule {schedule} --next-period-only"
         + _pipeline_args(plan, plan["milestone_years"]),
         "last_period": plan["milestone_years"][-1],
         "base_cell": "",
@@ -293,6 +295,7 @@ def build_chain_table(
     max_cap: float | None = None,
     rez_limit_factor: float | None = None,
     flow_path_limit_factor: float | None = None,
+    solve_flags: str | None = None,
 ) -> pd.DataFrame:
     """Every chain of the campaign in Slurm array order, numbered from zero.
 
@@ -306,6 +309,7 @@ def build_chain_table(
         factor in every chain of the launch; omit for the IASR limits.
     :param flow_path_limit_factor: Relax every flow-path and REZ-connection expansion
         limit by this factor in every chain of the launch; omit for the IASR limits.
+    :param solve_flags: Extra ``msm solve`` tokens appended to every chain.
     """
     if max_cap is not None:
         raise ValueError(
@@ -319,6 +323,8 @@ def build_chain_table(
         chains["args"] += f" --rez-limit-factor {rez_limit_factor}"
     if flow_path_limit_factor is not None:
         chains["args"] += f" --flow-path-limit-factor {flow_path_limit_factor}"
+    if solve_flags:
+        chains["args"] += f" {solve_flags}"
     chains.insert(0, "row", range(len(chains)))
     chains["traces"] = [
         (tracedirs / f"{trajectory}.txt").as_posix()
@@ -351,6 +357,7 @@ def build(
     max_cap: float | None = None,
     rez_limit_factor: float | None = None,
     flow_path_limit_factor: float | None = None,
+    solve_flags: str | None = None,
 ) -> pd.DataFrame:
     """Write one launch's manifest and return its chain table.
 
@@ -361,12 +368,19 @@ def build(
     :param rez_limit_factor: Relax every REZ limit by this factor in every chain.
     :param flow_path_limit_factor: Relax every corridor expansion limit by this factor in
         every chain.
+    :param solve_flags: Extra ``msm solve`` tokens appended to every chain.
     :return: Every chain of the campaign in Slurm array order.
     """
     plan_data = json.loads(plan.read_text(encoding="utf-8"))
     caps = build_caps_table(plan_data, _read_git_commit())
     chains = build_chain_table(
-        plan_data, caps, tracedirs, max_cap, rez_limit_factor, flow_path_limit_factor
+        plan_data,
+        caps,
+        tracedirs,
+        max_cap,
+        rez_limit_factor,
+        flow_path_limit_factor,
+        solve_flags,
     )
     write_manifest(caps, chains, layout.campaign, plan_data)
     print(f"plan version: {plan_data['version']}; chains: {len(chains)}")

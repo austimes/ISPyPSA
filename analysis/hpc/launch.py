@@ -10,8 +10,11 @@ corridor limit factor, its chain count, its increment grid and that input packag
 run sets can be compared.
 
 The manifest always holds every chain of both stages, and ``--stage`` picks which of them this
-submission covers, so the base chain and the increment grid that seeds from it go into one launch
-directory and the grid is queued behind the base chain with ``--after <job id>``.
+submission covers. The base chain is submitted as one job per milestone period, each held behind
+the one before, and each increment year's cells as one array held behind the base job of the
+milestone they are seeded from, so a failed base period holds back only the years after it.
+A submission into a launch directory that already has a manifest reuses it unchanged, so a
+resume can never drop a row's limit factors or solve flags.
 
 ``submit`` is the single place that knows how a campaign job is handed to Slurm: the
 account, any partition override, stdout path, per-submission resource overrides and the
@@ -25,6 +28,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -122,22 +126,84 @@ def _array(chains: pd.DataFrame) -> str:
     return ",".join(str(row) for row in chains["row"])
 
 
-def incomplete_array(layout: OutputLayout, chains: pd.DataFrame) -> str:
-    """Slurm array specification covering only the chains that have not finished.
+def incomplete_chains(layout: OutputLayout, chains: pd.DataFrame) -> pd.DataFrame:
+    """The chains whose own final period has not finished.
 
     :param layout: The launch directory to inspect.
-    :param chains: The launch's chain table, whose ``row`` is the array index and whose
-        ``last_period`` is the final period of that chain alone.
-    :return: A comma-separated index list, empty when every chain is complete.
+    :param chains: The launch's chain table, whose ``last_period`` is the final period of that
+        chain alone.
     """
-    return _array(
-        chains[
-            [
-                not _chain_is_complete(layout, chain.run_id, chain.last_period)
-                for chain in chains.itertuples()
-            ]
+    return chains[
+        [
+            not _chain_is_complete(layout, chain.run_id, chain.last_period)
+            for chain in chains.itertuples()
         ]
-    )
+    ]
+
+
+@dataclass(frozen=True)
+class Job:
+    """One Slurm submission of a launch.
+
+    :param name: Name of the job within the launch, e.g. ``base_2030`` or ``branch_2035``.
+    :param array: Slurm array specification of the manifest rows it runs.
+    :param after: Name of the job in the same submission it waits for, or ``None``.
+    """
+
+    name: str
+    array: str
+    after: str | None
+
+
+def _base_periods(
+    layout: OutputLayout, chains: pd.DataFrame, milestone_years: list[int], resume: bool
+) -> list[int]:
+    """Base chain periods this submission solves: every milestone, or on resume the unsolved ones."""
+    base = chains[chains["stage"] == manifest.BASE_STAGE]
+    if base.empty:
+        return []
+    run_id = base["run_id"].iloc[0]
+    return [
+        year
+        for year in milestone_years
+        if not (resume and _chain_is_complete(layout, run_id, year))
+    ]
+
+
+def _seed_year(year: int, milestone_years: list[int]) -> int:
+    """The milestone before ``year``, whose base state an increment cell of that year starts from."""
+    return max(milestone for milestone in milestone_years if milestone < year)
+
+
+def job_plan(
+    chains: pd.DataFrame, base_periods: list[int], milestone_years: list[int]
+) -> list[Job]:
+    """The Slurm jobs of one submission, in submission order.
+
+    The base row runs once per period in ``base_periods``, each job behind the one before; each
+    increment year's rows run as one array behind the base job of the milestone its cells are
+    seeded from, when that period is solved by this submission.
+
+    :param chains: The manifest rows to submit.
+    :param base_periods: Base chain periods to solve, in order.
+    :param milestone_years: The plan's milestone years.
+    """
+    base = _array(chains[chains["stage"] == manifest.BASE_STAGE])
+    names = [f"base_{year}" for year in base_periods]
+    jobs = [Job(name, base, after) for name, after in zip(names, [None, *names])]
+    branches = chains[chains["stage"] == manifest.BRANCH_STAGE]
+    for year, rows in branches.groupby("branch_year"):
+        seed = f"base_{_seed_year(int(year), milestone_years)}"
+        jobs.append(
+            Job(f"branch_{int(year)}", _array(rows), seed if seed in names else None)
+        )
+    return jobs
+
+
+def _dependency(job: Job, job_ids: dict[str, str], after: str | None) -> str | None:
+    """Slurm dependency of one job: the job it waits for in this submission, else ``--after``."""
+    upstream = job_ids[job.after] if job.after else after
+    return f"afterok:{upstream}" if upstream else None
 
 
 def _stage_chains(chains: pd.DataFrame, stage: str) -> pd.DataFrame:
@@ -188,6 +254,54 @@ def write_assumptions(
     )
 
 
+def _refuse_new_settings(layout: OutputLayout, settings: tuple) -> None:
+    """Refuse limit factors or solve flags for a launch whose manifest already fixes them."""
+    if any(setting is not None for setting in settings):
+        raise ValueError(
+            f"{layout.root} already has a manifest, which fixes its limit factors and solve "
+            "flags; stamp a new launch to change them"
+        )
+
+
+def _write_launch(
+    layout: OutputLayout,
+    env: Env,
+    plan: Path,
+    plan_data: dict,
+    dry_run: bool,
+    max_cap: float | None,
+    rez_limit_factor: float | None,
+    flow_path_limit_factor: float | None,
+    solve_flags: str | None,
+) -> pd.DataFrame:
+    """Build any missing trace directories, then write the manifest, inputs and assumptions of a new launch."""
+    if not dry_run:
+        tracedirs.build(env.traces, env.tracedirs, plan)
+    chains = manifest.build(
+        plan,
+        layout,
+        env.tracedirs,
+        max_cap,
+        rez_limit_factor,
+        flow_path_limit_factor,
+        solve_flags,
+    )
+    (layout.campaign / "inputs.txt").write_text(
+        f"{env.inputs.as_posix()}\n", encoding="utf-8"
+    )
+    write_assumptions(
+        layout,
+        env.inputs,
+        len(chains),
+        plan_data,
+        max_cap,
+        rez_limit_factor,
+        flow_path_limit_factor,
+        solve_flags,
+    )
+    return chains
+
+
 def main(
     run_set: str = "sc5",
     plan: Path = DEFAULT_PLAN,
@@ -207,15 +321,17 @@ def main(
 
     :param run_set: Name a new launch directory is stamped with, under ``$IO_DIR/outputs``.
     :param plan: Demand plan JSON holding the trajectories, loads and milestone years.
-    :param run: Existing launch directory to submit into, instead of stamping a new one.
-    :param resume: Submit only the chains whose final period has not completed; requires
-        ``run``, because a freshly stamped directory has no chain to resume.
+    :param run: Existing launch directory to submit into, instead of stamping a new one; a
+        manifest it already holds is reused unchanged.
+    :param resume: Submit only the base periods and increment cells that have not completed;
+        requires ``run``, because a freshly stamped directory has nothing to resume.
     :param smoke: Submit the single NSW two-period gate chain instead of the campaign.
     :param stage: Which stage of the always-complete manifest to submit: ``base`` for the base
         chain, ``branch`` for the increment grid, or ``all`` for both.
-    :param after: Slurm job id this submission waits for, so the increment grid can be queued
-        behind the base chain it seeds from.
-    :param array: Slurm array specification, overriding the one derived from the manifest.
+    :param after: Slurm job id that the first base job, and every increment array whose seed
+        period this submission does not solve, waits for.
+    :param array: Slurm array specification submitted as one job, overriding the jobs derived
+        from the manifest.
     :param max_cap: Keep only the cap chains at or below this 2050 target intensity; not
         supported by an increment-grid plan, which has no cap ladder to narrow.
     :param rez_limit_factor: Relax every renewable energy zone (REZ) transmission,
@@ -224,52 +340,56 @@ def main(
     :param flow_path_limit_factor: Relax the expansion headroom of every sub-region flow path
         and every REZ-to-sub-region connection by this factor in every chain of the launch, as
         a sensitivity against the IASR limits; omit for the IASR limits.
-    :param solve_flags: Extra ``msm solve`` tokens appended to every chain, e.g.
-        ``--gurobi-crossover 0`` for a barrier-only feasibility screen.
-    :param dry_run: Write the manifest and print the sbatch command, building no trace
+    :param solve_flags: Extra ``msm solve`` tokens appended to every chain's manifest row, e.g.
+        ``--build-rate-premiums <csv>``.
+    :param dry_run: Write the manifest and print the sbatch commands, building no trace
         directories and submitting nothing.
     """
     if resume and run is None:
         raise ValueError("--resume needs --run: name the launch directory to resume")
     env = Env.from_env()
     layout = OutputLayout(run) if run else env.new_run(run_set)
-    plan_data = json.loads(plan.read_text(encoding="utf-8"))
-    if not dry_run:
-        tracedirs.build(env.traces, env.tracedirs, plan)
-    chains = manifest.build(
-        plan, layout, env.tracedirs, max_cap, rez_limit_factor, flow_path_limit_factor
-    )
-    (layout.campaign / "inputs.txt").write_text(
-        f"{env.inputs.as_posix()}\n", encoding="utf-8"
-    )
-    write_assumptions(
-        layout,
-        env.inputs,
-        len(chains),
-        plan_data,
-        max_cap,
-        rez_limit_factor,
-        flow_path_limit_factor,
-        solve_flags,
-    )
+    settings = (max_cap, rez_limit_factor, flow_path_limit_factor, solve_flags)
+    if (layout.campaign / "chains_index.csv").exists():
+        _refuse_new_settings(layout, settings)
+        plan_data = json.loads(
+            (layout.campaign / "demand_plan.json").read_text(encoding="utf-8")
+        )
+        chains = pd.read_csv(layout.campaign / "chains_index.csv")
+    else:
+        plan_data = json.loads(plan.read_text(encoding="utf-8"))
+        chains = _write_launch(layout, env, plan, plan_data, dry_run, *settings)
     selected = _stage_chains(chains, stage)
     if array is None and smoke:
         array = "0"
-    if array is None and resume:
-        array = incomplete_array(layout, selected)
-        if not array:
-            print(f"every chain in {layout.root} has completed its final period")
-            return
     if array is None:
-        array = _array(selected)
+        pending = incomplete_chains(layout, selected) if resume else selected
+        milestones = plan_data["milestone_years"]
+        periods = _base_periods(layout, pending, milestones, resume)
+        jobs = job_plan(pending, periods, milestones)
+    else:
+        jobs = [Job("chain", array, None)]
+    if not jobs:
+        print(f"every chain in {layout.root} has completed its final period")
+        return
     script = SLURM_DIR / ("smoke.sbatch" if smoke else "chain.sbatch")
-    # Only a submission into an existing launch directory may keep carried chain state.
+    # smoke.sbatch reads these; chain.sbatch always resumes and reads its flags from the manifest.
     export = {"RESUME": "--resume"} if run else {}
     if solve_flags:
         export["SOLVE_FLAGS"] = solve_flags
-    dependency = f"afterok:{after}" if after else None
-    if dry_run:
-        print(" ".join(sbatch_command(script, array, export, layout, env, dependency)))
-    else:
-        submit(script, array, export, layout, env, dependency)
+    job_ids: dict[str, str] = {}
+    for job in jobs:
+        command = (
+            script,
+            job.array,
+            export,
+            layout,
+            env,
+            _dependency(job, job_ids, after),
+        )
+        if dry_run:
+            print(" ".join(sbatch_command(*command)))
+            job_ids[job.name] = f"<{job.name}>"
+        else:
+            job_ids[job.name] = submit(*command)
     print(layout.root)

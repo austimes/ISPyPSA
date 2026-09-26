@@ -17,10 +17,12 @@ its HTML and PNG output where a picture earns its place.
 | [`biomass/`](biomass/) | Biomass fuel tranches, the capacity cap, and biomass emissions under a carbon cap | [`biomass_limits.png`](biomass/biomass_limits.png) |
 | [`pumped_hydro_menu/`](pumped_hydro_menu/) | The pumped hydro energy storage (PHES) candidate menu and its site ceilings | [`phes_menu.png`](pumped_hydro_menu/phes_menu.png) |
 | [`carbon_caps/`](carbon_caps/) | The carbon pressure ladder, the cap tonnage arithmetic and the load-shedding rule | [`carbon_caps.png`](carbon_caps/carbon_caps.png) |
+| [`increment_grid/`](increment_grid/) | The demand and intensity levels of the increment grid, their arithmetic and their expected corner behaviour | [`increment_grid.png`](increment_grid/increment_grid.png) |
 | [`campaign_method/`](campaign_method/) | Chain structure, time sampling, solver settings and the 2060 hold | [`campaign_sampling.png`](campaign_method/campaign_sampling.png) |
 | [`aemo_scenario_intensity/`](aemo_scenario_intensity/) | Per-year AEMO scenario emissions intensity the dashboard draws as a sanity reference | [`aemo_scenario_intensity.png`](aemo_scenario_intensity/aemo_scenario_intensity.png) |
 | [`aemo_scenario_cost/`](aemo_scenario_cost/) | Per-year AEMO scenario cost excluding fuel and emissions, and operational demand, restated to the campaign's basis as dashboard sanity references | [`aemo_scenario_cost.png`](aemo_scenario_cost/aemo_scenario_cost.png) |
 | [`sharp_grid_reference/`](sharp_grid_reference/) | ShARP's current-policy grid supply, its clean ladder converted to intensity and its futures demand range, drawn as dashboard references | [`sharp_grid_reference.png`](sharp_grid_reference/sharp_grid_reference.png) |
+| [`workbook_parser_upgrade/`](workbook_parser_upgrade/) | How the parsed 2026 final IASR workbook tables, and the model inputs templated from them, differ between the draft-derived and `isp-workbook-parser` 2.9.0 table configurations | [`cache_diff.png`](workbook_parser_upgrade/cache_diff.png) |
 
 Conventions used throughout:
 

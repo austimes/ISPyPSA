@@ -40,6 +40,16 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
   both labels.
 - **Biomass supply curve and gas terajoule fix** - a stepped, config-gated biomass feedstock supply curve, and a fix
   denominating gas supply-curve purchases in terajoules rather than gigajoules.
+- **Roster units enter at their commissioning date** - every existing, committed, anticipated and additional unit
+  enters the model in the financial year that contains its commissioning date (indicative date where no confirmed one
+  exists). A unit that commissions after the final investment period is left out of the network, rather than kept as
+  inactive capacity that reporting could count. Its lifetime runs from that year to its closure year; upstream counts
+  lifetime from the first investment period, which delays the closure of later-commissioning units. A unit that
+  commissions part-way through a financial year counts for the whole year.
+- **Workbook parser 2.9.0 for the final 2026 IASR** - the fork reads the final 2026 workbook with
+  `isp-workbook-parser` 2.9.0's own table configurations instead of a draft-era override that truncated tables and read
+  footnote rows as data; the main model change is that new-entrant gas and biomass plant now pay AEMO's variable
+  operating cost ([`research/workbook_parser_upgrade/`](research/workbook_parser_upgrade/)).
 
 ## Fork input patches in `analysis/model`
 
@@ -107,7 +117,8 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
 ## Campaign method
 
 - Recursive-dynamic chains: each milestone year's new build and retained capacity carries forward into the next.
-- Thirteen representative weeks sampled per solve.
+- Thirteen representative weeks sampled per solve, plus each year's peak-demand and residual-peak-demand weeks
+  ([`research/campaign_method/`](research/campaign_method/)).
 - Per-period absolute carbon dioxide equivalent (CO2e) caps, rather than a carbon price, drive the campaign's pressure
   ladder.
 - Demand range taken from the draft ISP: the low trajectory follows its Slower Growth generation total excluding rooftop
@@ -118,8 +129,10 @@ Assumptions and Scenarios Report (IASR). Grouped under four headings, one dot po
   totals already exclude it.
 - Fossil-only gas pricing (the gas un-blend switch) throughout the campaign.
 - Near-term pipeline pin and pre-2030 rush charge: new-entrant generator and battery build is capped at a per-year
-  allowance in 2026; in 2030 build up to each allowance is free and build above it pays a rush charge in A$/MW/yr,
+  allowance in 2026; in 2030 build up to each allowance (AEMO's final 2026 ISP new entrants by 1 July 2029: 20.5 GW of
+  generation and 5.1 GW of batteries) is free and build above it pays a rush charge in A$/MW/yr,
   converted from ShARP's A$37.45/MWh charge on growth installed in FY2030, up to a hard ceiling of its own.
   Derived in [`research/near_term_pipeline/`](research/near_term_pipeline/) and
   [`research/pre2030_rush_charge/`](research/pre2030_rush_charge/).
-- Gurobi barrier solver settings, tuned for this campaign's problem size.
+- Gurobi barrier solver settings, tuned for this campaign's problem size, with crossover off: every solve returns the
+  barrier solution, so duals are interior-point rather than vertex values.

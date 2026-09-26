@@ -1,0 +1,12 @@
+source_id,citation,publication_date,institution,document_location,slug,url
+S001,Increment grid block and per-year source load and cap intensity knots the grid scales.,,This fork,analysis/hpc/demand_plan.json,ispypsa_fork_increment_grid_plan,
+S002,"Increment cell arithmetic: level factors, single-knot demand trajectories and the reference-cell mechanics.",,This fork,analysis/hpc/increments.py,ispypsa_fork_increment_cells,
+S003,Branch chain naming and cap tonnage arithmetic for each increment cell.,,This fork,analysis/hpc/manifest.py,ispypsa_fork_increment_manifest,
+S004,Chain-key formatting for a cap intensity.,,This fork,analysis/hpc/campaign_grid.py,ispypsa_fork_cap_key,
+S005,Level-key decode convention read by the dashboard.,,This fork,analysis/dashboard/figures.py,ispypsa_fork_increment_level_keys,
+S006,ShARP current-policy futures demand band and planned quantity restated to the campaign's basis.,,This fork,analysis/research/sharp_grid_reference/sharp_grid_reference.csv; see analysis/research/sharp_grid_reference/,ispypsa_fork_sharp_futures_band,
+S007,2030 near-term new-entrant generation and storage allowance and how it is derived.,,This fork,analysis/research/near_term_pipeline/research.md,ispypsa_fork_near_term_pipeline,
+S008,2030 rush-priced ceiling above the near-term allowance and how it is derived.,,This fork,analysis/research/pre2030_rush_charge/research.md,ispypsa_fork_pre2030_rush_charge,
+S009,Renewable energy zone (REZ) and corridor binding-limit inventory and the campaign's relaxation factor.,,This fork,analysis/research/rez_transmission_limits/research.md,ispypsa_fork_rez_transmission_limits,
+S010,Biomass residual methane and nitrous oxide emissions against a deep carbon cap.,,This fork,analysis/research/biomass/research.md,ispypsa_fork_biomass_residual,
+S011,Unserved-energy price and the load-shedding acceptance rule.,,This fork,analysis/research/carbon_caps/research.md,ispypsa_fork_unserved_energy_reference,
