@@ -32,7 +32,6 @@ from ..templater.mappings import (
 _PARSER_CONFIG_OVERRIDES_ROOT = Path(__file__).parent / "parser_configs"
 _PARSER_CONFIG_OVERRIDES = {
     "7.4": _PARSER_CONFIG_OVERRIDES_ROOT / "7.4",
-    "7.8": _PARSER_CONFIG_OVERRIDES_ROOT / "7.8",
 }
 
 
@@ -289,19 +288,13 @@ def build_local_cache(
             "specified in the config."
         )
     tables_to_get = _build_required_tables(iasr_workbook_version)
-    # v7.5 parser-config quirk: three slower-growth flow-path augmentation cost
-    # tables are named with singular "cost" in the installed 7.5 config, while
-    # ISPyPSA (and the v7.4 override) use the canonical plural "costs". Request
-    # the parser's actual singular name, then rename the cached CSV back to the
-    # canonical plural so downstream readers stay version-independent.
-    # v7.5 parser-config quirk: three slower-growth flow-path augmentation cost
-    # tables are named non-canonically in the installed 7.5 config — CNSW-NNSW
-    # uses singular "cost"; MEL-WNV/SEV-MEL use underscore separators. Request
+    # v7.5 parser-config quirk: two slower-growth flow-path augmentation cost
+    # tables are named non-canonically in the installed 7.5 config — MEL-WNV
+    # and SEV-MEL use underscore separators. Request
     # the parser's actual name, then rename the cached CSV to ISPyPSA's canonical
     # name so downstream readers stay version-independent. (Exact per-table map,
     # verified against parser.table_configs — the variances differ per table.)
     _V75_AUG_COST_ACTUAL = {  # ispypsa-canonical -> parser-actual
-        "flow_path_augmentation_costs_slower_growth_CNSW-NNSW": "flow_path_augmentation_cost_slower_growth_CNSW-NNSW",
         "flow_path_augmentation_costs_slower_growth_MEL-WNV": "flow_path_augmentation_costs_slower_growth_MEL_WNV",
         "flow_path_augmentation_costs_slower_growth_SEV-MEL": "flow_path_augmentation_costs_slower_growth_SEV_MEL",
     }
