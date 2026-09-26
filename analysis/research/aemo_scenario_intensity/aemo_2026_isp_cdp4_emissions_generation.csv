@@ -1,0 +1,217 @@
+scenario,series,financial_year_ending,value,unit
+Step Change,NEM emissions,2027,102.024,Mt CO2-e
+Step Change,NEM emissions,2028,85.796,Mt CO2-e
+Step Change,NEM emissions,2029,54.754,Mt CO2-e
+Step Change,NEM emissions,2030,39.233,Mt CO2-e
+Step Change,NEM emissions,2031,34.271,Mt CO2-e
+Step Change,NEM emissions,2032,28.961,Mt CO2-e
+Step Change,NEM emissions,2033,31.655,Mt CO2-e
+Step Change,NEM emissions,2034,24.74,Mt CO2-e
+Step Change,NEM emissions,2035,17.937,Mt CO2-e
+Step Change,NEM emissions,2036,17.12,Mt CO2-e
+Step Change,NEM emissions,2037,17.019,Mt CO2-e
+Step Change,NEM emissions,2038,12.502,Mt CO2-e
+Step Change,NEM emissions,2039,10.692,Mt CO2-e
+Step Change,NEM emissions,2040,12.684,Mt CO2-e
+Step Change,NEM emissions,2041,12.861,Mt CO2-e
+Step Change,NEM emissions,2042,11.961,Mt CO2-e
+Step Change,NEM emissions,2043,10.725,Mt CO2-e
+Step Change,NEM emissions,2044,9.117,Mt CO2-e
+Step Change,NEM emissions,2045,9.856,Mt CO2-e
+Step Change,NEM emissions,2046,9.992,Mt CO2-e
+Step Change,NEM emissions,2047,8.627,Mt CO2-e
+Step Change,NEM emissions,2048,6.835,Mt CO2-e
+Step Change,NEM emissions,2049,9.788,Mt CO2-e
+Step Change,NEM emissions,2050,3.85,Mt CO2-e
+Step Change,Generation excluding rooftop and storage,2027,190599,GWh
+Step Change,Generation excluding rooftop and storage,2028,193072,GWh
+Step Change,Generation excluding rooftop and storage,2029,197733,GWh
+Step Change,Generation excluding rooftop and storage,2030,210467,GWh
+Step Change,Generation excluding rooftop and storage,2031,217560,GWh
+Step Change,Generation excluding rooftop and storage,2032,227883,GWh
+Step Change,Generation excluding rooftop and storage,2033,237705,GWh
+Step Change,Generation excluding rooftop and storage,2034,247730,GWh
+Step Change,Generation excluding rooftop and storage,2035,259031,GWh
+Step Change,Generation excluding rooftop and storage,2036,267161,GWh
+Step Change,Generation excluding rooftop and storage,2037,275269,GWh
+Step Change,Generation excluding rooftop and storage,2038,280677,GWh
+Step Change,Generation excluding rooftop and storage,2039,291412,GWh
+Step Change,Generation excluding rooftop and storage,2040,294160,GWh
+Step Change,Generation excluding rooftop and storage,2041,297261,GWh
+Step Change,Generation excluding rooftop and storage,2042,305437,GWh
+Step Change,Generation excluding rooftop and storage,2043,306384,GWh
+Step Change,Generation excluding rooftop and storage,2044,313288,GWh
+Step Change,Generation excluding rooftop and storage,2045,317019,GWh
+Step Change,Generation excluding rooftop and storage,2046,322187,GWh
+Step Change,Generation excluding rooftop and storage,2047,324032,GWh
+Step Change,Generation excluding rooftop and storage,2048,328045,GWh
+Step Change,Generation excluding rooftop and storage,2049,329583,GWh
+Step Change,Generation excluding rooftop and storage,2050,332097,GWh
+Step Change,Storage and DSP net generation,2027,-941,GWh
+Step Change,Storage and DSP net generation,2028,-1864,GWh
+Step Change,Storage and DSP net generation,2029,-4497,GWh
+Step Change,Storage and DSP net generation,2030,-7230,GWh
+Step Change,Storage and DSP net generation,2031,-8144,GWh
+Step Change,Storage and DSP net generation,2032,-9059,GWh
+Step Change,Storage and DSP net generation,2033,-10006,GWh
+Step Change,Storage and DSP net generation,2034,-11088,GWh
+Step Change,Storage and DSP net generation,2035,-13056,GWh
+Step Change,Storage and DSP net generation,2036,-13120,GWh
+Step Change,Storage and DSP net generation,2037,-13933,GWh
+Step Change,Storage and DSP net generation,2038,-12948,GWh
+Step Change,Storage and DSP net generation,2039,-15315,GWh
+Step Change,Storage and DSP net generation,2040,-16240,GWh
+Step Change,Storage and DSP net generation,2041,-16730,GWh
+Step Change,Storage and DSP net generation,2042,-17228,GWh
+Step Change,Storage and DSP net generation,2043,-15029,GWh
+Step Change,Storage and DSP net generation,2044,-17081,GWh
+Step Change,Storage and DSP net generation,2045,-17843,GWh
+Step Change,Storage and DSP net generation,2046,-18845,GWh
+Step Change,Storage and DSP net generation,2047,-17915,GWh
+Step Change,Storage and DSP net generation,2048,-18609,GWh
+Step Change,Storage and DSP net generation,2049,-17950,GWh
+Step Change,Storage and DSP net generation,2050,-19242,GWh
+Slower Growth,NEM emissions,2027,96.764,Mt CO2-e
+Slower Growth,NEM emissions,2028,82.162,Mt CO2-e
+Slower Growth,NEM emissions,2029,52.22,Mt CO2-e
+Slower Growth,NEM emissions,2030,29.055,Mt CO2-e
+Slower Growth,NEM emissions,2031,27.861,Mt CO2-e
+Slower Growth,NEM emissions,2032,26.724,Mt CO2-e
+Slower Growth,NEM emissions,2033,26.627,Mt CO2-e
+Slower Growth,NEM emissions,2034,23.564,Mt CO2-e
+Slower Growth,NEM emissions,2035,14.428,Mt CO2-e
+Slower Growth,NEM emissions,2036,15.184,Mt CO2-e
+Slower Growth,NEM emissions,2037,19.318,Mt CO2-e
+Slower Growth,NEM emissions,2038,18.584,Mt CO2-e
+Slower Growth,NEM emissions,2039,17.808,Mt CO2-e
+Slower Growth,NEM emissions,2040,18.196,Mt CO2-e
+Slower Growth,NEM emissions,2041,16.226,Mt CO2-e
+Slower Growth,NEM emissions,2042,16.462,Mt CO2-e
+Slower Growth,NEM emissions,2043,15.249,Mt CO2-e
+Slower Growth,NEM emissions,2044,14.954,Mt CO2-e
+Slower Growth,NEM emissions,2045,15.185,Mt CO2-e
+Slower Growth,NEM emissions,2046,15.154,Mt CO2-e
+Slower Growth,NEM emissions,2047,12.769,Mt CO2-e
+Slower Growth,NEM emissions,2048,11.942,Mt CO2-e
+Slower Growth,NEM emissions,2049,14.764,Mt CO2-e
+Slower Growth,NEM emissions,2050,6.456,Mt CO2-e
+Slower Growth,Generation excluding rooftop and storage,2027,184081,GWh
+Slower Growth,Generation excluding rooftop and storage,2028,183001,GWh
+Slower Growth,Generation excluding rooftop and storage,2029,173127,GWh
+Slower Growth,Generation excluding rooftop and storage,2030,174276,GWh
+Slower Growth,Generation excluding rooftop and storage,2031,180677,GWh
+Slower Growth,Generation excluding rooftop and storage,2032,188450,GWh
+Slower Growth,Generation excluding rooftop and storage,2033,192771,GWh
+Slower Growth,Generation excluding rooftop and storage,2034,199346,GWh
+Slower Growth,Generation excluding rooftop and storage,2035,200605,GWh
+Slower Growth,Generation excluding rooftop and storage,2036,205148,GWh
+Slower Growth,Generation excluding rooftop and storage,2037,211100,GWh
+Slower Growth,Generation excluding rooftop and storage,2038,215299,GWh
+Slower Growth,Generation excluding rooftop and storage,2039,223275,GWh
+Slower Growth,Generation excluding rooftop and storage,2040,224536,GWh
+Slower Growth,Generation excluding rooftop and storage,2041,226066,GWh
+Slower Growth,Generation excluding rooftop and storage,2042,233238,GWh
+Slower Growth,Generation excluding rooftop and storage,2043,234853,GWh
+Slower Growth,Generation excluding rooftop and storage,2044,241054,GWh
+Slower Growth,Generation excluding rooftop and storage,2045,247700,GWh
+Slower Growth,Generation excluding rooftop and storage,2046,253401,GWh
+Slower Growth,Generation excluding rooftop and storage,2047,256768,GWh
+Slower Growth,Generation excluding rooftop and storage,2048,262361,GWh
+Slower Growth,Generation excluding rooftop and storage,2049,267551,GWh
+Slower Growth,Generation excluding rooftop and storage,2050,273581,GWh
+Slower Growth,Storage and DSP net generation,2027,-1139,GWh
+Slower Growth,Storage and DSP net generation,2028,-1775,GWh
+Slower Growth,Storage and DSP net generation,2029,-3544,GWh
+Slower Growth,Storage and DSP net generation,2030,-9286,GWh
+Slower Growth,Storage and DSP net generation,2031,-10580,GWh
+Slower Growth,Storage and DSP net generation,2032,-11798,GWh
+Slower Growth,Storage and DSP net generation,2033,-10709,GWh
+Slower Growth,Storage and DSP net generation,2034,-12314,GWh
+Slower Growth,Storage and DSP net generation,2035,-11131,GWh
+Slower Growth,Storage and DSP net generation,2036,-11328,GWh
+Slower Growth,Storage and DSP net generation,2037,-11022,GWh
+Slower Growth,Storage and DSP net generation,2038,-9965,GWh
+Slower Growth,Storage and DSP net generation,2039,-11581,GWh
+Slower Growth,Storage and DSP net generation,2040,-11150,GWh
+Slower Growth,Storage and DSP net generation,2041,-10607,GWh
+Slower Growth,Storage and DSP net generation,2042,-11688,GWh
+Slower Growth,Storage and DSP net generation,2043,-9701,GWh
+Slower Growth,Storage and DSP net generation,2044,-10236,GWh
+Slower Growth,Storage and DSP net generation,2045,-11525,GWh
+Slower Growth,Storage and DSP net generation,2046,-11997,GWh
+Slower Growth,Storage and DSP net generation,2047,-11320,GWh
+Slower Growth,Storage and DSP net generation,2048,-11661,GWh
+Slower Growth,Storage and DSP net generation,2049,-10908,GWh
+Slower Growth,Storage and DSP net generation,2050,-12363,GWh
+Accelerated Transition,NEM emissions,2027,84.666,Mt CO2-e
+Accelerated Transition,NEM emissions,2028,70.785,Mt CO2-e
+Accelerated Transition,NEM emissions,2029,44.788,Mt CO2-e
+Accelerated Transition,NEM emissions,2030,26.986,Mt CO2-e
+Accelerated Transition,NEM emissions,2031,16.392,Mt CO2-e
+Accelerated Transition,NEM emissions,2032,11.348,Mt CO2-e
+Accelerated Transition,NEM emissions,2033,12.995,Mt CO2-e
+Accelerated Transition,NEM emissions,2034,3.634,Mt CO2-e
+Accelerated Transition,NEM emissions,2035,2.654,Mt CO2-e
+Accelerated Transition,NEM emissions,2036,3.514,Mt CO2-e
+Accelerated Transition,NEM emissions,2037,3.877,Mt CO2-e
+Accelerated Transition,NEM emissions,2038,3.153,Mt CO2-e
+Accelerated Transition,NEM emissions,2039,1.073,Mt CO2-e
+Accelerated Transition,NEM emissions,2040,2.205,Mt CO2-e
+Accelerated Transition,NEM emissions,2041,2.526,Mt CO2-e
+Accelerated Transition,NEM emissions,2042,1.948,Mt CO2-e
+Accelerated Transition,NEM emissions,2043,2.6,Mt CO2-e
+Accelerated Transition,NEM emissions,2044,0.392,Mt CO2-e
+Accelerated Transition,NEM emissions,2045,1.201,Mt CO2-e
+Accelerated Transition,NEM emissions,2046,0.759,Mt CO2-e
+Accelerated Transition,NEM emissions,2047,1.881,Mt CO2-e
+Accelerated Transition,NEM emissions,2048,0.556,Mt CO2-e
+Accelerated Transition,NEM emissions,2049,2.12,Mt CO2-e
+Accelerated Transition,NEM emissions,2050,0.948,Mt CO2-e
+Accelerated Transition,Generation excluding rooftop and storage,2027,192365,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2028,198982,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2029,208713,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2030,221445,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2031,238276,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2032,249152,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2033,265048,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2034,283271,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2035,305499,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2036,322060,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2037,339460,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2038,350265,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2039,364247,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2040,373748,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2041,387201,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2042,399696,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2043,403970,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2044,418849,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2045,431804,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2046,445622,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2047,453589,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2048,465421,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2049,481553,GWh
+Accelerated Transition,Generation excluding rooftop and storage,2050,492526,GWh
+Accelerated Transition,Storage and DSP net generation,2027,-740,GWh
+Accelerated Transition,Storage and DSP net generation,2028,-2050,GWh
+Accelerated Transition,Storage and DSP net generation,2029,-4952,GWh
+Accelerated Transition,Storage and DSP net generation,2030,-7788,GWh
+Accelerated Transition,Storage and DSP net generation,2031,-12293,GWh
+Accelerated Transition,Storage and DSP net generation,2032,-13146,GWh
+Accelerated Transition,Storage and DSP net generation,2033,-14234,GWh
+Accelerated Transition,Storage and DSP net generation,2034,-15831,GWh
+Accelerated Transition,Storage and DSP net generation,2035,-17721,GWh
+Accelerated Transition,Storage and DSP net generation,2036,-17962,GWh
+Accelerated Transition,Storage and DSP net generation,2037,-19332,GWh
+Accelerated Transition,Storage and DSP net generation,2038,-18407,GWh
+Accelerated Transition,Storage and DSP net generation,2039,-20138,GWh
+Accelerated Transition,Storage and DSP net generation,2040,-22450,GWh
+Accelerated Transition,Storage and DSP net generation,2041,-22724,GWh
+Accelerated Transition,Storage and DSP net generation,2042,-22970,GWh
+Accelerated Transition,Storage and DSP net generation,2043,-20232,GWh
+Accelerated Transition,Storage and DSP net generation,2044,-23248,GWh
+Accelerated Transition,Storage and DSP net generation,2045,-25911,GWh
+Accelerated Transition,Storage and DSP net generation,2046,-26641,GWh
+Accelerated Transition,Storage and DSP net generation,2047,-25441,GWh
+Accelerated Transition,Storage and DSP net generation,2048,-24467,GWh
+Accelerated Transition,Storage and DSP net generation,2049,-26382,GWh
+Accelerated Transition,Storage and DSP net generation,2050,-26669,GWh

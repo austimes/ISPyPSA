@@ -300,6 +300,20 @@ def test_increment_surfaces_draw_both_arms_the_grid_and_the_duals(increments):
     assert emissions.args[0]["z"][0].tolist() == [[-300.0, -200.0], [0.0, 100.0]]
 
 
+def test_increment_surfaces_price_sharps_extra_energy_less_its_2026_sunk_capital(
+    increments,
+):
+    figure = figures.figure_increment_surfaces(increments)
+
+    # ShARP's 2035 extra-MWh price, A$88.28934/MWh on the campaign's basis, less A$27.7/MWh of 2026 sunk capital, per extra TWh.
+    sharp = figure.data[2]
+    assert (list(sharp.x), [round(y) for y in sharp.y], sharp.hovertemplate) == (
+        [1.0, 1.1],
+        [60_589_340, 60_589_340],
+        f"{SHARP_NAME}, 2035 extra-MWh price less 2026 sunk capital (A$27.7/MWh)<br>%{{x:.3g}}: %{{y:.3g}}<extra></extra>",
+    )
+
+
 def test_increment_surfaces_read_each_arm_from_the_level_keys(increments):
     figure = figures.figure_increment_surfaces(increments)
 
@@ -373,10 +387,10 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
         ("AEMO 2026 ISP: Step Change", "dot"),
         ("AEMO 2026 ISP: Accelerated Transition", "dot"),
         (None, None),
-        ("AEMO draft ISP scenario range", None),
-        ("AEMO draft ISP: Slower Growth", "dot"),
-        ("AEMO draft ISP: Step Change", "dot"),
-        ("AEMO draft ISP: Accelerated Transition", "dot"),
+        ("AEMO 2026 ISP scenario range", None),
+        ("AEMO 2026 ISP: Slower Growth", "dot"),
+        ("AEMO 2026 ISP: Step Change", "dot"),
+        ("AEMO 2026 ISP: Accelerated Transition", "dot"),
         (None, None),
         ("AEMO 2026 ISP scenario range", None),
         ("AEMO 2026 ISP: Slower Growth", "dot"),
@@ -411,10 +425,6 @@ def test_pathway_intensities_draws_one_line_per_chain_and_burnt_fuel(csv_str_to_
         "AEMO 2026 ISP: Slower Growth",
         "AEMO 2026 ISP: Step Change",
         "AEMO 2026 ISP: Accelerated Transition",
-        "AEMO draft ISP scenario range",
-        "AEMO draft ISP: Slower Growth",
-        "AEMO draft ISP: Step Change",
-        "AEMO draft ISP: Accelerated Transition",
         "ShARP whole-system cost (includes sunk capital)",
         "ShARP current policy (approx.)",
         "ShARP clean ladder reach (approx.)",
@@ -435,20 +445,37 @@ def test_pathway_intensities_overlays_the_aemo_scenarios_on_the_cost_emissions_a
 
     figure = figure_pathway_intensities(frame)
 
-    # The final ISP's cost and demand share one legend group; the draft ISP's emissions keep their own.
+    # The cost, emissions and demand overlays all come from the 2026 ISP and share one legend group.
     ranges = [
         trace for trace in figure.data if str(trace.name).endswith("scenario range")
     ]
     assert [(trace.name, trace.yaxis, trace.showlegend) for trace in ranges] == [
         ("AEMO 2026 ISP scenario range", "y", True),
-        ("AEMO draft ISP scenario range", "y2", True),
+        ("AEMO 2026 ISP scenario range", "y2", False),
         ("AEMO 2026 ISP scenario range", "y4", False),
     ]
-    # Step Change in 2030, restated per MWh and TWh of operational demand in June 2025 dollars.
+    # Step Change in 2030: cost restated per MWh of operational demand in June 2025 dollars, emissions per MWh
+    # of operational demand in g CO2e/kWh, and operational demand in TWh.
     step_change = [t for t in figure.data if t.name == "AEMO 2026 ISP: Step Change"]
     assert [(trace.x[0], round(trace.y[0], 1)) for trace in step_change] == [
         (2030, 45.7),
+        (2030, 193.0),
         (2030, 203.2),
+    ]
+
+
+def test_pathway_intensities_switch_every_panel_between_linear_and_log(csv_str_to_df):
+    frame = csv_str_to_df("""
+        cell,    trajectory, pressure, pressure_name,    year, delivered_twh, cost_per_mwh_excl_fuel_carbon, fleet_intensity
+        central, central,    c0,       uncapped (A$0/t), 2030, 100.0,         25.0,                          0.40
+    """)
+
+    figure = figure_pathway_intensities(frame)
+
+    axes = ["yaxis", "yaxis2", "yaxis3", "yaxis4"]
+    assert [button.args[0] for button in figure.layout.updatemenus[0].buttons] == [
+        {f"{axis}.type": "linear" for axis in axes},
+        {f"{axis}.type": "log" for axis in axes},
     ]
 
 
@@ -685,6 +712,7 @@ def test_tech_mix_facets_each_year_and_notes_its_hatching(branch_exports):
         ("base", "base"),
         ("d135_i050", "d=1.35, i=0.50"),
         ("d100_i100", "d=1.00, i=1.00"),
+        ("d200_i0005", "d=2.00, i=0.005"),
     ],
 )
 def test_increment_label_spells_out_both_levels(key, expected):

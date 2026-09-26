@@ -90,25 +90,21 @@ AEMO_INTENSITY_CSV = (
     PACKAGE_ROOT
     / "research"
     / "aemo_scenario_intensity"
-    / "aemo_scenario_intensity.csv"
+    / "aemo_scenario_intensity_final_isp.csv"
 )
 AEMO_COST_CSV = (
     PACKAGE_ROOT / "research" / "aemo_scenario_cost" / "aemo_scenario_cost.csv"
 )
 #: Emissions intensity in g CO2e/kWh per t CO2e/MWh, the unit every figure shows it in.
 G_PER_KWH_PER_T_PER_MWH = 1e3
-#: The AEMO series each pathway panel draws, by panel column: its CSV, value column, the ISP it comes from, which is
-#: also its legend group, and the factor to the panel's unit.
+#: The AEMO series each pathway panel draws, by panel column: its CSV, value column and the factor to the panel's unit.
+#: Every one comes from the 2026 ISP, which names their one legend group.
 AEMO_PANELS = {
-    1: (AEMO_COST_CSV, "common_cost_aud_per_mwh", "AEMO 2026 ISP", 1),
-    2: (
-        AEMO_INTENSITY_CSV,
-        "t_co2e_per_mwh",
-        "AEMO draft ISP",
-        G_PER_KWH_PER_T_PER_MWH,
-    ),
-    4: (AEMO_COST_CSV, "operational_demand_twh", "AEMO 2026 ISP", 1),
+    1: (AEMO_COST_CSV, "common_cost_aud_per_mwh", 1),
+    2: (AEMO_INTENSITY_CSV, "t_co2e_per_mwh", G_PER_KWH_PER_T_PER_MWH),
+    4: (AEMO_COST_CSV, "operational_demand_twh", 1),
 }
+AEMO_ISP = "AEMO 2026 ISP"
 AEMO_SCENARIOS = ["Slower Growth", "Step Change", "Accelerated Transition"]
 AEMO_LINE_COLOUR = "#101080"
 AEMO_BAND_FILL = "rgba(10,10,80,0.2)"
@@ -402,17 +398,17 @@ INCREMENT_COLOUR_MEASURES = {
 #: The level each arm of the grid varies, against the level it holds at one.
 INCREMENT_ARMS = {"demand_level": "intensity_level", "intensity_level": "demand_level"}
 
-#: A level key names a percentage of the base cell's own, prefixed by the axis it varies: ``d135`` is
-#: 1.35 times its demand and ``i010`` a tenth of its cap. The digits are the capture group.
-INCREMENT_LEVEL_PATTERN = r"^[a-z](\d+)$"
-INCREMENT_LEVEL_PER_CENT = 100.0
+#: A level key names a multiple of the base cell's own, prefixed by the axis it varies, its first
+#: digit the units and the rest the decimals: ``d135`` is 1.35 times its demand and ``i0005`` 0.005
+#: times its cap. The units and decimals are the two capture groups.
+INCREMENT_LEVEL_PATTERN = r"^[a-z](\d)(\d+)$"
 
 #: What every figure calls the base cell's own bar or line, beside the increment cells' labels.
 BASE_CELL_LABEL = "base"
 
-#: Increment keys on the grid's pure demand column or pure intensity row, e.g. ``d100_i050`` and
-#: ``d135_i100``: one level held at the base cell's own. The mix and storage figures bar these only.
-INCREMENT_ARM_KEYS = r"^d100_|_i100$"
+#: Increment keys on the grid's pure demand column or pure intensity row, e.g. ``d100_i0500`` and
+#: ``d140_i1000``: one level held at the base cell's own. The mix and storage figures bar these only.
+INCREMENT_ARM_KEYS = r"^d10*_|_i10*$"
 
 
 def increment_keys(rows: pd.DataFrame) -> pd.Series:
@@ -421,17 +417,15 @@ def increment_keys(rows: pd.DataFrame) -> pd.Series:
 
 
 def increment_label(key: str) -> str:
-    """Spell out one increment key: ``d135_i050`` as ``d=1.35, i=0.50``, and the base cell as ``base``.
+    """Spell out one increment key: ``d135_i0005`` as ``d=1.35, i=0.005``, and the base cell as ``base``.
 
     :param key: An increment key, or ``base`` for the base cell itself.
     :return: The label every figure names that cell by.
     """
     if key == BASE_CELL_LABEL:
         return BASE_CELL_LABEL
-    demand, intensity = (
-        int(level[1:]) / INCREMENT_LEVEL_PER_CENT for level in key.split("_")
-    )
-    return f"d={demand:.2f}, i={intensity:.2f}"
+    demand, intensity = (f"{level[1]}.{level[2:]}" for level in key.split("_"))
+    return f"d={demand}, i={intensity}"
 
 
 #: Cost of the extra energy an increment cell delivers, and how the demand arm titles it.
@@ -523,13 +517,10 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
 
 def _numeric_levels(increments: pd.DataFrame) -> pd.DataFrame:
     """Each level key as the multiple of the base cell it names, e.g. ``d135`` as 1.35."""
-    multiples = {
-        level: pd.to_numeric(
-            increments[level].astype(str).str.extract(INCREMENT_LEVEL_PATTERN)[0]
-        )
-        / INCREMENT_LEVEL_PER_CENT
-        for level in INCREMENT_ARMS
-    }
+    multiples = {}
+    for level in INCREMENT_ARMS:
+        parts = increments[level].astype(str).str.extract(INCREMENT_LEVEL_PATTERN)
+        multiples[level] = pd.to_numeric(parts[0] + "." + parts[1])
     return increments.assign(**multiples)
 
 
@@ -667,9 +658,13 @@ def _sharp_arms(curves: pd.DataFrame) -> list[tuple[int, go.Scatter]]:
 def _sharp_demand_arm(
     rows: pd.DataFrame, levels: pd.Series, legend: bool
 ) -> go.Scatter:
-    """ShARP's approximate price of one extra MWh on the campaign's basis, flat across the demand arm, in A$ per extra TWh."""
-    price = rows["common_extra_mwh_price_aud_per_mwh"].iloc[0] * MWH_PER_TWH
-    label = f"{rows['year'].iloc[0]} extra-MWh price"
+    """ShARP's approximate price of one extra MWh on the campaign's basis, flat across the demand arm, in A$ per extra TWh.
+
+    Its clean-supply part is the parent future's average non-fuel cost, so the 2026 sunk capital comes off it, as on the cost panel.
+    """
+    extra = rows["common_extra_mwh_price_aud_per_mwh"].iloc[0]
+    price = (extra - SHARP_SUNK_CAPITAL_2026) * MWH_PER_TWH
+    label = f"{rows['year'].iloc[0]} extra-MWh price less 2026 sunk capital (A${SHARP_SUNK_CAPITAL_2026}/MWh)"
     return _sharp_line([levels.min(), levels.max()], [price, price], label, legend)
 
 
@@ -808,7 +803,8 @@ def figure_pathway_intensities(
     sanity reference, and every panel carries ShARP's planned current-policy value, shaded out to its
     clean ladder's cleanest point, or across every ShARP future for demand, where the reference
     covers the plotted years. Cost and demand references are restated per MWh and TWh of operational
-    demand in June 2025 dollars, the campaign's own basis.
+    demand in June 2025 dollars, the campaign's own basis. A linear/log button pair retypes every
+    panel's y axis, so near-zero emissions and costs stay readable.
 
     :param frame: The tidy cell-year frame of the campaign's base chains.
     :param branches: The increment grid's branch rows, each fanned out from the base point it
@@ -819,11 +815,9 @@ def figure_pathway_intensities(
         cols=len(INTENSITY_PANELS),
         subplot_titles=[f"{title} \u00b7 {unit}" for title, unit in INTENSITY_PANELS],
     )
-    isps = [isp for _, _, isp, _ in AEMO_PANELS.values()]
-    for index, (column, (csv, value, isp, scale)) in enumerate(AEMO_PANELS.items()):
+    for index, (column, (csv, value, scale)) in enumerate(AEMO_PANELS.items()):
         span = _aemo_scenario_span(csv, value, frame["year"].min()) * scale
-        overlay = _aemo_overlay(span, isp, isps.index(isp) == index)
-        figure.add_traces(overlay, rows=1, cols=column)
+        figure.add_traces(_aemo_overlay(span, index == 0), rows=1, cols=column)
     for column, references in enumerate(_sharp_pathway(frame["year"]), start=1):
         figure.add_traces(references, rows=1, cols=column)
     listed: set[str] = set()
@@ -862,12 +856,14 @@ def figure_pathway_intensities(
         showgrid=False,
     )
     figure.update_yaxes(gridcolor=PANEL_GRID_COLOUR, zeroline=False)
-    return figure.update_layout(
+    # The legend sits above the linear/log buttons' row rather than beside it, where the buttons would hide its first entries.
+    figure.update_layout(
         height=INTENSITIES_HEIGHT,
         plot_bgcolor=PANEL_BACKGROUND,
         paper_bgcolor=PANEL_BACKGROUND,
-        legend={"font_size": 10, "orientation": "h", "y": 1.08, "yanchor": "bottom"},
+        legend={"font_size": 10, "orientation": "h", "y": 1.15, "yanchor": "bottom"},
     )
+    return add_axis_scale_buttons(figure, axes="y")
 
 
 def _aemo_scenario_span(csv: Path, value: str, first_year: int) -> pd.DataFrame:
@@ -877,10 +873,10 @@ def _aemo_scenario_span(csv: Path, value: str, first_year: int) -> pd.DataFrame:
     return span.loc[span.index >= first_year, AEMO_SCENARIOS]
 
 
-def _aemo_overlay(span: pd.DataFrame, isp: str, legend: bool) -> list[go.Scatter]:
-    """The shaded scenario range and one dotted line per scenario, grouped by ISP so a click hides that ISP's overlay on every panel."""
+def _aemo_overlay(span: pd.DataFrame, legend: bool) -> list[go.Scatter]:
+    """The shaded scenario range and one dotted line per scenario, in one legend group so a click hides the overlay on every panel."""
     shared = {
-        "legendgroup": isp,
+        "legendgroup": AEMO_ISP,
         "mode": "lines",
         "x": span.index,
         "showlegend": legend,
@@ -891,14 +887,14 @@ def _aemo_overlay(span: pd.DataFrame, isp: str, legend: bool) -> list[go.Scatter
         go.Scatter(
             **edge,
             y=span.min(axis=1),
-            name=f"{isp} scenario range",
+            name=f"{AEMO_ISP} scenario range",
             fill="tonexty",
             fillcolor=AEMO_BAND_FILL,
         ),
     ]
     line = {"color": AEMO_LINE_COLOUR, "dash": "dot", "width": 1.5}
     for scenario in span:
-        name = f"{isp}: {scenario}"
+        name = f"{AEMO_ISP}: {scenario}"
         hover = f"{name}<br>%{{x}}: %{{y:.3g}}<extra></extra>"
         traces.append(
             go.Scatter(

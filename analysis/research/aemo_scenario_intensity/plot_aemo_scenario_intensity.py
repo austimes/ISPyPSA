@@ -1,7 +1,12 @@
-"""Derive a per-year NEM emissions intensity for each AEMO 2026 draft ISP scenario, as a sanity reference for the campaign pathways.
+"""Per-year NEM emissions intensity for each AEMO 2026 ISP scenario: the final ISP's dashboard overlay and the draft ISP's cap source.
 
-AEMO publishes no per-year emissions series in the 2026 IASR workbook, so the series here is derived: the draft 2026 ISP candidate
-development path 4 (CDP4) generation outputs tracked in this repository's ``iasr outputs`` directory supply annual TWh by fuel, and the
+The overlay is the final 2026 ISP generation and storage outlook's candidate development path 4 (CDP4) NEM emissions over operational
+demand, from ``aemo_2026_isp_cdp4_emissions_generation.csv`` beside this script, written to ``aemo_scenario_intensity_final_isp.csv``.
+Operational demand is generation excluding rooftop and storage net of storage and demand-side participation (DSP) losses: the load basis
+of the campaign's own fleet intensity and of the cost overlay in ``../aemo_scenario_cost/``.
+
+The base chain's carbon caps come from the draft ISP series in ``aemo_scenario_intensity.csv``. The draft published no per-year
+emissions, so that series is derived: the draft 2026 ISP CDP4 generation outputs tracked in this repository's ``iasr outputs`` directory supply annual TWh by fuel, and the
 fork's NGER cross-walk (``analysis/sharp/nger_factors.py``) supplies the combustion emission factors. Intensity is combustion emissions
 over generation excluding rooftop photovoltaics, in tonnes carbon dioxide equivalent per megawatt hour, which is numerically the same as
 megatonnes per terawatt hour.
@@ -11,7 +16,7 @@ IASR table ``heat_rates_existing_committed_anticipated_additional_generators.csv
 rather than in this repository, so the four medians are carried here as constants with that table named beside them.
 
 Run with ``uv run --with kaleido python analysis/research/aemo_scenario_intensity/plot_aemo_scenario_intensity.py``; writes
-``aemo_scenario_intensity.csv``, ``.html`` and ``.png`` beside this script.
+both CSVs and ``aemo_scenario_intensity.html`` and ``.png`` beside this script.
 """
 
 from __future__ import annotations
@@ -26,6 +31,10 @@ from analysis.sharp.nger_factors import nger_factor_table
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _CDP4_DIR = _REPO_ROOT / "iasr outputs"
 _OUTPUT_STEM = Path(__file__).with_name("aemo_scenario_intensity")
+_FINAL_SOURCE_CSV = Path(__file__).with_name(
+    "aemo_2026_isp_cdp4_emissions_generation.csv"
+)
+_FINAL_OUTPUT_CSV = Path(__file__).with_name("aemo_scenario_intensity_final_isp.csv")
 
 # Total generation less rooftop photovoltaics: behind-the-meter rooftop output never crosses the NEM, so the remainder is the closest
 # available proxy for grid-supplied energy in these generation-basis files.
@@ -121,10 +130,29 @@ def _scenario_intensity(scenario: str) -> pd.DataFrame:
 
 
 def intensity_table() -> pd.DataFrame:
-    """The three scenarios' derived intensity series, stacked and sorted by year."""
+    """The three scenarios' derived draft ISP intensity series, stacked and sorted by year."""
     return pd.concat(
         [_scenario_intensity(scenario) for scenario in _SCENARIO_LABELS]
     ).sort_values(["year", "scenario"], ignore_index=True)
+
+
+def final_intensity_table() -> pd.DataFrame:
+    """The final ISP's NEM emissions over operational demand per scenario and year, beside the emissions and energy behind it."""
+    wide = pd.read_csv(_FINAL_SOURCE_CSV).pivot_table(
+        index=["financial_year_ending", "scenario"], columns="series", values="value"
+    )
+    emissions = wide["NEM emissions"]
+    generation = wide["Generation excluding rooftop and storage"] / 1000
+    demand = generation + wide["Storage and DSP net generation"] / 1000
+    table = pd.DataFrame(
+        {
+            "emissions_mt": emissions,
+            "generation_twh": generation,
+            "operational_demand_twh": demand,
+            "t_co2e_per_mwh": (emissions / demand).round(5),
+        }
+    )
+    return table.rename_axis(["year", "scenario"]).reset_index()
 
 
 def _add_scenario_band(figure: go.Figure, table: pd.DataFrame) -> None:
@@ -144,7 +172,7 @@ def _add_scenario_band(figure: go.Figure, table: pd.DataFrame) -> None:
         go.Scatter(
             x=span.index,
             y=span.min(axis=1),
-            name="AEMO scenario range",
+            name="2026 ISP scenario range",
             mode="lines",
             line={"width": 0},
             fill="tonexty",
@@ -154,7 +182,9 @@ def _add_scenario_band(figure: go.Figure, table: pd.DataFrame) -> None:
     )
 
 
-def _add_scenario_lines(figure: go.Figure, table: pd.DataFrame) -> None:
+def _add_scenario_lines(
+    figure: go.Figure, table: pd.DataFrame, isp: str, dash: str
+) -> None:
     """Add one line per scenario, coloured as the demand-trajectory plot colours the same three scenarios."""
     for scenario, label in _SCENARIO_LABELS.items():
         series = table[table["scenario"].eq(label)]
@@ -162,23 +192,24 @@ def _add_scenario_lines(figure: go.Figure, table: pd.DataFrame) -> None:
             go.Scatter(
                 x=series["year"],
                 y=series["t_co2e_per_mwh"],
-                name=f"draft ISP {label} (CDP4)",
+                name=f"{isp} {label} (CDP4)",
                 mode="lines+markers",
-                line={"color": _SCENARIO_COLOURS[scenario], "width": 2},
+                line={"color": _SCENARIO_COLOURS[scenario], "width": 2, "dash": dash},
                 marker={"size": 4},
             )
         )
 
 
-def build_figure(table: pd.DataFrame) -> go.Figure:
-    """Assemble the scenario intensity figure."""
+def build_figure(draft: pd.DataFrame, final: pd.DataFrame) -> go.Figure:
+    """The final ISP range and lines the dashboard draws, over the draft ISP lines the base chain's caps come from."""
     figure = go.Figure()
-    _add_scenario_band(figure, table)
-    _add_scenario_lines(figure, table)
+    _add_scenario_band(figure, final)
+    _add_scenario_lines(figure, final, "2026 ISP", "solid")
+    _add_scenario_lines(figure, draft[draft["year"].ge(2026)], "draft ISP", "dot")
     figure.update_layout(
-        title="NEM emissions intensity by year, derived from AEMO 2026 draft ISP CDP4 generation and NGER combustion factors",
-        xaxis_title="financial year",
-        yaxis_title="t CO2e/MWh generated (excluding rooftop)",
+        title="NEM emissions intensity, AEMO 2026 ISP CDP4 (dashboard overlay, solid) and draft ISP (base chain caps, dotted)",
+        xaxis_title="financial year ending",
+        yaxis_title="t CO2e/MWh (2026 ISP: per MWh of operational demand<br>draft ISP: per MWh generated excluding rooftop)",
         legend={
             "orientation": "h",
             "yanchor": "top",
@@ -194,18 +225,19 @@ def build_figure(table: pd.DataFrame) -> go.Figure:
 
 
 def main() -> None:
-    """Write the derived series as CSV and the figure as HTML and PNG beside this script."""
-    table = intensity_table()
-    table.to_csv(_OUTPUT_STEM.with_suffix(".csv"), index=False, encoding="utf-8")
-    figure = build_figure(table)
+    """Write both derived series as CSV and the figure as HTML and PNG beside this script."""
+    draft, final = intensity_table(), final_intensity_table()
+    draft.to_csv(_OUTPUT_STEM.with_suffix(".csv"), index=False, encoding="utf-8")
+    final.to_csv(_FINAL_OUTPUT_CSV, index=False, encoding="utf-8", float_format="%.6g")
+    figure = build_figure(draft, final)
     figure.write_html(_OUTPUT_STEM.with_suffix(".html"), include_plotlyjs="cdn")
     figure.write_image(_OUTPUT_STEM.with_suffix(".png"), scale=2)
-    milestones = table[table["year"].isin(_MILESTONE_YEARS)]
-    print(
-        milestones.pivot(
+    for table in (draft, final):
+        milestones = table[table["year"].isin(_MILESTONE_YEARS)]
+        pivot = milestones.pivot(
             index="year", columns="scenario", values="t_co2e_per_mwh"
-        ).to_string()
-    )
+        )
+        print(pivot.to_string())
 
 
 if __name__ == "__main__":

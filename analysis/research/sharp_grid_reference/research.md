@@ -13,7 +13,7 @@ Change, and commits it as a CSV so the campaign dashboard can draw it as a dashe
 | Pathway intensities: input | Planned fuel input intensity, coal, lignite and gas summed (PJ/TWh) |
 | Pathway intensities: cost, emissions and input | A band from the planned value to the clean ladder's 99% point |
 | Pathway intensities: demand | Planned quantity as NEM operational demand (TWh), over a band spanning every ShARP grid future |
-| Increment surfaces: demand arm | Approximate price of one extra MWh, flat across the arm |
+| Increment surfaces: demand arm | Approximate price of one extra MWh less the 2026 sunk capital, flat across the arm |
 | Increment surfaces: intensity arm | The clean ladder cleaner than the planned share, converted to intensity |
 
 The reference is a comparison aid, not a target or a constraint. Nothing in the campaign model reads it.
@@ -61,7 +61,10 @@ That is already a cost per extra unit of energy, in A$ per TWh, so ShARP's extra
 MWh per TWh to share its axis. No conversion through the base cell's average cost or TWh is needed (A005). Both arms draw
 ShARP on the campaign's basis, from the `common_` columns described under
 [Common basis](#common-basis-with-the-campaigns-measure). The arm includes fuel and carbon, and the ShARP price includes
-its fuel allowance of A$2 to A$6/MWh from 2030 on (A$22/MWh in 2026) but not its carbon allowance.
+its fuel allowance of A$2 to A$6/MWh from 2030 on (A$22/MWh in 2026) but not its carbon allowance. The ladder level inside
+that price is the parent future's full average non-fuel cost, sunk capital included, so the demand arm draws the price
+less the 2026 sunk capital the cost panel takes off, A$27.7/MWh (S011); the overflow-scale premium, the growth charge, the
+fuel allowance and the intensity arm's ladder differences stay unadjusted, and the gas backstop (S005) is drawn nowhere.
 
 ## The numbers
 

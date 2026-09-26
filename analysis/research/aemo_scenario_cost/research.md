@@ -5,9 +5,9 @@
 The dashboard's "Pathway intensities" row draws every chain's conversion cost, the cost excluding fuel and carbon per megawatt hour,
 against the milestone years. This topic derives the same measure for the three AEMO 2026 ISP scenarios and commits it as a CSV, so the
 conversion cost panel shades the range between them and draws each scenario as a dotted line behind the chains. The same CSV carries each
-scenario's operational demand, which the row's demand panel draws the same way. Both overlays sit under one "AEMO 2026 ISP" legend group,
-so one legend click hides both; the emissions panel's overlay from [`../aemo_scenario_intensity/`](../aemo_scenario_intensity/) comes from
-the draft ISP and keeps its own "AEMO draft ISP" group.
+scenario's operational demand, which the row's demand panel draws the same way. Both overlays share one "AEMO 2026 ISP" legend group with
+the emissions panel's overlay from [`../aemo_scenario_intensity/`](../aemo_scenario_intensity/), which comes from the same outlook, so one
+legend click hides all three.
 
 The dashboard draws both overlays on the campaign's own basis, described under [Common basis](#common-basis-with-the-campaigns-measure).
 
@@ -165,8 +165,8 @@ locational cost factors (S002). The same rates reproduce the campaign's own 2030
 rates is A$1.1 billion a year. The extra wind, solar and batteries AEMO builds by 2030 account for about A$3.0 billion of the A$3.2
 billion gap; connection costs, gas builds and the rounding in the capacity match cover the rest.
 
-**confidence: high** that the capital scopes match: AEMO states it (S005), and the roster sums reproduce the campaign's 2026 battery,
-wind and solar capacity. **confidence: medium** on the decomposition: AEMO's batteries are its medium and shallow storage (S006), the
+**confidence: high** that the capital scopes match: AEMO states it (S005), and the campaign's translator gives every roster unit its
+commissioning year as build year, so it enters the model in that period with fixed operating cost and no capital. **confidence: medium** on the decomposition: AEMO's batteries are its medium and shallow storage (S006), the
 roster cut-off uses each project's commissioning date, and the rates leave out connection costs.
 
 ## Residual gaps

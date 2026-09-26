@@ -113,6 +113,46 @@ The combined-cycle median alone is 7.67 GJ/MWh, which is the alternative gas fig
 from this repository, so the back-check in `research.md` is reported against a remembered order-of-magnitude figure rather than a quoted one.
 The check is a smoke test on the factor and heat rate choices, and nothing in the derivation depends on its precision.
 
+## S006 -- AEMO 2026 ISP generation and storage outlook, CDP4 emissions and generation
+
+**Source:** AEMO's final 2026 ISP "2026 ISP generation and storage outlook", published 25 June 2026 at
+<https://www.aemo.com.au/energy-systems/major-publications/integrated-system-plan-isp/2026-integrated-system-plan-isp> as
+`2026-isp-generation-and-storage-outlook.zip`, the same download as S001 of [`../aemo_scenario_cost/`](../aemo_scenario_cost/). Three
+workbooks inside it were read, one per scenario:
+
+- `Core scenarios/2026 ISP - Step Change - Core.xlsx`
+- `Core scenarios/2026 ISP - Slower Growth - Core.xlsx`
+- `Core scenarios/2026 ISP - Accelerated Transition - Core.xlsx`
+
+The zip is not tracked in this repository; the rows used are extracted to
+[`aemo_2026_isp_cdp4_emissions_generation.csv`](aemo_2026_isp_cdp4_emissions_generation.csv), long format
+`scenario,series,financial_year_ending,value,unit`, 216 rows covering financial years ending 2027 to 2050.
+
+Sheet `Emissions`, titled "NEM Emissions (Mt CO2-e)", with header row "CDP, Region, Total, 2026-27, 2027-28, ..., 2049-50": one row per
+region for each development path. The sheet carries no note, so it states no emissions scope. The `CDP4 (ODP)` rows for the five regions
+are summed into the series "NEM emissions". The Step Change `CDP4 (ODP)` rows' 2029-30 cells, verbatim:
+
+> ```text
+> NSW 7.771673542395926, QLD 20.32747116852524, VIC 11.042241499188002, SA 0.09149100059309245, TAS 0
+> ```
+
+They sum to the extract's 39.233 Mt CO2-e for 2030.
+
+Sheet `Generation`, titled "Annual as-generated generation by technology (GWh)", described on the workbook's `Index` sheet as "Annual
+as-generated generation by technology for all cases": the `CDP4 (ODP)` rows summed into two series. "Storage and DSP net generation" sums the
+technologies Utility-scale storage, Coordinated CER storage, Passive CER storage and DSP with the three matching storage loads; "Generation
+excluding rooftop and storage" sums every other technology less "Rooftop and other small-scale solar". Both match the same series in
+[`../aemo_scenario_cost/aemo_2026_isp_cdp4_costs_generation.csv`](../aemo_scenario_cost/aemo_2026_isp_cdp4_costs_generation.csv) to the
+gigawatt hour.
+
+The first Step Change rows of the extract, verbatim:
+
+> ```text
+> scenario,series,financial_year_ending,value,unit
+> Step Change,NEM emissions,2027,102.024,Mt CO2-e
+> Step Change,NEM emissions,2028,85.796,Mt CO2-e
+> ```
+
 ## A001 -- Coal blend, 75% black and 25% brown by energy
 
 CDP4 reports one Coal column, while the NGER cross-walk carries separate black (90.24) and brown (93.82) coal factors. The blend weight is
@@ -123,11 +163,19 @@ either pure coal, and the derived intensities by less than that.
 
 Intensity is quoted per megawatt hour generated less rooftop photovoltaic output, following the convention
 [`../demand_plan/plot_demand_trajectories.py`](../demand_plan/plot_demand_trajectories.py) already uses on these same files: behind-the-meter
-rooftop output never crosses the NEM, so the remainder is the closest proxy these generation-basis files offer for grid-supplied energy. The
-campaign's own `fleet_intensity` is on a comparable generated basis, so no delivery factor is applied on either side.
+rooftop output never crosses the NEM, so the remainder is the closest proxy these generation-basis files offer for grid-supplied energy. It
+applies to the draft series only; the 2026 ISP overlay divides by operational demand instead (A006).
 
 ## A003 -- Distillate heat rate taken from small open-cycle gas turbines
 
 The IASR heat rate table identifies units by technology, not by fuel, and CDP4 reports no liquid-fuelled technology class. Distillate
 therefore takes the small open-cycle gas turbine median (S004), which is the plant class the NGER cross-walk names as the diesel-burning part
 of the IASR fleet (S003). Distillate is zero in every CDP4 year of every scenario from 2030 on, so the choice changes no plotted number.
+
+## A006 -- Operational demand as the 2026 ISP overlay's denominator
+
+The 2026 ISP overlay divides AEMO's NEM emissions by operational demand, taken as generation excluding rooftop and storage plus the
+(negative) storage and DSP net generation, both from S006. The campaign's `fleet_intensity`, which the overlay sits beside, is emissions per
+megawatt hour delivered to the model's loads ([`../../sharp/method_years.py`](../../sharp/method_years.py)), and the same panel row's cost
+and demand overlays use the same operational demand (A004 in [`../aemo_scenario_cost/`](../aemo_scenario_cost/)). The draft series keeps
+its own generated denominator (A002), because the base chain's caps are read from it unchanged.
