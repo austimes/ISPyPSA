@@ -42,6 +42,9 @@ CARRIER_COLOURS = {
 #: Cost-input names that are a carrier's main new-entrant technology, drawn in that carrier's colour.
 INPUT_COST_CARRIERS = {"Large scale Solar PV": "Solar"}
 
+#: Year panels per row in the technology mix and storage figures, wide enough to label every bar.
+DECOMPOSITION_FACETS_PER_ROW = 4
+
 #: Carrier columns whose CSV name reads differently on the page.
 CARRIER_LABELS = {"Water": "Hydro (conventional)"}
 
@@ -510,6 +513,8 @@ def figure_increment_surfaces(increments: pd.DataFrame) -> go.Figure:
         heatmap = _increment_heatmap(block, labelled)
         figure.add_trace(heatmap, row=4 + index // columns, col=1 + index % columns)
     figure.add_trace(_cap_dual_table(cells), row=len(heights), col=1)
+    # The deep-cut levels (0.005 to 0.07) crowd together near zero on a linear axis.
+    figure.update_xaxes(type="log", row=2, col=1)
     return _button_row(
         _label_increment_axes(figure, heights), _increment_buttons(figure, blocks)
     )
@@ -1484,6 +1489,7 @@ def figure_pipeline_rush(tranches: pd.DataFrame) -> go.Figure:
         col=1,
     )
     figure.update_xaxes(type="category")
+    figure.update_xaxes(dtick=1, tickfont_size=9, row=2, col=1)
     figure.update_yaxes(title_text=LABELS["gw"], row=1, col=1)
     return figure.update_layout(barmode="stack", height=RUSH_HEIGHT)
 
@@ -1737,12 +1743,21 @@ def figure_tech_mix(
         pattern_shape="pattern",
         pattern_shape_map=MIX_PATTERNS,
         facet_col="year",
+        facet_col_wrap=DECOMPOSITION_FACETS_PER_ROW,
+        facet_row_spacing=0.25,
         category_orders={"carrier": [*CARRIER_COLOURS, UNSERVED_CARRIER]},
         color_discrete_map={**CARRIER_COLOURS, UNSERVED_CARRIER: UNSERVED_COLOUR},
         labels=LABELS,
-        height=DECOMPOSITION_HEIGHT,
+        height=2 * DECOMPOSITION_HEIGHT,
     )
-    figure.update_xaxes(type="category", matches=None, title_text="")
+    figure.update_xaxes(
+        type="category",
+        categoryorder="category ascending",
+        matches=None,
+        title_text="",
+        dtick=1,
+        showticklabels=True,
+    )
     figure.update_layout(legend_title_text="Carrier")
     _colour_legend_entries(figure)
     _strip_facet_titles(figure)
@@ -1805,14 +1820,23 @@ def figure_storage_build(
         pattern_shape="carrier",
         pattern_shape_map=STORAGE_PATTERNS,
         facet_col="year",
+        facet_col_wrap=DECOMPOSITION_FACETS_PER_ROW,
+        facet_row_spacing=0.25,
         category_orders={
             "duration_class": list(DURATION_LABELS.values()),
             "carrier": list(STORAGE_PATTERNS),
         },
         labels=LABELS,
-        height=DECOMPOSITION_HEIGHT,
+        height=2 * DECOMPOSITION_HEIGHT,
     )
-    figure.update_xaxes(type="category", matches=None, title_text="")
+    figure.update_xaxes(
+        type="category",
+        categoryorder="category ascending",
+        matches=None,
+        title_text="",
+        dtick=1,
+        showticklabels=True,
+    )
     figure.update_layout(legend_title_text=LABELS["duration_class"])
     _colour_legend_entries(figure)
     _strip_facet_titles(figure)
