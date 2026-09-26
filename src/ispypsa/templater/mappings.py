@@ -86,6 +86,21 @@ _ECAA_GENERATOR_NEW_COLUMN_MAPPING = {
     # summary's `auxiliary_load_%` column with the generator name (= Power
     # Station after the (c1) consolidation rename).
     "auxiliary_load_%": "generator",
+    # The summary's own `FOM ($/kW/annum)` cell is a lookup key, not a value, and
+    # AEMO only writes a station name there for thermal plant. Wind, solar and
+    # hydro rows carry a class label ("All Wind", "All Large scale solar PV",
+    # "All Hydro") and two gas rows carry a technology label ("OCGT (small GT)").
+    # `fixed_opex_existing_committed_anticipated_additional_generators` is keyed
+    # solely by Power Station and has no such rows, so the lookup missed and
+    # `_merge_and_set_ecaa_generators_static_properties` turned the leftover
+    # string into pd.NA on 274 of 336 rows. There is no class-level FOM anywhere
+    # in the workbook to reach instead (the Fixed OPEX sheet is 737 per-station
+    # rows, none of them an "All ..." aggregate), so the class labels are AEMO
+    # shorthand for "these are listed individually" and the per-station join is
+    # the intended mapping. Seed from the generator name like the other
+    # Power-Station-keyed lookups above; thermal is unaffected because its
+    # summary cell already held that same station name.
+    "fom_$/kw/annum": "generator",
 }
 
 _NEW_ENTRANT_GENERATOR_NEW_COLUMN_MAPPING = {
@@ -393,7 +408,10 @@ _ECAA_STORAGE_STATIC_PROPERTY_TABLE_MAP = {
     "commissioning_date": dict(
         table="maximum_capacity_existing_committed_anticipated_additional_generators",
         table_lookup="Power Station",
-        table_value="Indicative commissioning date",
+        # Committed dates sit in `Commissioning date`, indicative ones in
+        # `Indicative commissioning date` (see the ECAA generator map above).
+        table_value="Commissioning date",
+        alternative_values=["Indicative commissioning date"],
     ),
     "fom_$/kw/annum": dict(
         table="fixed_opex_existing_committed_anticipated_additional_generators",
@@ -559,13 +577,13 @@ _SUBREGION_FLOW_PATHS_V74 = [
     "CNSW-NNSW",
     "CNSW-SNW",
     "SNSW-CNSW",
-    "WNV-SNSW",       # was VIC-SNSW in v6.0
-    "TAS-SEV",        # was TAS-VIC in v6.0
-    "WNV-SESA",       # was VIC-SESA in v6.0
+    "WNV-SNSW",  # was VIC-SNSW in v6.0
+    "TAS-SEV",  # was TAS-VIC in v6.0
+    "WNV-SESA",  # was VIC-SESA in v6.0
     "SESA-CSA",
-    "CSA-NSA",        # new in v7.4 (NSA = Northern South Australia)
-    "MEL-WNV",        # new in v7.4 (intra-Victoria, Melbourne to Western North VIC)
-    "SEV-MEL",        # new in v7.4 (intra-Victoria, South East VIC to Melbourne)
+    "CSA-NSA",  # new in v7.4 (NSA = Northern South Australia)
+    "MEL-WNV",  # new in v7.4 (intra-Victoria, Melbourne to Western North VIC)
+    "SEV-MEL",  # new in v7.4 (intra-Victoria, South East VIC to Melbourne)
 ]
 
 # Per-flow-path identifier overrides for v7.x augmentation-cost tables.
@@ -592,7 +610,11 @@ _COST_SCENARIO_SUFFIXES_V74 = (
 
 def cost_scenario_suffixes(iasr_workbook_version: str = "6.0") -> tuple[str, ...]:
     """Return the cost-scenario filename suffixes for a given workbook version."""
-    return _COST_SCENARIO_SUFFIXES_V74 if iasr_workbook_version.startswith("7.") else _COST_SCENARIO_SUFFIXES_V60
+    return (
+        _COST_SCENARIO_SUFFIXES_V74
+        if iasr_workbook_version.startswith("7.")
+        else _COST_SCENARIO_SUFFIXES_V60
+    )
 
 
 def prepatory_activities_tables(iasr_workbook_version: str = "6.0") -> list[str]:
@@ -605,7 +627,9 @@ def prepatory_activities_tables(iasr_workbook_version: str = "6.0") -> list[str]
     ]
 
 
-def rez_connection_prepatory_activities_tables(iasr_workbook_version: str = "6.0") -> list[str]:
+def rez_connection_prepatory_activities_tables(
+    iasr_workbook_version: str = "6.0",
+) -> list[str]:
     """v6.0 had per-scenario rez preparatory_activities tables; v7.x dropped them."""
     if iasr_workbook_version.startswith("7."):
         return []
@@ -647,6 +671,7 @@ def generator_property_tables(iasr_workbook_version: str = "6.0") -> list[str]:
     if not iasr_workbook_version.startswith("7."):
         # v6.0 path: build from _GENERATOR_PROPERTIES Cartesian product
         from .lists import _ALL_GENERATOR_STORAGE_TYPES, _CONDENSED_GENERATOR_TYPES
+
         # Replicates the inline build in local_cache.py for v6.0
         v60_props = {
             "maximum_capacity": _ALL_GENERATOR_STORAGE_TYPES,
@@ -671,14 +696,36 @@ def generator_property_tables(iasr_workbook_version: str = "6.0") -> list[str]:
         ]
     # v7.x: per-property explicit lists
     v74_props = {
-        "maximum_capacity": ["existing_committed_anticipated_additional_generators", "new_entrants"],
-        "seasonal_ratings": ["existing_committed_anticipated_additional_generators", "new_entrants"],
+        "maximum_capacity": [
+            "existing_committed_anticipated_additional_generators",
+            "new_entrants",
+        ],
+        "seasonal_ratings": [
+            "existing_committed_anticipated_additional_generators",
+            "new_entrants",
+        ],
         "maintenance": ["existing_generators", "new_entrants"],
-        "fixed_opex": ["existing_committed_anticipated_additional_generators", "new_entrants"],
-        "variable_opex": ["existing_committed_anticipated_additional_generators", "new_entrants"],
-        "marginal_loss_factors": ["existing_generators", "new_entrants", "new_entrant_electrolysers"],
-        "auxiliary_load": ["existing_committed_anticipated_additional_generators", "new_entrants"],
-        "heat_rates": ["existing_committed_anticipated_additional_generators", "new_entrants"],
+        "fixed_opex": [
+            "existing_committed_anticipated_additional_generators",
+            "new_entrants",
+        ],
+        "variable_opex": [
+            "existing_committed_anticipated_additional_generators",
+            "new_entrants",
+        ],
+        "marginal_loss_factors": [
+            "existing_generators",
+            "new_entrants",
+            "new_entrant_electrolysers",
+        ],
+        "auxiliary_load": [
+            "existing_committed_anticipated_additional_generators",
+            "new_entrants",
+        ],
+        "heat_rates": [
+            "existing_committed_anticipated_additional_generators",
+            "new_entrants",
+        ],
         "gpg_min_stable_level": ["existing_generators", "new_entrants"],
         "affine_heat_rates": ["existing_generators", "new_entrants"],
         # Outage tables: v7.x consolidated full+partial+2023-2024 into "other_outages"
@@ -769,7 +816,11 @@ def generator_storage_summary_tables(iasr_workbook_version: str = "6.0") -> list
 
 def subregion_flow_paths(iasr_workbook_version: str = "6.0") -> list[str]:
     """Return the subregion flow-path identifiers for a given workbook version."""
-    return _SUBREGION_FLOW_PATHS_V74 if iasr_workbook_version.startswith("7.") else _SUBREGION_FLOW_PATHS_V60
+    return (
+        _SUBREGION_FLOW_PATHS_V74
+        if iasr_workbook_version.startswith("7.")
+        else _SUBREGION_FLOW_PATHS_V60
+    )
 
 
 def flow_path_augmentation_tables(iasr_workbook_version: str = "6.0") -> list[str]:
@@ -878,6 +929,7 @@ def rez_augmentation_cost_tables_by_scenario(
         scen: [f"rez_augmentation_costs_{scen}_{region}" for region in regions]
         for scen in cost_scenario_suffixes(iasr_workbook_version)
     }
+
 
 _FLOW_PATH_AGUMENTATION_NAME_ADJUSTMENTS = {
     "Notional transfer level increase (MW) Note: Same increase applies to all transfer limit conditions (Peak demand, Summer typical and Winter reference)_Forward direction": "transfer_increase_forward_direction_MW",

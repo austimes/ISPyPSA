@@ -33,7 +33,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 # v6.0 → v7.4 table-name renames. These cover cases where AEMO renamed a
 # table between versions but the semantic content is the same (or a
 # v7.4-superset that the templater can still consume by selecting columns).
@@ -334,14 +333,6 @@ _V74_TO_CANONICAL_COLUMN_RENAMES: dict[str, dict[str, str]] = {
     "gas_prices_new_entrants": {
         "New generating stations": "Generator",
     },
-    # v7.8 (2026 ISP FINAL) appended a "5" footnote ref to the Status column
-    # header on the consolidated maximum_capacity table ("Status5"). Downstream
-    # (split_v74_maximum_capacity_commissioning_dates, the per-status
-    # consolidation) keys on a plain "Status". No-op for earlier versions whose
-    # header is already "Status".
-    "maximum_capacity_existing_committed_anticipated_additional_generators": {
-        "Status5": "Status",
-    },
 }
 
 
@@ -364,9 +355,7 @@ def normalise_columns_to_v74(
     """
     if source_version.startswith("7."):
         return iasr_tables
-    return {
-        name: _rename_v60_columns(df, name) for name, df in iasr_tables.items()
-    }
+    return {name: _rename_v60_columns(df, name) for name, df in iasr_tables.items()}
 
 
 def _rename_v60_columns(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
@@ -589,9 +578,7 @@ def pivot_v74_other_outages_to_wide(cache_path: Path) -> None:
         return  # already wide
     if _V74_OTHER_OUTAGES_SINGLE_YEAR_COLUMN not in df.columns:
         return  # no expected year column to pivot on
-    year_cols = [
-        c for c in df.columns if c not in ("Fuel type", "Property")
-    ]
+    year_cols = [c for c in df.columns if c not in ("Fuel type", "Property")]
     # Time-series forecasts per Property.
     for property_value, target_name in [
         ("Full outage (% of time)", "full_outages_forecast_existing_generators"),
@@ -813,7 +800,11 @@ def _snakecase_isp(isp_name: str) -> str:
 _V60_TO_V74_BUILD_COSTS_SCENARIO = [
     ("build_costs_current_policies", "Slower Growth", "GenCost Current Policies"),
     ("build_costs_global_nze_post_2050", "Step Change", "GenCost Global NZE post 2050"),
-    ("build_costs_global_nze_by_2050", "Accelerated Transition", "GenCost Global NZE by 2050"),
+    (
+        "build_costs_global_nze_by_2050",
+        "Accelerated Transition",
+        "GenCost Global NZE by 2050",
+    ),
 ]
 
 
@@ -925,13 +916,9 @@ def aggregate_v74_liquid_fuel_prices_to_v60_form(cache_path: Path) -> None:
         return  # already in v6.0 form
     if "Generator" not in df.columns or "Gas price scenario" not in df.columns:
         return  # unexpected shape — leave alone
-    year_cols = [
-        c for c in df.columns if c not in ("Generator", "Gas price scenario")
-    ]
+    year_cols = [c for c in df.columns if c not in ("Generator", "Gas price scenario")]
     df[year_cols] = df[year_cols].apply(pd.to_numeric, errors="coerce")
-    aggregated = (
-        df.groupby("Gas price scenario", as_index=False)[year_cols].mean()
-    )
+    aggregated = df.groupby("Gas price scenario", as_index=False)[year_cols].mean()
     aggregated.insert(0, "Liquid fuel price", "Liquid fuel")
     aggregated = aggregated.rename(
         columns={"Gas price scenario": "Liquid fuel price scenario"}
@@ -953,7 +940,10 @@ def aggregate_v74_biomethane_prices_to_v60_form(cache_path: Path) -> None:
     if not path.exists():
         return
     df = pd.read_csv(path)
-    if "Biomethane price" not in df.columns or "Biomethane price scenario" not in df.columns:
+    if (
+        "Biomethane price" not in df.columns
+        or "Biomethane price scenario" not in df.columns
+    ):
         return
     if df["Biomethane price"].nunique() <= 1:
         return  # already single source
@@ -963,9 +953,9 @@ def aggregate_v74_biomethane_prices_to_v60_form(cache_path: Path) -> None:
         if c not in ("Biomethane price", "Biomethane price scenario")
     ]
     df[year_cols] = df[year_cols].apply(pd.to_numeric, errors="coerce")
-    aggregated = (
-        df.groupby("Biomethane price scenario", as_index=False)[year_cols].mean()
-    )
+    aggregated = df.groupby("Biomethane price scenario", as_index=False)[
+        year_cols
+    ].mean()
     aggregated.insert(0, "Biomethane price", "Biomethane (mean across sources)")
     aggregated.to_csv(path, index=False)
 
@@ -1044,7 +1034,10 @@ def expand_v60_auxiliary_load_to_per_generator(cache_path: Path) -> None:
     No-op if the v6.0 per-tech table is already in v7.4 form (i.e. already
     has a `Power Station` column).
     """
-    aux_path = cache_path / "auxiliary_load_existing_committed_anticipated_additional_generators.csv"
+    aux_path = (
+        cache_path
+        / "auxiliary_load_existing_committed_anticipated_additional_generators.csv"
+    )
     summary_path = cache_path / f"{_V74_CONSOLIDATED_GENERATOR_SUMMARY}.csv"
     if not aux_path.exists() or not summary_path.exists():
         return
@@ -1105,6 +1098,7 @@ def backfill_early_fy_fuel_prices(cache_path: Path) -> None:
     See PHASE7_1_DIAGNOSTIC.md for the original diagnostic.
     """
     import re
+
     fy_pattern = re.compile(r"^\d{4}-\d{2}$")
     for name in _FUEL_PRICE_TABLES_TO_BACKFILL:
         csv_path = cache_path / f"{name}.csv"
@@ -1128,6 +1122,7 @@ def backfill_early_fy_fuel_prices(cache_path: Path) -> None:
         # Log (best-effort — logger not imported in this module).
         try:
             import logging
+
             logging.getLogger(__name__).info(
                 f"backfill_early_fy_fuel_prices: {name} — backfilled "
                 f"{before - after} of {before} empty FY cells via row-wise bfill"
@@ -1231,7 +1226,9 @@ def consolidate_v60_ecaa_generator_summaries(cache_path: Path) -> None:
         # against new_entrants_summary in templater/storage.py produces two
         # columns that both snake-case to `technology_type`, triggering an
         # AttributeError when filtering on storage_summaries['technology_type'].
-        df = df.rename(columns={name_col: "Power Station", "Technology type": "Technology Type"})
+        df = df.rename(
+            columns={name_col: "Power Station", "Technology type": "Technology Type"}
+        )
         frames.append(df)
     if not frames:
         return
@@ -1345,9 +1342,11 @@ def strip_v74_rez_prefix_from_aug_cost_options(cache_path: Path) -> None:
         if rez_col is None or "Option" not in df.columns:
             continue
         has_prefix = df.apply(
-            lambda r: isinstance(r["Option"], str)
-            and isinstance(r[rez_col], str)
-            and r["Option"].startswith(r[rez_col] + " "),
+            lambda r: (
+                isinstance(r["Option"], str)
+                and isinstance(r[rez_col], str)
+                and r["Option"].startswith(r[rez_col] + " ")
+            ),
             axis=1,
         )
         if not has_prefix.any():
@@ -1463,9 +1462,7 @@ def _aggregate_capacity_by_power_station(df: pd.DataFrame) -> pd.DataFrame:
     first_cols = [c for c in df.columns if c not in sum_cols + ["Power Station"]]
     agg_spec = {c: "first" for c in first_cols}
     agg_spec.update({c: "sum" for c in sum_cols})
-    aggregated = (
-        df.groupby("Power Station", as_index=False, sort=False).agg(agg_spec)
-    )
+    aggregated = df.groupby("Power Station", as_index=False, sort=False).agg(agg_spec)
     return aggregated[list(df.columns)]
 
 
@@ -1476,9 +1473,7 @@ _V74_ECAA_TABLES_FOR_TRACE_FILTER = _V74_ECAA_PER_UNIT_TABLES_FIRST_AGG + [
 ]
 
 
-def filter_v74_ecaa_to_trace_coverage(
-    cache_path: Path, trace_directory: Path
-) -> None:
+def filter_v74_ecaa_to_trace_coverage(cache_path: Path, trace_directory: Path) -> None:
     """Filter v7.4 ECAA VRE generators to the set with matched trace data.
 
     The v7.4 IASR includes new VRE projects (committed/anticipated/additional
@@ -1555,9 +1550,7 @@ def filter_v74_ecaa_to_trace_coverage(
         ne = pd.read_csv(ne_path)
         ne_drop_mask = _vre_new_entrant_rows_without_zone_trace(ne, trace_zones)
         if ne_drop_mask.any():
-            dropped_ne = ne.loc[
-                ne_drop_mask, _trace_filter_manifest_columns(ne)
-            ].copy()
+            dropped_ne = ne.loc[ne_drop_mask, _trace_filter_manifest_columns(ne)].copy()
             dropped_ne["reason"] = (
                 "no 2025-26 zone trace data available via isp-trace-parser"
             )
@@ -1583,9 +1576,7 @@ def _collect_trace_names(parquet_files: list[Path], column: str) -> set[str]:
 def _vre_rows_without_trace(
     summary: pd.DataFrame, trace_projects: set[str]
 ) -> pd.Series:
-    is_vre = summary["Technology Type"].str.contains(
-        "Wind|Solar", case=False, na=False
-    )
+    is_vre = summary["Technology Type"].str.contains("Wind|Solar", case=False, na=False)
     is_ecaa = summary["Status"].isin(
         ["Existing", "Committed", "Anticipated", "Additional policy-supported project"]
     )

@@ -151,12 +151,30 @@ class CarbonPricingConfig(BaseModel):
 
     Both values are scalar run parameters that the carbon-price sweep varies.
     Defaults are 0.0 so omitting the section leaves existing configs unchanged.
-    The scoping sweep sets tns_price=20.0 explicitly to internalise the T&S
-    cost on CCS plants per the Phase 8 commission.
+
+    `tns_price` is SUPERSEDED by `ccs_supply_curve`, which prices transport per
+    generator against its assigned sink and limits injection at the sink. A flat
+    scalar cannot express either, because it is blind to where the CO2 has to go
+    and to how much can be injected at all. It is retained so configs that set
+    `tns_price` stay runnable; setting it alongside a CCS supply curve raises
+    rather than double-counting disposal.
     """
 
     carbon_price: float = 0.0  # AUD/tCO2e on residual emissions (post-capture)
-    tns_price: float = 0.0  # AUD/tCO2 on captured tonnes (CCS opex)
+    tns_price: float = 0.0  # AUD/tCO2 on captured tonnes (superseded, see above)
+
+
+class FuelPricingConfig(BaseModel):
+    """How fuel carriers are priced from the IASR fuel price tables.
+
+    AEMO blends biomethane into the gas price trajectory, so the Gas carrier's
+    price rises with the mandated blend share. Setting
+    `blend_biomethane_into_gas` to False prices Gas from `gas_prices` alone,
+    which isolates the blend's cost effect and lets a separate bioenergy model
+    carry the biomethane. Default True reproduces AEMO's own treatment.
+    """
+
+    blend_biomethane_into_gas: bool = True
 
 
 class FuelSupplyCurveConfig(BaseModel):
@@ -175,6 +193,31 @@ class FuelSupplyCurveConfig(BaseModel):
     curve_csv: str | None = None
 
 
+class CcsSupplyCurveConfig(BaseModel):
+    """CO2 transport-and-storage supply curve for CO2-capturing generators.
+
+    Two CSVs, because transport and injectivity are different quantities.
+    `sink_tranches_csv` gives each CO2 storage sink's annual injection available
+    to NEM power generation (columns: sink, financial_year, cap_kt, storage_$/t);
+    injectivity is the shared scarce resource, so the quantity limit sits at the
+    sink. `transport_csv` assigns each ISP sub-region to exactly one permitted
+    sink and prices the pipeline (columns: isp_sub_region_id, sink, distance_km,
+    transport_$/t); transport is a property of the source-sink pair, so it enters
+    as a per-generator marginal-cost adder.
+
+    Unlike the fuel supply curves there is no uncapped backstop tranche: a
+    reservoir that has not been appraised cannot be bought at any price, so the
+    curve terminates. A variant with every cap at zero is meaningful and states
+    that no injection is available.
+
+    Default None leaves CO2 disposal free and unlimited, which is the
+    pre-existing behaviour and matches AEMO's own ISP treatment.
+    """
+
+    sink_tranches_csv: str | None = None
+    transport_csv: str | None = None
+
+
 class ModelConfig(BaseModel):
     paths: PathsConfig
     scenario: Literal[tuple(_ISP_SCENARIOS)]
@@ -186,8 +229,10 @@ class ModelConfig(BaseModel):
     unserved_energy: UnservedEnergyConfig
     trace_data: TraceDataConfig = TraceDataConfig()
     carbon_pricing: CarbonPricingConfig = CarbonPricingConfig()
+    fuel_pricing: FuelPricingConfig = FuelPricingConfig()
     gas_supply_curve: FuelSupplyCurveConfig = FuelSupplyCurveConfig()
     biomass_supply_curve: FuelSupplyCurveConfig = FuelSupplyCurveConfig()
+    ccs_supply_curve: CcsSupplyCurveConfig = CcsSupplyCurveConfig()
     filter_by_nem_regions: list[str] | None = None
     filter_by_isp_sub_regions: list[str] | None = None
     solver: Literal[
@@ -213,5 +258,23 @@ class ModelConfig(BaseModel):
         ):
             raise ValueError(
                 "Cannot specify both filter_by_nem_regions and filter_by_isp_sub_regions"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_ccs_supply_curve(self):
+        curve = self.ccs_supply_curve
+        if (curve.sink_tranches_csv is None) != (curve.transport_csv is None):
+            raise ValueError(
+                "ccs_supply_curve needs both sink_tranches_csv and transport_csv, "
+                "or neither. Sink tranches limit injection and transport prices "
+                "the pipeline to it; one without the other is a half-specified "
+                "curve."
+            )
+        if curve.sink_tranches_csv is not None and self.carbon_pricing.tns_price != 0.0:
+            raise ValueError(
+                "carbon_pricing.tns_price is superseded by ccs_supply_curve and "
+                "cannot be set alongside it, because both price disposal of the "
+                "same captured tonne. Set tns_price to 0.0 to use the curve."
             )
         return self

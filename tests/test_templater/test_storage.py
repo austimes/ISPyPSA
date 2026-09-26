@@ -17,6 +17,8 @@ from ispypsa.templater.storage import (
     _add_unique_new_entrant_storage_name_column,
     _calculate_and_merge_tech_specific_lcfs,
     _calculate_storage_duration_hours,
+    _filter_to_ecaa_batteries,
+    _merge_table_data,
     _process_and_merge_connection_cost,
     _process_and_merge_opex,
     _restructure_battery_property_table,
@@ -99,6 +101,55 @@ def test_merge_and_set_battery_static_properties_string_handling(
                 assert not df[col].apply(lambda x: isinstance(x, str)).any(), (
                     f"Column {col} contains string values"
                 )
+
+
+def test_ecaa_batteries_keep_both_iasr_additional_project_labels(csv_str_to_df):
+    batteries = csv_str_to_df("""
+        storage_name,  status
+        Existing,      Existing
+        Add 2024,      Additional__projects
+        Add 2026,      Additional__policy-supported__project
+        New,           New__Entrant
+    """)
+
+    result = _filter_to_ecaa_batteries(batteries)
+
+    expected = csv_str_to_df("""
+        storage_name,  status
+        Existing,      Existing
+        Add 2024,      Additional__projects
+        Add 2026,      Additional__policy-supported__project
+    """)
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_ecaa_battery_commissioning_date_reads_committed_and_indicative_dates(
+    csv_str_to_df,
+):
+    batteries = csv_str_to_df("""
+        storage_name,        commissioning_date
+        Committed BESS,      Committed BESS
+        Anticipated BESS,    Anticipated BESS
+    """)
+    maximum_capacity = csv_str_to_df("""
+        Power Station,       Commissioning date,  Indicative commissioning date
+        Committed BESS,      2027-07-01,
+        Anticipated BESS,    ,                    2028-12-01
+    """)
+
+    result, _ = _merge_table_data(
+        batteries,
+        "commissioning_date",
+        maximum_capacity,
+        _ECAA_STORAGE_STATIC_PROPERTY_TABLE_MAP["commissioning_date"],
+    )
+
+    expected = csv_str_to_df("""
+        storage_name,        commissioning_date
+        Committed BESS,      2027-07-01
+        Anticipated BESS,    2028-12-01
+    """)
+    pd.testing.assert_frame_equal(result, expected)
 
 
 def test_add_closure_year_column(csv_str_to_df):

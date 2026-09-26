@@ -1,5 +1,0 @@
-coal_minimum_stable_level:
-  sheet_name: "Coal Min Stable Level"
-  header_rows: [12, 13]
-  end_row: 57
-  column_range: "B:G"
