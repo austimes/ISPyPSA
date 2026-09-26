@@ -30,8 +30,9 @@ made before it.
 
 Each launch writes the package it read to `campaign/inputs.txt`, so a result always names its inputs.
 
-Build the workbook cache from the tracked v7.8 parser metadata: an older cache can be missing the restored pumped hydro
-energy storage (PHES) rows described in MODELLING_ASSUMPTIONS.md.
+Build the workbook cache with `isp-workbook-parser` 2.9.0 or later, whose v7.8 table configurations read every table to
+its final-workbook extent: a cache built from the earlier draft-derived configuration truncates several tables, as
+recorded in [research/workbook_parser_upgrade/](research/workbook_parser_upgrade/).
 
 ## Prepare demand trace directories
 
