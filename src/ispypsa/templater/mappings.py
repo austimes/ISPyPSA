@@ -533,6 +533,22 @@ _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
             "region_id": "VIC",
             "policy_id": "vic_offshore_wind",
         },
+        # IASR v7.x names for the three state targets above.
+        {
+            "csv": "nsw_roadmap_storage_power_capacity_trajectory",
+            "region_id": "NSW",
+            "policy_id": "nsw_eir_sto",
+        },
+        {
+            "csv": "vic_storage_target",
+            "region_id": "VIC",
+            "policy_id": "vic_storage",
+        },
+        {
+            "csv": "vic_offshore_wind_target",
+            "region_id": "VIC",
+            "policy_id": "vic_offshore_wind",
+        },
     ],
     "template_renewable_generation_targets": [
         {

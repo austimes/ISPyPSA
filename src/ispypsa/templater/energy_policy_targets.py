@@ -183,16 +183,10 @@ def _template_technology_capacity_targets(
         if target["csv"] not in iasr_tables:
             continue
         df = iasr_tables[target["csv"]]
-        # Extract technology type from the row containing "target (MW)"
-        target_row_mask = df.iloc[:, 0].str.contains("target", case=False) & df.iloc[
-            :, 0
-        ].str.contains("MW", case=False)
-
-        target_row_idx = df.index[target_row_mask][0]
-        # Create a new dataframe with just FY and capacity
-        values_df = pd.DataFrame(
-            {"FY": df.columns[1:], "capacity_mw": df.iloc[target_row_idx, 1:]}
-        )
+        if df.columns[0] == "Calendar year":
+            values_df = _extract_calendar_year_gw_targets(df)
+        else:
+            values_df = _extract_financial_year_mw_targets(df)
 
         values_df["capacity_mw"] = values_df["capacity_mw"].astype(float)
         values_df["region_id"] = target["region_id"]
@@ -215,6 +209,41 @@ def _template_technology_capacity_targets(
     ).reset_index(drop=True)
 
     return merged_technology_capacity_targets
+
+
+def _extract_financial_year_mw_targets(df: pd.DataFrame) -> pd.DataFrame:
+    """Extracts the "target (MW)" row of a table with one column per financial year.
+
+    Returns:
+        `pd.DataFrame`: columns FY (e.g. "2029-30") and capacity_mw
+    """
+    first_column = df.iloc[:, 0]
+    target_row_mask = first_column.str.contains(
+        "target", case=False
+    ) & first_column.str.contains("MW", case=False)
+    target_row_idx = df.index[target_row_mask][0]
+    return pd.DataFrame(
+        {"FY": df.columns[1:], "capacity_mw": df.iloc[target_row_idx, 1:]}
+    )
+
+
+def _extract_calendar_year_gw_targets(df: pd.DataFrame) -> pd.DataFrame:
+    """Extracts targets due by the end of a calendar year, given in GW (e.g. "2.6 GW").
+
+    A target due by the end of calendar year Y is assigned to financial year Y to
+    Y+1, the first financial year that ends after the target date.
+
+    Returns:
+        `pd.DataFrame`: columns FY (e.g. "2032_33") and capacity_mw
+    """
+    years = df["Calendar year"].astype(int)
+    gigawatts = df.iloc[:, 1].str.removesuffix(" GW").astype(float)
+    return pd.DataFrame(
+        {
+            "FY": years.astype(str) + "_" + ((years + 1) % 100).map("{:02d}".format),
+            "capacity_mw": gigawatts * 1000,
+        }
+    )
 
 
 def _template_renewable_generation_targets(
