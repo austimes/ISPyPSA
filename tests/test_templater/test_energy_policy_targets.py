@@ -184,7 +184,7 @@ def test_template_technology_capacity_targets_iasr_v7_tables(csv_str_to_df):
     expected = csv_str_to_df("""
         FY,       capacity_mw,  region_id,  policy_id
         2029_30,  2000.0,       NSW,        nsw_eir_sto
-        2032_33,  2000.0,       VIC,        vic_offshore_wind
-        2040_41,  9000.0,       VIC,        vic_offshore_wind
+        2031_32,  2000.0,       VIC,        vic_offshore_wind
+        2039_40,  9000.0,       VIC,        vic_offshore_wind
     """)
     pd.testing.assert_frame_equal(result, expected)

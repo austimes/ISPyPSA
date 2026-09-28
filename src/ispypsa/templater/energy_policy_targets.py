@@ -230,17 +230,17 @@ def _extract_financial_year_mw_targets(df: pd.DataFrame) -> pd.DataFrame:
 def _extract_calendar_year_gw_targets(df: pd.DataFrame) -> pd.DataFrame:
     """Extracts targets due by the end of a calendar year, given in GW (e.g. "2.6 GW").
 
-    A target due by the end of calendar year Y is assigned to financial year Y to
-    Y+1, the first financial year that ends after the target date.
+    A target for calendar year Y is assigned to the financial year ending June Y, matching
+    AEMO's ISP, which reports capacity at 1 July and shows each target installed by then.
 
     Returns:
-        `pd.DataFrame`: columns FY (e.g. "2032_33") and capacity_mw
+        `pd.DataFrame`: columns FY (e.g. "2031_32") and capacity_mw
     """
     years = df["Calendar year"].astype(int)
     gigawatts = df.iloc[:, 1].str.removesuffix(" GW").astype(float)
     return pd.DataFrame(
         {
-            "FY": years.astype(str) + "_" + ((years + 1) % 100).map("{:02d}".format),
+            "FY": (years - 1).astype(str) + "_" + (years % 100).map("{:02d}".format),
             "capacity_mw": gigawatts * 1000,
         }
     )
