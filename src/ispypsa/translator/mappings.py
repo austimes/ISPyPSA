@@ -310,3 +310,19 @@ _CARRIER_TO_FUEL_COST_TABLES = {
         base_table="hydrogen_prices",
     ),
 }
+
+# Units counted towards each technology capacity target, as (PyPSA friendly table,
+# PyPSA component, selector returning a boolean mask over that table's rows). A
+# selector sees every unit; the target's region and each unit's activity in the
+# period are applied separately.
+_TECHNOLOGY_CAPACITY_TARGET_UNITS = {
+    "vic_offshore_wind": (
+        "generators",
+        "Generator",
+        lambda units: units["isp_technology_type"].str.startswith("Wind - offshore"),
+    ),
+    # Every storage unit, of any duration.
+    "vic_storage": ("batteries", "StorageUnit", lambda units: units["max_hours"] > 0),
+    # Long-duration storage, eight hours or more.
+    "nsw_eir_sto": ("batteries", "StorageUnit", lambda units: units["max_hours"] >= 8),
+}

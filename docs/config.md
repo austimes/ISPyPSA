@@ -430,6 +430,28 @@ Examples:
 
 ```solver: highs```
 
+## Policy targets
+
+### enforce_technology_capacity_targets
+
+Whether to enforce the templated `technology_capacity_targets` table (the Victorian
+offshore wind and storage targets and the NSW Roadmap long-duration storage target)
+as minimum installed capacity constraints. Each constraint requires the capacity of
+the target's technology in the target's NEM region, existing plus new build, to meet
+the latest target due by that investment period. A target for calendar year Y applies
+from investment period Y (the financial year ending 30 June Y), matching AEMO's ISP,
+which reports capacity at 1 July; a target due in financial year Y-1 to Y applies from
+investment period Y.
+
+Requires `sub_regions` or `nem_regions` regional granularity. The state renewable
+generation targets are templated but not enforced.
+
+Default: false
+
+Examples:
+
+```enforce_technology_capacity_targets: true```
+
 ## Plotting
 
 ### create_plots

@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 import linopy
+import numpy as np
 import pandas as pd
 import pypsa
 
@@ -36,9 +37,9 @@ def _get_variables(
         var = model.variables.Generator_p.loc[:, f"{component_name}"]
     elif component_type == "StorageUnit" and attribute_type == "p_nom":
         # Only extendable storage units have a StorageUnit_p_nom variable in
-        # linopy. Non-extendable units (fixed p_nom) contribute as constants
-        # and must be moved to the RHS by the caller; we return None here so
-        # the existing NaN-filtering in _add_custom_constraints drops them.
+        # linopy. Non-extendable units (fixed p_nom) are constants that
+        # _add_custom_constraints moves to the RHS; a unit absent from the
+        # network returns None so its NaN-filtering drops it.
         try:
             var = model.variables.StorageUnit_p_nom.at[f"{component_name}"]
         except (KeyError, AttributeError):
@@ -68,6 +69,22 @@ def _get_variables(
     else:
         raise ValueError(f"{component_type} and {attribute_type} is not defined.")
     return var
+
+
+def _fixed_capacity(network: pypsa.Network, terms: pd.DataFrame) -> pd.Series:
+    """Returns coefficient x p_nom for each p_nom term of a non-extendable component.
+
+    Other terms (variables, or components absent from the network) are NaN.
+    """
+    fixed = pd.Series(np.nan, index=terms.index)
+    capacity_terms = terms[terms["attribute"] == "p_nom"]
+    for component, group in capacity_terms.groupby("component"):
+        static = network.static(component).reindex(group["variable_name"])
+        is_fixed = static["p_nom_extendable"].eq(False).to_numpy()
+        fixed[group.index[is_fixed]] = (
+            group["coefficient"].to_numpy() * static["p_nom"].to_numpy()
+        )[is_fixed]
+    return fixed
 
 
 def _add_custom_constraints(
@@ -100,6 +117,11 @@ def _add_custom_constraints(
         constraint_name = row["constraint_name"]
         constraint_lhs = lhs[lhs["constraint_name"] == constraint_name].copy()
 
+        # Non-extendable capacity is a constant, not a variable, so move it to the RHS.
+        fixed_capacity = _fixed_capacity(network, constraint_lhs)
+        constraint_rhs = row["rhs"] - fixed_capacity.sum()
+        constraint_lhs = constraint_lhs[fixed_capacity.isna()]
+
         # Retrieve the variable objects needed on the constraint lhs from the linopy
         # model used by the pypsa.Network
         model_variables = constraint_lhs.apply(
@@ -123,15 +145,15 @@ def _add_custom_constraints(
         linear_expression = network.model.linexpr(*x)
         if row["constraint_type"] == "<=":
             network.model.add_constraints(
-                linear_expression <= row["rhs"], name=constraint_name
+                linear_expression <= constraint_rhs, name=constraint_name
             )
         elif row["constraint_type"] == ">=":
             network.model.add_constraints(
-                linear_expression >= row["rhs"], name=constraint_name
+                linear_expression >= constraint_rhs, name=constraint_name
             )
         elif row["constraint_type"] == "==":
             network.model.add_constraints(
-                linear_expression == row["rhs"], name=constraint_name
+                linear_expression == constraint_rhs, name=constraint_name
             )
         else:
             raise ValueError(

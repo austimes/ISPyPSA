@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from ispypsa.data_fetch import read_csvs
 from ispypsa.pypsa_build import build_pypsa_network
@@ -104,6 +105,43 @@ def test_custom_constraints_greater_equal(csv_str_to_df):
     # Check that the sum of generator capacities is at least 300
     total_capacity = network.generators.p_nom_opt.sum()
     assert total_capacity >= 300.0
+
+
+def test_custom_constraints_fixed_capacity_moves_to_rhs(csv_str_to_df):
+    """A p_nom term of a non-extendable unit counts its fixed capacity towards the RHS."""
+    import pypsa
+
+    network = pypsa.Network()
+    network.set_snapshots(pd.date_range("2025-01-01", periods=4, freq="h"))
+    network.add("Bus", "bus1")
+    network.add("Generator", "gen1", bus="bus1", p_nom=500, marginal_cost=30)
+    network.add("StorageUnit", "existing", bus="bus1", p_nom=100, max_hours=2)
+    network.add(
+        "StorageUnit",
+        "new",
+        bus="bus1",
+        p_nom_extendable=True,
+        capital_cost=100,
+        max_hours=2,
+    )
+    network.loads_t.p_set = pd.DataFrame({"load1": [50] * 4}, index=network.snapshots)
+    network.add("Load", "load1", bus="bus1")
+
+    custom_constraints_rhs = csv_str_to_df("""
+    constraint_name,      rhs,    constraint_type
+    min_storage,          300,    >=
+    """)
+    custom_constraints_lhs = csv_str_to_df("""
+    constraint_name,   component,     attribute,   variable_name,   coefficient
+    min_storage,       StorageUnit,   p_nom,       existing,        1.0
+    min_storage,       StorageUnit,   p_nom,       new,             1.0
+    """)
+
+    network.optimize.create_model()
+    _add_custom_constraints(network, custom_constraints_rhs, custom_constraints_lhs)
+    network.optimize.solve_model()
+
+    assert network.storage_units.at["new", "p_nom_opt"] == pytest.approx(200.0)
 
 
 def test_custom_constraints_storage_output_dispatch(csv_str_to_df):

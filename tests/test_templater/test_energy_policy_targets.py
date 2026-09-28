@@ -164,3 +164,27 @@ def test_template_renewable_generation_targets(workbook_table_cache_test_path: P
 
     # Verify no "Notes" rows in output
     assert not df["FY"].str.contains("Notes", case=False).any()
+
+
+def test_template_technology_capacity_targets_iasr_v7_tables(csv_str_to_df):
+    iasr_tables = {
+        "vic_offshore_wind_target": csv_str_to_df("""
+            Calendar__year,  All__scenarios
+            2032,            2.0__GW
+            2040,            9.0__GW
+        """),
+        "nsw_roadmap_storage_power_capacity_trajectory": csv_str_to_df("""
+            Financial__year,                 2029-30
+            NSW__EIR__Storage__Target__(MW),  2000
+        """),
+    }
+
+    result = _template_technology_capacity_targets(iasr_tables)
+
+    expected = csv_str_to_df("""
+        FY,       capacity_mw,  region_id,  policy_id
+        2029_30,  2000.0,       NSW,        nsw_eir_sto
+        2031_32,  2000.0,       VIC,        vic_offshore_wind
+        2039_40,  9000.0,       VIC,        vic_offshore_wind
+    """)
+    pd.testing.assert_frame_equal(result, expected)

@@ -233,6 +233,9 @@ class ModelConfig(BaseModel):
     gas_supply_curve: FuelSupplyCurveConfig = FuelSupplyCurveConfig()
     biomass_supply_curve: FuelSupplyCurveConfig = FuelSupplyCurveConfig()
     ccs_supply_curve: CcsSupplyCurveConfig = CcsSupplyCurveConfig()
+    # Enforce the templated `technology_capacity_targets` (state offshore wind and
+    # storage targets) as minimum installed capacity constraints.
+    enforce_technology_capacity_targets: bool = False
     filter_by_nem_regions: list[str] | None = None
     filter_by_isp_sub_regions: list[str] | None = None
     solver: Literal[

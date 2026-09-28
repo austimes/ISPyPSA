@@ -49,6 +49,10 @@ from ispypsa.translator.storage import (
     _translate_ecaa_batteries,
     _translate_new_entrant_batteries,
 )
+from ispypsa.translator.technology_capacity_targets import (
+    _map_buses_to_nem_regions,
+    _translate_technology_capacity_targets,
+)
 from ispypsa.translator.temporal_filters import _time_series_filter
 from ispypsa.translator.time_series_checker import _check_time_series
 
@@ -92,6 +96,32 @@ def _config_with_transmission_wacc(
         ispypsa_tables["transmission_wacc"]["regulated_transmission_wacc"].iloc[0]
     )
     return config.model_copy(update={"wacc": rate})
+
+
+def _add_technology_capacity_target_constraints(
+    pypsa_inputs: dict[str, pd.DataFrame],
+    ispypsa_tables: dict[str, pd.DataFrame],
+    investment_periods: list[int],
+) -> None:
+    """Appends technology capacity target constraints to the custom constraint tables."""
+    lhs, rhs = _translate_technology_capacity_targets(
+        ispypsa_tables["technology_capacity_targets"],
+        {
+            "generators": pypsa_inputs["generators"],
+            "batteries": pypsa_inputs["batteries"],
+        },
+        _map_buses_to_nem_regions(
+            ispypsa_tables["sub_regions"], ispypsa_tables["renewable_energy_zones"]
+        ),
+        investment_periods,
+    )
+    for table, constraints in {
+        "custom_constraints_lhs": lhs,
+        "custom_constraints_rhs": rhs,
+    }.items():
+        pypsa_inputs[table] = pd.concat(
+            [pypsa_inputs[table], constraints], ignore_index=True
+        )
 
 
 def create_pypsa_friendly_inputs(
@@ -256,6 +286,13 @@ def create_pypsa_friendly_inputs(
             pypsa_inputs["generators"],
         )
     )
+
+    if config.enforce_technology_capacity_targets:
+        _add_technology_capacity_target_constraints(
+            pypsa_inputs,
+            ispypsa_tables,
+            config.temporal.capacity_expansion.investment_periods,
+        )
 
     if config.gas_supply_curve.curve_csv is not None:
         pypsa_inputs["gas_supply_curve"] = _translate_fuel_supply_curve(
