@@ -41,7 +41,9 @@ from ispypsa.translator.renewable_energy_zones import (
     _translate_renewable_energy_zone_build_limits_to_links,
 )
 from ispypsa.translator.snapshots import (
+    _add_investment_periods,
     _add_snapshot_weightings,
+    _create_complete_snapshots_index,
     _create_investment_period_weightings,
     create_pypsa_friendly_snapshots,
 )
@@ -55,6 +57,7 @@ from ispypsa.translator.technology_capacity_targets import (
 )
 from ispypsa.translator.temporal_filters import _time_series_filter
 from ispypsa.translator.time_series_checker import _check_time_series
+from ispypsa.translator.vre_scaling import scale_sampled_vre_trace
 
 _BASE_TRANSLATOR_OUTPUTS = [
     "snapshots",
@@ -345,7 +348,10 @@ def create_pypsa_friendly_timeseries_inputs(
     - a time series file is created for each wind and solar generator in the new_entrant_generators
     table (table in ispypsa_tables dict). The time series data is saved in parquet files
     in the 'solar_traces' and 'wind_traces' directories with the columns "snapshots"
-    (datetime) and "p_max_pu" (float specifying availability in MW).
+    (datetime) and "p_max_pu" (float specifying availability in MW). If
+    `scale_sampled_vre_to_full_year` is set in the phase's aggregation config, each
+    sampled wind and solar trace is scaled to its full-year capacity factor (see
+    `scale_sampled_vre_trace`).
 
     - a time series file is created for each generator in the translated generators table
     (table in pypsa_inputs dict) containing the marginal costs for each generator in each
@@ -447,15 +453,25 @@ def create_pypsa_friendly_timeseries_inputs(
             generator_traces=all_generator_traces,
         )
 
+    # VRE traces take weighted snapshots so sampled availability can be scaled to the
+    # full year; the save functions keep only the snapshot and period columns.
+    vre_snapshots = _add_snapshot_weightings(
+        snapshots.copy(), config.temporal.capacity_expansion.resolution_min
+    )
+    full_year_snapshots = _create_full_year_snapshots_if_scaling_vre(
+        config, model_phase
+    )
+
     if generator_traces_by_type is not None:
         # Filter and save generator timeseries by type
         for gen_type, gen_traces in generator_traces_by_type.items():
             if gen_traces:
                 _filter_and_save_timeseries(
                     gen_traces,
-                    snapshots,
+                    vre_snapshots,
                     pypsa_friendly_timeseries_inputs_location,
                     f"{gen_type}_traces",
+                    full_year_snapshots,
                 )
 
     # Filter and save demand timeseries
@@ -473,7 +489,8 @@ def create_pypsa_friendly_timeseries_inputs(
         generator_types=["solar", "wind"],
         reference_year_mapping=reference_year_mapping,
         year_type=config.temporal.year_type,
-        snapshots=snapshots,
+        snapshots=vre_snapshots,
+        full_year_snapshots=full_year_snapshots,
     )
 
     # This is needed because numbers can be converted to strings if the data has been saved to a csv.
@@ -565,6 +582,32 @@ def list_timeseries_files(
     return files
 
 
+def _create_full_year_snapshots_if_scaling_vre(
+    config: ModelConfig,
+    model_phase: Literal["capacity_expansion", "operational"],
+) -> pd.DataFrame | None:
+    """Create the unsampled snapshots of the modelled years when sampled VRE traces are to be scaled.
+
+    Returns:
+        pd.DataFrame with columns "investment_periods" and "snapshots", or None when
+        `scale_sampled_vre_to_full_year` is off for the model phase.
+    """
+    phase_config = getattr(config.temporal, model_phase)
+    if not phase_config.aggregation.scale_sampled_vre_to_full_year:
+        return None
+    snapshots = _create_complete_snapshots_index(
+        start_year=config.temporal.range.start_year,
+        end_year=config.temporal.range.end_year,
+        temporal_resolution_min=phase_config.resolution_min,
+        year_type=config.temporal.year_type,
+    )
+    return _add_investment_periods(
+        snapshots,
+        config.temporal.capacity_expansion.investment_periods,
+        config.temporal.year_type,
+    )
+
+
 def _flatten_generator_traces(
     generator_traces_by_type: dict[str, dict[str, pd.DataFrame]],
 ) -> dict[str, pd.DataFrame] | None:
@@ -590,6 +633,7 @@ def _filter_and_save_timeseries(
     snapshots: pd.DataFrame,
     output_path: Path,
     trace_type: str,
+    full_year_snapshots: pd.DataFrame | None = None,
 ) -> None:
     """Filter timeseries data by snapshots and save to parquet files.
 
@@ -599,6 +643,9 @@ def _filter_and_save_timeseries(
         snapshots: DataFrame containing the expected time series values
         output_path: Path to directory where files will be saved
         trace_type: Type of trace data (e.g., "demand_traces", "solar_traces", "wind_traces")
+        full_year_snapshots: Unsampled snapshots of the modelled years. When given, the
+            sampled availability traces are scaled with `scale_sampled_vre_trace`, which
+            needs the "generators" weighting column in `snapshots`.
     """
     output_trace_path = Path(output_path, trace_type)
     if not output_trace_path.exists():
@@ -615,6 +662,9 @@ def _filter_and_save_timeseries(
         trace = trace.rename(
             columns={"datetime": "snapshots", "value": value_column_name}
         )
+
+        if full_year_snapshots is not None:
+            trace = scale_sampled_vre_trace(name, trace, snapshots, full_year_snapshots)
 
         # Filter by snapshots
         trace = _time_series_filter(trace, snapshots)

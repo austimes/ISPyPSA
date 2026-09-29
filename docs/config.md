@@ -321,6 +321,27 @@ Examples:
 
 ```named_representative_weeks: [residual-peak-demand, minimum-demand]```
 
+#### temporal.capacity_expansion.aggregation.scale_sampled_vre_to_full_year
+
+Whether to scale each wind and solar availability trace so its capacity factor over the sampled
+(representative week) snapshots matches its capacity factor over the full modelled years. This follows the AEMO ISP
+Methodology (June 2025, p. 41), which scales VRE profiles so sampled and underlying capacity factors align.
+
+In each investment period, the sampled `p_max_pu` values are scaled so their snapshot-weighted mean equals the mean of
+the same trace (and reference years) over every snapshot in the period. Availability is capped at 1, and energy lost
+to the cap is spread over the uncapped snapshots in proportion to their availability. Generators whose target cannot
+be met because the cap binds are logged at INFO level. The same key under `temporal.operational.aggregation` applies
+to the operational phase.
+
+Options:
+
+- false (default): Sampled traces are used unscaled.
+- true: Sampled wind and solar traces are scaled to their full-year capacity factor.
+
+Examples:
+
+```scale_sampled_vre_to_full_year: true```
+
 ### temporal.operational
 
 The temporal settings for the operational phase of the modelling.

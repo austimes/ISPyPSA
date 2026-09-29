@@ -62,6 +62,7 @@ class TemporalAggregationConfig(BaseModel):
         ]
         | None
     ) = None
+    scale_sampled_vre_to_full_year: bool = False
 
 
 class TemporalRangeConfig(BaseModel):
