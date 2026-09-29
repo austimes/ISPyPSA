@@ -115,7 +115,11 @@ def _add_custom_constraints(
 
     for index, row in rhs.iterrows():
         constraint_name = row["constraint_name"]
-        constraint_lhs = lhs[lhs["constraint_name"] == constraint_name].copy()
+        # The concatenated LHS tables can repeat index labels, which label-based
+        # assignment in _fixed_capacity cannot resolve.
+        constraint_lhs = lhs[lhs["constraint_name"] == constraint_name].reset_index(
+            drop=True
+        )
 
         # Non-extendable capacity is a constant, not a variable, so move it to the RHS.
         fixed_capacity = _fixed_capacity(network, constraint_lhs)

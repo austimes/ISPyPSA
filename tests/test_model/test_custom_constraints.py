@@ -144,6 +144,44 @@ def test_custom_constraints_fixed_capacity_moves_to_rhs(csv_str_to_df):
     assert network.storage_units.at["new", "p_nom_opt"] == pytest.approx(200.0)
 
 
+def test_custom_constraints_fixed_capacity_with_repeated_lhs_index(csv_str_to_df):
+    """Fixed capacity moves to the RHS when the concatenated LHS table repeats index labels."""
+    import pypsa
+
+    network = pypsa.Network()
+    network.set_snapshots(pd.date_range("2025-01-01", periods=4, freq="h"))
+    network.add("Bus", "bus1")
+    network.add("Generator", "gen1", bus="bus1", p_nom=500, marginal_cost=30)
+    network.add("StorageUnit", "existing", bus="bus1", p_nom=100, max_hours=2)
+    network.add(
+        "StorageUnit",
+        "new",
+        bus="bus1",
+        p_nom_extendable=True,
+        capital_cost=100,
+        max_hours=2,
+    )
+    network.loads_t.p_set = pd.DataFrame({"load1": [50] * 4}, index=network.snapshots)
+    network.add("Load", "load1", bus="bus1")
+
+    custom_constraints_rhs = csv_str_to_df("""
+    constraint_name,      rhs,    constraint_type
+    min_storage,          300,    >=
+    """)
+    custom_constraints_lhs = csv_str_to_df("""
+    constraint_name,   component,     attribute,   variable_name,   coefficient
+    min_storage,       StorageUnit,   p_nom,       existing,        1.0
+    min_storage,       StorageUnit,   p_nom,       new,             1.0
+    """)
+    custom_constraints_lhs.index = [0, 0]
+
+    network.optimize.create_model()
+    _add_custom_constraints(network, custom_constraints_rhs, custom_constraints_lhs)
+    network.optimize.solve_model()
+
+    assert network.storage_units.at["new", "p_nom_opt"] == pytest.approx(200.0)
+
+
 def test_custom_constraints_storage_output_dispatch(csv_str_to_df):
     """storage_output terms bind to a StorageUnit's discharge (p_dispatch).
 
