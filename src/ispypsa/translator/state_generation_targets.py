@@ -235,6 +235,7 @@ def _read_distributed_pv_energy(
     reference_year_mapping: dict[int, int],
     investment_periods: list[int],
     year_type: Literal["fy", "calendar"],
+    poe: str,
 ) -> pd.DataFrame:
     """Reads each NEM region's annual distributed PV energy (MWh) per investment period
     from the demand traces.
@@ -248,7 +249,7 @@ def _read_distributed_pv_energy(
             scenario=scenario,
             subregion=list(sub_regions["isp_sub_region_id"]),
             demand_type=[_DEMAND_BEFORE_DISTRIBUTED_PV, _DEMAND_AFTER_DISTRIBUTED_PV],
-            poe="POE50",
+            poe=poe,
             directory=parsed_traces_directory / "demand",
             year_type=year_type,
             select_columns=["datetime", "subregion", "demand_type", "value"],

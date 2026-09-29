@@ -145,6 +145,7 @@ class UnservedEnergyConfig(BaseModel):
 class TraceDataConfig(BaseModel):
     dataset_type: Literal["full", "example"] = "example"
     dataset_year: int = 2024
+    demand_poe: Literal["POE10", "POE50", "POE90"] = "POE50"
 
 
 class CarbonPricingConfig(BaseModel):

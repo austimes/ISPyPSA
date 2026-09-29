@@ -88,6 +88,23 @@ Examples:
 
 ```dataset_year: 2024```
 
+### trace_data.demand_poe
+
+The probability of exceedance (POE) of the demand traces read from the trace data directory. AEMO publishes each
+demand trace at a 10%, 50% and 90% POE: a 10% POE trace has peaks expected to be exceeded one year in ten. The
+selected POE is used for bus demand and for the distributed PV energy behind state renewable generation targets, so
+the trace data directory must contain traces at that POE.
+
+Options:
+
+- POE50 (default)
+- POE10
+- POE90
+
+Examples:
+
+```demand_poe: POE10```
+
 ## ISPyPSA Templating
 
 ### iasr_workbook_version

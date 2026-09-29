@@ -147,6 +147,7 @@ def _add_state_generation_target_constraints(
         reference_year_mapping,
         investment_periods,
         config.temporal.year_type,
+        config.trace_data.demand_poe,
     )
     lhs, rhs = _translate_state_generation_targets(
         _combine_state_generation_targets(
@@ -491,6 +492,7 @@ def create_pypsa_friendly_timeseries_inputs(
         regional_granularity=config.network.nodes.regional_granularity,
         reference_year_mapping=reference_year_mapping,
         year_type=config.temporal.year_type,
+        poe=config.trace_data.demand_poe,
     )
 
     # Use provided snapshots or create new ones

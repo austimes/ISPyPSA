@@ -251,6 +251,7 @@ class DummyConfigTwo:
         # Likewise the fuel-pricing block: the biomethane blend is on when the
         # block is absent from the config.
         self.fuel_pricing = type("obj", (object,), {"blend_biomethane_into_gas": True})
+        self.trace_data = type("obj", (object,), {"demand_poe": "POE50"})
 
 
 def test_create_pypsa_friendly_timeseries_inputs_capacity_expansion(
