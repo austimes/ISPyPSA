@@ -237,6 +237,9 @@ class ModelConfig(BaseModel):
     # Enforce the templated `technology_capacity_targets` (state offshore wind and
     # storage targets) as minimum installed capacity constraints.
     enforce_technology_capacity_targets: bool = False
+    # Enforce the templated state renewable generation targets (NSW Roadmap, VRET,
+    # TRET and SA net 100% renewable) as custom constraints.
+    enforce_state_generation_targets: bool = False
     filter_by_nem_regions: list[str] | None = None
     filter_by_isp_sub_regions: list[str] | None = None
     solver: Literal[

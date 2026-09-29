@@ -486,6 +486,8 @@ _NEW_ENTRANT_STORAGE_STATIC_PROPERTY_TABLE_MAP = {
      `policy_id`: policy corresponding to that parsed table, to be inputted
          into templated table links with the manually_extracted_table
          `policy_generator_types`
+     `row` (optional): text identifying the one target row to keep in a table
+         with several target rows
  """
 _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
     "template_renewable_share_targets": [
@@ -498,6 +500,17 @@ _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
             "csv": "qld_renewable_target_trajectory",
             "region_id": "QLD",
             "policy_id": "qret",
+        },
+        # IASR v7.x tables, one row per target year.
+        {
+            "csv": "vic_renewable_target",
+            "region_id": "VIC",
+            "policy_id": "vret",
+        },
+        {
+            "csv": "sa_renewable_generation_target",
+            "region_id": "SA",
+            "policy_id": "sa_net_renewable",
         },
     ],
     "template_powering_australia_plan": [
@@ -560,6 +573,14 @@ _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
             "csv": "tas_renewable_target_trajectory",
             "region_id": "TAS",
             "policy_id": "tret",
+        },
+        # IASR v7.x: the IIO row applies in every scenario except Slower Growth, which
+        # uses the legislated EIR row; ISPyPSA does not model Slower Growth.
+        {
+            "csv": "nsw_roadmap_min_vre_generation_target",
+            "region_id": "NSW",
+            "policy_id": "nsw_iio_gen",
+            "row": "IIO",
         },
     ],
 }

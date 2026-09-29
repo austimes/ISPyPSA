@@ -465,13 +465,49 @@ which reports capacity at 1 July; a target due in financial year Y-1 to Y applie
 investment period Y.
 
 Requires `sub_regions` or `nem_regions` regional granularity. The state renewable
-generation targets are templated but not enforced.
+generation targets are enforced separately by `enforce_state_generation_targets`.
 
 Default: false
 
 Examples:
 
 ```enforce_technology_capacity_targets: true```
+
+### enforce_state_generation_targets
+
+Whether to enforce the state renewable generation targets AEMO applies in its ISP, as
+defined on the `Energy Policy Targets` sheet of the 2026 IASR workbook. Each target
+binds from the investment period ending the financial year it is due in (a calendar
+year Y target from period Y) and the latest target due holds after it; values between
+target years are not interpolated.
+
+| Target | Constraint per investment period |
+| ------ | -------------------------------- |
+| NSW Roadmap (`nsw_iio_gen`, IIO trajectory) | Sum over eligible NSW solar, wind and biomass of capacity x available energy per MW >= target |
+| VRET (`vret`) | (renewables + distributed PV) / (renewables + distributed PV + thermal) >= share, Victoria |
+| TRET (`tret`) | Tasmanian hydro, solar and wind generation + distributed PV >= target |
+| SA net 100% renewable (`sa_net_renewable`) | Net exports - fossil-fuel generation >= 0, South Australia |
+
+- Generation terms are annual dispatch: dispatch weighted by the generator snapshot
+  weightings of the period's snapshots, which sum to 8,760 hours, undiscounted.
+- A generator's available energy per MW is its `p_max_pu` summed with the same
+  weightings, i.e. its capacity factor over the modelled year times 8,760 hours. AEMO
+  does not publish its generator coefficients.
+- Distributed PV (rooftop PV and PV non-scheduled generation) is netted off demand,
+  so it enters as a constant: the mean of the `OPSO_MODELLING_PVLITE` demand trace
+  minus the `OPSO_MODELLING` trace, over the full financial year, times 8,760 hours.
+  The parsed trace directory must hold both demand types.
+- The NSW target excludes every generator the IASR lists as existing, standing in for
+  AEMO's exclusion of capacity existing or committed in November 2019.
+- Net exports are link flows across the region's border; links are lossless.
+
+Requires `sub_regions` or `nem_regions` regional granularity.
+
+Default: false
+
+Examples:
+
+```enforce_state_generation_targets: true```
 
 ## Plotting
 

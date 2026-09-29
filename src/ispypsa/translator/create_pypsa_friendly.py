@@ -47,6 +47,12 @@ from ispypsa.translator.snapshots import (
     _create_investment_period_weightings,
     create_pypsa_friendly_snapshots,
 )
+from ispypsa.translator.state_generation_targets import (
+    _combine_state_generation_targets,
+    _list_pre_roadmap_generators,
+    _read_distributed_pv_energy,
+    _translate_state_generation_targets,
+)
 from ispypsa.translator.storage import (
     _translate_ecaa_batteries,
     _translate_new_entrant_batteries,
@@ -118,6 +124,51 @@ def _add_technology_capacity_target_constraints(
         ),
         investment_periods,
     )
+    _append_custom_constraints(pypsa_inputs, lhs, rhs)
+
+
+def _add_state_generation_target_constraints(
+    pypsa_inputs: dict[str, pd.DataFrame],
+    ispypsa_tables: dict[str, pd.DataFrame],
+    config: ModelConfig,
+) -> None:
+    """Appends state renewable generation target constraints to the custom constraint tables."""
+    investment_periods = config.temporal.capacity_expansion.investment_periods
+    reference_year_mapping = construct_reference_year_mapping(
+        start_year=config.temporal.range.start_year,
+        end_year=config.temporal.range.end_year,
+        reference_years=config.temporal.capacity_expansion.reference_year_cycle,
+    )
+    distributed_pv = _read_distributed_pv_energy(
+        ispypsa_tables["sub_regions"],
+        Path(config.paths.parsed_traces_directory)
+        / f"isp_{config.trace_data.dataset_year}",
+        config.scenario,
+        reference_year_mapping,
+        investment_periods,
+        config.temporal.year_type,
+    )
+    lhs, rhs = _translate_state_generation_targets(
+        _combine_state_generation_targets(
+            ispypsa_tables["renewable_generation_targets"],
+            ispypsa_tables["renewable_share_targets"],
+        ),
+        pypsa_inputs["generators"],
+        pypsa_inputs["links"],
+        _map_buses_to_nem_regions(
+            ispypsa_tables["sub_regions"], ispypsa_tables["renewable_energy_zones"]
+        ),
+        investment_periods,
+        distributed_pv,
+        _list_pre_roadmap_generators(ispypsa_tables["ecaa_generators"]),
+    )
+    _append_custom_constraints(pypsa_inputs, lhs, rhs)
+
+
+def _append_custom_constraints(
+    pypsa_inputs: dict[str, pd.DataFrame], lhs: pd.DataFrame, rhs: pd.DataFrame
+) -> None:
+    """Appends constraint LHS and RHS rows to the custom constraint tables."""
     for table, constraints in {
         "custom_constraints_lhs": lhs,
         "custom_constraints_rhs": rhs,
@@ -296,6 +347,9 @@ def create_pypsa_friendly_inputs(
             ispypsa_tables,
             config.temporal.capacity_expansion.investment_periods,
         )
+
+    if config.enforce_state_generation_targets:
+        _add_state_generation_target_constraints(pypsa_inputs, ispypsa_tables, config)
 
     if config.gas_supply_curve.curve_csv is not None:
         pypsa_inputs["gas_supply_curve"] = _translate_fuel_supply_curve(

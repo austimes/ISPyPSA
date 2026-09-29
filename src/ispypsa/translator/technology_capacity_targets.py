@@ -35,7 +35,8 @@ def _translate_technology_capacity_targets(
     binding = _select_target_in_force_per_period(targets, investment_periods)
     policy_units = _list_policy_target_units(units, bus_regions)
     lhs = _create_capacity_target_lhs(binding, policy_units)
-    rhs = binding[["constraint_name", "rhs", "constraint_type"]]
+    rhs = binding.assign(rhs=binding["capacity_mw"])
+    rhs = rhs[["constraint_name", "rhs", "constraint_type"]]
     return lhs, rhs
 
 
@@ -89,7 +90,6 @@ def _select_target_in_force_per_period(
         constraint_name=in_force["policy_id"]
         + "_"
         + in_force["investment_period"].astype(str),
-        rhs=in_force["capacity_mw"],
         constraint_type=">=",
     ).reset_index(drop=True)
 
@@ -114,15 +114,20 @@ def _list_policy_target_units(
     return policy_units.assign(region_id=policy_units["bus"].map(bus_regions))
 
 
+def _filter_to_units_active_in_period(terms: pd.DataFrame) -> pd.DataFrame:
+    """Keeps unit terms whose unit is built and not yet retired in the investment period."""
+    active = (terms["build_year"] <= terms["investment_period"]) & (
+        terms["investment_period"] < terms["build_year"] + terms["lifetime"]
+    )
+    return terms[active]
+
+
 def _create_capacity_target_lhs(
     binding: pd.DataFrame, policy_units: pd.DataFrame
 ) -> pd.DataFrame:
     """Creates one capacity term per unit active in each binding target's period."""
     terms = binding.merge(policy_units, on=["policy_id", "region_id"])
-    active = (terms["build_year"] <= terms["investment_period"]) & (
-        terms["investment_period"] < terms["build_year"] + terms["lifetime"]
-    )
-    terms = terms[active]
+    terms = _filter_to_units_active_in_period(terms)
     return pd.DataFrame(
         {
             "constraint_name": terms["constraint_name"],
