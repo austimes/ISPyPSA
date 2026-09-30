@@ -1,11 +1,11 @@
-Power Station,IASR ID,Expected Closure Year (Calendar year),QEJP Expected Closure Year (Calendar year) - Phase 1 / Phase2 / Phase
-Kogan Creek,KPP_1,2042,2035.0
-Braemar,BRAEMAR1,2046,
-Braemar,BRAEMAR2,2046,
-Braemar,BRAEMAR3,2046,
-Condamine A,CPSA,2039,
-White Rock Wind Farm - Stage 1,WRWF1,2038,
-New England Solar Farm - stage 2,,2055,
-Tamworth Solar Farm,,2053,
-Wandoan South Solar Farm - stage 1,WANDSF1,2053,
-Wandoan South BESS,WANDBG1,2051,
+Power Station,IASR ID,Expected Closure Year (Calendar year),QEJP Expected Closure Year (Calendar year) - Phase 1 / Phase2 / Phase,Installed capacity (MW)
+Kogan Creek,KPP_1,2042,2035.0,744.0
+Braemar,BRAEMAR1,2046,,188.0
+Braemar,BRAEMAR2,2046,,188.0
+Braemar,BRAEMAR3,2046,,188.0
+Condamine A,CPSA,2039,,144.4
+White Rock Wind Farm - Stage 1,WRWF1,2038,,172.48
+New England Solar Farm - stage 2,,2055,,320.0
+Tamworth Solar Farm,,2053,,65.0
+Wandoan South Solar Farm - stage 1,WANDSF1,2053,,
+Wandoan South BESS,WANDBG1,2051,,100.0

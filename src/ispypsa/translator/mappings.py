@@ -326,3 +326,13 @@ _TECHNOLOGY_CAPACITY_TARGET_UNITS = {
     # Long-duration storage, eight hours or more.
     "nsw_eir_sto": ("batteries", "StorageUnit", lambda units: units["max_hours"] >= 8),
 }
+
+# Generator carriers each state generation target counts, per AEMO's 2026 IASR
+# definitions. Solar includes solar thermal and Wind includes offshore wind; Water is
+# conventional hydro (pumped hydro is a StorageUnit, so never counted).
+_NSW_ROADMAP_CARRIERS = ["Solar", "Wind", "Biomass"]
+_VRET_RENEWABLE_CARRIERS = ["Water", "Solar", "Wind", "Biomass"]
+_TRET_RENEWABLE_CARRIERS = ["Water", "Solar", "Wind"]
+_FOSSIL_CARRIERS = ["Black Coal", "Brown Coal", "Gas", "Liquid Fuel"]
+# The VRET denominator counts all thermal generation, fossil or not.
+_THERMAL_CARRIERS = [*_FOSSIL_CARRIERS, "Hydrogen"]

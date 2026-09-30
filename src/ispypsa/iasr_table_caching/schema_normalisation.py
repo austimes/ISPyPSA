@@ -1422,7 +1422,8 @@ def aggregate_v74_ecaa_units_to_power_stations(cache_path: Path) -> None:
     This function forward-normalises v7.4 to v6.0's per-plant granularity:
     groupby Power Station and take first values for properties, summing
     only `Installed capacity (MW)` in the max_capacity table where total
-    plant capacity is the meaningful figure.
+    plant capacity is the meaningful figure. Each unit's capacity is first
+    copied into `expected_closure_years`, which stays per unit.
 
     No-op if the table is missing or already per-plant.
     """
@@ -1445,8 +1446,20 @@ def aggregate_v74_ecaa_units_to_power_stations(cache_path: Path) -> None:
     if cap_path.exists():
         df = pd.read_csv(cap_path)
         if "Power Station" in df.columns and df["Power Station"].duplicated().sum() > 0:
+            _add_unit_capacity_to_closure_years(cache_path, df)
             df = _aggregate_capacity_by_power_station(df)
             df.to_csv(cap_path, index=False)
+
+
+def _add_unit_capacity_to_closure_years(cache_path: Path, units: pd.DataFrame) -> None:
+    """Add each unit's `Installed capacity (MW)` to `expected_closure_years`, so the
+    templater can retire a station's capacity unit by unit.
+    """
+    closure_path = cache_path / "expected_closure_years.csv"
+    closures = pd.read_csv(closure_path)
+    capacity = units.set_index("IASR ID")["Installed capacity (MW)"]
+    closures["Installed capacity (MW)"] = closures["IASR ID"].map(capacity)
+    closures.to_csv(closure_path, index=False)
 
 
 def _aggregate_first_by_power_station(df: pd.DataFrame) -> pd.DataFrame:

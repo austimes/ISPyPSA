@@ -69,6 +69,7 @@ def create_pypsa_friendly_bus_demand_timeseries(
     regional_granularity: str,
     reference_year_mapping: dict[int:int],
     year_type: Literal["fy", "calendar"],
+    poe: str,
 ) -> dict[str, pd.DataFrame]:
     """Gets trace data for operational demand by constructing a timeseries from the
     start to end year using the reference year cycle provided. Returns a dictionary
@@ -88,6 +89,7 @@ def create_pypsa_friendly_bus_demand_timeseries(
             year with start_year and end_year specifiying the financial year to return
             data for, using year ending nomenclature (2016 ->FY2015/2016). If
             'calendar', then filtering is by calendar year.
+        poe: str, probability of exceedance of the demand traces, e.g. 'POE50'
 
     Returns:
         dict[str, pd.DataFrame]: Dictionary with demand node names as keys and trace
@@ -108,7 +110,7 @@ def create_pypsa_friendly_bus_demand_timeseries(
         reference_year_mapping=reference_year_mapping,
         subregion=list(isp_sub_regions["isp_sub_region_id"].unique()),
         scenario=scenario,
-        poe="POE50",
+        poe=poe,
         demand_type="OPSO_MODELLING",
         directory=trace_data_path / Path("demand"),
         year_type=year_type,
