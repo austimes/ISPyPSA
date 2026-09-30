@@ -431,10 +431,12 @@ def _add_closure_year_column(
 ) -> pd.DataFrame:
     """Adds a column containing the expected closure year (calendar year) for ECAA generators.
 
-    Note 1: currently only one generator object is templated and translated per ECAA
-    generator, while some generators have multiple units with different expected closure
-    years. This function makes the OPINIONATED choice to return the earliest expected
-    year given in closure_years table for each set of generating units.
+    Note 1: a generator whose units close in different years is split into one row per
+    closure year, holding the capacity of the units that close that year, so its capacity
+    retires unit by unit. The row closing last keeps the generator name; earlier rows are
+    named "<generator> closing <year>", e.g. "Torrens Island B closing 2026". Wind and
+    solar generators, whose traces are looked up by name, close whole at their earliest
+    closure year instead.
 
     Note 2: the IASR table specifies the expected closure years as calendar years, without
     giving more detail about the expected closure month elsewhere. For now, this function
@@ -444,7 +446,8 @@ def _add_closure_year_column(
     Args:
         ecaa_generators: `ISPyPSA` formatted pd.DataFrame detailing the ECAA generators.
         closure_years: pd.Dataframe containing the IASR table `expected_generator_closure_years`
-            for the ECAA generators, by unit. Expects that closure years are given as integers.
+            for the ECAA generators, by unit, with each unit's installed capacity. Expects
+            that closure years are given as integers.
 
     Returns:
         `pd.DataFrame`: ECAA generator attributes table with additional 'closure_year' column.
@@ -463,28 +466,102 @@ def _add_closure_year_column(
         }
     )
 
-    # process closure_years to get the earliest expected closure year for each generator:
-    closure_years = (
-        closure_years.sort_values("closure_year", ascending=True)
-        .drop_duplicates(subset="generator", keep="first")
-        .dropna(subset="closure_year")
-    )
-    closure_years_dict = closure_years.set_index("generator")["closure_year"].to_dict()
+    closure_groups = _group_units_by_closure_year(closure_years)
 
     where_str = df["closure_year"].apply(lambda x: isinstance(x, str))
     df.loc[where_str, "closure_year"] = _fuzzy_match_names(
         df.loc[where_str, "closure_year"],
-        closure_years_dict.keys(),
+        closure_groups["closing_generator"].unique(),
         f"adding closure_year column to ecaa_generators table",
         not_match="existing",
         threshold=85,
     )
-    # map rather than replace to pass default value for undefined closure years:
-    df["closure_year"] = df["closure_year"].map(
-        lambda closure_year: closure_years_dict.get(closure_year, default_closure_year)
+    wind_and_solar = _where_any_substring_appears(
+        df["technology_type"], ["wind", "solar"]
+    )
+    closure_groups = _keep_earliest_closure_year(
+        closure_groups, df.loc[wind_and_solar, "closure_year"]
+    )
+    df = df.merge(
+        closure_groups,
+        how="left",
+        left_on="closure_year",
+        right_on="closing_generator",
+    )
+    df = _split_capacity_by_closure_year(df)
+    df["closure_year"] = df["closing_year"].fillna(default_closure_year).astype(int)
+
+    return df.drop(columns=closure_groups.columns)
+
+
+def _group_units_by_closure_year(closure_years: pd.DataFrame) -> pd.DataFrame:
+    """Each generator's closure years, with the share of its unit capacity closing in
+    each and whether that year is its last.
+    """
+    groups = (
+        closure_years.dropna(subset="closure_year")
+        .groupby(["generator", "closure_year"], as_index=False)["installed_capacity_mw"]
+        .sum()
+    )
+    generator = groups.groupby("generator")
+    groups["capacity_share"] = groups["installed_capacity_mw"] / generator[
+        "installed_capacity_mw"
+    ].transform("sum")
+    groups["closes_last"] = groups["closure_year"] == generator[
+        "closure_year"
+    ].transform("max")
+    return groups.drop(columns="installed_capacity_mw").rename(
+        columns={"generator": "closing_generator", "closure_year": "closing_year"}
     )
 
+
+def _keep_earliest_closure_year(
+    closure_groups: pd.DataFrame, generators: pd.Series
+) -> pd.DataFrame:
+    """Close the listed generators whole at their earliest closure year.
+
+    Wind and solar generators take their availability traces by name, so a row split
+    off under a new name would have no trace.
+    """
+    whole = closure_groups["closing_generator"].isin(generators)
+    earliest = (
+        closure_groups[whole]
+        .sort_values("closing_year")
+        .drop_duplicates("closing_generator")
+        .assign(capacity_share=1.0, closes_last=True)
+    )
+    return pd.concat([closure_groups[~whole], earliest])
+
+
+def _split_capacity_by_closure_year(df: pd.DataFrame) -> pd.DataFrame:
+    """Give each closure-year row of a split generator its units' capacity, and name
+    the rows that close before the generator's last units.
+    """
+    split = df["capacity_share"] < 1.0
+    df.loc[split, "maximum_capacity_mw"] *= df.loc[split, "capacity_share"].astype(
+        float
+    )
+    early = df["closes_last"].eq(False)
+    df.loc[early, "generator"] = (
+        df.loc[early, "generator"]
+        + " closing "
+        + df.loc[early, "closing_year"].astype(int).astype(str)
+    )
     return df
+
+
+def _add_constraint_terms_for_early_closing_units(
+    custom_constraints_lhs: pd.DataFrame, ecaa_generators: pd.DataFrame
+) -> pd.DataFrame:
+    """Repeat each generator's custom constraint terms for its rows of units that close
+    before its last units, so split generators stay fully constrained.
+    """
+    # e.g. "Tarong closing 2036" -> term_id "Tarong"
+    early = ecaa_generators["generator"].str.extract(r"^(?P<term_id>.+) closing \d{4}$")
+    early["early_term_id"] = ecaa_generators["generator"]
+    terms = custom_constraints_lhs.merge(early.dropna(), on="term_id")
+    terms["term_id"] = terms.pop("early_term_id")
+    return pd.concat([custom_constraints_lhs, terms], ignore_index=True)
 
 
 def _add_rez_id_column(
