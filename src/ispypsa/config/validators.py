@@ -62,6 +62,9 @@ class TemporalAggregationConfig(BaseModel):
         ]
         | None
     ) = None
+    scale_sampled_vre_to_full_year: bool = False
+    weight_snapshots_to_full_year_demand: bool = False
+    sample_first_year_of_each_investment_period: bool = False
 
 
 class TemporalRangeConfig(BaseModel):
@@ -144,6 +147,7 @@ class UnservedEnergyConfig(BaseModel):
 class TraceDataConfig(BaseModel):
     dataset_type: Literal["full", "example"] = "example"
     dataset_year: int = 2024
+    demand_poe: Literal["POE10", "POE50", "POE90"] = "POE50"
 
 
 class CarbonPricingConfig(BaseModel):
@@ -236,6 +240,9 @@ class ModelConfig(BaseModel):
     # Enforce the templated `technology_capacity_targets` (state offshore wind and
     # storage targets) as minimum installed capacity constraints.
     enforce_technology_capacity_targets: bool = False
+    # Enforce the templated state renewable generation targets (NSW Roadmap, VRET,
+    # TRET and SA net 100% renewable) as custom constraints.
+    enforce_state_generation_targets: bool = False
     filter_by_nem_regions: list[str] | None = None
     filter_by_isp_sub_regions: list[str] | None = None
     solver: Literal[

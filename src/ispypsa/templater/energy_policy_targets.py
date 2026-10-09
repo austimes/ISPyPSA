@@ -84,9 +84,11 @@ def _template_renewable_share_targets(
         if target["csv"] not in iasr_tables:
             continue
         df = iasr_tables[target["csv"]]
-
-        df = df.melt(id_vars=df.columns[0], var_name="FY", value_name="pct")
-        df = df[df[df.columns[0]].str.contains("share", case=False)]
+        if "All scenarios" in df.columns:
+            df = _extract_yearly_share_targets(df)
+        else:
+            df = df.melt(id_vars=df.columns[0], var_name="FY", value_name="pct")
+            df = df[df[df.columns[0]].str.contains("share", case=False)]
         df["region_id"] = target["region_id"]
         df["policy_id"] = target["policy_id"]
         df["pct"] = df["pct"].astype(float)
@@ -106,6 +108,34 @@ def _template_renewable_share_targets(
     ].str.replace("-", "_")
 
     return merged_state_renewable_share_targets
+
+
+def _extract_yearly_share_targets(df: pd.DataFrame) -> pd.DataFrame:
+    """Extracts share targets (%) from a table with one row per calendar or financial year.
+
+    Returns:
+        `pd.DataFrame`: columns FY (e.g. "2029_30" or "2026-27") and pct
+    """
+    if "Calendar year" in df.columns:
+        financial_years = _financial_year_ending_in(df["Calendar year"].astype(int))
+    else:
+        financial_years = df["Financial year"]
+    return pd.DataFrame(
+        {"FY": financial_years, "pct": df["All scenarios"].astype(float)}
+    )
+
+
+def _financial_year_ending_in(calendar_years: pd.Series) -> pd.Series:
+    """Names the financial year ending June of each calendar year, e.g. 2030 -> "2029_30".
+
+    AEMO assumes a target set for a calendar year is met by the end of the financial
+    year ending in that year.
+    """
+    return (
+        (calendar_years - 1).astype(str)
+        + "_"
+        + (calendar_years % 100).map("{:02d}".format)
+    )
 
 
 def _template_powering_australia_plan(
@@ -236,11 +266,10 @@ def _extract_calendar_year_gw_targets(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         `pd.DataFrame`: columns FY (e.g. "2031_32") and capacity_mw
     """
-    years = df["Calendar year"].astype(int)
     gigawatts = df.iloc[:, 1].str.removesuffix(" GW").astype(float)
     return pd.DataFrame(
         {
-            "FY": (years - 1).astype(str) + "_" + (years % 100).map("{:02d}".format),
+            "FY": _financial_year_ending_in(df["Calendar year"].astype(int)),
             "capacity_mw": gigawatts * 1000,
         }
     )
@@ -284,10 +313,12 @@ def _template_renewable_generation_targets(
 
         # if exists, remove the "Notes" row
         df = df[~df.iloc[:, 0].str.contains("Notes", case=False)]
+        if "row" in target:
+            df = df[df.iloc[:, 0].str.contains(target["row"])]
 
         renewable_gen_target = df.melt(
             id_vars=df.columns[0], var_name="FY", value_name="capacity_gwh"
-        )
+        ).dropna(subset=["capacity_gwh"])
 
         # Convert GWh to MWh
         renewable_gen_target["capacity_mwh"] = (

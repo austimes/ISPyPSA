@@ -4,7 +4,10 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-from ispypsa.translator.snapshots import _add_snapshot_weightings
+from ispypsa.translator.snapshots import (
+    _add_snapshot_weightings,
+    weight_snapshots_to_full_year_demand,
+)
 
 
 def test_add_snapshot_weightings_two_investment_periods(csv_str_to_df):
@@ -216,3 +219,68 @@ def test_add_snapshot_weightings_many_snapshots(csv_str_to_df):
         result[["snapshots"]].reset_index(drop=True),
         input_df[["snapshots"]].reset_index(drop=True),
     )
+
+
+def test_weight_snapshots_to_full_year_demand(csv_str_to_df):
+    snapshots = csv_str_to_df(
+        """
+        investment_periods,  snapshots,             objective,  generators,  stores
+        2025,                2025-01-01__00:30:00,  2190.0,     2190.0,      0.5
+        2025,                2025-01-01__01:00:00,  2190.0,     2190.0,      0.5
+        2025,                2025-01-01__02:30:00,  2190.0,     2190.0,      0.5
+        2025,                2025-01-01__03:00:00,  2190.0,     2190.0,      0.5
+        2030,                2030-01-01__00:30:00,  4380.0,     4380.0,      0.5
+        2030,                2030-01-01__01:30:00,  4380.0,     4380.0,      0.5
+        """,
+        parse_dates=["snapshots"],
+    )
+    node_demand = csv_str_to_df(
+        """
+        datetime,              value
+        2025-01-01__00:30:00,  5
+        2025-01-01__01:00:00,  5
+        2025-01-01__01:30:00,  6
+        2025-01-01__02:00:00,  6
+        2025-01-01__02:30:00,  15
+        2025-01-01__03:00:00,  15
+        2025-01-01__03:30:00,  6
+        2025-01-01__04:00:00,  6
+        2030-01-01__00:30:00,  2
+        2030-01-01__01:00:00,  3
+        2030-01-01__01:30:00,  4
+        2030-01-01__02:00:00,  3
+        """,
+        parse_dates=["datetime"],
+    )
+    full_year_snapshots = node_demand.loc[:, ["datetime"]].rename(
+        columns={"datetime": "snapshots"}
+    )
+    full_year_snapshots["investment_periods"] = full_year_snapshots["snapshots"].dt.year
+    representative_snapshots = pd.to_datetime(
+        pd.Series(["2025-01-01 00:30:00", "2025-01-01 01:00:00", "2030-01-01 00:30:00"])
+    )
+
+    result = weight_snapshots_to_full_year_demand(
+        snapshots,
+        {"A": node_demand, "B": node_demand},
+        full_year_snapshots,
+        representative_snapshots,
+        temporal_resolution_min=30,
+    )
+
+    # 2025: the named block (2 of 8 snapshots) starts at 8760 / 8 = 1095 and the representative block at 3285;
+    # matching 8760 h and 8760 * 16 MW mean demand moves them to 1314 and 3066.
+    # 2030: starting at 2190 and 6570, matching 8760 h and 8760 * 6 MW gives 4380 each.
+    expected = csv_str_to_df(
+        """
+        investment_periods,  snapshots,             objective,  generators,  stores
+        2025,                2025-01-01__00:30:00,  3066.0,     3066.0,      0.5
+        2025,                2025-01-01__01:00:00,  3066.0,     3066.0,      0.5
+        2025,                2025-01-01__02:30:00,  1314.0,     1314.0,      0.5
+        2025,                2025-01-01__03:00:00,  1314.0,     1314.0,      0.5
+        2030,                2030-01-01__00:30:00,  4380.0,     4380.0,      0.5
+        2030,                2030-01-01__01:30:00,  4380.0,     4380.0,      0.5
+        """,
+        parse_dates=["snapshots"],
+    )
+    assert_frame_equal(result, expected, check_exact=False, rtol=1e-9)

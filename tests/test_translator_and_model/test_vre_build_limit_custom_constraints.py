@@ -242,7 +242,7 @@ def test_vre_build_limit_constraint(csv_str_to_df, tmp_path, monkeypatch):
     pypsa_timeseries_dir.mkdir(parents=True)
 
     # Create demand traces for the network model
-    create_pypsa_friendly_timeseries_inputs(
+    pypsa_tables["snapshots"] = create_pypsa_friendly_timeseries_inputs(
         config=config,
         model_phase="capacity_expansion",
         ispypsa_tables=ispypsa_tables,

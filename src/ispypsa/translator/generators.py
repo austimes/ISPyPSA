@@ -29,6 +29,7 @@ from ispypsa.translator.mappings import (
 )
 from ispypsa.translator.temporal_filters import _time_series_filter
 from ispypsa.translator.time_series_checker import _check_time_series
+from ispypsa.translator.vre_scaling import scale_sampled_vre_trace
 
 
 def _add_carbon_pricing_columns(generators: pd.DataFrame) -> pd.DataFrame:
@@ -1164,6 +1165,7 @@ def create_pypsa_friendly_new_entrant_generator_timeseries(
     reference_year_mapping: dict[int, int],
     year_type: Literal["fy", "calendar"],
     snapshots: pd.DataFrame,
+    full_year_snapshots: pd.DataFrame | None = None,
 ) -> None:
     """Gets trace data for generators by constructing a timeseries from the start to end
     year using the reference year cycle provided. Trace data is then saved as a parquet
@@ -1185,6 +1187,9 @@ def create_pypsa_friendly_new_entrant_generator_timeseries(
             data for, using year ending nomenclature (2016 -> FY2015/2016). If
             'calendar', then filtering is by calendar year.
         snapshots: pd.DataFrame containing the expected time series values.
+        full_year_snapshots: Unsampled snapshots of the modelled years. When given, the
+            sampled traces are scaled with `scale_sampled_vre_trace`, which needs the
+            "generators" weighting column in `snapshots`.
 
     Returns:
         None
@@ -1234,6 +1239,8 @@ def create_pypsa_friendly_new_entrant_generator_timeseries(
         # datetime in nanoseconds required by PyPSA
         trace["datetime"] = trace["datetime"].astype("datetime64[ns]")
         trace = trace.rename(columns={"datetime": "snapshots", "value": "p_max_pu"})
+        if full_year_snapshots is not None:
+            trace = scale_sampled_vre_trace(name, trace, snapshots, full_year_snapshots)
 
         trace = _time_series_filter(trace, snapshots)
         _check_time_series(
