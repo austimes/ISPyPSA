@@ -239,6 +239,113 @@ def _add_snapshot_weightings(
     return snapshots
 
 
+def weight_snapshots_to_full_year_demand(
+    snapshots: pd.DataFrame,
+    demand_traces: dict[str, pd.DataFrame],
+    full_year_snapshots: pd.DataFrame,
+    representative_snapshots: pd.Series,
+    temporal_resolution_min: int,
+) -> pd.DataFrame:
+    """Re-weight sampled snapshots so each investment period's weighted demand matches its full-year mean over 8760 hours.
+
+    Snapshots outside the representative weeks (the named weeks) start at their own share of
+    the year, and representative-week snapshots share the remaining hours. Every weight is then
+    scaled by a factor linear in the mean demand of its contiguous sampled block (linear
+    calibration), the least change that makes the weights sum to 8760 hours and the weighted
+    demand equal 8760 times the full-year mean demand. Demand values and "stores" weights are
+    unchanged.
+
+    Args:
+        snapshots: Sampled snapshots with columns "snapshots", "investment_periods",
+            "objective", "generators" and "stores".
+        demand_traces: Demand node names mapped to traces with columns "datetime" and "value".
+        full_year_snapshots: Unsampled snapshots with columns "snapshots" and "investment_periods".
+        representative_snapshots: Snapshots that fall in the numbered representative weeks.
+        temporal_resolution_min: Snapshot resolution in minutes, used to find contiguous blocks.
+
+    Returns:
+        pd.DataFrame with the columns of `snapshots` and re-weighted "objective" and "generators".
+
+    Raises:
+        ValueError: If any calibrated weight is not positive.
+    """
+    demand = _total_demand(demand_traces)
+    targets = _mean_demand_by_period(demand, full_year_snapshots)
+    sampled = _add_block_mean_demand(snapshots, demand, temporal_resolution_min)
+    sampled["generators"] = _prior_weightings(
+        sampled, full_year_snapshots, representative_snapshots
+    )
+    sampled["generators"] = pd.concat(
+        _calibrate_period_weightings(period, targets[investment_period])
+        for investment_period, period in sampled.groupby("investment_periods")
+    )
+    if (sampled["generators"] <= 0).any():
+        raise ValueError("Demand weighting gave non-positive snapshot weights.")
+    sampled["objective"] = sampled["generators"]
+    return sampled.loc[:, snapshots.columns]
+
+
+def _total_demand(demand_traces: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Demand summed over every node, with columns "snapshots" and "demand"."""
+    demand = pd.concat(demand_traces.values())
+    demand = demand.groupby("datetime", as_index=False)["value"].sum()
+    return demand.rename(columns={"datetime": "snapshots", "value": "demand"})
+
+
+def _mean_demand_by_period(
+    demand: pd.DataFrame, full_year_snapshots: pd.DataFrame
+) -> pd.Series:
+    """Mean demand over every snapshot of each investment period."""
+    full_year = pd.merge(full_year_snapshots, demand, on="snapshots")
+    return full_year.groupby("investment_periods")["demand"].mean()
+
+
+def _add_block_mean_demand(
+    snapshots: pd.DataFrame, demand: pd.DataFrame, temporal_resolution_min: int
+) -> pd.DataFrame:
+    """Add each snapshot's "demand" and the "block_mean_demand" of its run of consecutive snapshots."""
+    sampled = pd.merge(snapshots, demand, on="snapshots", how="left")
+    step = pd.Timedelta(minutes=temporal_resolution_min)
+    block = sampled["snapshots"].diff().ne(step).cumsum()
+    sampled["block_mean_demand"] = sampled.groupby(block)["demand"].transform("mean")
+    return sampled
+
+
+def _prior_weightings(
+    sampled: pd.DataFrame,
+    full_year_snapshots: pd.DataFrame,
+    representative_snapshots: pd.Series,
+) -> pd.Series:
+    """Named-week snapshots weigh their own share of the year; representative-week snapshots share the rest."""
+    periods = sampled["investment_periods"]
+    own_share = periods.map(
+        8760 / full_year_snapshots.groupby("investment_periods").size()
+    )
+    is_named = ~sampled["snapshots"].isin(representative_snapshots)
+    named_hours = own_share.where(is_named, 0).groupby(periods).transform("sum")
+    representative_count = (~is_named).groupby(periods).transform("sum")
+    return own_share.where(is_named, (8760 - named_hours) / representative_count)
+
+
+def _calibrate_period_weightings(
+    period: pd.DataFrame, target_mean_demand: float
+) -> pd.Series:
+    """Scale prior weights by a + b * block mean demand so hours sum to 8760 and weighted demand to 8760 * target."""
+    prior, demand, block_mean = (
+        period["generators"],
+        period["demand"],
+        period["block_mean_demand"],
+    )
+    a, b = np.linalg.solve(
+        [
+            [prior.sum(), (prior * block_mean).sum()],
+            [(prior * demand).sum(), (prior * demand * block_mean).sum()],
+        ],
+        [8760, 8760 * target_mean_demand],
+    )
+    return prior * (a + b * block_mean)
+
+
 def _create_investment_period_weightings(
     investment_periods: list[int], model_end_year: int, discount_rate: float
 ) -> pd.DataFrame:

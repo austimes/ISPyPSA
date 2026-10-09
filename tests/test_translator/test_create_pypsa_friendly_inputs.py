@@ -44,6 +44,7 @@ class DummyConfigOne:
                             {
                                 "representative_weeks": [1],
                                 "scale_sampled_vre_to_full_year": False,
+                                "weight_snapshots_to_full_year_demand": False,
                             },
                         ),
                     },
@@ -62,6 +63,7 @@ class DummyConfigOne:
                             {
                                 "representative_weeks": [1, 2],
                                 "scale_sampled_vre_to_full_year": False,
+                                "weight_snapshots_to_full_year_demand": False,
                             },
                         ),
                     },
@@ -211,6 +213,7 @@ class DummyConfigTwo:
                             {
                                 "representative_weeks": [1],
                                 "scale_sampled_vre_to_full_year": False,
+                                "weight_snapshots_to_full_year_demand": False,
                             },
                         ),
                     },
@@ -229,6 +232,7 @@ class DummyConfigTwo:
                             {
                                 "representative_weeks": [1, 2],
                                 "scale_sampled_vre_to_full_year": False,
+                                "weight_snapshots_to_full_year_demand": False,
                             },
                         ),
                     },

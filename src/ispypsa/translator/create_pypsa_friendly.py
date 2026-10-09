@@ -46,6 +46,7 @@ from ispypsa.translator.snapshots import (
     _create_complete_snapshots_index,
     _create_investment_period_weightings,
     create_pypsa_friendly_snapshots,
+    weight_snapshots_to_full_year_demand,
 )
 from ispypsa.translator.state_generation_targets import (
     _combine_state_generation_targets,
@@ -61,7 +62,10 @@ from ispypsa.translator.technology_capacity_targets import (
     _map_buses_to_nem_regions,
     _translate_technology_capacity_targets,
 )
-from ispypsa.translator.temporal_filters import _time_series_filter
+from ispypsa.translator.temporal_filters import (
+    _filter_snapshots_for_representative_weeks,
+    _time_series_filter,
+)
 from ispypsa.translator.time_series_checker import _check_time_series
 from ispypsa.translator.vre_scaling import scale_sampled_vre_trace
 
@@ -398,7 +402,10 @@ def create_pypsa_friendly_timeseries_inputs(
 
     - First creates snapshots based on the temporal configuration, optionally using
       named_representative_weeks and/or representative_weeks if configured. If snapshots
-      are provided, they are used instead of generating new ones.
+      are provided, they are used instead of generating new ones. If
+      `weight_snapshots_to_full_year_demand` is set in the phase's aggregation config,
+      the snapshot weights are matched to full-year demand (see
+      `weight_snapshots_to_full_year_demand`).
 
     - a time series file is created for each wind and solar generator in the new_entrant_generators
     table (table in ispypsa_tables dict). The time series data is saved in parquet files
@@ -511,12 +518,21 @@ def create_pypsa_friendly_timeseries_inputs(
 
     # VRE traces take weighted snapshots so sampled availability can be scaled to the
     # full year; the save functions keep only the snapshot and period columns.
-    vre_snapshots = _add_snapshot_weightings(
+    phase_config = getattr(config.temporal, model_phase)
+    full_year_snapshots = _create_full_year_snapshots(config, model_phase)
+    weighted_snapshots = _add_snapshot_weightings(
         snapshots.copy(), config.temporal.capacity_expansion.resolution_min
     )
-    full_year_snapshots = _create_full_year_snapshots_if_scaling_vre(
-        config, model_phase
-    )
+    if phase_config.aggregation.weight_snapshots_to_full_year_demand:
+        weighted_snapshots = weight_snapshots_to_full_year_demand(
+            weighted_snapshots,
+            demand_traces,
+            full_year_snapshots,
+            _representative_week_snapshots(config, model_phase, full_year_snapshots),
+            phase_config.resolution_min,
+        )
+    if not phase_config.aggregation.scale_sampled_vre_to_full_year:
+        full_year_snapshots = None
 
     if generator_traces_by_type is not None:
         # Filter and save generator timeseries by type
@@ -524,7 +540,7 @@ def create_pypsa_friendly_timeseries_inputs(
             if gen_traces:
                 _filter_and_save_timeseries(
                     gen_traces,
-                    vre_snapshots,
+                    weighted_snapshots,
                     pypsa_friendly_timeseries_inputs_location,
                     f"{gen_type}_traces",
                     full_year_snapshots,
@@ -545,7 +561,7 @@ def create_pypsa_friendly_timeseries_inputs(
         generator_types=["solar", "wind"],
         reference_year_mapping=reference_year_mapping,
         year_type=config.temporal.year_type,
-        snapshots=vre_snapshots,
+        snapshots=weighted_snapshots,
         full_year_snapshots=full_year_snapshots,
     )
 
@@ -563,11 +579,7 @@ def create_pypsa_friendly_timeseries_inputs(
         blend_biomethane_into_gas=config.fuel_pricing.blend_biomethane_into_gas,
     )
 
-    snapshots = _add_snapshot_weightings(
-        snapshots, config.temporal.capacity_expansion.resolution_min
-    )
-
-    return snapshots
+    return weighted_snapshots
 
 
 def list_timeseries_files(
@@ -638,19 +650,16 @@ def list_timeseries_files(
     return files
 
 
-def _create_full_year_snapshots_if_scaling_vre(
+def _create_full_year_snapshots(
     config: ModelConfig,
     model_phase: Literal["capacity_expansion", "operational"],
-) -> pd.DataFrame | None:
-    """Create the unsampled snapshots of the modelled years when sampled VRE traces are to be scaled.
+) -> pd.DataFrame:
+    """Create the unsampled snapshots of the modelled years.
 
     Returns:
-        pd.DataFrame with columns "investment_periods" and "snapshots", or None when
-        `scale_sampled_vre_to_full_year` is off for the model phase.
+        pd.DataFrame with columns "investment_periods" and "snapshots".
     """
     phase_config = getattr(config.temporal, model_phase)
-    if not phase_config.aggregation.scale_sampled_vre_to_full_year:
-        return None
     snapshots = _create_complete_snapshots_index(
         start_year=config.temporal.range.start_year,
         end_year=config.temporal.range.end_year,
@@ -662,6 +671,22 @@ def _create_full_year_snapshots_if_scaling_vre(
         config.temporal.capacity_expansion.investment_periods,
         config.temporal.year_type,
     )
+
+
+def _representative_week_snapshots(
+    config: ModelConfig,
+    model_phase: Literal["capacity_expansion", "operational"],
+    full_year_snapshots: pd.DataFrame,
+) -> pd.Series:
+    """Snapshots of the modelled years that fall in the phase's numbered representative weeks."""
+    aggregation = getattr(config.temporal, model_phase).aggregation
+    return _filter_snapshots_for_representative_weeks(
+        representative_weeks=aggregation.representative_weeks,
+        snapshots=full_year_snapshots,
+        start_year=config.temporal.range.start_year,
+        end_year=config.temporal.range.end_year,
+        year_type=config.temporal.year_type,
+    )["snapshots"]
 
 
 def _flatten_generator_traces(

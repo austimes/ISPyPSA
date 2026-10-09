@@ -359,6 +359,31 @@ Examples:
 
 ```scale_sampled_vre_to_full_year: true```
 
+#### temporal.capacity_expansion.aggregation.weight_snapshots_to_full_year_demand
+
+Whether to re-weight the sampled snapshots so that, in each investment period, they still sum to 8760 hours and their
+weighted demand equals 8760 times the mean demand over every snapshot of the period. With equal weights, named weeks
+(such as `peak-demand`) count as many times as each representative week, so the weighted sample overstates annual
+demand energy. Demand values, and with them peak demand in MW, are unchanged.
+
+The weights are set in two steps. First, snapshots outside the numbered representative weeks (the named weeks) take
+their own share of the year, and representative-week snapshots share the remaining hours. Then every weight is scaled
+by a factor linear in the mean demand of its block of consecutive sampled snapshots (linear calibration), the least
+change that meets both totals. A `ValueError` is raised if any weight would not be positive. Requires
+`representative_weeks`, and at least two sampled blocks per investment period. The `objective` and `generators`
+weights change; `stores` weights do not. When `scale_sampled_vre_to_full_year` is also set, wind and solar traces are
+scaled against the new weights, so their weighted energy still matches the full year. The same key under
+`temporal.operational.aggregation` applies to the operational phase.
+
+Options:
+
+- false (default): Every sampled snapshot in an investment period has the same weight.
+- true: Sampled snapshots are weighted to the full-year demand energy.
+
+Examples:
+
+```weight_snapshots_to_full_year_demand: true```
+
 ### temporal.operational
 
 The temporal settings for the operational phase of the modelling.
