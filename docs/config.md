@@ -384,6 +384,24 @@ Examples:
 
 ```weight_snapshots_to_full_year_demand: true```
 
+#### temporal.capacity_expansion.aggregation.sample_first_year_of_each_investment_period
+
+Whether to sample only the first year of each investment period. By default, the representative and named weeks are
+sampled in every year of the modelled range, so an investment period of five years holds five samples. When set, each
+period holds the sample of its first year alone, weighted to one year, which shrinks a multi-period model to one sample
+per period. The full-year targets of `scale_sampled_vre_to_full_year` and `weight_snapshots_to_full_year_demand` then
+also come from each period's first year. With `year_type: fy`, an investment period of 2030 samples the 2029-30
+financial year. The same key under `temporal.operational.aggregation` applies to the operational phase.
+
+Options:
+
+- false (default): Every year of the modelled range is sampled.
+- true: Only the first year of each investment period is sampled.
+
+Examples:
+
+```sample_first_year_of_each_investment_period: true```
+
 ### temporal.operational
 
 The temporal settings for the operational phase of the modelling.

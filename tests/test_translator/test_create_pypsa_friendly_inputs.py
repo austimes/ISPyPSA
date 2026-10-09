@@ -9,7 +9,10 @@ from ispypsa.translator import (
     create_pypsa_friendly_timeseries_inputs,
     list_translator_output_files,
 )
-from ispypsa.translator.create_pypsa_friendly import _flatten_generator_traces
+from ispypsa.translator.create_pypsa_friendly import (
+    _create_full_year_snapshots,
+    _flatten_generator_traces,
+)
 from ispypsa.translator.generators import (
     _translate_ecaa_generators,
     _translate_new_entrant_generators,
@@ -45,6 +48,7 @@ class DummyConfigOne:
                                 "representative_weeks": [1],
                                 "scale_sampled_vre_to_full_year": False,
                                 "weight_snapshots_to_full_year_demand": False,
+                                "sample_first_year_of_each_investment_period": False,
                             },
                         ),
                     },
@@ -64,6 +68,7 @@ class DummyConfigOne:
                                 "representative_weeks": [1, 2],
                                 "scale_sampled_vre_to_full_year": False,
                                 "weight_snapshots_to_full_year_demand": False,
+                                "sample_first_year_of_each_investment_period": False,
                             },
                         ),
                     },
@@ -102,6 +107,46 @@ def test_create_pypsa_friendly_snapshots_capacity_expansion():
     # 1 week per year × 2 years at 60-min intervals:
     # = 2 weeks × 7 days × 24 intervals = 336 snapshots
     assert len(snapshots) == 336
+
+
+def test_create_pypsa_friendly_snapshots_first_year_of_each_period_only():
+    """Only the first financial year of each investment period is sampled when configured."""
+    config = DummyConfigOne()
+    config.temporal.range.end_year = 2028
+    config.temporal.capacity_expansion.investment_periods = [2025, 2027]
+    every_year = create_pypsa_friendly_snapshots(config, "capacity_expansion")
+    config.temporal.capacity_expansion.aggregation.sample_first_year_of_each_investment_period = True
+
+    snapshots = create_pypsa_friendly_snapshots(config, "capacity_expansion")
+
+    # Week 1 of FY2025 and FY2027 falls in July 2024 and July 2026.
+    expected = every_year[every_year["snapshots"].dt.year.isin([2024, 2026])]
+    pd.testing.assert_frame_equal(snapshots, expected.reset_index(drop=True))
+
+
+def test_full_year_targets_come_from_the_first_year_of_each_period_when_only_those_are_sampled():
+    """The full-year snapshots that VRE scaling and demand weighting match cover only the sampled years."""
+    config = DummyConfigOne()
+    config.temporal.range.end_year = 2028
+    config.temporal.capacity_expansion.investment_periods = [2025, 2027]
+    config.temporal.capacity_expansion.aggregation.sample_first_year_of_each_investment_period = True
+
+    full_year = _create_full_year_snapshots(config, "capacity_expansion")
+
+    # July belongs to the financial year it starts, so each year runs from 1 July 00:00 to 30 June 23:00; the
+    # modelled range itself starts at 01:00.
+    first_years = [
+        pd.date_range("2024-07-01 01:00", "2025-06-30 23:00", freq="h"),
+        pd.date_range("2026-07-01 00:00", "2027-06-30 23:00", freq="h"),
+    ]
+    expected = pd.DataFrame(
+        {
+            "investment_periods": [2025] * len(first_years[0])
+            + [2027] * len(first_years[1]),
+            "snapshots": first_years[0].append(first_years[1]),
+        }
+    )
+    pd.testing.assert_frame_equal(full_year, expected, check_names=False)
 
 
 def test_create_pypsa_friendly_snapshots_operational():
@@ -214,6 +259,7 @@ class DummyConfigTwo:
                                 "representative_weeks": [1],
                                 "scale_sampled_vre_to_full_year": False,
                                 "weight_snapshots_to_full_year_demand": False,
+                                "sample_first_year_of_each_investment_period": False,
                             },
                         ),
                     },
@@ -233,6 +279,7 @@ class DummyConfigTwo:
                                 "representative_weeks": [1, 2],
                                 "scale_sampled_vre_to_full_year": False,
                                 "weight_snapshots_to_full_year_demand": False,
+                                "sample_first_year_of_each_investment_period": False,
                             },
                         ),
                     },

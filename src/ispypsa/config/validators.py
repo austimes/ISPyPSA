@@ -64,6 +64,7 @@ class TemporalAggregationConfig(BaseModel):
     ) = None
     scale_sampled_vre_to_full_year: bool = False
     weight_snapshots_to_full_year_demand: bool = False
+    sample_first_year_of_each_investment_period: bool = False
 
 
 class TemporalRangeConfig(BaseModel):

@@ -89,6 +89,11 @@ def create_pypsa_friendly_snapshots(
         snapshots, investment_periods, config.temporal.year_type
     )
 
+    if aggregation.sample_first_year_of_each_investment_period:
+        snapshots = _keep_first_year_of_each_investment_period(
+            snapshots, config.temporal.year_type
+        )
+
     return snapshots
 
 
@@ -192,6 +197,26 @@ def _add_investment_periods(
         )
 
     return result.loc[:, ["investment_periods", "snapshots"]]
+
+
+def _keep_first_year_of_each_investment_period(
+    snapshots: pd.DataFrame, year_type: str
+) -> pd.DataFrame:
+    """Keep only the snapshots in the first year of their investment period.
+
+    Years are assigned as `_add_investment_periods` assigns them: with "fy", July onwards
+    belongs to the next financial year.
+
+    Args:
+        snapshots: pd.DataFrame with columns "snapshots" and "investment_periods".
+        year_type: str which should be "fy" or "calendar".
+
+    Returns: pd.DataFrame with the rows of `snapshots` in each period's first year.
+    """
+    year = snapshots["snapshots"].dt.year
+    if year_type == "fy":
+        year = year + (snapshots["snapshots"].dt.month >= 7)
+    return snapshots[year == snapshots["investment_periods"]].reset_index(drop=True)
 
 
 def _add_snapshot_weightings(
