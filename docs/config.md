@@ -88,23 +88,6 @@ Examples:
 
 ```dataset_year: 2024```
 
-### trace_data.demand_poe
-
-The probability of exceedance (POE) of the demand traces read from the trace data directory. AEMO publishes each
-demand trace at a 10%, 50% and 90% POE: a 10% POE trace has peaks expected to be exceeded one year in ten. The
-selected POE is used for bus demand and for the distributed PV energy behind state renewable generation targets, so
-the trace data directory must contain traces at that POE.
-
-Options:
-
-- POE50 (default)
-- POE10
-- POE90
-
-Examples:
-
-```demand_poe: POE10```
-
 ## ISPyPSA Templating
 
 ### iasr_workbook_version
@@ -385,24 +368,6 @@ Examples:
 
 ```weight_snapshots_to_full_year_demand: true```
 
-#### temporal.capacity_expansion.aggregation.sample_first_year_of_each_investment_period
-
-Whether to sample only the first year of each investment period. By default, the representative and named weeks are
-sampled in every year of the modelled range, so an investment period of five years holds five samples. When set, each
-period holds the sample of its first year alone, weighted to one year, which shrinks a multi-period model to one sample
-per period. The full-year targets of `scale_sampled_vre_to_full_year` and `weight_snapshots_to_full_year_demand` then
-also come from each period's first year. With `year_type: fy`, an investment period of 2030 samples the 2029-30
-financial year. The same key under `temporal.operational.aggregation` applies to the operational phase.
-
-Options:
-
-- false (default): Every year of the modelled range is sampled.
-- true: Only the first year of each investment period is sampled.
-
-Examples:
-
-```sample_first_year_of_each_investment_period: true```
-
 ### temporal.operational
 
 The temporal settings for the operational phase of the modelling.
@@ -511,6 +476,54 @@ Not free and must be installed by the user:
 Examples:
 
 ```solver: highs```
+
+## Fuel pricing and supply
+
+### fuel_pricing.blend_biomethane_into_gas
+
+Whether the Gas carrier's price includes AEMO's mandated biomethane blend. AEMO blends biomethane into the gas price
+trajectory, so the gas price rises with the blend share. Set to false to price Gas from the IASR gas price tables
+alone, for example when a separate bioenergy model carries the biomethane.
+
+Options:
+
+- true (default): Gas is priced with the biomethane blend, as AEMO does.
+- false: Gas is priced from the gas price tables alone.
+
+Examples:
+
+```blend_biomethane_into_gas: false```
+
+### gas_supply_curve.curve_csv
+
+Path to a CSV defining a stepped annual supply curve for the fuel burnt by Gas generators. Each row is one tranche in
+one financial year, with columns:
+
+- `tranche`: tranche label.
+- `financial_year`: financial year ending, matching the investment period labels; every investment period needs rows.
+- `cap_pj`: annual quantity of the tranche in PJ, blank for an uncapped tranche. Every investment period needs at
+  least one uncapped backstop tranche, so the curve prices scarcity instead of making the model infeasible.
+- `adder_$/gj`: premium in real AUD/GJ above the IASR fuel price already in the generators' marginal costs.
+
+In each investment period the model buys the annual fuel its Gas generators burn (dispatch weighted by snapshot
+weightings, times heat rate) from the tranches, filling cheaper tranches first, so fuel cost rises with total gas use.
+The curve is added by `build_pypsa_network`.
+
+Default: none, which leaves gas supply unlimited at the IASR price.
+
+Examples:
+
+```curve_csv: "data/gas_supply_curve.csv"```
+
+### biomass_supply_curve.curve_csv
+
+As `gas_supply_curve.curve_csv`, for the feedstock burnt by Biomass generators.
+
+Default: none, which leaves biomass supply unlimited at the IASR price.
+
+Examples:
+
+```curve_csv: "data/biomass_supply_curve.csv"```
 
 ## Policy targets
 
