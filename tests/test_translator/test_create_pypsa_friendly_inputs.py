@@ -291,15 +291,7 @@ class DummyConfigTwo:
             (object,),
             {"nodes": type("obj", (object,), {"regional_granularity": "sub_regions"})},
         )
-        # Phase 8: carbon-price + T&S adders default to 0 (off) when the
-        # carbon-pricing block is absent from the config — preserve that
-        # invariant by hand for the dummy.
-        self.carbon_pricing = type(
-            "obj",
-            (object,),
-            {"carbon_price": 0.0, "tns_price": 0.0},
-        )
-        # Likewise the fuel-pricing block: the biomethane blend is on when the
+        # The fuel-pricing block: the biomethane blend is on when the
         # block is absent from the config.
         self.fuel_pricing = type("obj", (object,), {"blend_biomethane_into_gas": True})
         self.trace_data = type("obj", (object,), {"demand_poe": "POE50"})

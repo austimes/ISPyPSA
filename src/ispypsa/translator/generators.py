@@ -32,7 +32,7 @@ from ispypsa.translator.time_series_checker import _check_time_series
 from ispypsa.translator.vre_scaling import scale_sampled_vre_trace
 
 
-def _add_carbon_pricing_columns(generators: pd.DataFrame) -> pd.DataFrame:
+def _add_emission_columns(generators: pd.DataFrame) -> pd.DataFrame:
     """Attach `isp_capture_rate`, `isp_residual_co2_t_per_mwh`, and
     `isp_captured_co2_t_per_mwh` to a translated generators table.
 
@@ -40,11 +40,8 @@ def _add_carbon_pricing_columns(generators: pd.DataFrame) -> pd.DataFrame:
     in until IASR carries per-plant carbon capture and storage figures). The
     carrier-level total Scope 1 CO2e factor comes from
     `_CARRIER_TO_TOTAL_CO2E_KG_PER_GJ`. The two derived columns are physical
-    t/MWh quantities used downstream by:
-      - the dynamic marginal-cost calculation: residual x carbon_price (carbon
-        adder) + captured x tns_price (transport and storage adder)
-      - emissions intensity reporting (residual is what a capturing plant
-        actually emits at runtime).
+    t/MWh quantities for emissions accounting, such as a CO2 cap on the residual
+    emissions a capturing plant actually emits.
     """
     g = generators.copy()
     g["isp_capture_rate"] = (
@@ -142,9 +139,7 @@ def _translate_ecaa_generators(
         columns=gen_attributes
     )
 
-    ecaa_generators_pypsa_format = _add_carbon_pricing_columns(
-        ecaa_generators_pypsa_format
-    )
+    ecaa_generators_pypsa_format = _add_emission_columns(ecaa_generators_pypsa_format)
 
     columns_in_order = [
         col
@@ -262,7 +257,7 @@ def _translate_new_entrant_generators(
         pypsa_default_p_noms
     )
 
-    new_entrant_generators_pypsa_format = _add_carbon_pricing_columns(
+    new_entrant_generators_pypsa_format = _add_emission_columns(
         new_entrant_generators_pypsa_format
     )
 
@@ -619,8 +614,6 @@ def create_pypsa_friendly_dynamic_marginal_costs(
     generators: pd.DataFrame,
     snapshots: pd.DataFrame,
     pypsa_inputs_path: Path | str,
-    carbon_price: float = 0.0,
-    tns_price: float = 0.0,
     blend_biomethane_into_gas: bool = True,
 ) -> None:
     """
@@ -681,7 +674,7 @@ def create_pypsa_friendly_dynamic_marginal_costs(
             # .squeeze()
         )
         marginal_costs_one_gen = _calculate_dynamic_marginal_costs_single_generator(
-            row, gen_fuel_prices, snapshots, carbon_price, tns_price
+            row, gen_fuel_prices, snapshots
         )
         marginal_costs_one_gen.to_parquet(
             Path(output_dir, f"{name}.parquet"), index=False
@@ -692,8 +685,6 @@ def _calculate_dynamic_marginal_costs_single_generator(
     generator_row: pd.Series,
     gen_fuel_prices: pd.Series,
     snapshots: pd.DataFrame,
-    carbon_price: float = 0.0,
-    tns_price: float = 0.0,
 ) -> pd.DataFrame:
     """
     Calculates dynamic marginal costs for a single generator over all snapshots.
@@ -721,31 +712,16 @@ def _calculate_dynamic_marginal_costs_single_generator(
             f"Expected gen_fuel_prices to be a series, got {type(gen_fuel_prices)}"
         )
 
-    # dynamic_marginal_cost = fuel_price * heat_rate + VOM + carbon_adder + tns_adder
-    # where carbon_adder = carbon_price * residual t/MWh
-    #       tns_adder    = tns_price * captured t/MWh
-    # Residual / captured are pre-computed by _add_carbon_pricing_columns from
-    # heat_rate x carrier CO2e factor x capture_rate (0 for non-CCS plants, so no
-    # adder).
+    # dynamic_marginal_cost = fuel_price * heat_rate + VOM
     # Non-thermal generators (wind, solar, hydro) typically have heat_rate=0
     # and may have VOM not published in the IASR tables (treated as 0).
     heat_rate = generator_row["isp_heat_rate_gj/mwh"]
     vom = generator_row["isp_vom_$/mwh_sent_out"]
-    residual = generator_row.get("isp_residual_co2_t_per_mwh", 0.0)
-    captured = generator_row.get("isp_captured_co2_t_per_mwh", 0.0)
     if pd.isna(heat_rate):
         heat_rate = 0.0
     if pd.isna(vom):
         vom = 0.0
-    if pd.isna(residual):
-        residual = 0.0
-    if pd.isna(captured):
-        captured = 0.0
-    carbon_adder = carbon_price * residual
-    tns_adder = tns_price * captured
-    dynamic_marginal_costs = (
-        (gen_fuel_prices * heat_rate) + vom + carbon_adder + tns_adder
-    )
+    dynamic_marginal_costs = (gen_fuel_prices * heat_rate) + vom
 
     dynamic_marginal_costs.name = "marginal_cost"
     dynamic_marginal_costs = dynamic_marginal_costs.to_frame()

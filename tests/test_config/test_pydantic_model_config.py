@@ -444,16 +444,6 @@ def test_base_paths_only():
     assert not hasattr(model.paths, "pypsa_outputs_directory")
 
 
-def test_tns_price_still_works_without_a_ccs_supply_curve():
-    """Retained so the archived prod_* configs carrying tns_price stay reproducible."""
-    config = get_valid_config()
-    config["carbon_pricing"] = {"carbon_price": 550.0, "tns_price": 20.0}
-
-    model = ModelConfig(**config)
-
-    assert model.carbon_pricing.tns_price == 20.0
-
-
 def test_fuel_pricing_defaults_to_blending_biomethane_into_gas():
     """Omitting the block keeps AEMO's biomethane blend in the gas price trajectory."""
     model = ModelConfig(**get_valid_config())

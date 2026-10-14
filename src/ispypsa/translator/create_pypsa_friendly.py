@@ -554,8 +554,6 @@ def create_pypsa_friendly_timeseries_inputs(
         generators,
         snapshots,
         pypsa_friendly_timeseries_inputs_location,
-        carbon_price=config.carbon_pricing.carbon_price,
-        tns_price=config.carbon_pricing.tns_price,
         blend_biomethane_into_gas=config.fuel_pricing.blend_biomethane_into_gas,
     )
 

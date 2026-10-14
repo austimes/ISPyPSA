@@ -58,7 +58,7 @@ _GENERATOR_ATTRIBUTE_ORDER = [
     "isp_heat_rate_gj/mwh",
     "isp_resource_type",
     "isp_rez_id",
-    # CCS + carbon-pricing metadata (translator-computed; not passed to PyPSA).
+    # Emissions metadata (translator-computed; not passed to PyPSA).
     "isp_capture_rate",
     "isp_residual_co2_t_per_mwh",
     "isp_captured_co2_t_per_mwh",

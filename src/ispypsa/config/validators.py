@@ -150,17 +150,6 @@ class TraceDataConfig(BaseModel):
     demand_poe: Literal["POE10", "POE50", "POE90"] = "POE50"
 
 
-class CarbonPricingConfig(BaseModel):
-    """Scenario-level carbon and CO2 transport-and-storage pricing.
-
-    Both values are scalar run parameters that the carbon-price sweep varies.
-    Defaults are 0.0 so omitting the section leaves existing configs unchanged.
-    """
-
-    carbon_price: float = 0.0  # AUD/tCO2e on residual emissions (post-capture)
-    tns_price: float = 0.0  # AUD/tCO2 on captured tonnes
-
-
 class FuelPricingConfig(BaseModel):
     """How fuel carriers are priced from the IASR fuel price tables.
 
@@ -200,7 +189,6 @@ class ModelConfig(BaseModel):
     iasr_workbook_version: str
     unserved_energy: UnservedEnergyConfig
     trace_data: TraceDataConfig = TraceDataConfig()
-    carbon_pricing: CarbonPricingConfig = CarbonPricingConfig()
     fuel_pricing: FuelPricingConfig = FuelPricingConfig()
     gas_supply_curve: FuelSupplyCurveConfig = FuelSupplyCurveConfig()
     biomass_supply_curve: FuelSupplyCurveConfig = FuelSupplyCurveConfig()
