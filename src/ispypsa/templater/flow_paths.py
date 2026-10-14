@@ -342,8 +342,9 @@ def _determine_cost_scenario(scenario: str) -> str:
     Map ISP scenario to flow path/rez cost scenario.
 
     Args:
-        scenario: str specifying the scenario name. "Progressive Change" and "Green Energy Exports" are accepted as
-            the earlier names of "Slower Growth" and "Accelerated Transition".
+        scenario: str specifying the scenario name. Must be one of "Step Change",
+            "Progressive Change" (the 7.8 "Slower Growth" tables) or "Green Energy
+            Exports" (the 7.8 "Accelerated Transition" tables).
 
     Returns:
         str specifying the cost-table suffix, e.g. "step_change".
@@ -351,8 +352,6 @@ def _determine_cost_scenario(scenario: str) -> str:
     cost_scenarios = {
         "Step Change": "step_change",
         "Progressive Change": "slower_growth",
-        "Slower Growth": "slower_growth",
-        "Accelerated Transition": "accelerated_transition",
         "Green Energy Exports": "accelerated_transition",
     }
     if scenario in cost_scenarios:
