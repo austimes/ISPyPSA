@@ -54,15 +54,12 @@ def split_v74_maximum_capacity_commissioning_dates(cache_path: Path) -> None:
     of `_template_h2_gpg_emissions_reduction_factors`'s shared
     alternative-value lookup, we restore the two-column layout: for rows
     with `Status in {Anticipated, Additional}` the date moves into
-    `Indicative commissioning date`. No-op if the table is absent or
-    already has both columns.
+    `Indicative commissioning date`. No-op if the table is absent.
     """
     csv_path = cache_path / f"{_V74_MAX_CAPACITY_CONSOLIDATED}.csv"
     if not csv_path.exists():
         return
     df = pd.read_csv(csv_path)
-    if "Indicative commissioning date" in df.columns:
-        return
     df["Indicative commissioning date"] = pd.NA
     indicative_mask = df["Status"].isin(["Anticipated", "Additional"])
     df.loc[indicative_mask, "Indicative commissioning date"] = df.loc[
@@ -95,16 +92,12 @@ def pivot_v74_other_outages_to_wide(cache_path: Path) -> None:
     pipeline uses a single representative year (2025-26) until time-varying
     PyPSA params are plumbed through.
 
-    No-op if the long-form file is missing or already pivoted.
+    No-op if the long-form file is missing.
     """
     path = cache_path / "other_outages_existing_generators.csv"
     if not path.exists():
         return
     df = pd.read_csv(path)
-    if "Property" not in df.columns:
-        return  # already wide
-    if _V74_OTHER_OUTAGES_SINGLE_YEAR_COLUMN not in df.columns:
-        return  # no expected year column to pivot on
     year_cols = [c for c in df.columns if c not in ("Fuel type", "Property")]
     # Time-series forecasts per Property.
     for property_value, target_name in [
@@ -135,16 +128,12 @@ def aggregate_v74_liquid_fuel_prices_to_v60_form(cache_path: Path) -> None:
     scope (limited liquid-fuel capacity in NEM), a fleet-average is a
     reasonable proxy.
 
-    No-op if the file is already in v6.0 single-row form or absent.
+    No-op if the file is absent.
     """
     path = cache_path / "liquid_fuel_prices.csv"
     if not path.exists():
         return
     df = pd.read_csv(path)
-    if "Liquid fuel price" in df.columns:
-        return  # already in v6.0 form
-    if "Generator" not in df.columns or "Gas price scenario" not in df.columns:
-        return  # unexpected shape — leave alone
     year_cols = [c for c in df.columns if c not in ("Generator", "Gas price scenario")]
     df[year_cols] = df[year_cols].apply(pd.to_numeric, errors="coerce")
     aggregated = df.groupby("Gas price scenario", as_index=False)[year_cols].mean()
@@ -163,19 +152,12 @@ def aggregate_v74_biomethane_prices_to_v60_form(cache_path: Path) -> None:
     aggregation): a fleet-average per scenario is a reasonable proxy until
     Phase 2+ adds per-source biomethane modelling.
 
-    No-op if already single-source or table absent.
+    No-op if the table is absent.
     """
     path = cache_path / "biomethane_prices.csv"
     if not path.exists():
         return
     df = pd.read_csv(path)
-    if (
-        "Biomethane price" not in df.columns
-        or "Biomethane price scenario" not in df.columns
-    ):
-        return
-    if df["Biomethane price"].nunique() <= 1:
-        return  # already single source
     year_cols = [
         c
         for c in df.columns
@@ -202,9 +184,7 @@ def drop_v78_not_applicable_build_cost_year(cache_path: Path) -> None:
 
     The column carries no data the model uses — every investment period is
     2025-26 or later — so dropping the all-"Not Applicable" FY column at cache
-    load is lossless and keeps the templater version-naive. Earlier vintages
-    (v6.0/v7.4/v7.5) publish a numeric 2024-25 column, so the all-string guard
-    makes this a no-op for them.
+    load is lossless.
     """
     import re
 
@@ -217,8 +197,6 @@ def drop_v78_not_applicable_build_cost_year(cache_path: Path) -> None:
     all_not_applicable = [
         c for c in fy_cols if (df[c].astype(str) == "Not Applicable").all()
     ]
-    if not all_not_applicable:
-        return
     df = df.drop(columns=all_not_applicable)
     df.to_csv(csv_path, index=False)
 
@@ -269,19 +247,14 @@ def merge_v74_connection_capacity_into_forecast(cache_path: Path) -> None:
     on the forecast table to compute $/MW. Merge it here so the templater
     sees the same shape regardless of source version.
 
-    No-op if the forecast already has `Connection capacity (MVA)` (v6.0
-    consolidation path) or if either source file is absent.
+    No-op if either source file is absent.
     """
     forecast_path = cache_path / "connection_cost_forecast_wind_and_solar.csv"
     initial_path = cache_path / "connection_costs_for_wind_and_solar.csv"
     if not forecast_path.exists() or not initial_path.exists():
         return
     forecast = pd.read_csv(forecast_path)
-    if "Connection capacity (MVA)" in forecast.columns:
-        return
     initial = pd.read_csv(initial_path)
-    if "Connection capacity (MVA)" not in initial.columns:
-        return
     capacity = initial[["REZ names", "Connection capacity (MVA)"]].drop_duplicates(
         subset=["REZ names"]
     )
