@@ -623,14 +623,6 @@ _SUBREGION_FLOW_PATHS_V74 = [
     "SEV-MEL",  # new in v7.4 (intra-Victoria, South East VIC to Melbourne)
 ]
 
-# Per-flow-path identifier overrides for v7.x augmentation-cost tables.
-# The shipped isp-workbook-parser config has inconsistent underscore vs dash
-# usage; the team's repo-tracked 7.4 config normalises everything to dashes
-# (see parser_configs/7.4/flow_path_costs_forecasts.yaml v7.4-adjusted notes).
-# This dict is empty after normalisation but retained so future per-path
-# overrides have a clear home.
-_V74_AUGMENTATION_COST_PATH_OVERRIDES: dict[str, str] = {}
-
 # Per-version ISP cost-scenario table suffixes. v6.0 used a two-suffix scheme
 # (Progressive Change vs the combined Step Change + Green Energy Exports);
 # v7.x uses three distinct scenarios.
@@ -875,12 +867,8 @@ def flow_path_augmentation_cost_tables(iasr_workbook_version: str = "6.0") -> li
     v7.x: 3 scenarios × 14 paths = 42 tables.
     """
     paths = subregion_flow_paths(iasr_workbook_version)
-    if iasr_workbook_version.startswith("7."):
-        path_for_table = lambda p: _V74_AUGMENTATION_COST_PATH_OVERRIDES.get(p, p)
-    else:
-        path_for_table = lambda p: p
     return [
-        f"flow_path_augmentation_costs_{scen}_{path_for_table(fp)}"
+        f"flow_path_augmentation_costs_{scen}_{fp}"
         for scen in cost_scenario_suffixes(iasr_workbook_version)
         for fp in paths
     ]
@@ -941,14 +929,8 @@ def flow_path_augmentation_cost_tables_by_scenario(
     (slower_growth, step_change, accelerated_transition).
     """
     paths = subregion_flow_paths(iasr_workbook_version)
-    if iasr_workbook_version.startswith("7."):
-        path_for_table = lambda p: _V74_AUGMENTATION_COST_PATH_OVERRIDES.get(p, p)
-    else:
-        path_for_table = lambda p: p
     return {
-        scen: [
-            f"flow_path_augmentation_costs_{scen}_{path_for_table(fp)}" for fp in paths
-        ]
+        scen: [f"flow_path_augmentation_costs_{scen}_{fp}" for fp in paths]
         for scen in cost_scenario_suffixes(iasr_workbook_version)
     }
 

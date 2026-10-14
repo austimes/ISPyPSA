@@ -313,7 +313,7 @@ _V74_TO_CANONICAL_COLUMN_RENAMES: dict[str, dict[str, str]] = {
         "Total lead time (years)4,": "Total lead time (years)",
     },
     "variable_opex_existing_committed_anticipated_additional_generators": {
-        # v7.5 appended a "1," footnote text to this column header.
+        # The 7.5 and 7.8 workbooks append a "1," footnote text to this column header.
         "Variable OPEX ($/MWh sent out)1,": "Variable OPEX ($/MWh sent out)",
     },
     # v7.4 connection_costs_other uses inconsistent casing for battery tech

@@ -24,16 +24,6 @@ from ..templater.mappings import (
     rez_connection_prepatory_activities_tables,
 )
 
-# Repo-tracked parser-config overrides for workbook versions the installed
-# `isp-workbook-parser` doesn't ship configs for. Keys are the workbook
-# version strings (as reported by the Change Log sheet); values are paths
-# to a YAML config directory shaped like isp-workbook-parser's per-version
-# subdirectories. See parser_configs/{version}/README.md for provenance.
-_PARSER_CONFIG_OVERRIDES_ROOT = Path(__file__).parent / "parser_configs"
-_PARSER_CONFIG_OVERRIDES = {
-    "7.4": _PARSER_CONFIG_OVERRIDES_ROOT / "7.4",
-}
-
 
 def _build_required_tables(iasr_workbook_version: str = "6.0") -> list[str]:
     """Return the list of IASR table names to extract for a given workbook version.
@@ -273,38 +263,13 @@ def build_local_cache(
     Returns:
         None
     """
-    parser_config_override = _PARSER_CONFIG_OVERRIDES.get(iasr_workbook_version)
-    if parser_config_override is not None:
-        # The installed `isp-workbook-parser` doesn't ship a config dir for this
-        # version (e.g. v7.4); point it at the repo-tracked override.
-        workbook = Parser(
-            Path(workbook_path), user_config_directory_path=parser_config_override
-        )
-    else:
-        workbook = Parser(Path(workbook_path))
+    workbook = Parser(Path(workbook_path))
     if workbook.workbook_version != iasr_workbook_version:
         raise ValueError(
             "The IASR workbook provided does not match the version "
             "specified in the config."
         )
     tables_to_get = _build_required_tables(iasr_workbook_version)
-    # v7.5 parser-config quirk: two slower-growth flow-path augmentation cost
-    # tables are named non-canonically in the installed 7.5 config — MEL-WNV
-    # and SEV-MEL use underscore separators. Request
-    # the parser's actual name, then rename the cached CSV to ISPyPSA's canonical
-    # name so downstream readers stay version-independent. (Exact per-table map,
-    # verified against parser.table_configs — the variances differ per table.)
-    _V75_AUG_COST_ACTUAL = {  # ispypsa-canonical -> parser-actual
-        "flow_path_augmentation_costs_slower_growth_MEL-WNV": "flow_path_augmentation_costs_slower_growth_MEL_WNV",
-        "flow_path_augmentation_costs_slower_growth_SEV-MEL": "flow_path_augmentation_costs_slower_growth_SEV_MEL",
-    }
-    request_tables = list(
-        tables_to_get
-    )  # parser-actual names; tables_to_get stays canonical
-    _v75_cost_renames = {}  # parser-actual-on-disk -> ispypsa-canonical
-    if iasr_workbook_version == "7.5":
-        request_tables = [_V75_AUG_COST_ACTUAL.get(t, t) for t in request_tables]
-        _v75_cost_renames = {v: k for k, v in _V75_AUG_COST_ACTUAL.items()}
     # v7.8 (2026 ISP FINAL workbook) quirk: AEMO removed the standalone
     # gas/liquid/H2 consultant-scenario-mapping matrix (the small G:N table at
     # the top of the "Gas, Liquid fuel, H2 price" sheet that mapped AEMO
@@ -316,19 +281,8 @@ def build_local_cache(
     # halt on the out-of-bounds usecols error.
     if iasr_workbook_version == "7.8":
         _removed = "gas_and_liquid_fuel_prices_consultant_scenario_mapping"
-        request_tables = [t for t in request_tables if t != _removed]
         tables_to_get = [t for t in tables_to_get if t != _removed]
-    # When we're running with a repo-tracked config override (e.g. v7.4 cloned
-    # from v7.5), the per-table `end_row` values drift one or two rows from
-    # the actual workbook content because AEMO adjusted row counts between
-    # releases. Disable the strict end-row config check so the parser extracts
-    # data up to whatever it actually finds. Functional correctness is
-    # unaffected — the parser still uses the config's sheet_name and header
-    # offsets to identify table content.
-    config_checks = parser_config_override is None
-    workbook.save_tables(cache_path, tables=request_tables, config_checks=config_checks)
-    for actual, canon in _v75_cost_renames.items():
-        (Path(cache_path) / f"{actual}.csv").rename(Path(cache_path) / f"{canon}.csv")
+    workbook.save_tables(cache_path, tables=tables_to_get)
     # Translate older-version column headers to v7.4 canonical form. Cached
     # CSVs on disk become version-independent so downstream readers (templater,
     # tests) never see v6.0 column names.
