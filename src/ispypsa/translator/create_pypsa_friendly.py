@@ -39,7 +39,6 @@ from ispypsa.translator.snapshots import (
     _add_snapshot_weightings,
     _create_complete_snapshots_index,
     _create_investment_period_weightings,
-    _keep_first_year_of_each_investment_period,
     create_pypsa_friendly_snapshots,
     weight_snapshots_to_full_year_demand,
 )
@@ -146,7 +145,6 @@ def _add_state_generation_target_constraints(
         reference_year_mapping,
         investment_periods,
         config.temporal.year_type,
-        config.trace_data.demand_poe,
     )
     lhs, rhs = _translate_state_generation_targets(
         _combine_state_generation_targets(
@@ -479,7 +477,6 @@ def create_pypsa_friendly_timeseries_inputs(
         regional_granularity=config.network.nodes.regional_granularity,
         reference_year_mapping=reference_year_mapping,
         year_type=config.temporal.year_type,
-        poe=config.trace_data.demand_poe,
     )
 
     # Use provided snapshots or create new ones
@@ -632,7 +629,7 @@ def _create_full_year_snapshots(
     config: ModelConfig,
     model_phase: Literal["capacity_expansion", "operational"],
 ) -> pd.DataFrame:
-    """Create the unsampled snapshots of the modelled years, or of each period's first year if only those are sampled.
+    """Create the unsampled snapshots of the modelled years.
 
     Returns:
         pd.DataFrame with columns "investment_periods" and "snapshots".
@@ -644,16 +641,11 @@ def _create_full_year_snapshots(
         temporal_resolution_min=phase_config.resolution_min,
         year_type=config.temporal.year_type,
     )
-    snapshots = _add_investment_periods(
+    return _add_investment_periods(
         snapshots,
         config.temporal.capacity_expansion.investment_periods,
         config.temporal.year_type,
     )
-    if phase_config.aggregation.sample_first_year_of_each_investment_period:
-        snapshots = _keep_first_year_of_each_investment_period(
-            snapshots, config.temporal.year_type
-        )
-    return snapshots
 
 
 def _representative_week_snapshots(

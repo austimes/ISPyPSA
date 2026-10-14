@@ -64,7 +64,6 @@ class TemporalAggregationConfig(BaseModel):
     ) = None
     scale_sampled_vre_to_full_year: bool = False
     weight_snapshots_to_full_year_demand: bool = False
-    sample_first_year_of_each_investment_period: bool = False
 
 
 class TemporalRangeConfig(BaseModel):
@@ -147,7 +146,6 @@ class UnservedEnergyConfig(BaseModel):
 class TraceDataConfig(BaseModel):
     dataset_type: Literal["full", "example"] = "example"
     dataset_year: int = 2024
-    demand_poe: Literal["POE10", "POE50", "POE90"] = "POE50"
 
 
 class FuelPricingConfig(BaseModel):
