@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from ispypsa.translator.buses import (
@@ -65,6 +64,7 @@ def test_create_pypsa_friendly_bus_timeseries_data_sub_regions(tmp_path):
         regional_granularity="sub_regions",
         reference_year_mapping={2025: 2011, 2026: 2018},
         year_type="fy",
+        poe="POE50",
     )
 
     # Build expected trace from consolidated format
@@ -91,8 +91,14 @@ def test_create_pypsa_friendly_bus_timeseries_data_sub_regions(tmp_path):
     expected_trace["datetime"] = expected_trace["datetime"].astype("datetime64[ns]")
     expected_trace = expected_trace.loc[:, ["datetime", "value"]]
     expected_trace = expected_trace.reset_index(drop=True)
-    expected_trace["value"] = np.where(
-        expected_trace["value"] < 0.0, 0.0, expected_trace["value"]
+    # Negative net demand (rooftop exports exceeding local gross demand) must pass
+    # through unclipped, because clipping it to zero would delete real exported
+    # energy from the bulk-grid balance. The test fixture contains negative values;
+    # this assert keeps the regression coverage explicit if the fixture or function
+    # behaviour changes.
+    assert (expected_trace["value"] < 0.0).any(), (
+        "Test fixture has no negative values — regression coverage for "
+        "negative-net-demand pass-through is no longer meaningful."
     )
 
     # The function returns a dictionary with node names as keys
@@ -100,8 +106,11 @@ def test_create_pypsa_friendly_bus_timeseries_data_sub_regions(tmp_path):
     assert "NNSW" in demand_traces
     got_trace = demand_traces["NNSW"]
 
-    # Compare the traces
+    # Compare the traces — negative values must be preserved (no clipping).
     pd.testing.assert_frame_equal(expected_trace, got_trace)
+    assert (got_trace["value"] < 0.0).any(), (
+        "Returned trace has no negative values — clip-restoration regression."
+    )
 
 
 def test_create_pypsa_friendly_bus_timeseries_data_nem_regions(tmp_path):
@@ -122,6 +131,7 @@ def test_create_pypsa_friendly_bus_timeseries_data_nem_regions(tmp_path):
         regional_granularity="nem_regions",
         reference_year_mapping={2025: 2011, 2026: 2018},
         year_type="fy",
+        poe="POE50",
     )
 
     # Build expected trace from consolidated format
@@ -152,8 +162,12 @@ def test_create_pypsa_friendly_bus_timeseries_data_nem_regions(tmp_path):
         {"value": "sum"}
     )
     expected_trace = expected_trace.reset_index(drop=True)
-    expected_trace["value"] = np.where(
-        expected_trace["value"] < 0.0, 0.0, expected_trace["value"]
+    # Negative net demand (rooftop exports exceeding local gross demand) must pass
+    # through unclipped, because clipping it to zero would delete real exported
+    # energy from the bulk-grid balance.
+    assert (expected_trace["value"] < 0.0).any(), (
+        "Test fixture has no negative values — regression coverage for "
+        "negative-net-demand pass-through is no longer meaningful."
     )
 
     # The function returns a dictionary with node names as keys
@@ -161,8 +175,11 @@ def test_create_pypsa_friendly_bus_timeseries_data_nem_regions(tmp_path):
     assert "NSW" in demand_traces
     got_trace = demand_traces["NSW"]
 
-    # Compare the traces
+    # Compare the traces — negative values must be preserved (no clipping).
     pd.testing.assert_frame_equal(expected_trace, got_trace)
+    assert (got_trace["value"] < 0.0).any(), (
+        "Returned trace has no negative values — clip-restoration regression."
+    )
 
 
 def test_create_pypsa_friendly_bus_timeseries_data_single_region(tmp_path):
@@ -183,6 +200,7 @@ def test_create_pypsa_friendly_bus_timeseries_data_single_region(tmp_path):
         regional_granularity="single_region",
         reference_year_mapping={2025: 2011, 2026: 2018},
         year_type="fy",
+        poe="POE50",
     )
 
     # Build expected trace from consolidated format for both subregions
@@ -235,3 +253,39 @@ def test_create_pypsa_friendly_bus_timeseries_data_single_region(tmp_path):
 
     # Compare the traces
     pd.testing.assert_frame_equal(expected_trace, got_trace)
+
+
+def test_create_pypsa_friendly_bus_timeseries_data_reads_requested_poe(tmp_path):
+    fixture = pd.read_parquet(
+        Path(__file__).parent.parent
+        / "trace_data/isp_2024/demand/Step_Change_RefYear2018_NNSW_POE50_OPSO_MODELLING.parquet"
+    )
+    (tmp_path / "demand").mkdir()
+    fixture.to_parquet(tmp_path / "demand/poe50.parquet")
+    fixture.assign(poe="POE10", value=fixture["value"] + 1000.0).to_parquet(
+        tmp_path / "demand/poe10.parquet"
+    )
+    sub_regions = pd.DataFrame(
+        {"isp_sub_region_id": ["NNSW"], "nem_region_id": ["NSW"]}
+    )
+
+    demand_traces = create_pypsa_friendly_bus_demand_timeseries(
+        sub_regions,
+        tmp_path,
+        scenario="Step Change",
+        regional_granularity="sub_regions",
+        reference_year_mapping={2026: 2018},
+        year_type="fy",
+        poe="POE10",
+    )
+
+    fy2026 = fixture[
+        (fixture["datetime"] > "2025-07-01") & (fixture["datetime"] <= "2026-07-01")
+    ]
+    expected = pd.DataFrame(
+        {
+            "datetime": fy2026["datetime"].astype("datetime64[ns]"),
+            "value": fy2026["value"] + 1000.0,
+        }
+    ).reset_index(drop=True)
+    pd.testing.assert_frame_equal(demand_traces["NNSW"], expected)

@@ -124,7 +124,7 @@ def sample_ispypsa_tables(csv_str_to_df):
                 "Large scale Solar PV",
                 "Wind",
             ],
-            "connection_cost_rez/_region_id": [
+            "connection_cost_region_id": [
                 "NSW",
                 "NSW",
                 "Central-West Orana",
@@ -458,6 +458,16 @@ def sample_generator_translator_tables(csv_str_to_df):
 
 @pytest.fixture
 def translated_generator_column_order():
+    # Phase 8: translator now also emits isp_capture_rate +
+    # isp_residual_co2_t_per_mwh + isp_captured_co2_t_per_mwh as pre-computed
+    # physical quantities for the carbon-price + T&S marginal-cost adders.
+    # These are derived (technology_type → capture_rate, carrier × heat_rate →
+    # residual/captured t/MWh) and are 0 for non-CCS plants by construction.
+    _CARBON_PRICING_COLS = [
+        "isp_capture_rate",
+        "isp_residual_co2_t_per_mwh",
+        "isp_captured_co2_t_per_mwh",
+    ]
     translated_column_orders = dict(
         ecaa_column_order=[
             "name",
@@ -475,6 +485,7 @@ def translated_generator_column_order():
             "isp_vom_$/mwh_sent_out",
             "isp_heat_rate_gj/mwh",
             "isp_rez_id",
+            *_CARBON_PRICING_COLS,
         ],
         new_entrant_column_order=[
             "name",
@@ -495,6 +506,7 @@ def translated_generator_column_order():
             "isp_heat_rate_gj/mwh",
             "isp_resource_type",
             "isp_rez_id",
+            *_CARBON_PRICING_COLS,
         ],
     )
 

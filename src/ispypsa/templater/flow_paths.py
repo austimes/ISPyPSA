@@ -12,7 +12,14 @@ from .mappings import (
     _FLOW_PATH_CONFIG,
     _HVDC_FLOW_PATHS,
     _REZ_CONFIG,
+    detect_iasr_version_from_tables,
+    flow_path_config,
+    rez_config,
 )
+
+# The v7.x cost tables keep pre-rename corridor ids, which score below the option
+# threshold against their augmentation counterpart: VIC-SNSW against WNV-SNSW scores 75.
+_ID_MATCH_THRESHOLD = 70
 
 
 def _template_sub_regional_flow_paths(
@@ -205,10 +212,12 @@ def _template_sub_regional_flow_path_costs(
             - nominal_flow_limit_increase_mw
             - <financial year>_$/mw (one column per year, e.g., '2024_25_$/mw')
     """
+    version = detect_iasr_version_from_tables(iasr_tables)
     return process_transmission_costs(
         iasr_tables=iasr_tables,
         scenario=scenario,
-        config=_FLOW_PATH_CONFIG,
+        config=flow_path_config(version),
+        iasr_workbook_version=version,
     )
 
 
@@ -241,25 +250,65 @@ def _template_rez_transmission_costs(
             - additional_network_capacity_mw
             - <financial year>_$/mw (cost per MW for each year, e.g., '2024_25_$/mw')
     """
+    version = detect_iasr_version_from_tables(iasr_tables)
     rez_costs = process_transmission_costs(
         iasr_tables=iasr_tables,
         scenario=scenario,
-        config=_REZ_CONFIG,
+        config=rez_config(version),
+        iasr_workbook_version=version,
     )
 
+    # Match cost-table REZ/constraint ids to the modelled REZ ids + custom
+    # constraint ids. Use a strict threshold so ONLY genuine typos / near-exact
+    # variants auto-correct. The previous default (`threshold=0`) force-matched
+    # EVERY unmatched cost id onto its nearest surviving candidate regardless of
+    # quality — e.g. the VIC group-constraint cost "NW1" landed on an unrelated
+    # NSW REZ, and the un-split "N9" landed arbitrarily on N9a or N9b — silently
+    # writing one zone's expansion cost onto another.
     rez_costs["rez_constraint_id"] = _fuzzy_match_names(
         rez_costs["rez_constraint_id"],
         possible_rez_or_constraint_names,
         task_desc="Processing rez transmission costs",
+        threshold=90,
+    )
+    rez_costs = _drop_unmatched_rez_transmission_costs(
+        rez_costs, possible_rez_or_constraint_names
     )
 
     return rez_costs
+
+
+def _drop_unmatched_rez_transmission_costs(
+    rez_costs: pd.DataFrame, possible_rez_or_constraint_names: list[str]
+) -> pd.DataFrame:
+    """Drop REZ transmission-cost rows whose id matches no modelled REZ/constraint.
+
+    The v7.8 FINAL cost tables carry a handful of ids with no counterpart in the
+    modelled REZ set or the custom-constraint set: `N9` (AEMO split the physical
+    REZ into `N9a`/`N9b` in the resource-limit table, but the cost table still
+    lists the un-split `N9`), plus the group/legacy transmission-constraint ids
+    `NW1`, `WV1`, `WV2`, `HCC1`. Rather than force-mis-key their cost onto an
+    unrelated REZ (the behaviour when the fuzzy threshold was 0), drop them and
+    log which were dropped, so a real REZ never inherits another zone's expansion
+    cost. Attributing `N9`'s cost to both `N9a` and `N9b`, and reconciling the
+    group-constraint ids, is a documented domain follow-up.
+    """
+    candidates = set(possible_rez_or_constraint_names)
+    matched = rez_costs["rez_constraint_id"].isin(candidates)
+    dropped = sorted(rez_costs.loc[~matched, "rez_constraint_id"].unique())
+    if dropped:
+        logging.warning(
+            "REZ transmission cost ids with no matching REZ/constraint "
+            f"(expansion cost dropped): {dropped}"
+        )
+    return rez_costs.loc[matched].reset_index(drop=True)
 
 
 def process_transmission_costs(
     iasr_tables: dict[str, pd.DataFrame],
     scenario: str,
     config: dict,
+    iasr_workbook_version: str = "6.0",
 ) -> pd.DataFrame:
     """
     Generic function to process transmission costs (flow path or REZ).
@@ -273,12 +322,16 @@ def process_transmission_costs(
               rez or flow path specific names
             - table_names: dict with augmentation and cost table lists
             - mappings: dict with mappings for preparatory activities and other data
+        iasr_workbook_version: str specifying the IASR workbook version, used to
+            map ISP scenario names to the correct cost-table suffix. Defaults to
+            v6.0 for backward compatibility; callers should pass the auto-detected
+            version via `detect_iasr_version_from_tables`.
 
     Returns:
         pd.DataFrame containing the least cost options with standardized column
         structure
     """
-    cost_scenario = _determine_cost_scenario(scenario)
+    cost_scenario = _determine_cost_scenario(scenario, iasr_workbook_version)
 
     # Get and process augmentation table
     aug_table = _get_augmentation_table(iasr_tables=iasr_tables, config=config)
@@ -296,24 +349,35 @@ def process_transmission_costs(
     return final_costs
 
 
-def _determine_cost_scenario(scenario: str) -> str:
+def _determine_cost_scenario(scenario: str, iasr_workbook_version: str = "6.0") -> str:
     """
-    Map ISP scenario to flow path/rez cost scenario.
+    Map ISP scenario to the cost-table filename suffix used in this workbook version.
 
-    Args:
-        scenario: str specifying the scenario name. Must be one of "Step Change",
-        "Green Energy Exports", or "Progressive Change".
+    v6.0: 2 scenario suffixes (`progressive_change`,
+    `step_change_and_green_energy_exports`). The ISP scenarios "Step Change" and
+    "Green Energy Exports" both map to the latter.
 
-    Returns:
-        str specifying the internal scenario key (e.g.,
-        "step_change_and_green_energy_exports" or "progressive_change").
+    v7.4+: 3 distinct suffixes (`slower_growth`, `step_change`,
+    `accelerated_transition`). One-to-one with ISP scenarios — AEMO split the
+    combined v6.0 bucket, and "Green Energy Exports" is no longer an ISP scenario
+    in v7.4 (replaced by "Accelerated Transition").
     """
+    if iasr_workbook_version.startswith("7."):
+        v74_mapping = {
+            "Step Change": "step_change",
+            "Progressive Change": "slower_growth",
+            "Slower Growth": "slower_growth",
+            "Accelerated Transition": "accelerated_transition",
+            "Green Energy Exports": "accelerated_transition",
+        }
+        if scenario in v74_mapping:
+            return v74_mapping[scenario]
+        raise ValueError(f"scenario: {scenario} not recognised for v7.x workbook.")
     if scenario in ["Step Change", "Green Energy Exports"]:
         return "step_change_and_green_energy_exports"
-    elif scenario == "Progressive Change":
+    if scenario == "Progressive Change":
         return "progressive_change"
-    else:
-        raise ValueError(f"scenario: {scenario} not recognised.")
+    raise ValueError(f"scenario: {scenario} not recognised.")
 
 
 def _get_augmentation_table(
@@ -394,6 +458,44 @@ def _get_cost_table(
     return _combine_cost_tables(cost_table, prep_activities, actionable_projects)
 
 
+def _hyphenate(names: pd.Series) -> pd.Series:
+    """Rewrite em dashes, en dashes and soft hyphens as plain hyphens, e.g. ``NNSW-SQ``."""
+    return names.astype(str).str.replace(r"[\u2014\u2013\u00ad]", "-", regex=True)
+
+
+def _match_key(options: pd.Series) -> pd.Series:
+    """Option name reduced to the spelling the two tables share: hyphens, no descriptor.
+
+    The augmentation tables name the project in brackets where the cost tables stop at the
+    option number, e.g. ``TAS-SEV Option 2 (Project Marinus Stage 2)`` against
+    ``TAS-SEV Option 2``.
+    """
+    return _hyphenate(options).str.replace(r"\s*\(.*\)$", "", regex=True).str.strip()
+
+
+def _match_cost_names_to_augmentation(
+    cost_table: pd.DataFrame, aug_table: pd.DataFrame
+) -> pd.DataFrame:
+    """Rename the cost table's ids and options onto their augmentation-table spellings."""
+    aug_options = dict(zip(_match_key(aug_table["option"]), aug_table["option"]))
+    matched = _fuzzy_match_names(
+        _match_key(cost_table["option"]),
+        aug_options.keys(),
+        "matching transmission augmentation options and costs",
+        not_match="existing",
+        threshold=80,
+    )
+    return cost_table.assign(
+        id=_fuzzy_match_names(
+            _hyphenate(cost_table["id"]),
+            aug_table["id"],
+            "matching transmission augmentation ids and costs",
+            threshold=_ID_MATCH_THRESHOLD,
+        ),
+        option=matched.map(lambda option: aug_options.get(option, option)),
+    )
+
+
 def _get_least_cost_options(
     aug_table: pd.DataFrame, cost_table: pd.DataFrame, config: dict
 ) -> pd.DataFrame:
@@ -401,6 +503,10 @@ def _get_least_cost_options(
     For each transmission, select the augmentation option with the lowest cost per MW of
     increased capacity, using the first year with complete costs for all options. The
     selected option and its costs per MW are used for all years.
+
+    Cost-table ids and option names are renamed onto the augmentation table's spellings
+    before either merge, so a corridor whose cost rows are spelled differently keeps its
+    expansion option.
 
     Args:
         aug_table: pd.DataFrame containing columns:
@@ -424,14 +530,8 @@ def _get_least_cost_options(
             - <financial year>_$/mw (cost per MW for each year, e.g., '2024_25_$/mw')
     """
     year_cols = _get_year_columns(cost_table)
+    cost_table = _match_cost_names_to_augmentation(cost_table, aug_table)
     valid_costs_df = _find_first_year_with_complete_costs(cost_table, year_cols)
-    valid_costs_df["option"] = _fuzzy_match_names(
-        valid_costs_df["option"],
-        aug_table["option"],
-        "matching transmission augmentation options and costs",
-        not_match="existing",
-        threshold=80,
-    )
     transmission_analysis = pd.merge(
         aug_table, valid_costs_df, on=["id", "option"], how="inner"
     )
@@ -442,6 +542,11 @@ def _get_least_cost_options(
         transmission_analysis["cost"]
         / transmission_analysis["nominal_capacity_increase"]
     )
+    # Drop rows where cost_per_mw can't be computed (NaN capacity or cost).
+    # v7.4 publishes some secondary REZ constraints (e.g. SWNSW1, NSA1) in the
+    # cost table without matching capacity-increase entries — these are
+    # intra-region constraint rows, not expansion options.
+    transmission_analysis = transmission_analysis.dropna(subset=["cost_per_mw"])
     least_cost_options = transmission_analysis.loc[
         transmission_analysis.groupby("id")["cost_per_mw"].idxmin()
     ]

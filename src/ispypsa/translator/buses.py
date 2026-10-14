@@ -69,6 +69,7 @@ def create_pypsa_friendly_bus_demand_timeseries(
     regional_granularity: str,
     reference_year_mapping: dict[int:int],
     year_type: Literal["fy", "calendar"],
+    poe: str,
 ) -> dict[str, pd.DataFrame]:
     """Gets trace data for operational demand by constructing a timeseries from the
     start to end year using the reference year cycle provided. Returns a dictionary
@@ -88,6 +89,7 @@ def create_pypsa_friendly_bus_demand_timeseries(
             year with start_year and end_year specifiying the financial year to return
             data for, using year ending nomenclature (2016 ->FY2015/2016). If
             'calendar', then filtering is by calendar year.
+        poe: str, probability of exceedance of the demand traces, e.g. 'POE50'
 
     Returns:
         dict[str, pd.DataFrame]: Dictionary with demand node names as keys and trace
@@ -108,7 +110,7 @@ def create_pypsa_friendly_bus_demand_timeseries(
         reference_year_mapping=reference_year_mapping,
         subregion=list(isp_sub_regions["isp_sub_region_id"].unique()),
         scenario=scenario,
-        poe="POE50",
+        poe=poe,
         demand_type="OPSO_MODELLING",
         directory=trace_data_path / Path("demand"),
         year_type=year_type,
@@ -124,7 +126,17 @@ def create_pypsa_friendly_bus_demand_timeseries(
             trace_data["subregion"].isin(sub_regions_to_aggregate)
         ].copy()
         node_trace = node_traces.groupby("datetime", as_index=False)["value"].sum()
-        node_trace["value"] = node_trace["value"].clip(lower=0.0)
+        # OPSO_MODELLING demand traces are gross_demand minus total rooftop PV
+        # (AEMO's "operational demand" convention). Aggregated to a demand_node, the
+        # value can be negative at snapshots when local rooftop generation exceeds
+        # local gross demand — this represents real rooftop exports the bulk grid
+        # carries inter-regionally to importing buses. PyPSA Loads accept p_set < 0:
+        # the bus becomes a net injector and the surplus flows out via links,
+        # charges storage, or displaces local generation back-off. Preserving this
+        # is necessary for the bulk-grid energy balance to match physical reality
+        # (~1.7 TWh/year NEM-wide at 2018-baseline; larger at growth-scaled years).
+        # Clipping these snapshots to zero would delete that exported energy from
+        # the bulk-grid balance and overstate the demand the fleet must serve.
         # datetime in nanoseconds required by PyPSA
         node_trace["datetime"] = node_trace["datetime"].astype("datetime64[ns]")
         demand_traces[demand_node] = node_trace

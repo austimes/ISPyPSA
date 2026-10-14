@@ -522,6 +522,7 @@ def create_and_run_capacity_expansion_model() -> None:
     network = build_pypsa_network(
         pypsa_friendly_input_tables,
         capacity_expansion_timeseries_location,
+        config.filter_by_nem_regions or config.filter_by_isp_sub_regions,
     )
 
     # Save before optimising incase solving fails and you want a copy

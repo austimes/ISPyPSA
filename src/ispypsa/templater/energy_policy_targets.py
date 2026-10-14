@@ -26,8 +26,18 @@ def _template_energy_policy_targets(
     # Create templates for energy policy targets
     renewable_share_targets = _template_renewable_share_targets(iasr_tables)
 
-    power_aus_plan = iasr_tables["powering_australia_plan_trajectory"]
-    power_aus_plan = _template_powering_australia_plan(power_aus_plan, scenario)
+    # Powering Australia Plan was dropped from v7.4 IASR. Emit empty template
+    # if the source table is absent.
+    if "powering_australia_plan_trajectory" in iasr_tables:
+        power_aus_plan = _template_powering_australia_plan(
+            iasr_tables["powering_australia_plan_trajectory"], scenario
+        )
+    else:
+        logging.warning(
+            "Energy policy target source missing in IASR cache: "
+            "['powering_australia_plan_trajectory'] — emitting empty template"
+        )
+        power_aus_plan = pd.DataFrame(columns=["FY", "policy_id", "pct"])
 
     renewable_generation_targets = _template_renewable_generation_targets(iasr_tables)
 
@@ -64,11 +74,21 @@ def _template_renewable_share_targets(
         "template_renewable_share_targets"
     ]
 
-    for target in target_files:
-        df = iasr_tables[target["csv"]]
+    missing = sorted(t["csv"] for t in target_files if t["csv"] not in iasr_tables)
+    if missing:
+        logging.warning(
+            f"Renewable share target sources missing in IASR cache: {missing}"
+        )
 
-        df = df.melt(id_vars=df.columns[0], var_name="FY", value_name="pct")
-        df = df[df[df.columns[0]].str.contains("share", case=False)]
+    for target in target_files:
+        if target["csv"] not in iasr_tables:
+            continue
+        df = iasr_tables[target["csv"]]
+        if "All scenarios" in df.columns:
+            df = _extract_yearly_share_targets(df)
+        else:
+            df = df.melt(id_vars=df.columns[0], var_name="FY", value_name="pct")
+            df = df[df[df.columns[0]].str.contains("share", case=False)]
         df["region_id"] = target["region_id"]
         df["policy_id"] = target["policy_id"]
         df["pct"] = df["pct"].astype(float)
@@ -76,6 +96,9 @@ def _template_renewable_share_targets(
         state_renewable_share_targets.append(
             df[["FY", "region_id", "policy_id", "pct"]]
         )
+
+    if not state_renewable_share_targets:
+        return pd.DataFrame(columns=["FY", "region_id", "policy_id", "pct"])
 
     merged_state_renewable_share_targets = pd.concat(
         state_renewable_share_targets, ignore_index=True
@@ -85,6 +108,34 @@ def _template_renewable_share_targets(
     ].str.replace("-", "_")
 
     return merged_state_renewable_share_targets
+
+
+def _extract_yearly_share_targets(df: pd.DataFrame) -> pd.DataFrame:
+    """Extracts share targets (%) from a table with one row per calendar or financial year.
+
+    Returns:
+        `pd.DataFrame`: columns FY (e.g. "2029_30" or "2026-27") and pct
+    """
+    if "Calendar year" in df.columns:
+        financial_years = _financial_year_ending_in(df["Calendar year"].astype(int))
+    else:
+        financial_years = df["Financial year"]
+    return pd.DataFrame(
+        {"FY": financial_years, "pct": df["All scenarios"].astype(float)}
+    )
+
+
+def _financial_year_ending_in(calendar_years: pd.Series) -> pd.Series:
+    """Names the financial year ending June of each calendar year, e.g. 2030 -> "2029_30".
+
+    AEMO assumes a target set for a calendar year is met by the end of the financial
+    year ending in that year.
+    """
+    return (
+        (calendar_years - 1).astype(str)
+        + "_"
+        + (calendar_years % 100).map("{:02d}".format)
+    )
 
 
 def _template_powering_australia_plan(
@@ -152,24 +203,29 @@ def _template_technology_capacity_targets(
         "template_technology_capacity_targets"
     ]
 
-    for target in target_files:
-        df = iasr_tables[target["csv"]]
-        # Extract technology type from the row containing "target (MW)"
-        target_row_mask = df.iloc[:, 0].str.contains("target", case=False) & df.iloc[
-            :, 0
-        ].str.contains("MW", case=False)
-
-        target_row_idx = df.index[target_row_mask][0]
-        # Create a new dataframe with just FY and capacity
-        values_df = pd.DataFrame(
-            {"FY": df.columns[1:], "capacity_mw": df.iloc[target_row_idx, 1:]}
+    missing = sorted(t["csv"] for t in target_files if t["csv"] not in iasr_tables)
+    if missing:
+        logging.warning(
+            f"Technology capacity target sources missing in IASR cache: {missing}"
         )
+
+    for target in target_files:
+        if target["csv"] not in iasr_tables:
+            continue
+        df = iasr_tables[target["csv"]]
+        if df.columns[0] == "Calendar year":
+            values_df = _extract_calendar_year_gw_targets(df)
+        else:
+            values_df = _extract_financial_year_mw_targets(df)
 
         values_df["capacity_mw"] = values_df["capacity_mw"].astype(float)
         values_df["region_id"] = target["region_id"]
         values_df["policy_id"] = target["policy_id"]
 
         technology_capacity_targets.append(values_df)
+
+    if not technology_capacity_targets:
+        return pd.DataFrame(columns=["FY", "region_id", "policy_id", "capacity_mw"])
 
     merged_technology_capacity_targets = pd.concat(
         technology_capacity_targets, ignore_index=True
@@ -183,6 +239,40 @@ def _template_technology_capacity_targets(
     ).reset_index(drop=True)
 
     return merged_technology_capacity_targets
+
+
+def _extract_financial_year_mw_targets(df: pd.DataFrame) -> pd.DataFrame:
+    """Extracts the "target (MW)" row of a table with one column per financial year.
+
+    Returns:
+        `pd.DataFrame`: columns FY (e.g. "2029-30") and capacity_mw
+    """
+    first_column = df.iloc[:, 0]
+    target_row_mask = first_column.str.contains(
+        "target", case=False
+    ) & first_column.str.contains("MW", case=False)
+    target_row_idx = df.index[target_row_mask][0]
+    return pd.DataFrame(
+        {"FY": df.columns[1:], "capacity_mw": df.iloc[target_row_idx, 1:]}
+    )
+
+
+def _extract_calendar_year_gw_targets(df: pd.DataFrame) -> pd.DataFrame:
+    """Extracts targets due by the end of a calendar year, given in GW (e.g. "2.6 GW").
+
+    A target for calendar year Y is assigned to the financial year ending June Y, matching
+    AEMO's ISP, which reports capacity at 1 July and shows each target installed by then.
+
+    Returns:
+        `pd.DataFrame`: columns FY (e.g. "2031_32") and capacity_mw
+    """
+    gigawatts = df.iloc[:, 1].str.removesuffix(" GW").astype(float)
+    return pd.DataFrame(
+        {
+            "FY": _financial_year_ending_in(df["Calendar year"].astype(int)),
+            "capacity_mw": gigawatts * 1000,
+        }
+    )
 
 
 def _template_renewable_generation_targets(
@@ -207,7 +297,15 @@ def _template_renewable_generation_targets(
         "template_renewable_generation_targets"
     ]
 
+    missing = sorted(t["csv"] for t in target_files if t["csv"] not in iasr_tables)
+    if missing:
+        logging.warning(
+            f"Renewable generation target sources missing in IASR cache: {missing}"
+        )
+
     for target in target_files:
+        if target["csv"] not in iasr_tables:
+            continue
         df = iasr_tables[target["csv"]]
         # Check for GWh in row indices
         if not df.iloc[:, 0].str.contains("GWh", case=False).any():
@@ -215,10 +313,12 @@ def _template_renewable_generation_targets(
 
         # if exists, remove the "Notes" row
         df = df[~df.iloc[:, 0].str.contains("Notes", case=False)]
+        if "row" in target:
+            df = df[df.iloc[:, 0].str.contains(target["row"])]
 
         renewable_gen_target = df.melt(
             id_vars=df.columns[0], var_name="FY", value_name="capacity_gwh"
-        )
+        ).dropna(subset=["capacity_gwh"])
 
         # Convert GWh to MWh
         renewable_gen_target["capacity_mwh"] = (
@@ -229,6 +329,9 @@ def _template_renewable_generation_targets(
         renewable_generation_targets.append(
             renewable_gen_target[["FY", "region_id", "policy_id", "capacity_mwh"]]
         )
+
+    if not renewable_generation_targets:
+        return pd.DataFrame(columns=["FY", "region_id", "policy_id", "capacity_mwh"])
 
     # Combine all dataframes
     merged_renewable_generation_targets = pd.concat(

@@ -5,6 +5,8 @@ import pandas as pd
 
 from ispypsa.feature_flags import FEATURE_FLAGS
 from ispypsa.templater.dynamic_generator_properties import (
+    _add_new_entrant_wacc,
+    _regulated_transmission_wacc,
     _template_generator_dynamic_properties,
 )
 from ispypsa.templater.energy_policy_targets import (
@@ -26,6 +28,7 @@ from ispypsa.templater.renewable_energy_zones import (
     _template_rez_build_limits,
 )
 from ispypsa.templater.static_ecaa_generator_properties import (
+    _add_constraint_terms_for_early_closing_units,
     _template_ecaa_generators_static_properties,
 )
 from ispypsa.templater.static_new_generator_properties import (
@@ -190,7 +193,7 @@ def create_ispypsa_inputs_template(
         )
 
     template["renewable_energy_zones"] = _template_rez_build_limits(
-        iasr_tables["initial_build_limits"], scenario
+        iasr_tables, scenario
     )
 
     possible_rez_or_constraint_names = list(
@@ -209,6 +212,9 @@ def create_ispypsa_inputs_template(
     template["ecaa_generators"] = _template_ecaa_generators_static_properties(
         iasr_tables
     )
+    template["custom_constraints_lhs"] = _add_constraint_terms_for_early_closing_units(
+        template["custom_constraints_lhs"], template["ecaa_generators"]
+    )
 
     template["new_entrant_generators"] = _template_new_generators_static_properties(
         iasr_tables
@@ -217,6 +223,16 @@ def create_ispypsa_inputs_template(
     ecaa_batteries, new_entrant_batteries = _template_battery_properties(iasr_tables)
     template["ecaa_batteries"] = ecaa_batteries
     template["new_entrant_batteries"] = new_entrant_batteries
+
+    # Attach AEMO's per-technology WACC (scenario-specific) so the translator
+    # annuitises each new-entrant at its own cost of capital rather than one
+    # scalar. No-op when the `wacc` IASR table isn't cached (v6.0/tests).
+    template["new_entrant_generators"] = _add_new_entrant_wacc(
+        template["new_entrant_generators"], iasr_tables, scenario
+    )
+    template["new_entrant_batteries"] = _add_new_entrant_wacc(
+        template["new_entrant_batteries"], iasr_tables, scenario
+    )
 
     dynamic_generator_property_templates = _template_generator_dynamic_properties(
         iasr_tables, scenario
@@ -234,6 +250,19 @@ def create_ispypsa_inputs_template(
             template,
             nem_regions=filter_to_nem_regions,
             isp_sub_regions=filter_to_isp_sub_regions,
+        )
+
+    # Regulated transmission WACC (scenario-specific) for annuitising flow-path
+    # and REZ transmission expansion. Emitted after filtering (it is region-
+    # independent). No-op when the `wacc` IASR table isn't cached (v6.0/tests),
+    # in which case the translator falls back to the scalar config `wacc`.
+    if "wacc" in iasr_tables:
+        template["transmission_wacc"] = pd.DataFrame(
+            {
+                "regulated_transmission_wacc": [
+                    _regulated_transmission_wacc(iasr_tables["wacc"], scenario)
+                ]
+            }
         )
 
     return template

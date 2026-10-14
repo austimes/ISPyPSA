@@ -64,6 +64,35 @@ def test_translate_ecaa_batteries_basic(csv_str_to_df):
     assert not extra_cols
 
 
+def test_translate_ecaa_batteries_build_year_from_commissioning_date(
+    csv_str_to_df, caplog
+):
+    """Batteries enter in the financial year of their commissioning date and retire at closure."""
+    ecaa_batteries_csv = """
+    storage_name, sub_region_id, region_id, rez_id, commissioning_date, closure_year, maximum_capacity_mw,  charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  isp_resource_type
+    Existing,     CNSW,          NSW,       ,       ,                   2040,         100,                  95.0,                   95.0,                       2,                      Battery,    Battery__Storage__2h
+    Early,        CNSW,          NSW,       ,       2025-12-01,         2045,         200,                  95.0,                   95.0,                       2,                      Battery,    Battery__Storage__2h
+    Late,         CNSW,          NSW,       ,       2026-08-01,         2046,         300,                  95.0,                   95.0,                       2,                      Battery,    Battery__Storage__2h
+    """
+    ispypsa_tables = {"ecaa_batteries": csv_str_to_df(ecaa_batteries_csv)}
+
+    with caplog.at_level(logging.INFO):
+        result = _translate_ecaa_batteries(ispypsa_tables, [2026])
+
+    expected = csv_str_to_df("""
+    name,      build_year,  lifetime
+    Existing,  2026,        14.0
+    Early,     2026,        19.0
+    """)
+    pd.testing.assert_frame_equal(
+        result[["name", "build_year", "lifetime"]].reset_index(drop=True), expected
+    )
+    assert (
+        "ECAA units commissioning after the final investment period (2026) "
+        "excluded: ['Late']"
+    ) in caplog.text
+
+
 def test_translate_ecaa_batteries_regional_granularity(csv_str_to_df):
     """Test different regional granularity settings."""
     # Create test input data
@@ -298,6 +327,33 @@ def test_add_new_entrant_build_costs(csv_str_to_df, sample_ispypsa_tables):
         expected_result.reset_index(drop=True).sort_values("storage_name"),
         check_dtype=False,
     )
+
+
+def test_add_new_entrant_build_costs_beyond_published_years(
+    csv_str_to_df, sample_ispypsa_tables
+):
+    """Test that a build year beyond the published table holds the last published cost."""
+    batteries_csv = """
+    storage_name,   technology_type,                     build_year
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2029
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2035
+    Battery_2h,     Battery__Storage__(2hrs__storage),   2035
+    """
+    batteries_df = csv_str_to_df(batteries_csv)
+
+    build_costs_df = sample_ispypsa_tables["new_entrant_build_costs"]
+
+    result = _add_new_entrant_battery_build_costs(batteries_df, build_costs_df)
+
+    expected_result_csv = """
+    storage_name,   technology_type,                     build_year,    build_cost_$/mw
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2029,          3500000
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2035,          3500000
+    Battery_2h,     Battery__Storage__(2hrs__storage),   2035,          2500000
+    """
+    expected_result = csv_str_to_df(expected_result_csv)
+
+    pd.testing.assert_frame_equal(result, expected_result, check_dtype=False)
 
 
 def test_add_new_entrant_build_costs_missing_build_year(

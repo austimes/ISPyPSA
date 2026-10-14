@@ -1,5 +1,7 @@
 from ispypsa.config.loader import load_config
 from ispypsa.config.validators import (
+    CarbonPricingConfig,
+    FuelPricingConfig,
     ModelConfig,
     TemporalAggregationConfig,
     TemporalCapacityInvestmentConfig,
@@ -10,6 +12,8 @@ from ispypsa.config.validators import (
 __all__ = [
     "load_config",
     "ModelConfig",
+    "CarbonPricingConfig",
+    "FuelPricingConfig",
     "TemporalRangeConfig",
     "TemporalAggregationConfig",
     "TemporalOperationalConfig",
