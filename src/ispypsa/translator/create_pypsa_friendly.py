@@ -16,12 +16,6 @@ from ispypsa.translator.buses import (
     _translate_rezs_to_buses,
     create_pypsa_friendly_bus_demand_timeseries,
 )
-from ispypsa.translator.ccs_supply_curve import (
-    _add_ccs_transport_columns,
-    _translate_ccs_sink_tranches,
-    _translate_ccs_transport_adders,
-    _validate_sinks_have_tranches,
-)
 from ispypsa.translator.custom_constraints import (
     _append_if_not_empty,
     _translate_custom_constraints,
@@ -369,21 +363,6 @@ def create_pypsa_friendly_inputs(
             config.biomass_supply_curve.curve_csv,
             config.temporal.capacity_expansion.investment_periods,
             "Biomass",
-        )
-
-    if config.ccs_supply_curve.sink_tranches_csv is not None:
-        pypsa_inputs["ccs_sink_tranches"] = _translate_ccs_sink_tranches(
-            config.ccs_supply_curve.sink_tranches_csv,
-            config.temporal.capacity_expansion.investment_periods,
-        )
-        pypsa_inputs["ccs_transport_adders"] = _translate_ccs_transport_adders(
-            config.ccs_supply_curve.transport_csv
-        )
-        _validate_sinks_have_tranches(
-            pypsa_inputs["ccs_transport_adders"], pypsa_inputs["ccs_sink_tranches"]
-        )
-        pypsa_inputs["generators"] = _add_ccs_transport_columns(
-            pypsa_inputs["generators"], pypsa_inputs["ccs_transport_adders"]
         )
 
     return pypsa_inputs
