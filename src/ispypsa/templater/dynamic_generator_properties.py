@@ -17,12 +17,11 @@ from ispypsa.templater.helpers import (
 from .helpers import _fuzzy_match_names, _snakecase_string
 from .lists import _ECAA_GENERATOR_TYPES
 
-# ISP scenario (config name) → v7.4 canonical scenario value used in the
-# consolidated fuel-price tables. The mapping mirrors the cost-scenario
-# dispatch in `flow_paths._determine_cost_scenario` for v7.x — see design
-# call 2026-05-24. v7.4 retained "Step Change" but renamed the lower-
-# ambition v6.0 "Progressive Change" → "Slower Growth" and the highest-
-# ambition v6.0 "Green Energy Exports" → "Accelerated Transition".
+# ISP scenario (config name) → scenario name used in the IASR fuel-price and
+# WACC tables. The workbook calls the lower-ambition "Progressive Change"
+# scenario "Slower Growth" and the highest-ambition "Green Energy Exports"
+# scenario "Accelerated Transition". The mapping mirrors the cost-scenario
+# dispatch in `flow_paths._determine_cost_scenario`.
 _ISP_TO_V74_SCENARIO = {
     "Step Change": "Step Change",
     "Progressive Change": "Slower Growth",
@@ -426,11 +425,10 @@ def _template_biomass_prices(
 
 
 # Generator-to-region mapping for the two named H2 GPG generators ISPyPSA's
-# Hyblend carrier flow expects. v6.0 modelled these explicitly; v7.4 publishes
-# a per-region H2 blend trajectory that each named generator inherits from its
-# sub-region (per (c3) Reading 1 design call 2026-05-24). Methodology tab:
-# H2 blend fractions are applied uniformly to all gas peakers within each
-# sub-region, per v7.4's regional framing.
+# Hyblend carrier flow expects. The workbook publishes a per-region H2 blend
+# trajectory, which each named generator inherits from its region. The IASR
+# methodology applies H2 blend fractions uniformly to all gas peakers within a
+# region.
 _H2_GPG_GENERATOR_TO_REGION = {
     "Kogan Gas": "QLD",
     "SA Hydrogen Turbine": "SA",
@@ -448,7 +446,7 @@ def _template_h2_gpg_emissions_reduction_factors(
 
     The downstream translator consumes this per-generator output to compute
     blended fuel prices for each Hyblend generator — see `translator/
-    generators.py::_calculate_blended_fuel_prices` and the [[c3]] design call.
+    generators.py::_calculate_blended_fuel_prices`.
 
     Args:
         iasr_tables: Dict of tables from the IASR workbook.

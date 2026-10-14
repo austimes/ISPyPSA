@@ -47,12 +47,10 @@ def split_v74_maximum_capacity_commissioning_dates(cache_path: Path) -> None:
     """Split v7.4's single `Commissioning date` column into the two-column
     layout the templater downstream expects.
 
-    v6.0 had `Commissioning date` (confirmed, committed rows) AND
-    `Indicative commissioning date` (anticipated/additional rows) as two
-    separate columns. v7.4 collapsed both into one `Commissioning date`,
-    relying on `Status` to encode the distinction. To preserve the design
-    of `_template_h2_gpg_emissions_reduction_factors`'s shared
-    alternative-value lookup, we restore the two-column layout: for rows
+    The workbook publishes one `Commissioning date` column and uses `Status`
+    to tell confirmed dates from indicative ones. The templater reads separate
+    `Commissioning date` (confirmed, committed rows) and `Indicative
+    commissioning date` (anticipated/additional rows) columns, so for rows
     with `Status in {Anticipated, Additional}` the date moves into
     `Indicative commissioning date`. No-op if the table is absent.
     """
@@ -88,9 +86,9 @@ def pivot_v74_other_outages_to_wide(cache_path: Path) -> None:
     - `partial_outages_forecast_existing_generators.csv`: time-series of
       "Partial outage (% of time)" per Fuel type × year.
 
-    Per design call 2026-05-24: outages use v7.4's time series; the static
-    pipeline uses a single representative year (2025-26) until time-varying
-    PyPSA params are plumbed through.
+    The dynamic templater uses the outage time series; the static templater
+    uses the single representative year (2025-26) because the PyPSA inputs
+    take one outage value per generator.
 
     No-op if the long-form file is missing.
     """
@@ -120,13 +118,11 @@ def pivot_v74_other_outages_to_wide(cache_path: Path) -> None:
 def aggregate_v74_liquid_fuel_prices_to_v60_form(cache_path: Path) -> None:
     """v7.4 split `liquid_fuel_prices` into per-generator rows (Generator,
     Gas price scenario, year cols), differentiating prices by location.
-    The templater downstream consumes a single representative price per
-    scenario — v6.0's framing. Aggregate across the Generator dimension
-    (mean per scenario+year) and rename columns to match v6.0 templater
-    expectations. Per Phase 1 simplification 2026-05-24: per-generator
-    liquid-fuel pricing is a future refinement; for the current modelling
-    scope (limited liquid-fuel capacity in NEM), a fleet-average is a
-    reasonable proxy.
+    The templater consumes a single representative price per scenario, so
+    average across the Generator dimension (mean per scenario+year) and rename
+    the columns to the names the templater reads. Liquid-fuel capacity in the
+    NEM is small, so a fleet-average price is a reasonable proxy for
+    per-generator prices.
 
     No-op if the file is absent.
     """
@@ -146,11 +142,9 @@ def aggregate_v74_liquid_fuel_prices_to_v60_form(cache_path: Path) -> None:
 
 def aggregate_v74_biomethane_prices_to_v60_form(cache_path: Path) -> None:
     """v7.4 publishes biomethane prices per-source (Landfill gas, Waste, Crop
-    residue) × scenario; v6.0 had a single source per scenario. The templater
-    downstream expects single-row-per-scenario shape. Average across sources
-    per scenario+year. Per Phase 1 simplification (analogue of liquid fuel
-    aggregation): a fleet-average per scenario is a reasonable proxy until
-    Phase 2+ adds per-source biomethane modelling.
+    residue) × scenario. The templater expects one row per scenario, so
+    average across sources per scenario+year. As for liquid fuel, the
+    source-average price stands in for per-source biomethane prices.
 
     No-op if the table is absent.
     """
@@ -288,16 +282,15 @@ _V74_ECAA_PER_UNIT_TABLES_FIRST_AGG = [
 def aggregate_v74_ecaa_units_to_power_stations(cache_path: Path) -> None:
     """Collapse v7.4 per-unit ECAA rows to per-Power-Station.
 
-    v6.0 published one row per power station with totalised capacity. v7.4
-    publishes one row per generating unit (IASR ID = e.g. BW01, BW02, BW03,
-    BW04 for Bayswater units 1–4), with property values typically identical
+    The workbook publishes one row per generating unit (IASR ID = e.g. BW01,
+    BW02, BW03, BW04 for Bayswater units 1–4), with property values typically identical
     across all units of the same plant. The templater downstream is built
     around the per-plant convention — duplicate "generator" identifiers
     (snake_cased Power Station) propagate through to PyPSA and break the
     network build.
 
-    This function forward-normalises v7.4 to v6.0's per-plant granularity:
-    groupby Power Station and take first values for properties, summing
+    This function collapses the tables to per-plant granularity: groupby
+    Power Station and take first values for properties, summing
     only `Installed capacity (MW)` in the max_capacity table where total
     plant capacity is the meaningful figure. Each unit's capacity is first
     copied into `expected_closure_years`, which stays per unit.

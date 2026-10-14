@@ -490,7 +490,7 @@ def _process_and_merge_connection_cost(
     """
     # v7.4 publishes connection costs at NEM region level (QLD/NSW/VIC/SA/TAS)
     # even though battery new entrants are differentiated at sub-region / REZ
-    # level (per design call 2026-05-24). Inherit the region-level cost via
+    # level. Inherit the region-level cost via
     # the generator's `region_id` rather than `connection_cost_region_id`,
     # whose values carry mixed semantics (band labels, sub-region codes,
     # REZ IDs depending on tech and version) and don't directly key into the

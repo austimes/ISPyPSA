@@ -145,8 +145,8 @@ def _clean_generator_summary(df: pd.DataFrame) -> pd.DataFrame:
     # `_get_single_carrier_fuel_prices` for Liquid Fuel doesn't have a
     # fuel_cost_mapping_col, so it expects every Liquid Fuel generator's
     # mapping to be "Liquid Fuel" (matching the single aggregated price row).
-    # Override per-plant labels to "Liquid Fuel" — Phase 1 simplification
-    # consistent with aggregate_v74_liquid_fuel_prices_to_v60_form.
+    # Override per-plant labels to "Liquid Fuel", consistent with the single
+    # fleet-average price from aggregate_v74_liquid_fuel_prices_to_v60_form.
     if "fuel_type" in df.columns and "fuel_cost_mapping" in df.columns:
         liquid_mask = df["fuel_type"] == "Liquid Fuel"
         df.loc[liquid_mask, "fuel_cost_mapping"] = "Liquid Fuel"

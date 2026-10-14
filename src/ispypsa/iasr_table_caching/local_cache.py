@@ -221,10 +221,9 @@ def _normalise_cached_csvs_to_v74(cache_path: Path, table_names: list[str]) -> N
     # The consolidated max_capacity table carries a single `Commissioning date`
     # column; the templater expects separate confirmed and indicative columns.
     split_v74_maximum_capacity_commissioning_dates(cache_path)
-    # v7.4 `other_outages_existing_generators` is long-form
-    # (Fuel type × Property × year columns); templater consumes scalars,
-    # so we pivot to wide-form picking the 2025-26 year. See design call
-    # 2026-05-24 — full time-series consumption is Phase 1+ work.
+    # `other_outages_existing_generators` is long-form (Fuel type × Property ×
+    # year columns) but the static templater reads one value per property, so
+    # pivot to wide form at the 2025-26 year.
     pivot_v74_other_outages_to_wide(cache_path)
     # v7.4 liquid_fuel_prices is per-generator; templater downstream
     # consumes a single representative price. Aggregate across the

@@ -161,11 +161,10 @@ def _clean_generator_summary(df: pd.DataFrame) -> pd.DataFrame:
     # (AEMO 2024 | Appendix 3. Renewable Energy Zones, p.38)
     df = df.loc[~(df["rez_location"] == "Illawarra"), :]
 
-    # v7.4 added "Distributed Resources Solar" / "Distributed Resources Batteries"
-    # as new-entrant deployment rows (per-sub-region). Per methodology design call
-    # 2026-05-21, Distributed Resources are excluded from new-entrant investment
-    # scope — they're modelled exogenously via demand-side adjustments rather
-    # than as candidate investments in the orchestrator-facing capacity expansion.
+    # The workbook lists "Distributed Resources Solar" / "Distributed Resources
+    # Batteries" as new-entrant deployment rows (per sub-region). Distributed
+    # Resources are modelled exogenously through demand-side adjustments, not as
+    # candidate investments, so they are excluded from the new entrants.
     df = df.loc[
         ~df["technology_type"].str.contains(
             "Distributed Resources", case=False, na=False
@@ -177,9 +176,8 @@ def _clean_generator_summary(df: pd.DataFrame) -> pd.DataFrame:
     # `NNSW`, `CNSW`); v6.0 used NEM region (e.g. `NSW`). The downstream
     # non-VRE connection-cost lookup table (`connection_costs_other`) is keyed
     # by NEM region. Aggregate sub-region → NEM region using each row's own
-    # `region_id` column so the join key aligns. Phase 1 simplification: v7.4
-    # sub-regional granularity collapses to NEM region (the connection-cost
-    # table's natural key). Sub-region resolution is a Phase 2+ refinement.
+    # `region_id` column so the join key aligns, which collapses sub-regional
+    # granularity to NEM region (the connection-cost table's natural key).
     if (
         "connection_cost_region_id" in df.columns
         and "sub_region_id" in df.columns
@@ -313,12 +311,10 @@ def _process_and_merge_opex(
         Values are pre-multiplied per (region, cost-band). Templater maps
         `regional_build_cost_zone` → the matching column.
 
-    v7.4 (per design call 2026-05-24, Reading 1): single `Base value` column.
+    v7.4: single `Base value` column.
         OPEX is computed as `base × O&M LCF / 100` where the LCF comes from
         `locational_cost_factors` keyed by the generator's sub-region. The
-        cost-band variation v6.0 had (Low/Medium/High) was scenario-driven
-        and is collapsed in v7.4 — no methodological loss for the team's
-        Step Change scenario use.
+        workbook has no per-region cost bands (Low/Medium/High) in this shape.
     """
     if any("base value" in c.lower() for c in table_data.columns):
         return _compute_opex_from_base_and_lcf(df, iasr_tables, table_data, col_name)
