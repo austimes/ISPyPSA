@@ -12,8 +12,7 @@ def test_v78_required_tables_ship_in_installed_parser():
         Path(isp_workbook_parser.__file__).parents[1] / "isp_table_configs" / "7.8"
     )
     shipped = {name for path in config_dir.glob("*.yaml") for name in load_yaml(path)}
-    removed_from_workbook = {"gas_and_liquid_fuel_prices_consultant_scenario_mapping"}
-    assert set(_build_required_tables("7.8")) - removed_from_workbook - shipped == set()
+    assert set(_build_required_tables()) - shipped == set()
 
 
 def test_build_required_tables_new_format():
@@ -21,7 +20,7 @@ def test_build_required_tables_new_format():
         "ispypsa.iasr_table_caching.local_cache.FEATURE_FLAGS",
         {"use_new_table_format": True},
     ):
-        result = _build_required_tables("7.8")
+        result = _build_required_tables()
     assert result == [
         "sub_regional_reference_nodes",
         "renewable_energy_zones",
@@ -35,7 +34,7 @@ def test_build_required_tables_old_format():
         "ispypsa.iasr_table_caching.local_cache.FEATURE_FLAGS",
         {"use_new_table_format": False},
     ):
-        result = _build_required_tables("7.8")
+        result = _build_required_tables()
     assert "sub_regional_reference_nodes" in result
     assert "initial_resource_limits" in result
     assert "existing_committed_anticipated_additional_generator_summary" in result

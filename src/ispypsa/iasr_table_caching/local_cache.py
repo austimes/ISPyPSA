@@ -12,8 +12,8 @@ from ..templater.mappings import (
 )
 
 
-def _build_required_tables(iasr_workbook_version: str) -> list[str]:
-    """Return the list of IASR 7.x table names to extract for a given workbook version.
+def _build_required_tables() -> list[str]:
+    """Return the list of IASR 7.8 table names to extract from the workbook.
 
     The `use_new_table_format` feature flag still gates the minimal-template path
     (network geography + transmission only) used by ongoing upstream refactors.
@@ -61,7 +61,6 @@ def _build_required_tables(iasr_workbook_version: str) -> list[str]:
             "biomass_fuel_price",
             "gas_prices_existing_generators",
             "gas_prices_new_entrants",
-            "gas_and_liquid_fuel_prices_consultant_scenario_mapping",
             "liquid_fuel_prices",
             "biomethane_prices",
             "hydrogen_prices",
@@ -118,20 +117,16 @@ def _build_required_tables(iasr_workbook_version: str) -> list[str]:
             "lead_time_and_project_life",
             "technology_specific_lcfs",
         ] + _GENERATOR_PROPERTY_TABLES
-        _BATTERY_REQUIRED_PROPERTY_TABLES = ["battery_properties"]
-        if iasr_workbook_version == "7.8":
-            # Cache the pumped-hydro property tables the workbook publishes on
-            # the same "Storage properties" sheet, plus the GHD-based
-            # sub-regional pumped-hydro build limits. Caching them does not by
-            # itself put pumped hydro in the model: the templater's storage
-            # filter keeps batteries only. Gated to 7.8, the only version whose
-            # `storage_properties` parser config has corrected header rows for
-            # these tables.
-            _BATTERY_REQUIRED_PROPERTY_TABLES += [
-                "pumped_hydro_existing_committed_anticipated_additional_properties",
-                "pumped_hydro_new_entrant_properties",
-                "build_limits_phes",
-            ]
+        # The pumped-hydro property tables share the "Storage properties" sheet with the
+        # battery table; `build_limits_phes` holds the sub-regional pumped-hydro build
+        # limits. Caching them does not by itself put pumped hydro in the model: the
+        # templater's storage filter keeps batteries only.
+        _BATTERY_REQUIRED_PROPERTY_TABLES = [
+            "battery_properties",
+            "pumped_hydro_existing_committed_anticipated_additional_properties",
+            "pumped_hydro_new_entrant_properties",
+            "build_limits_phes",
+        ]
         _POLICY_REQUIRED_TABLES = [
             "vic_renewable_target",
             "vic_storage_target",
@@ -145,7 +140,7 @@ def _build_required_tables(iasr_workbook_version: str) -> list[str]:
             "regional_carbon_budget_trajectory",
             "sa_renewable_generation_target",
         ]
-        tables = (
+        return (
             _NETWORK_REQUIRED_TABLES
             + _GENERATORS_STORAGE_REQUIRED_SUMMARY_TABLES
             + _GENERATORS_REQUIRED_PROPERTY_TABLES
@@ -153,19 +148,13 @@ def _build_required_tables(iasr_workbook_version: str) -> list[str]:
             + _NEW_ENTRANTS_COST_TABLES
             + _POLICY_REQUIRED_TABLES
         )
-        if iasr_workbook_version == "7.8":
-            # The 2026 ISP Final workbook no longer has the gas/liquid/H2
-            # consultant-scenario mapping matrix at the top of the "Gas, Liquid
-            # fuel, H2 price" sheet, so the parser can't extract it. The
-            # templater doesn't read it either.
-            tables.remove("gas_and_liquid_fuel_prices_consultant_scenario_mapping")
-        return tables
+
+
+REQUIRED_TABLES = _build_required_tables()
 
 
 def build_local_cache(
-    cache_path: Path | str,
-    workbook_path: Path | str,
-    iasr_workbook_version: str,
+    cache_path: Path | str, workbook_path: Path | str, iasr_workbook_version: str
 ) -> None:
     """Uses `isp-workbook-parser` to build a local cache of parsed workbook CSVs
 
@@ -196,7 +185,7 @@ def build_local_cache(
             "The IASR workbook provided does not match the version "
             "specified in the config."
         )
-    tables_to_get = _build_required_tables(iasr_workbook_version)
+    tables_to_get = REQUIRED_TABLES
     workbook.save_tables(cache_path, tables=tables_to_get)
     _normalise_cached_csvs_to_v74(Path(cache_path), tables_to_get)
     return None
@@ -282,7 +271,7 @@ def _strip_leading_underscore_columns(cache_path: Path, table_names: list[str]) 
             df.to_csv(csv_path, index=False)
 
 
-def list_cache_files(cache_path: Path, iasr_workbook_version: str) -> list[Path]:
-    """Return the cache file paths `build_local_cache` writes for a workbook version."""
-    files = _build_required_tables(iasr_workbook_version)
-    return [cache_path / Path(file + ".csv") for file in files]
+def list_cache_files(cache_path):
+    files = REQUIRED_TABLES
+    files = [cache_path / Path(file + ".csv") for file in files]
+    return files
