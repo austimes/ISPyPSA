@@ -300,7 +300,6 @@ def test_create_pypsa_friendly_timeseries_inputs_capacity_expansion(
     translated_new_entrant_generators = _translate_new_entrant_generators(
         sample_ispypsa_tables,
         config.temporal.capacity_expansion.investment_periods,
-        config.discount_rate,
         config.network.nodes.regional_granularity,
     )
 
@@ -413,7 +412,6 @@ def test_create_pypsa_friendly_timeseries_inputs_operational(
     translated_new_entrant_generators = _translate_new_entrant_generators(
         sample_ispypsa_tables,
         config.temporal.capacity_expansion.investment_periods,
-        config.discount_rate,
         config.network.nodes.regional_granularity,
     )
 
@@ -514,7 +512,7 @@ def test_scale_sampled_vre_to_full_year_matches_full_year_capacity_factors(
                 sample_ispypsa_tables, [2025], "sub_regions", "fy"
             ),
             _translate_new_entrant_generators(
-                sample_ispypsa_tables, [2025], config.discount_rate, "sub_regions"
+                sample_ispypsa_tables, [2025], "sub_regions"
             ),
         ],
         ignore_index=True,

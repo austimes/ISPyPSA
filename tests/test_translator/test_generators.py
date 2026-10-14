@@ -193,6 +193,7 @@ def test_translate_new_entrant_generators(
             "connection_cost_technology": ["CCGT", "Large scale Solar PV", "Wind"],
             "connection_cost_region_id": ["SA", "Tumut", "Far North Queensland"],
             "technology_specific_lcf_%": [100.0, 95.0, 103.0],
+            "wacc": [0.05, 0.05, 0.05],
             "isp_resource_type": ["CCGT", "SAT", "WM"],
             "rez_id": [None, "N7", "Q1"],
             "generator": ["ccgt_csa", "large_scale_solar_pv_n7_sat", "wind_q1_wm"],
@@ -214,10 +215,9 @@ def test_translate_new_entrant_generators(
         },
     }
     investment_periods = [2025]
-    wacc = 0.05
 
     # Call the function under test
-    result = _translate_new_entrant_generators(ispypsa_tables, investment_periods, wacc)
+    result = _translate_new_entrant_generators(ispypsa_tables, investment_periods)
 
     # Define expected output
     expected_output = pd.DataFrame(
@@ -305,6 +305,7 @@ def test_translate_new_entrant_generators_region_handling(
             "connection_cost_technology": ["CCGT", "Wind"],
             "connection_cost_region_id": ["QLD", "Wide Bay"],
             "technology_specific_lcf_%": [100.0, 103.0],
+            "wacc": [0.05, 0.05],
             "rez_id": [None, "Q7"],
             "generator": ["CCGT_CQ", "Wind_Q7_WM"],
             "isp_resource_type": ["CCGT", "WM"],
@@ -324,17 +325,16 @@ def test_translate_new_entrant_generators_region_handling(
         },
     }
     investment_periods = [2025]
-    wacc = 0.05
 
     # Test with different region settings
     result_single_region = _translate_new_entrant_generators(
-        ispypsa_tables, investment_periods, wacc, "single_region"
+        ispypsa_tables, investment_periods, "single_region"
     )
     result_nem_regions = _translate_new_entrant_generators(
-        ispypsa_tables, investment_periods, wacc, "nem_regions"
+        ispypsa_tables, investment_periods, "nem_regions"
     )
     result_sub_regions = _translate_new_entrant_generators(
-        ispypsa_tables, investment_periods, wacc, "sub_regions"
+        ispypsa_tables, investment_periods, "sub_regions"
     )
 
     # Check bus assignment - for default rez config "discrete_nodes"
@@ -610,28 +610,27 @@ def test_add_new_entrant_generator_connection_costs(
 def test_calculate_annuitised_new_entrant_gen_capital_costs(csv_str_to_df):
     """Test that capital costs are correctly annuitised."""
     generators_csv = """
-    generator_name,                lifetime,    fom_$/kw/annum,  connection_cost_$/mw,  build_cost_$/mw,  technology_specific_lcf_%
-    CCGT,                          40,          15.0,            85000,                 1950000,          100.0
-    Large__scale__Solar__PV,       30,          20.0,            267000,                1400000,          95.0
-    Wind,                          30,          25.0,            337000,                1800000,          98.0
-    Wind__-__offshore__(floating), 30,          600.0,           0,                     4400000,          107.0
-    Biomass,                       25,          150.0,           120000,                2500000,          100.0
-    Dummy__Gen,                    100,         10.0,            0,                     9000000,          80.0
+    generator_name,                lifetime,    fom_$/kw/annum,  connection_cost_$/mw,  build_cost_$/mw,  technology_specific_lcf_%,    wacc
+    CCGT,                          40,          15.0,            85000,                 1950000,          100.0,                        0.05
+    Large__scale__Solar__PV,       30,          20.0,            267000,                1400000,          95.0,                         0.05
+    Wind,                          30,          25.0,            337000,                1800000,          98.0,                         0.05
+    Wind__-__offshore__(floating), 30,          600.0,           0,                     4400000,          107.0,                        0.05
+    Biomass,                       25,          150.0,           120000,                2500000,          100.0,                        0.05
+    Dummy__Gen,                    100,         10.0,            0,                     9000000,          80.0,                         0.05
     """
     generators_df = csv_str_to_df(generators_csv)
-    wacc = 0.05  # 5% weighted average cost of capital
 
     # Call the function
-    result = _calculate_annuitised_new_entrant_gen_capital_costs(generators_df, wacc)
+    result = _calculate_annuitised_new_entrant_gen_capital_costs(generators_df)
 
     expected_result = """
-    generator_name,                lifetime,    fom_$/kw/annum,  connection_cost_$/mw,  build_cost_$/mw,  technology_specific_lcf_%,    capital_cost
-    CCGT,                          40,          15.0,            85000,                 1950000,          100.0,                        133596.058
-    Large__scale__Solar__PV,       30,          20.0,            267000,                1400000,          95.0,                         123887.1418
-    Wind,                          30,          25.0,            337000,                1800000,          98.0,                         161673.0651
-    Wind__-__offshore__(floating), 30,          600.0,           0,                     4400000,          107.0,                        906262.1564
-    Biomass,                       25,          150.0,           120000,                2500000,          100.0,                        335895.4381
-    Dummy__Gen,                    100,         10.0,            0,                     9000000,          80.0,                         372758.5941
+    generator_name,                lifetime,    fom_$/kw/annum,  connection_cost_$/mw,  build_cost_$/mw,  technology_specific_lcf_%,    wacc,   capital_cost
+    CCGT,                          40,          15.0,            85000,                 1950000,          100.0,                        0.05,   133596.058
+    Large__scale__Solar__PV,       30,          20.0,            267000,                1400000,          95.0,                         0.05,   123887.1418
+    Wind,                          30,          25.0,            337000,                1800000,          98.0,                         0.05,   161673.0651
+    Wind__-__offshore__(floating), 30,          600.0,           0,                     4400000,          107.0,                        0.05,   906262.1564
+    Biomass,                       25,          150.0,           120000,                2500000,          100.0,                        0.05,   335895.4381
+    Dummy__Gen,                    100,         10.0,            0,                     9000000,          80.0,                         0.05,   372758.5941
     """
 
     expected_result_df = csv_str_to_df(expected_result)
@@ -644,7 +643,7 @@ def test_calculate_annuitised_new_entrant_gen_capital_costs(csv_str_to_df):
 def test_calculate_annuitised_new_entrant_gen_capital_costs_uses_per_row_wacc(
     csv_str_to_df,
 ):
-    """A per-technology `wacc` column overrides the scalar arg (v7.x behaviour)."""
+    """Each row annuitises at its own per-technology `wacc`."""
     generators_df = csv_str_to_df(
         """
         generator_name,  lifetime,  fom_$/kw/annum,  connection_cost_$/mw,  build_cost_$/mw,  technology_specific_lcf_%,  wacc
@@ -653,10 +652,7 @@ def test_calculate_annuitised_new_entrant_gen_capital_costs_uses_per_row_wacc(
         """
     )
 
-    # Scalar arg is deliberately 0.05 so the test fails if the column is ignored.
-    result = _calculate_annuitised_new_entrant_gen_capital_costs(
-        generators_df.copy(), 0.05
-    )
+    result = _calculate_annuitised_new_entrant_gen_capital_costs(generators_df.copy())
 
     def expected_capital_cost(build, lcf, conn, rate, life, fom):
         base = build * (lcf / 100) + conn

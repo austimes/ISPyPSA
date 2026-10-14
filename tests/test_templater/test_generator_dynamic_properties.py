@@ -84,21 +84,6 @@ def test_add_new_entrant_wacc_adds_per_technology_column(csv_str_to_df):
     pd.testing.assert_frame_equal(result, expected)
 
 
-def test_add_new_entrant_wacc_noop_when_table_absent(csv_str_to_df):
-    new_entrant_table = csv_str_to_df(
-        """
-        technology_type,  build_cost_$/mw
-        CCGT,             1950000
-        """
-    )
-
-    result = _add_new_entrant_wacc(new_entrant_table, {}, "Step Change")
-
-    # No wacc table (v6.0/tests) -> table returned unchanged, translator falls
-    # back to the scalar config rate.
-    pd.testing.assert_frame_equal(result, new_entrant_table)
-
-
 def test_add_new_entrant_wacc_raises_on_unmatched_technology(csv_str_to_df):
     new_entrant_table = csv_str_to_df(
         """

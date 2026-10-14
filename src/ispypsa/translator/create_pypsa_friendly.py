@@ -92,13 +92,7 @@ def _fill_missing_build_limits_with_inf(batteries: pd.DataFrame) -> pd.DataFrame
 def _config_with_transmission_wacc(
     config: ModelConfig, ispypsa_tables: dict[str, pd.DataFrame]
 ) -> ModelConfig:
-    """Return a config whose `wacc` is the templated regulated transmission WACC.
-
-    Leaves `config` unchanged and returns it as-is when the rate wasn't templated
-    (v6.0/tests), so the scalar config `wacc` remains the fallback.
-    """
-    if "transmission_wacc" not in ispypsa_tables:
-        return config
+    """Return a config whose `wacc` is the templated regulated transmission WACC."""
     rate = float(
         ispypsa_tables["transmission_wacc"]["regulated_transmission_wacc"].iloc[0]
     )
@@ -230,7 +224,6 @@ def create_pypsa_friendly_inputs(
     translated_new_entrant_generators = _translate_new_entrant_generators(
         ispypsa_tables,
         config.temporal.capacity_expansion.investment_periods,
-        config.discount_rate,
         config.network.nodes.regional_granularity,
         config.network.nodes.rezs,
     )
@@ -259,7 +252,6 @@ def create_pypsa_friendly_inputs(
     translated_new_entrant_batteries = _translate_new_entrant_batteries(
         ispypsa_tables,
         config.temporal.capacity_expansion.investment_periods,
-        config.discount_rate,
         config.network.nodes.regional_granularity,
         config.network.nodes.rezs,
     )
@@ -301,11 +293,9 @@ def create_pypsa_friendly_inputs(
         )
 
     # Transmission (flow-path + REZ) expansion is regulated network investment,
-    # so annuitise it at AEMO's regulated transmission WACC when the templater
-    # sourced it from the IASR (v7.x), rather than the flat config `wacc`. The
+    # so annuitise it at AEMO's regulated transmission WACC from the IASR. The
     # transmission translators read `config.wacc`, so hand them a config copy
-    # carrying the sourced rate. Falls back to the scalar config `wacc` when the
-    # rate isn't templated (v6.0/tests).
+    # carrying that rate.
     transmission_config = _config_with_transmission_wacc(config, ispypsa_tables)
 
     if config.network.nodes.rezs == "discrete_nodes":

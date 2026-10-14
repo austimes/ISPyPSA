@@ -134,6 +134,7 @@ def sample_ispypsa_tables(csv_str_to_df):
             ],
             "fom_$/kw/annum": [12.0, 15.0, 20.0, 30.0, 20.0, 30.0],
             "technology_specific_lcf_%": [100.0, 103.0, 107.0, 105.0, 101.0, 99.0],
+            "wacc": [0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
             "isp_resource_type": [
                 "CCGT",
                 "OCGT (small GT)",
@@ -262,11 +263,16 @@ def sample_ispypsa_tables(csv_str_to_df):
 
     # New entrant battery table:
     new_entrant_batteries_csv = """
-    storage_name,          sub_region_id, region_id,       rez_id,     technology_type,                     lifetime,    charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  technology_specific_lcf_%,     connection_cost_$/mw,   fom_$/kw/annum,     isp_resource_type
-    NewBattery1,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          90.0,                   90.0,                       2,                      Battery,    100.0,                         55000.0,                10.0,               Battery__Storage__2h
-    NewBattery2,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          95.0,                   95.0,                       2,                      Battery,    100.0,                         55000.0,                7.0,                Battery__Storage__2h
+    storage_name,          sub_region_id, region_id,       rez_id,     technology_type,                     lifetime,    charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  technology_specific_lcf_%,     connection_cost_$/mw,   fom_$/kw/annum,     isp_resource_type,      wacc
+    NewBattery1,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          90.0,                   90.0,                       2,                      Battery,    100.0,                         55000.0,                10.0,               Battery__Storage__2h,   0.05
+    NewBattery2,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          95.0,                   95.0,                       2,                      Battery,    100.0,                         55000.0,                7.0,                Battery__Storage__2h,   0.05
     """
     tables["new_entrant_batteries"] = csv_str_to_df(new_entrant_batteries_csv)
+
+    tables["transmission_wacc"] = csv_str_to_df("""
+    regulated_transmission_wacc
+    0.06
+    """)
 
     return tables
 

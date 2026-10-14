@@ -153,7 +153,6 @@ def _translate_ecaa_generators(
 def _translate_new_entrant_generators(
     ispypsa_tables: dict[str, pd.DataFrame],
     investment_periods: list[int],
-    wacc: float,
     regional_granularity: str = "sub_regions",
     rez_handling: str = "discrete_nodes",
 ) -> pd.DataFrame:
@@ -164,8 +163,6 @@ def _translate_new_entrant_generators(
             (add link to ispypsa input tables docs).
         investment_periods: list of years in which investment periods start obtained
             from the model configuration.
-        wacc: as float, weighted average cost of capital, an interest rate specifying
-            how expensive it is to borrow money for the asset investment.
         regional_granularity: Regional granularity of the nodes obtained from the model
             configuration. Defaults to "sub_regions".
         rez_handling: str from the model configuration that defines whether REZs are
@@ -219,8 +216,7 @@ def _translate_new_entrant_generators(
         ispypsa_tables.get("new_entrant_non_vre_connection_costs"),
     )
     gen_df_with_capital_costs = _calculate_annuitised_new_entrant_gen_capital_costs(
-        gen_df_with_connection_costs,
-        wacc,
+        gen_df_with_connection_costs
     )
     # nan capex -> build limit of 0.0MW (no build of this generator in this region allowed)
     gen_df_with_capital_costs = gen_df_with_capital_costs[
@@ -568,7 +564,6 @@ def _set_offshore_wind_connection_costs_to_zero(
 
 def _calculate_annuitised_new_entrant_gen_capital_costs(
     new_entrant_generators_table: pd.DataFrame,
-    wacc: float,
 ) -> pd.DataFrame:
     """Calculates annuitised capital cost of each new entrant generator in each possible
     build year.
@@ -576,9 +571,7 @@ def _calculate_annuitised_new_entrant_gen_capital_costs(
     Args:
         new_entrant_generators_table: dataframe containing `ISPyPSA` formatted
             new-entrant generator detail, with a row for each generator in every possible
-            build year and region/REZ.
-        wacc: as float, weighted average cost of capital, an interest rate specifying
-            how expensive it is to borrow money for the asset investment.
+            build year and region/REZ, and its `wacc`.
 
     Returns:
         new_entrant_generators_table: `ISPyPSA` formatted dataframe with new column
@@ -590,15 +583,11 @@ def _calculate_annuitised_new_entrant_gen_capital_costs(
         * (new_entrant_generators_table["technology_specific_lcf_%"] / 100)
         + new_entrant_generators_table["connection_cost_$/mw"]
     )
-    # annuitise at AEMO's per-technology WACC when the templater attached it
-    # (v7.x), else the scalar `wacc` arg (v6.0/tests). The per-technology rate
-    # is why thermal (CCGT/CCS ~10.5%) annuitises higher than VRE (~7-7.5%).
-    per_technology_wacc = "wacc" in new_entrant_generators_table.columns
+    # annuitise at AEMO's per-technology WACC, which is why thermal (CCGT/CCS
+    # ~10.5%) annuitises higher than VRE (~7-7.5%).
     new_entrant_generators_table["capital_cost"] = new_entrant_generators_table.apply(
         lambda x: _annuitised_investment_costs(
-            x["capital_cost"],
-            x["wacc"] if per_technology_wacc else wacc,
-            x["lifetime"],
+            x["capital_cost"], x["wacc"], x["lifetime"]
         ),
         axis=1,
     )

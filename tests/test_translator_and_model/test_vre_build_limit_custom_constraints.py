@@ -148,10 +148,10 @@ def test_vre_build_limit_constraint(csv_str_to_df, tmp_path, monkeypatch):
 
     # New entrant generators table
     new_entrant_generators_csv = """
-    generator_name,           technology_type,              sub_region,     fuel_type,  fuel_cost_mapping,  minimum_stable_level_%,  vom_$/mwh_sent_out,  heat_rate_gj/mwh,  maximum_capacity_mw,  unit_capacity_mw,  lifetime,  connection_cost_technology,  connection_cost_region_id,  fom_$/kw/annum,  technology_specific_lcf_%,  isp_resource_type,  rez_id,   generator
-    Large__scale__Solar__PV,  Large__scale__Solar__PV,      CQ,             Solar,      Solar,              0,                       0,                   0,                 ,                     ,                  30,        Large__scale__Solar__PV,     Fitzroy,                         0.0,             100.0,                      SAT,                Q6,       large_scale_solar_pv_q6_sat
-    Wind,                     Wind,                         CQ,             Wind,       Wind,               0,                       0,                   0,                 ,                     ,                  30,        Wind,                        Fitzroy,                         0.0,             100.0,                      WM,                 Q6,       wind_q6_wm
-    Wind,                     Wind,                         CQ,             Wind,       Wind,               0,                       0,                   0,                 ,                     ,                  30,        Wind,                        Fitzroy,                         0.0,             100.0,                      WH,                 Q6,       wind_q6_wh
+    generator_name,           technology_type,              sub_region,     fuel_type,  fuel_cost_mapping,  minimum_stable_level_%,  vom_$/mwh_sent_out,  heat_rate_gj/mwh,  maximum_capacity_mw,  unit_capacity_mw,  lifetime,  connection_cost_technology,  connection_cost_region_id,  fom_$/kw/annum,  technology_specific_lcf_%,  wacc,  isp_resource_type,  rez_id,   generator
+    Large__scale__Solar__PV,  Large__scale__Solar__PV,      CQ,             Solar,      Solar,              0,                       0,                   0,                 ,                     ,                  30,        Large__scale__Solar__PV,     Fitzroy,                         0.0,             100.0,                      0.05,  SAT,                Q6,       large_scale_solar_pv_q6_sat
+    Wind,                     Wind,                         CQ,             Wind,       Wind,               0,                       0,                   0,                 ,                     ,                  30,        Wind,                        Fitzroy,                         0.0,             100.0,                      0.05,  WM,                 Q6,       wind_q6_wm
+    Wind,                     Wind,                         CQ,             Wind,       Wind,               0,                       0,                   0,                 ,                     ,                  30,        Wind,                        Fitzroy,                         0.0,             100.0,                      0.05,  WH,                 Q6,       wind_q6_wh
     """
     new_entrant_generators = csv_str_to_df(new_entrant_generators_csv)
 
@@ -184,6 +184,7 @@ def test_vre_build_limit_constraint(csv_str_to_df, tmp_path, monkeypatch):
         "new_entrant_wind_and_solar_connection_costs": new_entrant_wind_and_solar_connection_costs,
         "ecaa_batteries": pd.DataFrame(),
         "new_entrant_batteries": pd.DataFrame(),
+        "transmission_wacc": pd.DataFrame({"regulated_transmission_wacc": [0.07]}),
     }
 
     # Create a ModelConfig instance

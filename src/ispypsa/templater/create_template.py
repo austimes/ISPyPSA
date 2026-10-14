@@ -226,7 +226,7 @@ def create_ispypsa_inputs_template(
 
     # Attach AEMO's per-technology WACC (scenario-specific) so the translator
     # annuitises each new-entrant at its own cost of capital rather than one
-    # scalar. No-op when the `wacc` IASR table isn't cached (v6.0/tests).
+    # scalar.
     template["new_entrant_generators"] = _add_new_entrant_wacc(
         template["new_entrant_generators"], iasr_tables, scenario
     )
@@ -254,16 +254,14 @@ def create_ispypsa_inputs_template(
 
     # Regulated transmission WACC (scenario-specific) for annuitising flow-path
     # and REZ transmission expansion. Emitted after filtering (it is region-
-    # independent). No-op when the `wacc` IASR table isn't cached (v6.0/tests),
-    # in which case the translator falls back to the scalar config `wacc`.
-    if "wacc" in iasr_tables:
-        template["transmission_wacc"] = pd.DataFrame(
-            {
-                "regulated_transmission_wacc": [
-                    _regulated_transmission_wacc(iasr_tables["wacc"], scenario)
-                ]
-            }
-        )
+    # independent).
+    template["transmission_wacc"] = pd.DataFrame(
+        {
+            "regulated_transmission_wacc": [
+                _regulated_transmission_wacc(iasr_tables["wacc"], scenario)
+            ]
+        }
+    )
 
     return template
 

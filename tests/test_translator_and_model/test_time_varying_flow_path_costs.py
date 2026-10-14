@@ -146,6 +146,7 @@ def test_link_expansion_economic_timing(csv_str_to_df, tmp_path, monkeypatch):
         "renewable_energy_zones": pd.DataFrame(),
         "ecaa_batteries": pd.DataFrame(),
         "new_entrant_batteries": pd.DataFrame(),
+        "transmission_wacc": pd.DataFrame({"regulated_transmission_wacc": [0.07]}),
     }
 
     # Create a ModelConfig instance

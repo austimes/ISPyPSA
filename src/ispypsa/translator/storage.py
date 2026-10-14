@@ -115,7 +115,6 @@ def _translate_ecaa_batteries(
 def _translate_new_entrant_batteries(
     ispypsa_tables: dict[str, pd.DataFrame],
     investment_periods: list[int],
-    wacc: float,
     regional_granularity: str = "sub_regions",
     rez_handling: str = "discrete_nodes",
 ) -> pd.DataFrame:
@@ -126,8 +125,6 @@ def _translate_new_entrant_batteries(
             (add link to ispypsa input tables docs).
         investment_periods: list of years in which investment periods start obtained
             from the model configuration.
-        wacc: as float, weighted average cost of capital, an interest rate specifying
-            how expensive it is to borrow money for the asset investment.
         regional_granularity: Regional granularity of the nodes obtained from the model
             configuration. Defaults to "sub_regions".
         rez_handling: str from the model configuration that defines whether REZs are
@@ -186,8 +183,7 @@ def _translate_new_entrant_batteries(
     )
     battery_df_with_capital_costs = (
         _calculate_annuitised_new_entrant_battery_capital_costs(
-            battery_df_with_build_costs,
-            wacc,
+            battery_df_with_build_costs
         )
     )
     # nan capex -> build limit of 0.0MW (no build of this battery in this region allowed)
@@ -297,7 +293,6 @@ def _add_new_entrant_battery_build_costs(
 
 def _calculate_annuitised_new_entrant_battery_capital_costs(
     new_entrant_batteries: pd.DataFrame,
-    wacc: float,
 ) -> pd.DataFrame:
     """Calculates annuitised capital cost of each new entrant battery in each possible
     build year.
@@ -305,9 +300,7 @@ def _calculate_annuitised_new_entrant_battery_capital_costs(
     Args:
         new_entrant_batteries: dataframe containing `ISPyPSA` formatted
             new-entrant battery detail, with a row for each battery in every possible
-            build year and sub-region.
-        wacc: as float, weighted average cost of capital, an interest rate specifying
-            how expensive it is to borrow money for the asset investment.
+            build year and sub-region, and its `wacc`.
 
     Returns:
         new_entrant_batteries: `ISPyPSA` formatted dataframe with new column
@@ -319,14 +312,10 @@ def _calculate_annuitised_new_entrant_battery_capital_costs(
         * (new_entrant_batteries["technology_specific_lcf_%"] / 100)
         + new_entrant_batteries["connection_cost_$/mw"]
     )
-    # annuitise at AEMO's per-technology WACC when the templater attached it
-    # (v7.x, batteries ~8%), else the scalar `wacc` arg (v6.0/tests).
-    per_technology_wacc = "wacc" in new_entrant_batteries.columns
+    # annuitise at AEMO's per-technology WACC (batteries ~8%).
     new_entrant_batteries["capital_cost"] = new_entrant_batteries.apply(
         lambda x: _annuitised_investment_costs(
-            x["capital_cost"],
-            x["wacc"] if per_technology_wacc else wacc,
-            x["lifetime"],
+            x["capital_cost"], x["wacc"], x["lifetime"]
         ),
         axis=1,
     )

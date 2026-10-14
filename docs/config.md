@@ -120,8 +120,10 @@ Examples:
 
 ### wacc
 
-Weighted average cost of capital for annuitisation of generation and transmission costs,
-as a fraction, i.e. 0.07 is 7%.
+Weighted average cost of capital as a fraction, i.e. 0.07 is 7%. The config validator requires it, but building
+the model does not use it: new entrant generators and batteries are annuitised at the per-technology rate in the
+IASR `wacc` table for the configured scenario, and flow path and REZ transmission expansion at that table's regulated
+electricity transmission rate.
 
 Examples:
 

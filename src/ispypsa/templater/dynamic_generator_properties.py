@@ -44,12 +44,8 @@ def _add_new_entrant_wacc(
     annuitise new-entrant build costs — thermal plant (CCGT/CCS/biomass) at
     ~10.5%, wind ~7.5%, solar ~7%, batteries ~8%, PHES ~8.5% under Step Change.
     The translator annuitises each new-entrant at this per-technology rate
-    instead of a single scalar. When the `wacc` table isn't in the cache (v6.0
-    or minimal test fixtures) the column is omitted and the translator falls
-    back to the scalar config rate.
+    instead of a single scalar.
     """
-    if "wacc" not in iasr_tables:
-        return new_entrant_table
     wacc_by_technology = _wacc_by_technology(iasr_tables["wacc"], scenario)
     new_entrant_table = new_entrant_table.copy()
     new_entrant_table["wacc"] = _standardise_storage_capitalisation(
