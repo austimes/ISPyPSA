@@ -116,8 +116,7 @@ def _template_generator_dynamic_properties(
 
     # v7.4 canonical: single consolidated coal_fuel_price table with a
     # Scenario column. Map config's ISP scenario name to the v7.4 canonical
-    # scenario value used in the table. v6.0 caches are normalised forward
-    # to this same shape at cache load.
+    # scenario value used in the table.
     v74_scenario = _ISP_TO_V74_SCENARIO.get(scenario, scenario)
     coal_prices = iasr_tables["coal_fuel_price"]
     coal_prices = coal_prices[coal_prices["Scenario"] == v74_scenario].drop(
@@ -127,8 +126,7 @@ def _template_generator_dynamic_properties(
 
     # v7.4 split gas prices into ECAA / new-entrant tables; concat both so
     # the downstream fuel-cost calculation can resolve any generator's
-    # gas price. v6.0 normalisation produces both tables with identical
-    # content (single combined v6.0 source).
+    # gas price.
     gas_prices = pd.concat(
         [
             iasr_tables["gas_prices_existing_generators"],
@@ -379,7 +377,6 @@ def _template_new_entrant_build_costs(
     # v7.4 canonical: single `build_costs` table with `Technology`,
     # `GenCost Scenario`, `IASR Scenario`, `Source` columns and per-year
     # cost values. Filter by IASR Scenario. Pumped hydro is folded in.
-    # v6.0 sources are normalised forward to this shape at cache load.
     v74_scenario = _ISP_TO_V74_SCENARIO.get(scenario, scenario)
     build_costs = iasr_tables["build_costs"]
     build_costs = build_costs[build_costs["IASR Scenario"] == v74_scenario]
@@ -451,10 +448,7 @@ def _template_h2_gpg_emissions_reduction_factors(
     recognises (Kogan Gas, SA Hydrogen Turbine).
 
     Source is v7.4's `hydrogen_limit_for_gpg` (regions × scenarios × years).
-    Each known H2 GPG generator inherits its region's time series. v6.0 caches
-    get the same shape via schema normalisation
-    (`consolidate_v60_h2_gpg_to_regional` combines the two v6.0 split tables
-    into the regional layout, mapping Kogan→QLD, SA Hydrogen Turbine→SA).
+    Each known H2 GPG generator inherits its region's time series.
 
     The downstream translator consumes this per-generator output to compute
     blended fuel prices for each Hyblend generator — see `translator/

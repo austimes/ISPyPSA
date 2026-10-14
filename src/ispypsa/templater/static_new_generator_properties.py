@@ -23,11 +23,8 @@ from .mappings import (
 
 _OBSOLETE_COLUMNS = [
     "Maximum capacity factor (%)",
-    # v6.0 had a lowercase "Technology type" column with reduced tech detail
-    # (the canonical column is "Technology Type" capital T — renamed from
-    # v6.0's "New entrants" by schema normalisation). v7.4 doesn't have the
-    # lowercase variant. Dropping here makes both versions produce identical
-    # post-snake_case column sets.
+    # A lowercase "Technology type" column would collide with "Technology Type"
+    # after snake_case conversion.
     "Technology type",
 ]
 

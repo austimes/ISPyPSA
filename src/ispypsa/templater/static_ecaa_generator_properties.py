@@ -40,9 +40,7 @@ def _template_ecaa_generators_static_properties(
     logging.info(
         "Creating an existing, committed, anticipated and additional generators template"
     )
-    # v7.4 has a single consolidated summary table (v6.0's four per-status
-    # tables are merged into this form at cache-load time by the schema
-    # normalisation layer). The downstream code expects a "Generator" column
+    # v7.4 has a single consolidated summary table. The downstream code expects a "Generator" column
     # holding the human-readable identifier — in v7.4 that's "Power Station".
     ecaa_generator_summaries = iasr_tables[_ECAA_CONSOLIDATED_SUMMARY_TABLE].rename(
         columns={"Power Station": "Generator"}
@@ -386,9 +384,7 @@ def _process_and_merge_existing_gpg_min_load(
 
     Only retains first Gas Turbine min load if there are multiple turbines (OPINIONATED).
 
-    v7.4 canonical column names: `Power Station` (was v6.0's `Generator Station`)
-    and `IASR ID` (was `Generating Unit`). Schema normalisation renames v6.0
-    columns to match.
+    Uses the v7.4 canonical column names `Power Station` and `IASR ID`.
     """
     to_merge = []
     for station in existing_gpg_min_loads["Power Station"].drop_duplicates():
@@ -456,8 +452,7 @@ def _add_closure_year_column(
     default_closure_year = -1
 
     # reformat closure_years table for clearer mapping. v7.4 canonical
-    # identifier column is `power_station` (snakecased from "Power Station";
-    # v6.0's "Generator name" gets renamed to match at cache load).
+    # identifier column is `power_station` (snakecased from "Power Station").
     closure_years.columns = [_snakecase_string(col) for col in closure_years.columns]
     closure_years = closure_years.rename(
         columns={

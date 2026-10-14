@@ -80,7 +80,7 @@ def test_link_expansion_economic_timing(csv_str_to_df, tmp_path, monkeypatch):
             "max_per_node": 1000.0,
         },
         "solver": "highs",
-        "iasr_workbook_version": "6.0",
+        "iasr_workbook_version": "7.8",
     }
 
     # Create demand trace data for regions A and B

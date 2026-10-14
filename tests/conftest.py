@@ -307,7 +307,7 @@ def sample_model_config():
         scenario="Step Change",
         wacc=0.06,
         discount_rate=0.05,
-        iasr_workbook_version="6.0",
+        iasr_workbook_version="7.8",
         solver="highs",
         temporal=TemporalConfig(
             year_type="fy",

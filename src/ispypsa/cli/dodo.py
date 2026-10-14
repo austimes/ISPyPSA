@@ -208,7 +208,7 @@ def get_operational_pypsa_file():
 @return_empty_list_if_no_config
 def get_local_cache_files():
     """Get list of local cache files."""
-    return list_cache_files(get_parsed_workbook_cache())
+    return list_cache_files(get_parsed_workbook_cache(), config.iasr_workbook_version)
 
 
 @return_empty_list_if_no_config
@@ -326,9 +326,9 @@ def build_parsed_workbook_cache() -> None:
         raise FileNotFoundError(f"Workbook file not found: {workbook_path}")
 
     # Verify it's an Excel file
-    if workbook_path.suffix.lower() != ".xlsx":
+    if workbook_path.suffix.lower() not in (".xlsx", ".xlsm"):
         raise ValueError(
-            f"Workbook path must point to a .xlsx file, got: {workbook_path}"
+            f"Workbook path must point to a .xlsx or .xlsm file, got: {workbook_path}"
         )
 
     build_local_cache(parsed_workbook_cache, workbook_path, version)

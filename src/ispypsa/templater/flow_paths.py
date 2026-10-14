@@ -12,9 +12,6 @@ from .mappings import (
     _FLOW_PATH_CONFIG,
     _HVDC_FLOW_PATHS,
     _REZ_CONFIG,
-    detect_iasr_version_from_tables,
-    flow_path_config,
-    rez_config,
 )
 
 # The v7.x cost tables keep pre-rename corridor ids, which score below the option
@@ -212,12 +209,10 @@ def _template_sub_regional_flow_path_costs(
             - nominal_flow_limit_increase_mw
             - <financial year>_$/mw (one column per year, e.g., '2024_25_$/mw')
     """
-    version = detect_iasr_version_from_tables(iasr_tables)
     return process_transmission_costs(
         iasr_tables=iasr_tables,
         scenario=scenario,
-        config=flow_path_config(version),
-        iasr_workbook_version=version,
+        config=_FLOW_PATH_CONFIG,
     )
 
 
@@ -250,12 +245,10 @@ def _template_rez_transmission_costs(
             - additional_network_capacity_mw
             - <financial year>_$/mw (cost per MW for each year, e.g., '2024_25_$/mw')
     """
-    version = detect_iasr_version_from_tables(iasr_tables)
     rez_costs = process_transmission_costs(
         iasr_tables=iasr_tables,
         scenario=scenario,
-        config=rez_config(version),
-        iasr_workbook_version=version,
+        config=_REZ_CONFIG,
     )
 
     # Match cost-table REZ/constraint ids to the modelled REZ ids + custom
@@ -308,7 +301,6 @@ def process_transmission_costs(
     iasr_tables: dict[str, pd.DataFrame],
     scenario: str,
     config: dict,
-    iasr_workbook_version: str = "6.0",
 ) -> pd.DataFrame:
     """
     Generic function to process transmission costs (flow path or REZ).
@@ -322,16 +314,12 @@ def process_transmission_costs(
               rez or flow path specific names
             - table_names: dict with augmentation and cost table lists
             - mappings: dict with mappings for preparatory activities and other data
-        iasr_workbook_version: str specifying the IASR workbook version, used to
-            map ISP scenario names to the correct cost-table suffix. Defaults to
-            v6.0 for backward compatibility; callers should pass the auto-detected
-            version via `detect_iasr_version_from_tables`.
 
     Returns:
         pd.DataFrame containing the least cost options with standardized column
         structure
     """
-    cost_scenario = _determine_cost_scenario(scenario, iasr_workbook_version)
+    cost_scenario = _determine_cost_scenario(scenario)
 
     # Get and process augmentation table
     aug_table = _get_augmentation_table(iasr_tables=iasr_tables, config=config)
@@ -349,34 +337,26 @@ def process_transmission_costs(
     return final_costs
 
 
-def _determine_cost_scenario(scenario: str, iasr_workbook_version: str = "6.0") -> str:
+def _determine_cost_scenario(scenario: str) -> str:
     """
-    Map ISP scenario to the cost-table filename suffix used in this workbook version.
+    Map ISP scenario to flow path/rez cost scenario.
 
-    v6.0: 2 scenario suffixes (`progressive_change`,
-    `step_change_and_green_energy_exports`). The ISP scenarios "Step Change" and
-    "Green Energy Exports" both map to the latter.
+    Args:
+        scenario: str specifying the scenario name. "Progressive Change" and "Green Energy Exports" are accepted as
+            the earlier names of "Slower Growth" and "Accelerated Transition".
 
-    v7.4+: 3 distinct suffixes (`slower_growth`, `step_change`,
-    `accelerated_transition`). One-to-one with ISP scenarios — AEMO split the
-    combined v6.0 bucket, and "Green Energy Exports" is no longer an ISP scenario
-    in v7.4 (replaced by "Accelerated Transition").
+    Returns:
+        str specifying the cost-table suffix, e.g. "step_change".
     """
-    if iasr_workbook_version.startswith("7."):
-        v74_mapping = {
-            "Step Change": "step_change",
-            "Progressive Change": "slower_growth",
-            "Slower Growth": "slower_growth",
-            "Accelerated Transition": "accelerated_transition",
-            "Green Energy Exports": "accelerated_transition",
-        }
-        if scenario in v74_mapping:
-            return v74_mapping[scenario]
-        raise ValueError(f"scenario: {scenario} not recognised for v7.x workbook.")
-    if scenario in ["Step Change", "Green Energy Exports"]:
-        return "step_change_and_green_energy_exports"
-    if scenario == "Progressive Change":
-        return "progressive_change"
+    cost_scenarios = {
+        "Step Change": "step_change",
+        "Progressive Change": "slower_growth",
+        "Slower Growth": "slower_growth",
+        "Accelerated Transition": "accelerated_transition",
+        "Green Energy Exports": "accelerated_transition",
+    }
+    if scenario in cost_scenarios:
+        return cost_scenarios[scenario]
     raise ValueError(f"scenario: {scenario} not recognised.")
 
 

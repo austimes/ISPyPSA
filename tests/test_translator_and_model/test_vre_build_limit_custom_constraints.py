@@ -85,7 +85,7 @@ def test_vre_build_limit_constraint(csv_str_to_df, tmp_path, monkeypatch):
             "generator_size_mw": 500.0,
         },
         "solver": "highs",
-        "iasr_workbook_version": "6.0",
+        "iasr_workbook_version": "7.8",
     }
 
     # Create demand trace data - only need the 4 timestamps used in snapshots

@@ -5,36 +5,15 @@ from isp_workbook_parser import Parser
 
 from ..feature_flags import FEATURE_FLAGS
 from ..templater.mappings import (
-    _ACTIONABLE_ISP_PROJECTS_TABLES,
     _FLOW_PATH_AGUMENTATION_TABLES,
     _FLOW_PATH_AUGMENTATION_COST_TABLES,
-    _GENERATOR_PROPERTIES,
-    _PREPATORY_ACTIVITIES_TABLES,
     _REZ_AUGMENTATION_COST_TABLES,
     _REZ_CONNECTION_AGUMENTATION_TABLES,
-    _REZ_CONNECTION_PREPATORY_ACTIVITIES_TABLES,
-    actionable_isp_projects_tables,
-    flow_path_augmentation_cost_tables,
-    flow_path_augmentation_tables,
-    fuel_price_tables,
-    generator_property_tables,
-    generator_storage_summary_tables,
-    prepatory_activities_tables,
-    rez_augmentation_cost_tables,
-    rez_connection_prepatory_activities_tables,
 )
 
 
-def _build_required_tables(iasr_workbook_version: str = "6.0") -> list[str]:
-    """Return the list of IASR table names to extract for a given workbook version.
-
-    Table-name dispatch between IASR 2024 v6.0 and IASR 2025 v7.3:
-      - `initial_build_limits` (v6.0) → `initial_resource_limits` (v7.3): renamed
-        and restructured (column range B:Y → B:O). The downstream templater code
-        will be updated separately for the structural change.
-      - `gpg_emissions_reduction_h2_kogan` + `_sa_turbine` (v6.0, two tables) →
-        `hydrogen_limit_for_gpg` (v7.3, single consolidated table). The split→
-        consolidation is handled in the templater layer in a follow-up patch.
+def _build_required_tables(iasr_workbook_version: str) -> list[str]:
+    """Return the list of IASR 7.x table names to extract for a given workbook version.
 
     The `use_new_table_format` feature flag still gates the minimal-template path
     (network geography + transmission only) used by ongoing upstream refactors.
@@ -47,111 +26,92 @@ def _build_required_tables(iasr_workbook_version: str = "6.0") -> list[str]:
             "initial_transmission_limits",
         ]
         return _NETWORK_REQUIRED_TABLES
-
-    is_v7 = iasr_workbook_version.startswith("7.")
-    _initial_limits_table = (
-        "initial_resource_limits" if is_v7 else "initial_build_limits"
-    )
-    _h2_gpg_tables = (
-        ["hydrogen_limit_for_gpg"]
-        if is_v7
-        else [
-            "gpg_emissions_reduction_h2_kogan",
-            "gpg_emissions_reduction_h2_sa_turbine",
+    else:
+        # Per-property generator and storage tables. The four ECAA statuses share one
+        # `existing_committed_anticipated_additional_generators` table per property;
+        # some properties still split existing from new entrants.
+        _GENERATOR_PROPERTY_TABLES = [
+            "maximum_capacity_existing_committed_anticipated_additional_generators",
+            "maximum_capacity_new_entrants",
+            "seasonal_ratings_existing_committed_anticipated_additional_generators",
+            "seasonal_ratings_new_entrants",
+            "maintenance_existing_generators",
+            "maintenance_new_entrants",
+            "fixed_opex_existing_committed_anticipated_additional_generators",
+            "fixed_opex_new_entrants",
+            "variable_opex_existing_committed_anticipated_additional_generators",
+            "variable_opex_new_entrants",
+            "marginal_loss_factors_existing_generators",
+            "marginal_loss_factors_new_entrants",
+            "marginal_loss_factors_new_entrant_electrolysers",
+            "auxiliary_load_existing_committed_anticipated_additional_generators",
+            "auxiliary_load_new_entrants",
+            "heat_rates_existing_committed_anticipated_additional_generators",
+            "heat_rates_new_entrants",
+            "gpg_min_stable_level_existing_generators",
+            "gpg_min_stable_level_new_entrants",
+            "affine_heat_rates_existing_generators",
+            "affine_heat_rates_new_entrants",
+            "long_duration_outages_existing_generators",
+            "other_outages_existing_generators",
+            "outages_new_entrants",
         ]
-    )
-    _flow_path_augmentation_tables = flow_path_augmentation_tables(
-        iasr_workbook_version
-    )
-    _flow_path_augmentation_cost_tables = flow_path_augmentation_cost_tables(
-        iasr_workbook_version
-    )
-    _prepatory_activities_tables = prepatory_activities_tables(iasr_workbook_version)
-    _actionable_isp_projects_tables = actionable_isp_projects_tables(
-        iasr_workbook_version
-    )
-    _rez_augmentation_cost_tables = rez_augmentation_cost_tables(iasr_workbook_version)
-    _rez_connection_prepatory_activities_tables = (
-        rez_connection_prepatory_activities_tables(iasr_workbook_version)
-    )
-    if True:
-        # Generator property tables (maximum_capacity, seasonal_ratings, etc.)
-        # are version-dispatched: v6.0 has per-status tables; v7.x has
-        # consolidated existing+committed+anticipated+additional + per-property
-        # outage restructure. Fuel-price tables likewise restructured.
-        _GENERATOR_PROPERTY_TABLES = generator_property_tables(iasr_workbook_version)
-        _FUEL_PRICE_TABLES = fuel_price_tables(iasr_workbook_version)
-        if is_v7:
-            # v7.x consolidates new-entrant cost tables. Build costs are one
-            # table now (scenario as a column, not as a suffix). Pumped hydro
-            # build costs and per-policy build-cost tables also folded in.
-            # Connection cost forecasts dropped the scenario suffix entirely.
-            _NEW_ENTRANTS_COST_TABLES = [
-                "build_costs",
-                # Per-technology, per-scenario weighted average cost of capital
-                # (values in %). Consumed by the templater to annuitise each
-                # new-entrant at AEMO's technology-specific rate instead of a
-                # single scalar. v7.x only — v6.0's financial-parameters sheet
-                # has a different shape and the scalar config rate is used there.
-                "wacc",
-                "connection_costs_for_wind_and_solar",
-                "connection_costs_other",
-                "connection_cost_forecast_wind_and_solar",
-                "connection_cost_forecast_other",
-            ]
-        else:
-            _NEW_ENTRANTS_COST_TABLES = [
-                "coal_and_biomass_price_consultant_scenario_mapping",
-                "biomass_prices",
-                "build_costs_scenario_mapping",
-                "build_costs_current_policies",
-                "build_costs_global_nze_by_2050",
-                "build_costs_global_nze_post_2050",
-                "build_costs_pumped_hydro",
-                "connection_costs_for_wind_and_solar",
-                "connection_costs_other",
-                "connection_cost_forecast_wind_and_solar_progressive_change",
-                "connection_cost_forecast_wind_and_solar_step_change&green_energy_exports",
-                "connection_cost_forecast_non_rez_progressive_change",
-                "connection_cost_forecast_non_rez_step_change&green_energy_exports",
-            ]
-        _NETWORK_REQUIRED_TABLES = [
-            "sub_regional_reference_nodes",
-            "regional_topology_representation",
-            "regional_reference_nodes",
-            "renewable_energy_zones",
-            "flow_path_transfer_capability",
-            "interconnector_transfer_capability",
-            _initial_limits_table,
+        _FUEL_PRICE_TABLES = [
+            "coal_fuel_price",
+            "biomass_fuel_price",
+            "gas_prices_existing_generators",
+            "gas_prices_new_entrants",
+            "gas_and_liquid_fuel_prices_consultant_scenario_mapping",
+            "liquid_fuel_prices",
+            "biomethane_prices",
+            "hydrogen_prices",
+            "industrial_fuel_costs",
+            "residential_fuel_costs",
+            "gpg_secondary_fuel_prices",
         ]
-        if is_v7:
-            # v7.x split v6.0's `initial_build_limits` into resource limits
-            # (wind/solar capacity, kept as `initial_resource_limits`) and a
-            # separate `initial_transmission_limits` carrying REZ-to-grid
-            # transmission network limits + expansion costs.
-            _NETWORK_REQUIRED_TABLES.append("initial_transmission_limits")
+        _NEW_ENTRANTS_COST_TABLES = [
+            "build_costs",
+            # Per-technology, per-scenario weighted average cost of capital
+            # (values in %). Consumed by the templater to annuitise each
+            # new-entrant at AEMO's technology-specific rate instead of a
+            # single scalar.
+            "wacc",
+            "connection_costs_for_wind_and_solar",
+            "connection_costs_other",
+            "connection_cost_forecast_wind_and_solar",
+            "connection_cost_forecast_other",
+        ]
         _NETWORK_REQUIRED_TABLES = (
-            _NETWORK_REQUIRED_TABLES
-            + _flow_path_augmentation_tables
-            + _flow_path_augmentation_cost_tables
-            + _prepatory_activities_tables
-            + _actionable_isp_projects_tables
+            [
+                "sub_regional_reference_nodes",
+                "regional_topology_representation",
+                "regional_reference_nodes",
+                "renewable_energy_zones",
+                "flow_path_transfer_capability",
+                "interconnector_transfer_capability",
+                "initial_resource_limits",
+                "initial_transmission_limits",
+            ]
+            + _FLOW_PATH_AGUMENTATION_TABLES
+            + [
+                t
+                for tables in _FLOW_PATH_AUGMENTATION_COST_TABLES.values()
+                for t in tables
+            ]
             + _REZ_CONNECTION_AGUMENTATION_TABLES
-            + _rez_augmentation_cost_tables
-            + _rez_connection_prepatory_activities_tables
+            + [t for tables in _REZ_AUGMENTATION_COST_TABLES.values() for t in tables]
         )
-        _GENERATORS_STORAGE_REQUIRED_SUMMARY_TABLES = generator_storage_summary_tables(
-            iasr_workbook_version
-        )
-        # Common static property tables. Fuel-price names dispatched via
-        # `fuel_price_tables(version)` above; the remaining names below
-        # (closure years, locational cost factors, LCFs, etc.) appear stable
-        # across versions.
+        _GENERATORS_STORAGE_REQUIRED_SUMMARY_TABLES = [
+            "existing_committed_anticipated_additional_generator_summary",
+            "consumer_energy_resources_summary",
+            "new_entrants_summary",
+            "new_entrant_electrolysers_summary",
+        ]
         _GENERATORS_REQUIRED_PROPERTY_TABLES = [
             "expected_closure_years",
             "coal_minimum_stable_level",
             *_FUEL_PRICE_TABLES,
-            *_h2_gpg_tables,
+            "hydrogen_limit_for_gpg",
             "gpg_emissions_reduction_biomethane",
             "locational_cost_factors",
             "technology_cost_breakdown_ratios",
@@ -166,49 +126,26 @@ def _build_required_tables(iasr_workbook_version: str = "6.0") -> list[str]:
             # itself put pumped hydro in the model: the templater's storage
             # filter keeps batteries only. Gated to 7.8, the only version whose
             # `storage_properties` parser config has corrected header rows for
-            # these tables; the 7.4 layout is unverified.
+            # these tables.
             _BATTERY_REQUIRED_PROPERTY_TABLES += [
                 "pumped_hydro_existing_committed_anticipated_additional_properties",
                 "pumped_hydro_new_entrant_properties",
                 "build_limits_phes",
             ]
-        if is_v7:
-            # v7.x restructured the policy table set: renamed several to
-            # `_target` form (dropped `_trajectory`), split NSW roadmap storage
-            # into separate energy / power capacity trajectories, added LRET,
-            # regional carbon budget, SA renewable generation target, and the
-            # NSW roadmap min-VRE-generation target. Capacity Investment Scheme
-            # tables are no longer in the workbook in v7.x (folded elsewhere).
-            _POLICY_REQUIRED_TABLES = [
-                "vic_renewable_target",
-                "vic_storage_target",
-                "vic_offshore_wind_target",
-                "nsw_roadmap_storage_energy_capacity_trajectory",
-                "nsw_roadmap_storage_power_capacity_trajectory",
-                "nsw_roadmap_min_vre_generation_target",
-                "tas_renewable_target_trajectory",
-                "tas_renewable_energy_target",
-                "lret_target",
-                "regional_carbon_budget_trajectory",
-                "sa_renewable_generation_target",
-                # Note: QLD renewable target dropped from v7.x policy tables;
-                # capacity_investment_scheme_* and powering_australia_plan tables
-                # were also removed.
-            ]
-        else:
-            _POLICY_REQUIRED_TABLES = [
-                "vic_renewable_target_trajectory",
-                "qld_renewable_target_trajectory",
-                "powering_australia_plan_trajectory",
-                "capacity_investment_scheme_renewable_trajectory",
-                "capacity_investment_scheme_storage_trajectory",
-                "nsw_roadmap_storage_trajectory",
-                "vic_storage_target_trajectory",
-                "vic_offshore_wind_target_trajectory",
-                "nsw_roadmap_renewable_trajectory",
-                "tas_renewable_target_trajectory",
-            ]
-        return (
+        _POLICY_REQUIRED_TABLES = [
+            "vic_renewable_target",
+            "vic_storage_target",
+            "vic_offshore_wind_target",
+            "nsw_roadmap_storage_energy_capacity_trajectory",
+            "nsw_roadmap_storage_power_capacity_trajectory",
+            "nsw_roadmap_min_vre_generation_target",
+            "tas_renewable_target_trajectory",
+            "tas_renewable_energy_target",
+            "lret_target",
+            "regional_carbon_budget_trajectory",
+            "sa_renewable_generation_target",
+        ]
+        tables = (
             _NETWORK_REQUIRED_TABLES
             + _GENERATORS_STORAGE_REQUIRED_SUMMARY_TABLES
             + _GENERATORS_REQUIRED_PROPERTY_TABLES
@@ -216,15 +153,13 @@ def _build_required_tables(iasr_workbook_version: str = "6.0") -> list[str]:
             + _NEW_ENTRANTS_COST_TABLES
             + _POLICY_REQUIRED_TABLES
         )
-
-
-REQUIRED_TABLES = _build_required_tables()
-
-
-def required_tables_for_version(iasr_workbook_version: str) -> list[str]:
-    """Public accessor used by callers that need the version-specific table list
-    (e.g. cache invalidation, schema checks)."""
-    return _build_required_tables(iasr_workbook_version)
+        if iasr_workbook_version == "7.8":
+            # The 2026 ISP Final workbook no longer has the gas/liquid/H2
+            # consultant-scenario mapping matrix at the top of the "Gas, Liquid
+            # fuel, H2 price" sheet, so the parser can't extract it. The
+            # templater doesn't read it either.
+            tables.remove("gas_and_liquid_fuel_prices_consultant_scenario_mapping")
+        return tables
 
 
 def build_local_cache(
@@ -242,8 +177,8 @@ def build_local_cache(
         Build the local cache of parsed workbook CSVs.
         >>> build_local_cache(
         ...     cache_path=Path("parsed_workbook_cache"),
-        ...     workbook_path=Path("path/to/ISP_Workbook.xlsx"),
-        ...     iasr_workbook_version="6.0"
+        ...     workbook_path=Path("path/to/ISP_Workbook.xlsm"),
+        ...     iasr_workbook_version="7.8"
         ... )
 
     Args:
@@ -262,77 +197,27 @@ def build_local_cache(
             "specified in the config."
         )
     tables_to_get = _build_required_tables(iasr_workbook_version)
-    # v7.8 (2026 ISP FINAL workbook) quirk: AEMO removed the standalone
-    # gas/liquid/H2 consultant-scenario-mapping matrix (the small G:N table at
-    # the top of the "Gas, Liquid fuel, H2 price" sheet that mapped AEMO
-    # scenario names to consultant scenario labels). It no longer exists in the
-    # FINAL workbook, so the parser can't extract it. It's also unused by the
-    # v7.x templater path (dynamic_generator_properties reads coal_fuel_price /
-    # liquid_fuel_prices / biomass_fuel_price by name directly), so dropping it
-    # from the request is safe. Skip it for 7.8 rather than letting save_tables
-    # halt on the out-of-bounds usecols error.
-    if iasr_workbook_version == "7.8":
-        _removed = "gas_and_liquid_fuel_prices_consultant_scenario_mapping"
-        tables_to_get = [t for t in tables_to_get if t != _removed]
     workbook.save_tables(cache_path, tables=tables_to_get)
-    # Translate older-version column headers to v7.4 canonical form. Cached
-    # CSVs on disk become version-independent so downstream readers (templater,
-    # tests) never see v6.0 column names.
-    _normalise_cached_csvs_to_v74(
-        Path(cache_path),
-        tables_to_get,
-        iasr_workbook_version,
-    )
+    _normalise_cached_csvs_to_v74(Path(cache_path), tables_to_get)
     return None
 
 
-def _normalise_cached_csvs_to_v74(
-    cache_path: Path,
-    table_names: list[str],
-    source_version: str,
-) -> None:
-    """Rewrite cached CSVs with v7.4 canonical column headers + filenames.
-
-    For all versions, applies a parser-quirk fix: when the parser's multi-row
-    header concatenates an empty top row with a value row, columns end up
-    with a leading underscore (e.g. `_IASR ID`). Strip those.
-
-    For v6.0 we also (a) rename columns in-place using the per-table rename
-    map, then (b) rename files on disk to their v7.4 canonical names.
-    Tables not in either map are left alone (no disk I/O).
-    """
+def _normalise_cached_csvs_to_v74(cache_path: Path, table_names: list[str]) -> None:
+    """Rewrite the cached 7.x CSVs into the canonical column names and table shapes the templater reads."""
     from .schema_normalisation import (
-        _V60_TO_V74_CELL_VALUE_RENAMES,
-        _V60_TO_V74_COLUMN_RENAMES,
-        _V60_TO_V74_TABLE_RENAMES,
         _V74_TO_CANONICAL_COLUMN_RENAMES,
         aggregate_v74_biomethane_prices_to_v60_form,
         aggregate_v74_ecaa_units_to_power_stations,
         aggregate_v74_liquid_fuel_prices_to_v60_form,
-        backfill_early_fy_fuel_prices,
-        consolidate_v60_biomass_prices_to_v74,
-        consolidate_v60_build_costs_to_v74,
-        consolidate_v60_coal_prices_to_v74,
-        consolidate_v60_connection_cost_forecasts_to_v74,
-        consolidate_v60_ecaa_generator_summaries,
-        consolidate_v60_gas_prices_to_v74,
-        consolidate_v60_h2_gpg_to_regional,
-        consolidate_v60_marginal_loss_factors_tables,
-        consolidate_v60_maximum_capacity_tables,
-        consolidate_v60_seasonal_ratings_tables,
         drop_v78_not_applicable_build_cost_year,
-        expand_v60_auxiliary_load_to_per_generator,
         merge_v74_connection_capacity_into_forecast,
         pivot_v74_other_outages_to_wide,
         split_v74_maximum_capacity_commissioning_dates,
         strip_v74_rez_prefix_from_aug_cost_options,
-        synthesize_v60_new_entrants_power_station,
-        transform_v60_battery_properties_to_wide,
     )
 
     _strip_leading_underscore_columns(cache_path, table_names)
-    # v7.4-side column normalisations (apply regardless of source — no-op when
-    # the source column name isn't present).
+    # Column renames are no-ops when the source column name isn't present.
     for table_name, renames in _V74_TO_CANONICAL_COLUMN_RENAMES.items():
         csv_path = cache_path / f"{table_name}.csv"
         if not csv_path.exists():
@@ -341,127 +226,36 @@ def _normalise_cached_csvs_to_v74(
         df = df.rename(columns=renames)
         df.to_csv(csv_path, index=False)
 
-    if source_version.startswith("7."):
-        # v7.8 FINAL prepends an all-"Not Applicable" 2024-25 build-cost column;
-        # drop it so the templater's $/kW->$/MW multiply doesn't hit a string.
-        # No-op for v7.4/v7.5 (numeric 2024-25).
-        drop_v78_not_applicable_build_cost_year(cache_path)
-        # v7.4 carries a single `Commissioning date` column on the consolidated
-        # max_capacity table; downstream code expects the v6.0 two-column
-        # layout (confirmed vs indicative) which we restore here so the
-        # templater stays version-naive.
-        split_v74_maximum_capacity_commissioning_dates(cache_path)
-        # v7.4 `other_outages_existing_generators` is long-form
-        # (Fuel type × Property × year columns); templater consumes scalars,
-        # so we pivot to wide-form picking the 2025-26 year. See design call
-        # 2026-05-24 — full time-series consumption is Phase 1+ work.
-        pivot_v74_other_outages_to_wide(cache_path)
-        # v7.4 liquid_fuel_prices is per-generator; templater downstream
-        # consumes a single representative price. Aggregate across the
-        # Generator dimension.
-        aggregate_v74_liquid_fuel_prices_to_v60_form(cache_path)
-        # v7.4 biomethane_prices is per-source (Landfill/Waste/Crop) × scenario;
-        # templater consumes a single representative price per scenario.
-        aggregate_v74_biomethane_prices_to_v60_form(cache_path)
-        # v7.4 connection_cost_forecast_wind_and_solar has no MVA col;
-        # the templater needs it inline for the per-MW division. Merge it
-        # in from connection_costs_for_wind_and_solar so both v6.0 and v7.4
-        # forecasts have the same shape.
-        merge_v74_connection_capacity_into_forecast(cache_path)
-        # v7.4 publishes one row per generating unit; templater expects
-        # per-power-station rows. Aggregate (first values for properties,
-        # sum for installed capacity).
-        aggregate_v74_ecaa_units_to_power_stations(cache_path)
-        # v7.4 rez_augmentation_costs tables prefix Option values with REZ
-        # IDs (e.g. "DN1 Option 1"); the merge with options tables (which
-        # use bare suffixes) needs them stripped.
-        strip_v74_rez_prefix_from_aug_cost_options(cache_path)
-        return
-
-    for table_name in table_names:
-        csv_path = cache_path / f"{table_name}.csv"
-        if not csv_path.exists():
-            continue
-        column_renames = _V60_TO_V74_COLUMN_RENAMES.get(table_name)
-        cell_value_renames_for_table = {
-            col: vals
-            for (t, col), vals in _V60_TO_V74_CELL_VALUE_RENAMES.items()
-            if t == table_name
-        }
-        if column_renames or cell_value_renames_for_table:
-            df = pd.read_csv(csv_path)
-            if column_renames:
-                df = df.rename(columns=column_renames)
-            for col, value_map in cell_value_renames_for_table.items():
-                if col in df.columns:
-                    df[col] = df[col].replace(value_map)
-            df.to_csv(csv_path, index=False)
-        new_table_name = _V60_TO_V74_TABLE_RENAMES.get(table_name)
-        if new_table_name:
-            # `replace` rather than `rename` so normalisation is idempotent:
-            # a partial-normalisation state (where both source and target
-            # already exist) overwrites the target with the freshly-extracted
-            # source rather than raising FileExistsError.
-            csv_path.replace(cache_path / f"{new_table_name}.csv")
-
-    # v6.0 new_entrants_summary doesn't have a Power Station column (the v6.0
-    # row identifier is Technology Type alone). v7.4 native publishes a
-    # composite Power Station column; templater/storage.py relies on it as
-    # the Storage Name source for new-entrant battery isp_resource_type
-    # derivation. Synthesize the column from Sub-region + Technology Type so
-    # the cache shape matches v7.4 native and storage.py stays version-naive.
-    synthesize_v60_new_entrants_power_station(cache_path)
-
-    # Class (c1): concat v6.0's four per-status ECAA summary CSVs into the
-    # v7.4 single-consolidated form, then delete the originals. Templater
-    # downstream always reads the consolidated form.
-    consolidate_v60_ecaa_generator_summaries(cache_path)
-    # Class (c4a): same pattern for the per-status maximum_capacity tables,
-    # with explicit column alignment (Generator/Project → Power Station,
-    # Energy (MWh) → Storage Capacity (MWh), Status column derived).
-    consolidate_v60_maximum_capacity_tables(cache_path)
-    # Same concat pattern for the marginal_loss_factors per-status + batteries
-    # tables (v7.4 keeps the legacy `_existing_generators` filename despite
-    # the consolidated table carrying all statuses).
-    consolidate_v60_marginal_loss_factors_tables(cache_path)
-    # Class (c4d): expand v6.0's per-tech auxiliary_load lookup table into
-    # v7.4's per-generator shape by joining with the (just-consolidated)
-    # generator summary. Must run after `consolidate_v60_ecaa_generator_summaries`.
-    expand_v60_auxiliary_load_to_per_generator(cache_path)
-    # Class (c3): combine v6.0's two named-generator H2 GPG tables into
-    # v7.4's region-keyed `hydrogen_limit_for_gpg` shape.
-    consolidate_v60_h2_gpg_to_regional(cache_path)
-    # battery_properties shape: transpose v6.0 long-form to v7.4 wide-form,
-    # embed units into column headers.
-    transform_v60_battery_properties_to_wide(cache_path)
-    # Fuel-price restructure: collapse v6.0 per-scenario coal_prices_* tables
-    # into v7.4's single `coal_fuel_price` (Scenario as column). Same for
-    # gas — v7.4 split into existing-generators / new-entrants pair; v6.0
-    # didn't, so we produce both tables with identical content.
-    consolidate_v60_coal_prices_to_v74(cache_path)
-    consolidate_v60_gas_prices_to_v74(cache_path)
-    consolidate_v60_biomass_prices_to_v74(cache_path)
-    # Same per-status concat pattern for seasonal_ratings.
-    consolidate_v60_seasonal_ratings_tables(cache_path)
-    # build_costs: per-GenCost-scenario tables + pumped_hydro → consolidated.
-    consolidate_v60_build_costs_to_v74(cache_path)
-    # Connection cost forecasts: 4 per-scenario × {wind_and_solar, non_rez}
-    # tables → single `connection_cost_forecast_wind_and_solar` keyed by
-    # (REZ names, Scenario). Non-REZ entries are renamed and folded in,
-    # matching v7.4's promotion of non-REZ regions to first-class REZ IDs.
-    consolidate_v60_connection_cost_forecasts_to_v74(cache_path)
-
-    # Backfill empty FY columns in fuel-price tables (Phase 1 follow-up j).
-    # v6.0 hydrogen_prices.csv has empty cells for FY 2022-23/23-24/24-25
-    # because AEMO didn't publish hydrogen prices before 2025-26 — the
-    # earliest populated FY is 2025-26 at $42.90/$/gj. Without backfill,
-    # the translator's downstream `.fillna(0.0)` produces free hydrogen
-    # at investment_period=2025 and the LP builds ~6 GW of H2 reciprocating
-    # engines dispatching 62 TWh of effectively-free hydrogen. Backfill
-    # row-wise from the earliest populated FY into the prior empty FY
-    # columns so the data contract is complete at the cache layer.
-    # See PHASE7_1_DIAGNOSTIC.md for the diagnostic trace.
-    backfill_early_fy_fuel_prices(cache_path)
+    # v7.8 FINAL prepends an all-"Not Applicable" 2024-25 build-cost column;
+    # drop it so the templater's $/kW->$/MW multiply doesn't hit a string.
+    drop_v78_not_applicable_build_cost_year(cache_path)
+    # The consolidated max_capacity table carries a single `Commissioning date`
+    # column; the templater expects separate confirmed and indicative columns.
+    split_v74_maximum_capacity_commissioning_dates(cache_path)
+    # v7.4 `other_outages_existing_generators` is long-form
+    # (Fuel type × Property × year columns); templater consumes scalars,
+    # so we pivot to wide-form picking the 2025-26 year. See design call
+    # 2026-05-24 — full time-series consumption is Phase 1+ work.
+    pivot_v74_other_outages_to_wide(cache_path)
+    # v7.4 liquid_fuel_prices is per-generator; templater downstream
+    # consumes a single representative price. Aggregate across the
+    # Generator dimension.
+    aggregate_v74_liquid_fuel_prices_to_v60_form(cache_path)
+    # v7.4 biomethane_prices is per-source (Landfill/Waste/Crop) × scenario;
+    # templater consumes a single representative price per scenario.
+    aggregate_v74_biomethane_prices_to_v60_form(cache_path)
+    # v7.4 connection_cost_forecast_wind_and_solar has no MVA col;
+    # the templater needs it inline for the per-MW division. Merge it
+    # in from connection_costs_for_wind_and_solar.
+    merge_v74_connection_capacity_into_forecast(cache_path)
+    # v7.4 publishes one row per generating unit; templater expects
+    # per-power-station rows. Aggregate (first values for properties,
+    # sum for installed capacity).
+    aggregate_v74_ecaa_units_to_power_stations(cache_path)
+    # v7.4 rez_augmentation_costs tables prefix Option values with REZ
+    # IDs (e.g. "DN1 Option 1"); the merge with options tables (which
+    # use bare suffixes) needs them stripped.
+    strip_v74_rez_prefix_from_aug_cost_options(cache_path)
 
 
 def _strip_leading_underscore_columns(cache_path: Path, table_names: list[str]) -> None:
@@ -488,43 +282,7 @@ def _strip_leading_underscore_columns(cache_path: Path, table_names: list[str]) 
             df.to_csv(csv_path, index=False)
 
 
-def list_cache_files(cache_path, iasr_workbook_version: str = "6.0"):
-    """Return the list of cache file paths produced by `build_local_cache`.
-
-    Reflects post-normalisation file names (always v7.4 canonical), so callers
-    that check cache freshness see the same names regardless of which source
-    workbook produced the cache.
-    """
-    from .schema_normalisation import (
-        _V60_GENERATOR_SUMMARY_SOURCES,
-        _V60_MAX_CAPACITY_SOURCES,
-        _V60_MLF_SOURCES,
-        _V60_TO_V74_TABLE_RENAMES,
-        _V74_CONSOLIDATED_GENERATOR_SUMMARY,
-        _V74_MAX_CAPACITY_CONSOLIDATED,
-        _V74_MLF_CONSOLIDATED,
-    )
-
+def list_cache_files(cache_path: Path, iasr_workbook_version: str) -> list[Path]:
+    """Return the cache file paths `build_local_cache` writes for a workbook version."""
     files = _build_required_tables(iasr_workbook_version)
-    if not iasr_workbook_version.startswith("7."):
-        # Apply 1:1 table renames.
-        files = [_V60_TO_V74_TABLE_RENAMES.get(name, name) for name in files]
-        # Collapse the four per-status summary entries into the single
-        # consolidated entry that exists on disk after normalisation.
-        per_status = set(_V60_GENERATOR_SUMMARY_SOURCES)
-        if any(name in per_status for name in files):
-            files = [name for name in files if name not in per_status]
-            files.append(_V74_CONSOLIDATED_GENERATOR_SUMMARY)
-        # Same collapse for the per-status maximum_capacity tables.
-        per_status_max_cap = set(_V60_MAX_CAPACITY_SOURCES)
-        if any(name in per_status_max_cap for name in files):
-            files = [name for name in files if name not in per_status_max_cap]
-            files.append(_V74_MAX_CAPACITY_CONSOLIDATED)
-        # Same collapse for the marginal_loss_factors per-status + batteries
-        # tables (target name keeps v7.4's legacy `_existing_generators`).
-        per_status_mlf = set(_V60_MLF_SOURCES) - {_V74_MLF_CONSOLIDATED}
-        if any(name in per_status_mlf for name in files):
-            files = [name for name in files if name not in per_status_mlf]
-            if _V74_MLF_CONSOLIDATED not in files:
-                files.append(_V74_MLF_CONSOLIDATED)
     return [cache_path / Path(file + ".csv") for file in files]

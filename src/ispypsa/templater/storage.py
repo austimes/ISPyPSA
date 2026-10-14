@@ -30,10 +30,8 @@ from .mappings import (
 def _template_battery_properties(
     iasr_tables: dict[str, pd.DataFrame],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    # v7.4 has a single consolidated generator+storage summary (v6.0's per-
-    # status ECAA tables + batteries_summary are merged into this form at
-    # cache-load time by the schema normalisation layer). New entrants stay
-    # in their own table in both versions. Downstream code expects a
+    # v7.4 has a single consolidated generator+storage summary. New entrants
+    # stay in their own table. Downstream code expects a
     # "Storage Name" column holding the human-readable identifier — that's
     # "Power Station" in v7.4.
     ecaa_summary = iasr_tables[_CONSOLIDATED_GENERATOR_SUMMARY].rename(
@@ -173,8 +171,7 @@ def _restructure_battery_property_table(
     """Light prep on the v7.4-shape battery_properties table.
 
     v7.4 publishes the table wide-form (rows = battery types, cols =
-    property_unit-suffixed names). Schema normalisation transforms v6.0's
-    long-form into this shape, so this function just renames the identifier
+    property_unit-suffixed names), so this function just renames the identifier
     column to `storage_name` and coerces value cols to numeric for the
     downstream lookups.
     """
@@ -441,8 +438,7 @@ def _add_closure_year_column(
     closure_years.columns = [_snakecase_string(col) for col in closure_years.columns]
     closure_years = closure_years.rename(
         columns={
-            # v7.4 canonical identifier; v6.0's `Generator name` renamed at
-            # cache load to `Power Station` (snakecased to `power_station`).
+            # v7.4 canonical identifier `Power Station`, snakecased.
             "power_station": "storage_name",
             "expected_closure_year_calendar_year": "closure_year",
         }

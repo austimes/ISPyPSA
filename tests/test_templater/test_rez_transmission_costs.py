@@ -113,9 +113,9 @@ def test_template_rez_transmission_costs_simple_least_cost_option():
     iasr_tables = {
         "rez_augmentation_options_QLD": aug_table_swqld,
         "rez_augmentation_options_VIC": aug_table_swv,
-        "rez_augmentation_costs_progressive_change_QLD": cost_table_swqld,
-        "rez_augmentation_costs_progressive_change_VIC": cost_table_swv,
-        "rez_augmentation_costs_progressive_change_preparatory_activities": prep_acts,
+        "rez_augmentation_costs_slower_growth_QLD": cost_table_swqld,
+        "rez_augmentation_costs_slower_growth_VIC": cost_table_swv,
+        "rez_augmentation_costs_slower_growth_preparatory_activities": prep_acts,
     }
     scenario = "Progressive Change"
     # Run function
@@ -199,9 +199,9 @@ def test_template_rez_transmission_costs_prep_activities_chosen():
     iasr_tables = {
         "rez_augmentation_options_QLD": aug_table_swqld,
         "rez_augmentation_options_VIC": aug_table_swv,
-        "rez_augmentation_costs_progressive_change_QLD": cost_table_swqld,
-        "rez_augmentation_costs_progressive_change_VIC": cost_table_swv,
-        "rez_augmentation_costs_progressive_change_preparatory_activities": prep_acts,
+        "rez_augmentation_costs_slower_growth_QLD": cost_table_swqld,
+        "rez_augmentation_costs_slower_growth_VIC": cost_table_swv,
+        "rez_augmentation_costs_slower_growth_preparatory_activities": prep_acts,
     }
     scenario = "Progressive Change"
     # Run function
@@ -262,8 +262,8 @@ def test_template_rez_transmission_costs_use_first_year_with_valid_costs():
     iasr_tables = {
         "rez_augmentation_options_QLD": aug_table_swqld,
         "rez_augmentation_options_VIC": aug_table_swv,
-        "rez_augmentation_costs_progressive_change_QLD": cost_table_swqld,
-        "rez_augmentation_costs_progressive_change_VIC": cost_table_swv,
+        "rez_augmentation_costs_slower_growth_QLD": cost_table_swqld,
+        "rez_augmentation_costs_slower_growth_VIC": cost_table_swv,
     }
     scenario = "Progressive Change"
     result = _template_rez_transmission_costs(iasr_tables, scenario, ["SWV1", "SWQLD1"])

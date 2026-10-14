@@ -99,7 +99,7 @@ def get_valid_config():
         },
         "unserved_energy": {"cost": 10000.0, "max_per_node": 1e5},
         "solver": "highs",
-        "iasr_workbook_version": "6.0",
+        "iasr_workbook_version": "7.8",
         "trace_data": {
             "dataset_type": "example",
             "dataset_year": 2024,
@@ -132,7 +132,7 @@ def invalid_discount_rate(config):
 
 
 def invalid_iasr_workbook_version(config):
-    config["iasr_workbook_version"] = 6.0
+    config["iasr_workbook_version"] = 7.8
     return config, ValidationError
 
 

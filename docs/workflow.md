@@ -83,8 +83,8 @@ parsing can be run using either the ISPyPSA CLI or API:
 
     build_local_cache(
         cache_path="path/to/cache/location",
-        workbook_path="path/to/iasr_workbook.xlsx",
-        iasr_workbook_version="6.0"
+        workbook_path="path/to/iasr_workbook.xlsm",
+        iasr_workbook_version="7.8"
     )
     ```
 
