@@ -338,7 +338,7 @@ def download_workbook_from_config() -> None:
     """Download ISP workbook from manifest.
 
     Can be run with direct parameters or with config file:
-    - Direct: ispypsa workbook_version=6.0 workbook_path=path/to/workbook.xlsx download_workbook
+    - Direct: ispypsa workbook_version=7.8 workbook_path=path/to/workbook.xlsm download_workbook
     - Config: ispypsa config=config.yaml download_workbook
     """
     # Check if direct parameters are provided
@@ -359,8 +359,8 @@ def download_workbook_from_config() -> None:
         version = config.iasr_workbook_version
 
     # Validate path
-    if not str(workbook_path).endswith(".xlsx"):
-        raise ValueError(f"workbook_path must end with .xlsx, got: {workbook_path}")
+    if not str(workbook_path).endswith(".xlsm"):
+        raise ValueError(f"workbook_path must end with .xlsm, got: {workbook_path}")
 
     # Log start
     logging.info(f"Downloading ISP workbook version {version} to {workbook_path}")

@@ -27,8 +27,8 @@ either the ISPyPSA CLI or API:
     from ispypsa.data_fetch import fetch_workbook
 
     fetch_workbook(
-        workbook_version="6.0",
-        save_path="path/to/save/iasr_workbook.xlsx"
+        workbook_version="7.8",
+        save_path="path/to/save/iasr_workbook.xlsm"
     )
     ```
 

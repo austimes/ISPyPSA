@@ -17,15 +17,15 @@ def fetch_workbook(
     to the specified file path.
 
     Examples:
-        >>> fetch_workbook("6.0", "data/workbooks/isp_6.0.xlsx")
-        # Downloads ISP 6.0 workbook to data/workbooks/isp_6.0.xlsx
+        >>> fetch_workbook("7.8", "data/workbooks/isp_7.8.xlsm")
+        # Downloads ISP 7.8 workbook to data/workbooks/isp_7.8.xlsm
 
     Args:
         workbook_version : str
-            Version string (e.g., "6.0")
+            Version string (e.g., "7.8")
         save_path : Path | str
             Full path where the workbook file should be saved
-            (e.g., "data/workbooks/6.0.xlsx")
+            (e.g., "data/workbooks/7.8.xlsm")
 
     Returns:
         None
