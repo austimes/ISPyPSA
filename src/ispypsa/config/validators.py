@@ -184,7 +184,7 @@ class ModelConfig(BaseModel):
     discount_rate: float
     network: NetworkConfig
     temporal: TemporalConfig
-    iasr_workbook_version: str
+    iasr_workbook_version: Literal["7.8"]
     unserved_energy: UnservedEnergyConfig
     trace_data: TraceDataConfig = TraceDataConfig()
     fuel_pricing: FuelPricingConfig = FuelPricingConfig()

@@ -95,8 +95,8 @@ Examples:
 The version of IASR workbook that the template inputs are generated from. The workbook
 version is used to retrieve IASR data which has been manually extracted (rather than via
 isp-workbook-parser) and packaged with ISPyPSA. Some data needs to be manually extracted
-because of the formatting of the IASR workbook. The workbook cache is built for IASR 7.x workbooks;
-the 2026 ISP Final workbook ("7.8") is the one in use.
+because of the formatting of the IASR workbook. Only the 2026 ISP Final workbook ("7.8") is
+supported.
 
 Examples:
 

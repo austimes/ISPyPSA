@@ -89,7 +89,7 @@ def create_ispypsa_inputs_template(
 
         Some tables can't be handled by isp_workbook_parser so ISPyPSA ships with the
         missing data.
-        >>> manually_extracted_tables = load_manually_extracted_tables("6.0")
+        >>> manually_extracted_tables = load_manually_extracted_tables("7.8")
 
         Now a template can be created by specifying the ISP scenario to use and the
         spacial granularity of model.

@@ -16,7 +16,7 @@ def load_manually_extracted_tables(
         >>> from ispypsa.templater import load_manually_extracted_tables
 
         Load the manually extracted tables for the workbook version.
-        >>> manually_extracted_tables = load_manually_extracted_tables("6.0")
+        >>> manually_extracted_tables = load_manually_extracted_tables("7.8")
 
         Access a specific table from the dictionary.
         >>> custom_constraints_rhs = manually_extracted_tables["custom_constraints_rhs"]

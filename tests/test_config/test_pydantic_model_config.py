@@ -136,6 +136,11 @@ def invalid_iasr_workbook_version(config):
     return config, ValidationError
 
 
+def unsupported_iasr_workbook_version(config):
+    config["iasr_workbook_version"] = "6.0"
+    return config, ValidationError
+
+
 def invalid_solver(config):
     config["solver"] = "invalid_solver"
     return config, ValidationError
@@ -311,6 +316,7 @@ def invalid_named_representative_weeks(config):
         invalid_wacc,
         invalid_discount_rate,
         invalid_iasr_workbook_version,
+        unsupported_iasr_workbook_version,
         invalid_solver,
         invalid_regional_granularity,
         invalid_nodes_rezs,
