@@ -43,9 +43,7 @@ def test_static_ecaa_generator_templater(workbook_table_cache_test_path: Path):
                         lambda x: True if not isinstance(x, str) else False
                     )
                 )
-    assert set(df["status"]) == set(
-        ("Existing", "Committed", "Anticipated", "Additional projects")
-    )
+    assert set(df["status"]) == set(("Existing", "Anticipated"))
 
     # check that columns present are all required columns:
     for column in df.columns:
@@ -62,7 +60,8 @@ def test_static_ecaa_generator_templater(workbook_table_cache_test_path: Path):
     )
     for where_tech in (where_solar, where_wind):
         tech_df = df.loc[where_tech, :]
-        assert all(tech_df["minimum_load_mw"] == 0.0)
+        # 7.8 leaves some VRE minimum loads blank; PyPSA loads a blank p_min_pu as 0.
+        assert all(tech_df["minimum_load_mw"].fillna(0.0) == 0.0)
         assert all(tech_df["heat_rate_gj/mwh"] == 0.0)
 
 
@@ -97,18 +96,18 @@ def test_static_new_generator_templater(workbook_table_cache_test_path: Path):
     # check that all entries in "generator" col are unique
     assert len(df.generator.unique()) == len(df.generator)
 
-    # checks that values that should be always set to zero are zero:
-    where_solar, where_wind, where_ocgt, where_h2 = (
+    # checks that values that should be always set to zero are zero (the 7.8 workbook
+    # gives OCGT a 50% and solar thermal a 20% minimum stable level):
+    where_solar, where_solar_pv, where_wind, where_h2 = (
         df["generator"].str.contains("solar", case=False),
+        df["generator"].str.contains("solar_pv", case=False),
         df["generator"].str.contains("wind", case=False),
-        df["generator"].str.contains("ocgt", case=False),
         df["generator"].str.contains("hydrogen", case=False),
     )
     zero_tests = {
         "minimum_stable_level_%": (
-            where_solar,
+            where_solar_pv,
             where_wind,
-            where_ocgt,
             where_h2,
         ),
         "vom_$/mwh_sent_out": (

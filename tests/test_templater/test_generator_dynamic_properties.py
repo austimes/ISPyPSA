@@ -129,5 +129,5 @@ def test_generator_dynamic_properties_templater(workbook_table_cache_test_path: 
                 assert all(df.iloc[:, 1:].dtypes != "object")
                 assert all(df.notna())
             elif "ratings" in key:
-                assert all(df.iloc[:, 3:].dtypes != "object")
+                assert all(df.iloc[:, 4:].dtypes != "object")
                 assert all(df.notna())

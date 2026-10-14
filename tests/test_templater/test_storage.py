@@ -72,8 +72,12 @@ def test_battery_templater(workbook_table_cache_test_path: Path):
                 )
             )
 
-    # limited test CSV contains only "Existing" ECAA battery
-    assert all(ecaa_batteries["status"] == "Existing")
+    assert set(ecaa_batteries["status"]) == {
+        "Existing",
+        "Committed",
+        "Anticipated",
+        "Additional policy-supported project",
+    }
     assert all(new_entrant_batteries["status"] == "New Entrant")
 
     all_columns = (
@@ -238,11 +242,15 @@ def test_restructure_battery_property_table(
     # Expected result — v7.4 canonical wide shape (Technology/storage_name as rows,
     # property+unit-suffixed columns).
     expected_csv = """
-    storage_name,                       Maximum__power_MW,  Energy__capacity_Hours, Charge__efficiency_%,   Discharge__efficiency_%,    Round__trip__efficiency_%,  Annual__degradation_%
-    Battery__storage__(1hr__storage),   1.0,                1.0,                    91.7,                   91.7,                       84.0,                       1.8
-    Battery__storage__(2hrs__storage),  1.0,                2.0,                    91.7,                   91.7,                       84.0,                       1.8
-    Battery__storage__(4hrs__storage),  1.0,                4.0,                    92.2,                   92.2,                       85.0,                       1.8
-    Battery__storage__(8hrs__storage),  1.0,                8.0,                    91.1,                   91.1,                       83.0,                       1.8
+    storage_name,                                   Maximum__power_MW,  Energy__capacity_Hours, Charge__efficiency_%,   Discharge__efficiency_%,    Allowable__max__state__of__charge_%,    Allowable__min__state__of__charge_%,    Round__trip__efficiency_%,  Annual__degradation_%
+    Battery__storage__(1hr__storage),               1,                  1.0,                    92.0,                   92.0,                       99.15,                                  0,                                      84,                         1.8
+    Battery__storage__(2hrs__storage),              1,                  2.0,                    92.0,                   92.0,                       99.05,                                  0,                                      84,                         1.8
+    Battery__storage__(4hrs__storage),              1,                  4.0,                    92.5,                   92.5,                       98.8,                                   0,                                      85,                         1.4
+    Battery__storage__(8hrs__storage),              1,                  8.0,                    93.0,                   93.0,                       98.25,                                  0,                                      85,                         1.2
+    Compressed__air,                                1,                  8.0,                    81.0,                   81.0,                       100.0,                                  0,                                      0,                          0.0
+    Distributed__Resources__Batteries,              1,                  2.0,                    92.0,                   92.0,                       99.05,                                  0,                                      84,                         1.8
+    VPP__(aggregated__ESS)__-__Coordinated__CER,    1,                  2.2,                    92.2,                   92.2,                       85.0,                                   0,                                      85,                         1.6
+    VPP__(aggregated__ESS)__-__V2G,                 1,                  2.2,                    92.2,                   92.2,                       85.0,                                   0,                                      85,                         1.6
     """
     expected = csv_str_to_df(expected_csv)
 
@@ -479,8 +487,8 @@ def test_process_and_merge_opex(csv_str_to_df, workbook_table_cache_test_path: P
     # Expected result for fixed O&M costs
     expected_fixed_csv = """
     storage_name,                       technology_type,                    region_id,     sub_region_id,      fom_$/kw/annum
-    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),  NSW,           NNSW,               10.799929999999998
-    Battery__Storage__(1hr__storage),   Battery__Storage__(1hr__storage),   QLD,           SQ,                 7.592029999999999
+    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),  NSW,           NNSW,               13.54339
+    Battery__Storage__(1hr__storage),   Battery__Storage__(1hr__storage),   QLD,           SQ,                 9.1647
     """
     expected_fixed = csv_str_to_df(expected_fixed_csv)
 
@@ -525,8 +533,8 @@ def test_calculate_and_merge_tech_specific_lcfs(
     # Setup test data
     storage_df_csv = """
     storage_name,                       technology_type,                     technology_specific_lcf_%
-    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),   NSW__Low
-    Battery__Storage__(1hr__storage),   Battery__Storage__(1hr__storage),    QLD__Low
+    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),   NNSW
+    Battery__Storage__(1hr__storage),   Battery__Storage__(1hr__storage),    SQ
     """
     storage_df = csv_str_to_df(storage_df_csv)
 
@@ -539,7 +547,7 @@ def test_calculate_and_merge_tech_specific_lcfs(
     expected_csv = """
     storage_name,                       technology_type,                     technology_specific_lcf_%
     Battery__Storage__(1hr__storage),   Battery__Storage__(1hr__storage),    100.0
-    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),   100.0
+    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),   104.5646
     """
     expected = csv_str_to_df(expected_csv)
 
@@ -757,20 +765,19 @@ def test_lcf_keys_on_technology_type_for_per_subregion_names(
     # LCF tables are keyed on. The lcf seed column carries the cost zone.
     storage_df = csv_str_to_df("""
         storage_name,        technology_type,                     technology_specific_lcf_%
-        NNSW__Battery__-__2h, Battery__Storage__(2hrs__storage),  NSW__Low
-        SQ__Battery__-__1h,   Battery__Storage__(1hr__storage),   QLD__Low
+        NNSW__Battery__-__2h, Battery__Storage__(2hrs__storage),  NNSW
+        SQ__Battery__-__1h,   Battery__Storage__(1hr__storage),   SQ
     """)
 
     result = _calculate_and_merge_tech_specific_lcfs(
         storage_df, iasr_tables, "technology_specific_lcf_%"
     )
 
-    # Same LCFs as the storage_name==technology_type case (the test cache maps
-    # both NSW Low / QLD Low battery LCFs to 100.0) — proving the merge resolves
-    # via technology_type despite the per-subregion storage_name.
+    # Same LCFs as the storage_name==technology_type case, proving the merge
+    # resolves via technology_type despite the per-subregion storage_name.
     expected = csv_str_to_df("""
         storage_name,        technology_type,                     technology_specific_lcf_%
-        NNSW__Battery__-__2h, Battery__Storage__(2hrs__storage),  100.0
+        NNSW__Battery__-__2h, Battery__Storage__(2hrs__storage),  104.5646
         SQ__Battery__-__1h,   Battery__Storage__(1hr__storage),   100.0
     """)
     pd.testing.assert_frame_equal(

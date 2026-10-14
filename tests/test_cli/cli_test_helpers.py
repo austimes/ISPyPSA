@@ -136,11 +136,11 @@ def mock_config(tmp_path, mock_workbook_file):
         },
         "temporal": {
             "year_type": "fy",
-            "range": {"start_year": 2025, "end_year": 2026},
+            "range": {"start_year": 2026, "end_year": 2027},
             "capacity_expansion": {
                 "resolution_min": 30,
                 "reference_year_cycle": [2018],
-                "investment_periods": [2025],
+                "investment_periods": [2026],
                 "aggregation": {"representative_weeks": [0]},
             },
             "operational": {
@@ -303,11 +303,11 @@ def create_config_with_granularity(tmp_path, mock_workbook_file, granularity):
         },
         "temporal": {
             "year_type": "fy",
-            "range": {"start_year": 2025, "end_year": 2026},
+            "range": {"start_year": 2026, "end_year": 2027},
             "capacity_expansion": {
                 "resolution_min": 30,
                 "reference_year_cycle": [2018],
-                "investment_periods": [2025],
+                "investment_periods": [2026],
                 "aggregation": {"representative_weeks": [0]},
             },
             "operational": {

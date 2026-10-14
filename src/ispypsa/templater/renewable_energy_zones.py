@@ -67,7 +67,7 @@ def _template_rez_build_limits(
 
     land_use_limit_scenario_str = ""
     if scenario == "Green Energy Exports":
-        land_use_limit_scenario_str = "_green_energy_exports_scenario"
+        land_use_limit_scenario_str = "_accelerated_transition_scenario"
 
     rez_build_limits = rez_build_limits.rename(
         columns={

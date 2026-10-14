@@ -144,29 +144,29 @@ def _template_generator_dynamic_properties(
 
     liquid_fuel_prices = iasr_tables["liquid_fuel_prices"]
     liquid_fuel_prices = _template_liquid_h2_biomethane_prices(
-        liquid_fuel_prices, "liquid_fuel_price", scenario
+        liquid_fuel_prices, "liquid_fuel_price", v74_scenario
     )
 
     hydrogen_prices = iasr_tables["hydrogen_prices"]
     hydrogen_prices = _template_liquid_h2_biomethane_prices(
-        hydrogen_prices, "hydrogen_price", scenario
+        hydrogen_prices, "hydrogen_price", v74_scenario
     )
 
     biomethane_prices = iasr_tables["biomethane_prices"]
     biomethane_prices = _template_liquid_h2_biomethane_prices(
-        biomethane_prices, "biomethane_price", scenario
+        biomethane_prices, "biomethane_price", v74_scenario
     )
 
     biomass_prices = _template_biomass_prices(iasr_tables, scenario)
 
     h2_gpg_emissions_reduction_factors = _template_h2_gpg_emissions_reduction_factors(
-        iasr_tables, scenario
+        iasr_tables, v74_scenario
     )
 
     biom_gpg_emissions_reduction = iasr_tables["gpg_emissions_reduction_biomethane"]
     biom_gpg_emissions_reduction_factors = (
         _template_biom_gpg_emissions_reduction_factors(
-            biom_gpg_emissions_reduction, scenario
+            biom_gpg_emissions_reduction, v74_scenario
         )
     )
 
