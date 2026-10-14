@@ -33,10 +33,10 @@ def _add_fuel_supply_curve(
     consumed beyond each tranche boundary pays the next tranche's premium — a
     convex piecewise-linear fuel cost rising with total fuel consumption.
 
-    Must be called after `network.optimize.create_model()` and re-called after
-    any model rebuild, like `_add_custom_constraints`. Curves for different
-    carriers coexist on one model: each gets its own purchase variables,
-    coupling constraint and objective terms, named by the carrier.
+    Must be called after `network.optimize.create_model()`; `build_pypsa_network`
+    adds each configured curve once. Curves for different carriers coexist on one
+    model: each gets its own purchase variables, coupling constraint and objective
+    terms, named by the carrier.
 
     Args:
         network: The `pypsa.Network` object with its linopy model built.
