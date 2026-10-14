@@ -231,7 +231,6 @@ def build_local_cache(
     cache_path: Path | str,
     workbook_path: Path | str,
     iasr_workbook_version: str,
-    trace_directory: Path | str | None = None,
 ) -> None:
     """Uses `isp-workbook-parser` to build a local cache of parsed workbook CSVs
 
@@ -252,13 +251,6 @@ def build_local_cache(
         workbook_path: Path to an ISP Assumptions Workbook that is supported by
             `isp-workbook-parser`
         iasr_workbook_version: str specifying the version of the work being used.
-        trace_directory: Optional path to the parsed trace data directory. When
-            provided and the source version is v7.x, the v7.4 cache is filtered
-            to the set of generators with matched trace coverage in
-            `<trace_directory>/isp_2024/project/`. Surfaces the data-coverage
-            limitation explicitly at cache load (rather than letting the
-            translator fail at runtime) and persists a dropped-generator
-            manifest CSV. See `filter_v74_ecaa_to_trace_coverage`.
 
     Returns:
         None
@@ -290,7 +282,6 @@ def build_local_cache(
         Path(cache_path),
         tables_to_get,
         iasr_workbook_version,
-        Path(trace_directory) if trace_directory is not None else None,
     )
     return None
 
@@ -299,7 +290,6 @@ def _normalise_cached_csvs_to_v74(
     cache_path: Path,
     table_names: list[str],
     source_version: str,
-    trace_directory: Path | None = None,
 ) -> None:
     """Rewrite cached CSVs with v7.4 canonical column headers + filenames.
 
@@ -332,7 +322,6 @@ def _normalise_cached_csvs_to_v74(
         consolidate_v60_seasonal_ratings_tables,
         drop_v78_not_applicable_build_cost_year,
         expand_v60_auxiliary_load_to_per_generator,
-        filter_v74_ecaa_to_trace_coverage,
         merge_v74_connection_capacity_into_forecast,
         pivot_v74_other_outages_to_wide,
         split_v74_maximum_capacity_commissioning_dates,
@@ -387,11 +376,6 @@ def _normalise_cached_csvs_to_v74(
         # IDs (e.g. "DN1 Option 1"); the merge with options tables (which
         # use bare suffixes) needs them stripped.
         strip_v74_rez_prefix_from_aug_cost_options(cache_path)
-        # Trace-coverage filter: drop v7.4 VRE generators with no matched
-        # 2025-26 trace data (Option B, see methodology note). No-op if
-        # trace_directory not supplied or empty.
-        if trace_directory is not None:
-            filter_v74_ecaa_to_trace_coverage(cache_path, trace_directory)
         return
 
     for table_name in table_names:
