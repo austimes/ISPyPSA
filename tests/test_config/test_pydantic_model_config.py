@@ -99,7 +99,7 @@ def get_valid_config():
         },
         "unserved_energy": {"cost": 10000.0, "max_per_node": 1e5},
         "solver": "highs",
-        "iasr_workbook_version": "6.0",
+        "iasr_workbook_version": "7.8",
         "trace_data": {
             "dataset_type": "example",
             "dataset_year": 2024,
@@ -132,7 +132,12 @@ def invalid_discount_rate(config):
 
 
 def invalid_iasr_workbook_version(config):
-    config["iasr_workbook_version"] = 6.0
+    config["iasr_workbook_version"] = 7.8
+    return config, ValidationError
+
+
+def unsupported_iasr_workbook_version(config):
+    config["iasr_workbook_version"] = "6.0"
     return config, ValidationError
 
 
@@ -311,6 +316,7 @@ def invalid_named_representative_weeks(config):
         invalid_wacc,
         invalid_discount_rate,
         invalid_iasr_workbook_version,
+        unsupported_iasr_workbook_version,
         invalid_solver,
         invalid_regional_granularity,
         invalid_nodes_rezs,
@@ -442,3 +448,19 @@ def test_base_paths_only():
     assert not hasattr(model.paths, "capacity_expansion_timeseries_location")
     assert not hasattr(model.paths, "operational_timeseries_location")
     assert not hasattr(model.paths, "pypsa_outputs_directory")
+
+
+def test_fuel_pricing_defaults_to_blending_biomethane_into_gas():
+    """Omitting the block keeps AEMO's biomethane blend in the gas price trajectory."""
+    model = ModelConfig(**get_valid_config())
+
+    assert model.fuel_pricing.blend_biomethane_into_gas is True
+
+
+def test_fuel_pricing_can_switch_the_biomethane_blend_off():
+    config = get_valid_config()
+    config["fuel_pricing"] = {"blend_biomethane_into_gas": False}
+
+    model = ModelConfig(**config)
+
+    assert model.fuel_pricing.blend_biomethane_into_gas is False

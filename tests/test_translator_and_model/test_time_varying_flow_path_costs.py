@@ -80,7 +80,7 @@ def test_link_expansion_economic_timing(csv_str_to_df, tmp_path, monkeypatch):
             "max_per_node": 1000.0,
         },
         "solver": "highs",
-        "iasr_workbook_version": "6.0",
+        "iasr_workbook_version": "7.8",
     }
 
     # Create demand trace data for regions A and B
@@ -146,6 +146,7 @@ def test_link_expansion_economic_timing(csv_str_to_df, tmp_path, monkeypatch):
         "renewable_energy_zones": pd.DataFrame(),
         "ecaa_batteries": pd.DataFrame(),
         "new_entrant_batteries": pd.DataFrame(),
+        "transmission_wacc": pd.DataFrame({"regulated_transmission_wacc": [0.07]}),
     }
 
     # Create a ModelConfig instance

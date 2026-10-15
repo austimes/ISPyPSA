@@ -62,6 +62,8 @@ class TemporalAggregationConfig(BaseModel):
         ]
         | None
     ) = None
+    scale_sampled_vre_to_full_year: bool = False
+    weight_snapshots_to_full_year_demand: bool = False
 
 
 class TemporalRangeConfig(BaseModel):
@@ -146,6 +148,35 @@ class TraceDataConfig(BaseModel):
     dataset_year: int = 2024
 
 
+class FuelPricingConfig(BaseModel):
+    """How fuel carriers are priced from the IASR fuel price tables.
+
+    AEMO blends biomethane into the gas price trajectory, so the Gas carrier's
+    price rises with the mandated blend share. Setting
+    `blend_biomethane_into_gas` to False prices Gas from `gas_prices` alone,
+    which isolates the blend's cost effect and lets a separate bioenergy model
+    carry the biomethane. Default True reproduces AEMO's own treatment.
+    """
+
+    blend_biomethane_into_gas: bool = True
+
+
+class FuelSupplyCurveConfig(BaseModel):
+    """Stepped supply curve for one fuel consumed by that fuel's generators.
+
+    `curve_csv` points to a CSV defining annual price-quantity tranches
+    (columns: tranche, financial_year, cap_pj, adder_$/gj). Tranche adders are
+    premiums above the IASR baseline fuel prices already embedded in generator
+    marginal costs, so the LP faces a convex piecewise-linear fuel cost that
+    rises with total fuel consumption (ReEDS/IPM-style supply curve anchored at
+    the IASR reference price). Default None leaves the fuel's supply unlimited
+    at the IASR price (the pre-existing behaviour). Used for gas
+    (`gas_supply_curve`) and biomass feedstock (`biomass_supply_curve`).
+    """
+
+    curve_csv: str | None = None
+
+
 class ModelConfig(BaseModel):
     paths: PathsConfig
     scenario: Literal[tuple(_ISP_SCENARIOS)]
@@ -153,9 +184,18 @@ class ModelConfig(BaseModel):
     discount_rate: float
     network: NetworkConfig
     temporal: TemporalConfig
-    iasr_workbook_version: str
+    iasr_workbook_version: Literal["7.8"]
     unserved_energy: UnservedEnergyConfig
     trace_data: TraceDataConfig = TraceDataConfig()
+    fuel_pricing: FuelPricingConfig = FuelPricingConfig()
+    gas_supply_curve: FuelSupplyCurveConfig = FuelSupplyCurveConfig()
+    biomass_supply_curve: FuelSupplyCurveConfig = FuelSupplyCurveConfig()
+    # Enforce the templated `technology_capacity_targets` (state offshore wind and
+    # storage targets) as minimum installed capacity constraints.
+    enforce_technology_capacity_targets: bool = False
+    # Enforce the templated state renewable generation targets (NSW Roadmap, VRET,
+    # TRET and SA net 100% renewable) as custom constraints.
+    enforce_state_generation_targets: bool = False
     filter_by_nem_regions: list[str] | None = None
     filter_by_isp_sub_regions: list[str] | None = None
     solver: Literal[

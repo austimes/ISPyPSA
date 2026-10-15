@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from typing import Literal
 
+import numpy as np
 import pandas as pd
 from isp_trace_parser import construct_reference_year_mapping
 
@@ -19,6 +20,7 @@ from ispypsa.translator.custom_constraints import (
     _append_if_not_empty,
     _translate_custom_constraints,
 )
+from ispypsa.translator.fuel_supply_curve import _translate_fuel_supply_curve
 from ispypsa.translator.generators import (
     _create_unserved_energy_generators,
     _translate_ecaa_generators,
@@ -33,16 +35,33 @@ from ispypsa.translator.renewable_energy_zones import (
     _translate_renewable_energy_zone_build_limits_to_links,
 )
 from ispypsa.translator.snapshots import (
+    _add_investment_periods,
     _add_snapshot_weightings,
+    _create_complete_snapshots_index,
     _create_investment_period_weightings,
     create_pypsa_friendly_snapshots,
+    weight_snapshots_to_full_year_demand,
+)
+from ispypsa.translator.state_generation_targets import (
+    _combine_state_generation_targets,
+    _list_pre_roadmap_generators,
+    _read_distributed_pv_energy,
+    _translate_state_generation_targets,
 )
 from ispypsa.translator.storage import (
     _translate_ecaa_batteries,
     _translate_new_entrant_batteries,
 )
-from ispypsa.translator.temporal_filters import _time_series_filter
+from ispypsa.translator.technology_capacity_targets import (
+    _map_buses_to_nem_regions,
+    _translate_technology_capacity_targets,
+)
+from ispypsa.translator.temporal_filters import (
+    _filter_snapshots_for_representative_weeks,
+    _time_series_filter,
+)
 from ispypsa.translator.time_series_checker import _check_time_series
+from ispypsa.translator.vre_scaling import scale_sampled_vre_trace
 
 _BASE_TRANSLATOR_OUTPUTS = [
     "snapshots",
@@ -55,6 +74,100 @@ _BASE_TRANSLATOR_OUTPUTS = [
     "custom_constraints_rhs",
     "custom_constraints_generators",
 ]
+
+
+def _fill_missing_build_limits_with_inf(batteries: pd.DataFrame) -> pd.DataFrame:
+    """Treat a storage row with no build limit as unlimited.
+
+    ECAA rows have no build-limit column, so the ECAA/new-entrant concat leaves
+    their `p_nom_max` NaN when PHES candidates carry workbook limits; a fixed
+    unit's limit is its `p_nom`, so unlimited is correct. Battery candidates,
+    which the workbook gives no limit, are unlimited by intent.
+    """
+    if "p_nom_max" in batteries.columns:
+        batteries["p_nom_max"] = batteries["p_nom_max"].fillna(np.inf)
+    return batteries
+
+
+def _config_with_transmission_wacc(
+    config: ModelConfig, ispypsa_tables: dict[str, pd.DataFrame]
+) -> ModelConfig:
+    """Return a config whose `wacc` is the templated regulated transmission WACC."""
+    rate = float(
+        ispypsa_tables["transmission_wacc"]["regulated_transmission_wacc"].iloc[0]
+    )
+    return config.model_copy(update={"wacc": rate})
+
+
+def _add_technology_capacity_target_constraints(
+    pypsa_inputs: dict[str, pd.DataFrame],
+    ispypsa_tables: dict[str, pd.DataFrame],
+    investment_periods: list[int],
+) -> None:
+    """Appends technology capacity target constraints to the custom constraint tables."""
+    lhs, rhs = _translate_technology_capacity_targets(
+        ispypsa_tables["technology_capacity_targets"],
+        {
+            "generators": pypsa_inputs["generators"],
+            "batteries": pypsa_inputs["batteries"],
+        },
+        _map_buses_to_nem_regions(
+            ispypsa_tables["sub_regions"], ispypsa_tables["renewable_energy_zones"]
+        ),
+        investment_periods,
+    )
+    _append_custom_constraints(pypsa_inputs, lhs, rhs)
+
+
+def _add_state_generation_target_constraints(
+    pypsa_inputs: dict[str, pd.DataFrame],
+    ispypsa_tables: dict[str, pd.DataFrame],
+    config: ModelConfig,
+) -> None:
+    """Appends state renewable generation target constraints to the custom constraint tables."""
+    investment_periods = config.temporal.capacity_expansion.investment_periods
+    reference_year_mapping = construct_reference_year_mapping(
+        start_year=config.temporal.range.start_year,
+        end_year=config.temporal.range.end_year,
+        reference_years=config.temporal.capacity_expansion.reference_year_cycle,
+    )
+    distributed_pv = _read_distributed_pv_energy(
+        ispypsa_tables["sub_regions"],
+        Path(config.paths.parsed_traces_directory)
+        / f"isp_{config.trace_data.dataset_year}",
+        config.scenario,
+        reference_year_mapping,
+        investment_periods,
+        config.temporal.year_type,
+    )
+    lhs, rhs = _translate_state_generation_targets(
+        _combine_state_generation_targets(
+            ispypsa_tables["renewable_generation_targets"],
+            ispypsa_tables["renewable_share_targets"],
+        ),
+        pypsa_inputs["generators"],
+        pypsa_inputs["links"],
+        _map_buses_to_nem_regions(
+            ispypsa_tables["sub_regions"], ispypsa_tables["renewable_energy_zones"]
+        ),
+        investment_periods,
+        distributed_pv,
+        _list_pre_roadmap_generators(ispypsa_tables["ecaa_generators"]),
+    )
+    _append_custom_constraints(pypsa_inputs, lhs, rhs)
+
+
+def _append_custom_constraints(
+    pypsa_inputs: dict[str, pd.DataFrame], lhs: pd.DataFrame, rhs: pd.DataFrame
+) -> None:
+    """Appends constraint LHS and RHS rows to the custom constraint tables."""
+    for table, constraints in {
+        "custom_constraints_lhs": lhs,
+        "custom_constraints_rhs": rhs,
+    }.items():
+        pypsa_inputs[table] = pd.concat(
+            [pypsa_inputs[table], constraints], ignore_index=True
+        )
 
 
 def create_pypsa_friendly_inputs(
@@ -111,7 +224,6 @@ def create_pypsa_friendly_inputs(
     translated_new_entrant_generators = _translate_new_entrant_generators(
         ispypsa_tables,
         config.temporal.capacity_expansion.investment_periods,
-        config.discount_rate,
         config.network.nodes.regional_granularity,
         config.network.nodes.rezs,
     )
@@ -140,7 +252,6 @@ def create_pypsa_friendly_inputs(
     translated_new_entrant_batteries = _translate_new_entrant_batteries(
         ispypsa_tables,
         config.temporal.capacity_expansion.investment_periods,
-        config.discount_rate,
         config.network.nodes.regional_granularity,
         config.network.nodes.rezs,
     )
@@ -151,6 +262,9 @@ def create_pypsa_friendly_inputs(
             batteries,
             axis=0,
             ignore_index=True,
+        )
+        pypsa_inputs["batteries"] = _fill_missing_build_limits_with_inf(
+            pypsa_inputs["batteries"]
         )
     else:
         logging.warning(
@@ -178,18 +292,26 @@ def create_pypsa_friendly_inputs(
             [pypsa_inputs["generators"], unserved_energy_generators], ignore_index=True
         )
 
+    # Transmission (flow-path + REZ) expansion is regulated network investment,
+    # so annuitise it at AEMO's regulated transmission WACC from the IASR. The
+    # transmission translators read `config.wacc`, so hand them a config copy
+    # carrying that rate.
+    transmission_config = _config_with_transmission_wacc(config, ispypsa_tables)
+
     if config.network.nodes.rezs == "discrete_nodes":
         buses.append(_translate_rezs_to_buses(ispypsa_tables["renewable_energy_zones"]))
         links.append(
             _translate_renewable_energy_zone_build_limits_to_links(
                 ispypsa_tables["renewable_energy_zones"],
                 ispypsa_tables["rez_transmission_expansion_costs"],
-                config,
+                transmission_config,
             )
         )
 
     if config.network.nodes.regional_granularity != "single_region":
-        links.append(_translate_flow_paths_to_links(ispypsa_tables, config))
+        links.append(
+            _translate_flow_paths_to_links(ispypsa_tables, transmission_config)
+        )
 
     pypsa_inputs["buses"] = pd.concat(buses)
 
@@ -200,9 +322,36 @@ def create_pypsa_friendly_inputs(
 
     pypsa_inputs.update(
         _translate_custom_constraints(
-            config, ispypsa_tables, pypsa_inputs["links"], pypsa_inputs["generators"]
+            transmission_config,
+            ispypsa_tables,
+            pypsa_inputs["links"],
+            pypsa_inputs["generators"],
         )
     )
+
+    if config.enforce_technology_capacity_targets:
+        _add_technology_capacity_target_constraints(
+            pypsa_inputs,
+            ispypsa_tables,
+            config.temporal.capacity_expansion.investment_periods,
+        )
+
+    if config.enforce_state_generation_targets:
+        _add_state_generation_target_constraints(pypsa_inputs, ispypsa_tables, config)
+
+    if config.gas_supply_curve.curve_csv is not None:
+        pypsa_inputs["gas_supply_curve"] = _translate_fuel_supply_curve(
+            config.gas_supply_curve.curve_csv,
+            config.temporal.capacity_expansion.investment_periods,
+            "Gas",
+        )
+
+    if config.biomass_supply_curve.curve_csv is not None:
+        pypsa_inputs["biomass_supply_curve"] = _translate_fuel_supply_curve(
+            config.biomass_supply_curve.curve_csv,
+            config.temporal.capacity_expansion.investment_periods,
+            "Biomass",
+        )
 
     return pypsa_inputs
 
@@ -221,12 +370,18 @@ def create_pypsa_friendly_timeseries_inputs(
 
     - First creates snapshots based on the temporal configuration, optionally using
       named_representative_weeks and/or representative_weeks if configured. If snapshots
-      are provided, they are used instead of generating new ones.
+      are provided, they are used instead of generating new ones. If
+      `weight_snapshots_to_full_year_demand` is set in the phase's aggregation config,
+      the snapshot weights are matched to full-year demand (see
+      `weight_snapshots_to_full_year_demand`).
 
     - a time series file is created for each wind and solar generator in the new_entrant_generators
     table (table in ispypsa_tables dict). The time series data is saved in parquet files
     in the 'solar_traces' and 'wind_traces' directories with the columns "snapshots"
-    (datetime) and "p_max_pu" (float specifying availability in MW).
+    (datetime) and "p_max_pu" (float specifying availability in MW). If
+    `scale_sampled_vre_to_full_year` is set in the phase's aggregation config, each
+    sampled wind and solar trace is scaled to its full-year capacity factor (see
+    `scale_sampled_vre_trace`).
 
     - a time series file is created for each generator in the translated generators table
     (table in pypsa_inputs dict) containing the marginal costs for each generator in each
@@ -328,15 +483,34 @@ def create_pypsa_friendly_timeseries_inputs(
             generator_traces=all_generator_traces,
         )
 
+    # VRE traces take weighted snapshots so sampled availability can be scaled to the
+    # full year; the save functions keep only the snapshot and period columns.
+    phase_config = getattr(config.temporal, model_phase)
+    full_year_snapshots = _create_full_year_snapshots(config, model_phase)
+    weighted_snapshots = _add_snapshot_weightings(
+        snapshots.copy(), config.temporal.capacity_expansion.resolution_min
+    )
+    if phase_config.aggregation.weight_snapshots_to_full_year_demand:
+        weighted_snapshots = weight_snapshots_to_full_year_demand(
+            weighted_snapshots,
+            demand_traces,
+            full_year_snapshots,
+            _representative_week_snapshots(config, model_phase, full_year_snapshots),
+            phase_config.resolution_min,
+        )
+    if not phase_config.aggregation.scale_sampled_vre_to_full_year:
+        full_year_snapshots = None
+
     if generator_traces_by_type is not None:
         # Filter and save generator timeseries by type
         for gen_type, gen_traces in generator_traces_by_type.items():
             if gen_traces:
                 _filter_and_save_timeseries(
                     gen_traces,
-                    snapshots,
+                    weighted_snapshots,
                     pypsa_friendly_timeseries_inputs_location,
                     f"{gen_type}_traces",
+                    full_year_snapshots,
                 )
 
     # Filter and save demand timeseries
@@ -354,7 +528,8 @@ def create_pypsa_friendly_timeseries_inputs(
         generator_types=["solar", "wind"],
         reference_year_mapping=reference_year_mapping,
         year_type=config.temporal.year_type,
-        snapshots=snapshots,
+        snapshots=weighted_snapshots,
+        full_year_snapshots=full_year_snapshots,
     )
 
     # This is needed because numbers can be converted to strings if the data has been saved to a csv.
@@ -366,13 +541,10 @@ def create_pypsa_friendly_timeseries_inputs(
         generators,
         snapshots,
         pypsa_friendly_timeseries_inputs_location,
+        blend_biomethane_into_gas=config.fuel_pricing.blend_biomethane_into_gas,
     )
 
-    snapshots = _add_snapshot_weightings(
-        snapshots, config.temporal.capacity_expansion.resolution_min
-    )
-
-    return snapshots
+    return weighted_snapshots
 
 
 def list_timeseries_files(
@@ -443,6 +615,45 @@ def list_timeseries_files(
     return files
 
 
+def _create_full_year_snapshots(
+    config: ModelConfig,
+    model_phase: Literal["capacity_expansion", "operational"],
+) -> pd.DataFrame:
+    """Create the unsampled snapshots of the modelled years.
+
+    Returns:
+        pd.DataFrame with columns "investment_periods" and "snapshots".
+    """
+    phase_config = getattr(config.temporal, model_phase)
+    snapshots = _create_complete_snapshots_index(
+        start_year=config.temporal.range.start_year,
+        end_year=config.temporal.range.end_year,
+        temporal_resolution_min=phase_config.resolution_min,
+        year_type=config.temporal.year_type,
+    )
+    return _add_investment_periods(
+        snapshots,
+        config.temporal.capacity_expansion.investment_periods,
+        config.temporal.year_type,
+    )
+
+
+def _representative_week_snapshots(
+    config: ModelConfig,
+    model_phase: Literal["capacity_expansion", "operational"],
+    full_year_snapshots: pd.DataFrame,
+) -> pd.Series:
+    """Snapshots of the modelled years that fall in the phase's numbered representative weeks."""
+    aggregation = getattr(config.temporal, model_phase).aggregation
+    return _filter_snapshots_for_representative_weeks(
+        representative_weeks=aggregation.representative_weeks,
+        snapshots=full_year_snapshots,
+        start_year=config.temporal.range.start_year,
+        end_year=config.temporal.range.end_year,
+        year_type=config.temporal.year_type,
+    )["snapshots"]
+
+
 def _flatten_generator_traces(
     generator_traces_by_type: dict[str, dict[str, pd.DataFrame]],
 ) -> dict[str, pd.DataFrame] | None:
@@ -468,6 +679,7 @@ def _filter_and_save_timeseries(
     snapshots: pd.DataFrame,
     output_path: Path,
     trace_type: str,
+    full_year_snapshots: pd.DataFrame | None = None,
 ) -> None:
     """Filter timeseries data by snapshots and save to parquet files.
 
@@ -477,6 +689,9 @@ def _filter_and_save_timeseries(
         snapshots: DataFrame containing the expected time series values
         output_path: Path to directory where files will be saved
         trace_type: Type of trace data (e.g., "demand_traces", "solar_traces", "wind_traces")
+        full_year_snapshots: Unsampled snapshots of the modelled years. When given, the
+            sampled availability traces are scaled with `scale_sampled_vre_trace`, which
+            needs the "generators" weighting column in `snapshots`.
     """
     output_trace_path = Path(output_path, trace_type)
     if not output_trace_path.exists():
@@ -493,6 +708,9 @@ def _filter_and_save_timeseries(
         trace = trace.rename(
             columns={"datetime": "snapshots", "value": value_column_name}
         )
+
+        if full_year_snapshots is not None:
+            trace = scale_sampled_vre_trace(name, trace, snapshots, full_year_snapshots)
 
         # Filter by snapshots
         trace = _time_series_filter(trace, snapshots)

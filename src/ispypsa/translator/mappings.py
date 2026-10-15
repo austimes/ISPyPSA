@@ -58,7 +58,39 @@ _GENERATOR_ATTRIBUTE_ORDER = [
     "isp_heat_rate_gj/mwh",
     "isp_resource_type",
     "isp_rez_id",
+    # Emissions metadata (translator-computed; not passed to PyPSA).
+    "isp_capture_rate",
+    "isp_residual_co2_t_per_mwh",
+    "isp_captured_co2_t_per_mwh",
 ]
+
+# Total Scope 1 CO2e (CO2 + CH4_CO2e + N2O_CO2e), kg/GJ, by ISPyPSA carrier.
+# Values are National Greenhouse Accounts (NGA) Factors 2024, Tables 4, 5 and 8.
+_CARRIER_TO_TOTAL_CO2E_KG_PER_GJ = {
+    "Black Coal": 90.24,  # 90.0 + 0.04 + 0.2
+    "Brown Coal": 93.82,  # 93.5 + 0.02 + 0.3
+    "Gas": 51.53,  # 51.4 + 0.1 + 0.03
+    "Liquid Fuel": 70.2,  # 69.9 + 0.1 + 0.2
+    "Biomass": 1.8,  # biogenic CO2; CH4 + N2O combustion residuals
+    "Hydrogen": 0.0,
+    "Biomethane": 0.13,
+    "Nuclear": 0.0,
+    "Wind": 0.0,
+    "Solar": 0.0,
+    "Water": 0.0,
+    "Storage": 0.0,
+    # Hyblend: blended per-period gas+H2 - carbon adder for Hyblend is not
+    # wired in this pass; flag if a sweep needs it. (Scoping uses cost_optimal
+    # which does not have the gpg_emissions_reduction_h2 mandate active.)
+}
+
+# Capture rate (fraction of combustion CO2e captured) by ISPyPSA technology_type.
+# Placeholder values - refine when IASR or AEMO provides per-plant figures.
+# Translator constant by design: keeps the non-IASR assumption out of the
+# IASR catalogue so it is easy to find, flag in metadata, and revise.
+_TECHNOLOGY_TO_CAPTURE_RATE = {
+    "CCGT with CCS": 0.90,
+}
 
 # _GENERATOR_ATTRIBUTES dictionaries:
 # Fields that have "isp_" at the beginning of the value string indicate columns
@@ -101,6 +133,7 @@ _BATTERY_ATTRIBUTE_ORDER = [
     "name",
     "bus",
     "p_nom",
+    "p_nom_max",
     "p_nom_extendable",
     "carrier",
     "max_hours",
@@ -152,7 +185,10 @@ _CUSTOM_CONSTRAINT_TERM_TYPE_TO_COMPONENT_TYPE = {
     "generator_capacity": "Generator",
     "generator_output": "Generator",
     "load_consumption": "Load",
-    "storage_output": "Storage",
+    # ISPyPSA batteries are PyPSA StorageUnit components. The output term is the
+    # discharge variable (StorageUnit-p_dispatch); the capacity term is p_nom.
+    "storage_output": "StorageUnit",
+    "storage_capacity": "StorageUnit",
 }
 
 _CUSTOM_CONSTRAINT_TERM_TYPE_TO_ATTRIBUTE_TYPE = {
@@ -160,7 +196,8 @@ _CUSTOM_CONSTRAINT_TERM_TYPE_TO_ATTRIBUTE_TYPE = {
     "generator_capacity": "p_nom",
     "generator_output": "p",
     "load_consumption": "p",
-    "storage_output": "p",
+    "storage_output": "p_dispatch",
+    "storage_capacity": "p_nom",
 }
 
 _VRE_BUILD_LIMIT_CUSTOM_CONSTRAINT_GROUPS = {
@@ -208,6 +245,17 @@ _VRE_BUILD_LIMIT_CUSTOM_CONSTRAINT_GROUPS = {
         constraint_filter_col="carrier",
         constraint_type="build_limit_mw",
         can_be_relaxed=False,
+        # A land-use limit is definitionally onshore, and AEMO reports
+        # `land_use_limits_mw_wind = 0` for every offshore REZ (V8, V9, T4, N10,
+        # N11). Filtering on `carrier == "Wind"` alone caught the offshore
+        # candidates in that zero cap, and because this group sets
+        # can_be_relaxed=False there was no escape valve: every offshore
+        # candidate was pinned to exactly 0 MW, and the dedicated
+        # `offshore_wind_build_limits` group above (V8 WFL 5,000 / WFX 54,996,
+        # T4 20,360/8,024, N10 7,420, N11 4,452, V9 3,330/780 = 104,362 MW)
+        # was a dead letter. Excluding the offshore resource types here leaves
+        # each group governing what it was written for.
+        exclude_resource_types=("WFL", "WFX"),
     ),
 }
 """ _VRE_BUILD_LIMIT_CUSTOM_CONSTRAINT_GROUPS
@@ -262,3 +310,29 @@ _CARRIER_TO_FUEL_COST_TABLES = {
         base_table="hydrogen_prices",
     ),
 }
+
+# Units counted towards each technology capacity target, as (PyPSA friendly table,
+# PyPSA component, selector returning a boolean mask over that table's rows). A
+# selector sees every unit; the target's region and each unit's activity in the
+# period are applied separately.
+_TECHNOLOGY_CAPACITY_TARGET_UNITS = {
+    "vic_offshore_wind": (
+        "generators",
+        "Generator",
+        lambda units: units["isp_technology_type"].str.startswith("Wind - offshore"),
+    ),
+    # Every storage unit, of any duration.
+    "vic_storage": ("batteries", "StorageUnit", lambda units: units["max_hours"] > 0),
+    # Long-duration storage, eight hours or more.
+    "nsw_eir_sto": ("batteries", "StorageUnit", lambda units: units["max_hours"] >= 8),
+}
+
+# Generator carriers each state generation target counts, per AEMO's 2026 IASR
+# definitions. Solar includes solar thermal and Wind includes offshore wind; Water is
+# conventional hydro (pumped hydro is a StorageUnit, so never counted).
+_NSW_ROADMAP_CARRIERS = ["Solar", "Wind", "Biomass"]
+_VRET_RENEWABLE_CARRIERS = ["Water", "Solar", "Wind", "Biomass"]
+_TRET_RENEWABLE_CARRIERS = ["Water", "Solar", "Wind"]
+_FOSSIL_CARRIERS = ["Black Coal", "Brown Coal", "Gas", "Liquid Fuel"]
+# The VRET denominator counts all thermal generation, fossil or not.
+_THERMAL_CARRIERS = [*_FOSSIL_CARRIERS, "Hydrogen"]

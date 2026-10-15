@@ -2,6 +2,8 @@ import pandas as pd
 import pytest
 
 from ispypsa.templater.helpers import (
+    _assert_equipment_category_survives_lcf_dot,
+    _assert_no_nan_load_bearing_column,
     _manual_remove_footnotes_from_generator_names,
     _rez_name_to_id_mapping,
     _snakecase_string,
@@ -132,6 +134,57 @@ def test_strip_all_text_after_numeric_value_series():
             "...123",  # Remains unchanged (invalid format)
             "+-123",  # Remains unchanged (invalid format)
             ",,,123",  # Remains unchanged (invalid format)
+        ]
+    )
+
+    pd.testing.assert_series_equal(result, expected)
+
+
+def test_strip_all_text_after_numeric_value_plain_multi_digit_integers():
+    """Plain (non-comma-formatted) integers of 4+ digits must survive intact.
+
+    Regression test. The original regex ordered its alternation as
+    `[0-9]{1,3}(?:,[0-9]{3})*|[0-9]+`, so the comma branch also matched a bare
+    1-3 digit run; the trailing `.*` then absorbed the remaining digits and the
+    overall match succeeded without ever backtracking into `[0-9]+`. Every plain
+    4+ digit value was truncated to its first three digits, which silently
+    understated IASR REZ/flow-path augmentation capacities by 10x (and, because
+    the templater derives $/MW from a preserved total project cost, overstated
+    their unit cost by the same factor).
+    """
+    test_series = pd.Series(
+        [
+            "1660",  # AEMO REZ N1 Option 1 additional network capacity (MW)
+            "1000",
+            "12345",
+            "2131000",  # new-entrant wind build cost ($/MW)
+            "1,660",  # comma-formatted equivalent, always worked
+            "680 MW",
+            "4600: 3000)",  # AEMO REZ SEVIC1 Option 1, source cell as published
+            "-1660 deficit",
+            "+1660",
+            "1660.5",
+            "12,345,678",
+            "999",  # 3-digit boundary, unchanged by the fix
+        ]
+    )
+
+    result = _strip_all_text_after_numeric_value(test_series)
+
+    expected = pd.Series(
+        [
+            "1660",
+            "1000",
+            "12345",
+            "2131000",
+            "1,660",
+            "680",
+            "4600",
+            "-1660",
+            "+1660",
+            "1660.5",
+            "12,345,678",
+            "999",
         ]
     )
 
@@ -363,3 +416,55 @@ def test_rez_name_to_id_mapping_empty_input():
 
     # Check the result
     pd.testing.assert_series_equal(result, expected)
+
+
+def test_assert_equipment_category_survives_lcf_dot_passes_when_present():
+    # On correct v7.x data the explicit rename keeps "Equipment costs" shared.
+    shared_cost_cats = [
+        "Equipment costs",
+        "Fuel connection costs",
+        "Installation costs",
+    ]
+    # Should not raise.
+    _assert_equipment_category_survives_lcf_dot(shared_cost_cats)
+
+
+def test_assert_equipment_category_survives_lcf_dot_raises_when_dropped():
+    # This is the ~3-5x-understatement bug signature: the dominant equipment
+    # category fell out of the shared cost categories (e.g. a v7.x column rename
+    # the fuzzy matcher couldn't bridge).
+    shared_cost_cats = ["Fuel connection costs", "Installation costs"]
+    with pytest.raises(ValueError, match="Equipment costs"):
+        _assert_equipment_category_survives_lcf_dot(shared_cost_cats)
+
+
+def test_assert_no_nan_load_bearing_column_passes_when_complete():
+    df = pd.DataFrame(
+        {"technology_type": ["CCGT", "Wind"], "fom_$/kw/annum": [15.0, 25.0]}
+    )
+    # Should not raise.
+    _assert_no_nan_load_bearing_column(
+        df, "fom_$/kw/annum", "technology_type", "new-entrant generator"
+    )
+
+
+def test_assert_no_nan_load_bearing_column_raises_and_names_rows():
+    # A NaN FOM is the fleet-drop bug signature (broken v7.x join key).
+    df = pd.DataFrame(
+        {
+            "technology_type": ["CCGT", "Battery Storage (1hr storage)"],
+            "fom_$/kw/annum": [15.0, pd.NA],
+        }
+    )
+    with pytest.raises(ValueError, match=r"Battery Storage \(1hr storage\)"):
+        _assert_no_nan_load_bearing_column(
+            df, "fom_$/kw/annum", "technology_type", "new-entrant storage"
+        )
+
+
+def test_assert_no_nan_load_bearing_column_noop_when_column_absent():
+    df = pd.DataFrame({"technology_type": ["CCGT"]})
+    # Absent column (e.g. v6.0 fallback) is a no-op, not an error.
+    _assert_no_nan_load_bearing_column(
+        df, "wacc", "technology_type", "new-entrant generator"
+    )

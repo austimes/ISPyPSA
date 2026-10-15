@@ -250,8 +250,9 @@ $$
 c_{a} =\frac{c_{o} \times r }{1 - (1 + r)^{-t}}
 $$
 
-Where $c_{a}$ is the annuitised cost, $c_{o}$ is the overnight build cost, $r$ is the [WACC](config.md#wacc), and $t$ is
-the network cost [annuitisation_lifetime](config.md#networkannuitisation_lifetime).
+Where $c_{a}$ is the annuitised cost, $c_{o}$ is the overnight build cost, $r$ is the regulated electricity transmission
+weighted average cost of capital (WACC) from the IASR `wacc` table, and $t$ is the network cost
+[annuitisation_lifetime](config.md#networkannuitisation_lifetime).
 
 - If a transmission flow path or REZ connection is expanded in one investment period it's annuitised cost multiplied by
 the size of the expansion is incurred in all subsequent investment periods. Transmission expansions are not considered
@@ -278,7 +279,8 @@ and have fixed retirement dates.
   c_{a} =\frac{c_{o} \times r }{1 - (1 + r)^{-t}}
   $$
 
-  Where $c_{a}$ is the annuitised cost and, $r$ is the [WACC](config.md#wacc), and $t$ is the generator lifetime.
+  Where $c_{a}$ is the annuitised cost, $r$ is the technology's WACC from the IASR `wacc` table, and $t$ is the
+  generator lifetime.
   $c_{o}$ includes the overnight build cost (adjusted by locational cost factors), any applicable connection costs
   and/or additional system strength connection costs, and fixed operational costs.
 - Marginal costs in $/MWh are calculated for all generators for each model snapshot based on

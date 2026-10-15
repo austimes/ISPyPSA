@@ -326,9 +326,9 @@ def build_parsed_workbook_cache() -> None:
         raise FileNotFoundError(f"Workbook file not found: {workbook_path}")
 
     # Verify it's an Excel file
-    if workbook_path.suffix.lower() != ".xlsx":
+    if workbook_path.suffix.lower() not in (".xlsx", ".xlsm"):
         raise ValueError(
-            f"Workbook path must point to a .xlsx file, got: {workbook_path}"
+            f"Workbook path must point to a .xlsx or .xlsm file, got: {workbook_path}"
         )
 
     build_local_cache(parsed_workbook_cache, workbook_path, version)
@@ -338,7 +338,7 @@ def download_workbook_from_config() -> None:
     """Download ISP workbook from manifest.
 
     Can be run with direct parameters or with config file:
-    - Direct: ispypsa workbook_version=6.0 workbook_path=path/to/workbook.xlsx download_workbook
+    - Direct: ispypsa workbook_version=7.8 workbook_path=path/to/workbook.xlsm download_workbook
     - Config: ispypsa config=config.yaml download_workbook
     """
     # Check if direct parameters are provided
@@ -359,8 +359,8 @@ def download_workbook_from_config() -> None:
         version = config.iasr_workbook_version
 
     # Validate path
-    if not str(workbook_path).endswith(".xlsx"):
-        raise ValueError(f"workbook_path must end with .xlsx, got: {workbook_path}")
+    if not str(workbook_path).endswith(".xlsm"):
+        raise ValueError(f"workbook_path must end with .xlsm, got: {workbook_path}")
 
     # Log start
     logging.info(f"Downloading ISP workbook version {version} to {workbook_path}")
@@ -522,6 +522,7 @@ def create_and_run_capacity_expansion_model() -> None:
     network = build_pypsa_network(
         pypsa_friendly_input_tables,
         capacity_expansion_timeseries_location,
+        config.filter_by_nem_regions or config.filter_by_isp_sub_regions,
     )
 
     # Save before optimising incase solving fails and you want a copy

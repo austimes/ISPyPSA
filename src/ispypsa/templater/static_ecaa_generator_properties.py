@@ -5,13 +5,18 @@ import pandas as pd
 
 from .helpers import (
     _fuzzy_match_names,
+    _rez_name_to_id_mapping,
     _snakecase_string,
     _where_any_substring_appears,
 )
-from .lists import _ECAA_GENERATOR_TYPES, _MINIMUM_REQUIRED_GENERATOR_COLUMNS
+from .lists import _MINIMUM_REQUIRED_GENERATOR_COLUMNS
 from .mappings import (
     _ECAA_GENERATOR_NEW_COLUMN_MAPPING,
     _ECAA_GENERATOR_STATIC_PROPERTY_TABLE_MAP,
+)
+
+_ECAA_CONSOLIDATED_SUMMARY_TABLE = (
+    "existing_committed_anticipated_additional_generator_summary"
 )
 
 _OBSOLETE_COLUMNS = [
@@ -35,13 +40,10 @@ def _template_ecaa_generators_static_properties(
     logging.info(
         "Creating an existing, committed, anticipated and additional generators template"
     )
-    ecaa_generator_summaries = []
-    for gen_type in _ECAA_GENERATOR_TYPES:
-        df = iasr_tables[_snakecase_string(gen_type) + "_summary"]
-        df.columns = ["Generator", *df.columns[1:]]
-        ecaa_generator_summaries.append(df)
-    ecaa_generator_summaries = pd.concat(ecaa_generator_summaries, axis=0).reset_index(
-        drop=True
+    # v7.4 has a single consolidated summary table. The downstream code expects a "Generator" column
+    # holding the human-readable identifier — in v7.4 that's "Power Station".
+    ecaa_generator_summaries = iasr_tables[_ECAA_CONSOLIDATED_SUMMARY_TABLE].rename(
+        columns={"Power Station": "Generator"}
     )
     cleaned_ecaa_generator_summaries = _clean_generator_summary(
         ecaa_generator_summaries
@@ -138,6 +140,17 @@ def _clean_generator_summary(df: pd.DataFrame) -> pd.DataFrame:
     ) in _ECAA_GENERATOR_NEW_COLUMN_MAPPING.items():
         df[new_column] = df[existing_column_mapping]
 
+    # v7.4 publishes per-plant `Fuel cost mapping` values for Liquid Fuel
+    # generators (e.g. "Hunter Economic Zone"). The translator's
+    # `_get_single_carrier_fuel_prices` for Liquid Fuel doesn't have a
+    # fuel_cost_mapping_col, so it expects every Liquid Fuel generator's
+    # mapping to be "Liquid Fuel" (matching the single aggregated price row).
+    # Override per-plant labels to "Liquid Fuel", consistent with the single
+    # fleet-average price from aggregate_v74_liquid_fuel_prices_to_v60_form.
+    if "fuel_type" in df.columns and "fuel_cost_mapping" in df.columns:
+        liquid_mask = df["fuel_type"] == "Liquid Fuel"
+        df.loc[liquid_mask, "fuel_cost_mapping"] = "Liquid Fuel"
+
     return df
 
 
@@ -175,6 +188,7 @@ def _merge_and_set_ecaa_generators_static_properties(
         df, iasr_tables["gpg_min_stable_level_existing_generators"]
     )
     df = _zero_renewable_heat_rates(df, "heat_rate_gj/mwh")
+    df = _fill_missing_heat_rate_and_vom_from_technology_medians(df)
     df = _zero_renewable_minimum_load(df, "minimum_load_mw")
     df = _zero_ocgt_recip_minimum_load(df, "minimum_load_mw")
     df = _zero_solar_wind_h2gt_partial_outage_derating_factor(
@@ -257,6 +271,52 @@ def _zero_renewable_heat_rates(df: pd.DataFrame, heat_rate_col: str) -> pd.DataF
     return df
 
 
+def _fill_missing_heat_rate_and_vom_from_technology_medians(
+    ecaa_generators: pd.DataFrame,
+) -> pd.DataFrame:
+    """Fill missing heat rates and variable operating costs from same-technology peers.
+
+    Some IASR entries carry no heat rate or variable operating and maintenance (VOM)
+    cost. Left missing, the translator prices their fuel burn and emissions at zero,
+    so they dispatch as free thermal plant. The median of the same technology type
+    across the table is the closest published stand-in. Values are read through
+    `pd.to_numeric` because `_zero_renewable_heat_rates` has already substituted the
+    technology-type string wherever a heat rate was absent.
+
+    Args:
+        ecaa_generators: existing, committed, anticipated and additional generator
+            template with heat rate and VOM columns merged in.
+
+    Returns:
+        pd.DataFrame: ecaa_generators with fillable gaps replaced by the technology-type
+            median. Rows whose technology group has no peer value are left missing.
+    """
+    ecaa_generators = ecaa_generators.copy()
+    filled_generators = set()
+    for col in ("heat_rate_gj/mwh", "vom_$/mwh_sent_out"):
+        was_missing = pd.to_numeric(ecaa_generators[col], errors="coerce").isna()
+        ecaa_generators[col] = _column_filled_from_technology_medians(
+            ecaa_generators, col
+        )
+        newly_filled = was_missing & ecaa_generators[col].notna()
+        filled_generators.update(ecaa_generators.loc[newly_filled, "generator"])
+    if filled_generators:
+        logging.warning(
+            f"ECAA generators given technology-median heat rate/VOM "
+            f"(missing in IASR): {sorted(filled_generators)}"
+        )
+    return ecaa_generators
+
+
+def _column_filled_from_technology_medians(
+    ecaa_generators: pd.DataFrame, col: str
+) -> pd.Series:
+    """Return the numeric column with gaps filled by the median of the same technology type."""
+    values = pd.to_numeric(ecaa_generators[col], errors="coerce")
+    technology_medians = values.groupby(ecaa_generators["technology_type"]).median()
+    return values.fillna(ecaa_generators["technology_type"].map(technology_medians))
+
+
 def _zero_renewable_minimum_load(
     df: pd.DataFrame, minimum_load_col: str
 ) -> pd.DataFrame:
@@ -323,11 +383,13 @@ def _process_and_merge_existing_gpg_min_load(
     """Processes and merges in gas-fired generation minimum load data
 
     Only retains first Gas Turbine min load if there are multiple turbines (OPINIONATED).
+
+    Uses the v7.4 canonical column names `Power Station` and `IASR ID`.
     """
     to_merge = []
-    for station in existing_gpg_min_loads["Generator Station"].drop_duplicates():
+    for station in existing_gpg_min_loads["Power Station"].drop_duplicates():
         station_rows = existing_gpg_min_loads[
-            existing_gpg_min_loads["Generator Station"] == station
+            existing_gpg_min_loads["Power Station"] == station
         ]
         if len(station_rows) > 1:
             # CCGTs with ST and GTs
@@ -337,7 +399,11 @@ def _process_and_merge_existing_gpg_min_load(
                 gt_rows = station_rows.loc[
                     station_rows["Technology Type"].str.contains("Gas Turbine")
                 ]
-                to_merge.append(gt_rows.iloc[0, :].squeeze())
+                # v7.5 lists some CCGT stations (e.g. Torrens Island B) with only
+                # Steam Turbine units in this table; fall back to the first row
+                # when there is no Gas Turbine row to prefer.
+                preferred = gt_rows if len(gt_rows) else station_rows
+                to_merge.append(preferred.iloc[0, :].squeeze())
             # Handles cases like TIPSB
             else:
                 to_merge.append(station_rows.iloc[0, :].squeeze())
@@ -345,12 +411,12 @@ def _process_and_merge_existing_gpg_min_load(
             to_merge.append(station_rows.squeeze())
     processed_gpg_min_loads = pd.concat(to_merge, axis=1).T
     # manual corrections
-    processed_gpg_min_loads["Generator Station"] = processed_gpg_min_loads[
-        "Generator Station"
+    processed_gpg_min_loads["Power Station"] = processed_gpg_min_loads[
+        "Power Station"
     ].replace(
         {"Tamar Valley": "Tamar Valley Combined Cycle", "Condamine": "Condamine A"}
     )
-    processed_gpg_min_loads = processed_gpg_min_loads.set_index("Generator Station")
+    processed_gpg_min_loads = processed_gpg_min_loads.set_index("Power Station")
     for gen, row in processed_gpg_min_loads.iterrows():
         df.loc[df["generator"] == gen, "minimum_load_mw"] = row["Min Stable Level (MW)"]
     return df
@@ -361,10 +427,12 @@ def _add_closure_year_column(
 ) -> pd.DataFrame:
     """Adds a column containing the expected closure year (calendar year) for ECAA generators.
 
-    Note 1: currently only one generator object is templated and translated per ECAA
-    generator, while some generators have multiple units with different expected closure
-    years. This function makes the OPINIONATED choice to return the earliest expected
-    year given in closure_years table for each set of generating units.
+    Note 1: a generator whose units close in different years is split into one row per
+    closure year, holding the capacity of the units that close that year, so its capacity
+    retires unit by unit. The row closing last keeps the generator name; earlier rows are
+    named "<generator> closing <year>", e.g. "Torrens Island B closing 2026". Wind and
+    solar generators, whose traces are looked up by name, close whole at their earliest
+    closure year instead.
 
     Note 2: the IASR table specifies the expected closure years as calendar years, without
     giving more detail about the expected closure month elsewhere. For now, this function
@@ -374,7 +442,8 @@ def _add_closure_year_column(
     Args:
         ecaa_generators: `ISPyPSA` formatted pd.DataFrame detailing the ECAA generators.
         closure_years: pd.Dataframe containing the IASR table `expected_generator_closure_years`
-            for the ECAA generators, by unit. Expects that closure years are given as integers.
+            for the ECAA generators, by unit, with each unit's installed capacity. Expects
+            that closure years are given as integers.
 
     Returns:
         `pd.DataFrame`: ECAA generator attributes table with additional 'closure_year' column.
@@ -382,37 +451,112 @@ def _add_closure_year_column(
 
     default_closure_year = -1
 
-    # reformat closure_years table for clearer mapping:
+    # reformat closure_years table for clearer mapping. v7.4 canonical
+    # identifier column is `power_station` (snakecased from "Power Station").
     closure_years.columns = [_snakecase_string(col) for col in closure_years.columns]
     closure_years = closure_years.rename(
         columns={
-            "generator_name": "generator",
+            "power_station": "generator",
             "expected_closure_year_calendar_year": "closure_year",
         }
     )
 
-    # process closure_years to get the earliest expected closure year for each generator:
-    closure_years = (
-        closure_years.sort_values("closure_year", ascending=True)
-        .drop_duplicates(subset="generator", keep="first")
-        .dropna(subset="closure_year")
-    )
-    closure_years_dict = closure_years.set_index("generator")["closure_year"].to_dict()
+    closure_groups = _group_units_by_closure_year(closure_years)
 
     where_str = df["closure_year"].apply(lambda x: isinstance(x, str))
     df.loc[where_str, "closure_year"] = _fuzzy_match_names(
         df.loc[where_str, "closure_year"],
-        closure_years_dict.keys(),
+        closure_groups["closing_generator"].unique(),
         f"adding closure_year column to ecaa_generators table",
         not_match="existing",
         threshold=85,
     )
-    # map rather than replace to pass default value for undefined closure years:
-    df["closure_year"] = df["closure_year"].map(
-        lambda closure_year: closure_years_dict.get(closure_year, default_closure_year)
+    wind_and_solar = _where_any_substring_appears(
+        df["technology_type"], ["wind", "solar"]
+    )
+    closure_groups = _keep_earliest_closure_year(
+        closure_groups, df.loc[wind_and_solar, "closure_year"]
+    )
+    df = df.merge(
+        closure_groups,
+        how="left",
+        left_on="closure_year",
+        right_on="closing_generator",
+    )
+    df = _split_capacity_by_closure_year(df)
+    df["closure_year"] = df["closing_year"].fillna(default_closure_year).astype(int)
+
+    return df.drop(columns=closure_groups.columns)
+
+
+def _group_units_by_closure_year(closure_years: pd.DataFrame) -> pd.DataFrame:
+    """Each generator's closure years, with the share of its unit capacity closing in
+    each and whether that year is its last.
+    """
+    groups = (
+        closure_years.dropna(subset="closure_year")
+        .groupby(["generator", "closure_year"], as_index=False)["installed_capacity_mw"]
+        .sum()
+    )
+    generator = groups.groupby("generator")
+    groups["capacity_share"] = groups["installed_capacity_mw"] / generator[
+        "installed_capacity_mw"
+    ].transform("sum")
+    groups["closes_last"] = groups["closure_year"] == generator[
+        "closure_year"
+    ].transform("max")
+    return groups.drop(columns="installed_capacity_mw").rename(
+        columns={"generator": "closing_generator", "closure_year": "closing_year"}
     )
 
+
+def _keep_earliest_closure_year(
+    closure_groups: pd.DataFrame, generators: pd.Series
+) -> pd.DataFrame:
+    """Close the listed generators whole at their earliest closure year.
+
+    Wind and solar generators take their availability traces by name, so a row split
+    off under a new name would have no trace.
+    """
+    whole = closure_groups["closing_generator"].isin(generators)
+    earliest = (
+        closure_groups[whole]
+        .sort_values("closing_year")
+        .drop_duplicates("closing_generator")
+        .assign(capacity_share=1.0, closes_last=True)
+    )
+    return pd.concat([closure_groups[~whole], earliest])
+
+
+def _split_capacity_by_closure_year(df: pd.DataFrame) -> pd.DataFrame:
+    """Give each closure-year row of a split generator its units' capacity, and name
+    the rows that close before the generator's last units.
+    """
+    split = df["capacity_share"] < 1.0
+    df.loc[split, "maximum_capacity_mw"] *= df.loc[split, "capacity_share"].astype(
+        float
+    )
+    early = df["closes_last"].eq(False)
+    df.loc[early, "generator"] = (
+        df.loc[early, "generator"]
+        + " closing "
+        + df.loc[early, "closing_year"].astype(int).astype(str)
+    )
     return df
+
+
+def _add_constraint_terms_for_early_closing_units(
+    custom_constraints_lhs: pd.DataFrame, ecaa_generators: pd.DataFrame
+) -> pd.DataFrame:
+    """Repeat each generator's custom constraint terms for its rows of units that close
+    before its last units, so split generators stay fully constrained.
+    """
+    # e.g. "Tarong closing 2036" -> term_id "Tarong"
+    early = ecaa_generators["generator"].str.extract(r"^(?P<term_id>.+) closing \d{4}$")
+    early["early_term_id"] = ecaa_generators["generator"]
+    terms = custom_constraints_lhs.merge(early.dropna(), on="term_id")
+    terms["term_id"] = terms.pop("early_term_id")
+    return pd.concat([custom_constraints_lhs, terms], ignore_index=True)
 
 
 def _add_rez_id_column(
@@ -431,13 +575,26 @@ def _add_rez_id_column(
         pd.DataFrame: ECAA generator DataFrame with REZ ID column added.
     """
 
-    # add a new column to hold the REZ IDs that maps to the current rez_location:
-    df[rez_id_col_name] = df["rez_location"]
-
-    rez_id_table_attributes = dict(table_lookup="Name", table_value="ID")
-    # merge in the REZ IDs:
-    df_with_rez_ids, col = _merge_table_data(
-        df, rez_id_col_name, renewable_energy_zones, rez_id_table_attributes
+    # Source-id-first: the v7.x ECAA summary carries a clean source `rez_id`
+    # column. Use it directly, because the FINAL 2026 ISP names V3 and V4
+    # identically ("Western Victoria") — deriving the id from the name via the
+    # renewable_energy_zones Name->ID lookup collapses both onto one id (V4, the
+    # last duplicate the dict keeps) and silently mis-locates V3's existing
+    # generators (e.g. Bulgana Green Power Hub, source REZ ID V3, was being
+    # reassigned to V4). Fall back to name-derivation only for blank source ids
+    # (v6.0 had no `rez_id` column). Mirrors the source-id-first handling in
+    # `static_new_generator_properties._add_and_clean_rez_ids` and `storage`.
+    # "Not Applicable" (v7.x) and NaN (v6.0) both normalise to NA so downstream
+    # rez_id-based masks (translator REZ-bus reassignment) work for both versions.
+    name_derived_rez_id = _rez_name_to_id_mapping(
+        df["rez_location"].replace("Not Applicable", pd.NA),
+        "rez_location",
+        renewable_energy_zones,
     )
+    if rez_id_col_name in df.columns:
+        source_rez_id = df[rez_id_col_name].replace("Not Applicable", pd.NA)
+        df[rez_id_col_name] = source_rez_id.fillna(name_derived_rez_id)
+    else:
+        df[rez_id_col_name] = name_derived_rez_id
 
-    return df_with_rez_ids
+    return df

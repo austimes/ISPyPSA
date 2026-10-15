@@ -136,11 +136,11 @@ def mock_config(tmp_path, mock_workbook_file):
         },
         "temporal": {
             "year_type": "fy",
-            "range": {"start_year": 2025, "end_year": 2026},
+            "range": {"start_year": 2026, "end_year": 2027},
             "capacity_expansion": {
                 "resolution_min": 30,
                 "reference_year_cycle": [2018],
-                "investment_periods": [2025],
+                "investment_periods": [2026],
                 "aggregation": {"representative_weeks": [0]},
             },
             "operational": {
@@ -153,7 +153,7 @@ def mock_config(tmp_path, mock_workbook_file):
         },
         "unserved_energy": {"cost": 10000.0, "max_per_node": 1e5},
         "solver": "highs",
-        "iasr_workbook_version": "6.0",
+        "iasr_workbook_version": "7.8",
         "paths": {
             "ispypsa_run_name": "test_run",
             "parsed_traces_directory": "tests/trace_data",
@@ -303,11 +303,11 @@ def create_config_with_granularity(tmp_path, mock_workbook_file, granularity):
         },
         "temporal": {
             "year_type": "fy",
-            "range": {"start_year": 2025, "end_year": 2026},
+            "range": {"start_year": 2026, "end_year": 2027},
             "capacity_expansion": {
                 "resolution_min": 30,
                 "reference_year_cycle": [2018],
-                "investment_periods": [2025],
+                "investment_periods": [2026],
                 "aggregation": {"representative_weeks": [0]},
             },
             "operational": {
@@ -320,7 +320,7 @@ def create_config_with_granularity(tmp_path, mock_workbook_file, granularity):
         },
         "unserved_energy": {"cost": 10000.0, "max_per_node": 1e5},
         "solver": "highs",
-        "iasr_workbook_version": "6.0",
+        "iasr_workbook_version": "7.8",
         "paths": {
             "ispypsa_run_name": "test_run",
             "parsed_traces_directory": "NOT_SET_FOR_TESTING",

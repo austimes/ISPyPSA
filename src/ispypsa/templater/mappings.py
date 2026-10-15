@@ -32,8 +32,17 @@ _NEM_SUB_REGION_IDS = pd.Series(
         "Central New South Wales": "CNSW",
         "Southern New South Wales": "SNSW",
         "Sydney, Newcastle, Wollongong": "SNW",
+        # v7.4 split the single "Victoria" subregion into three (MEL/SEV/WNV) and
+        # added "Northern South Australia". "Victoria" is kept for the regional
+        # reference-node table (the VIC region). Without the three VIC + NSA
+        # entries, these fall through as descriptive names (or fuzzy-match the
+        # stale "Victoria"->VIC) and no longer match the demand store's codes.
         "Victoria": "VIC",
+        "Greater Melbourne and Geelong": "MEL",
+        "South East Victoria": "SEV",
+        "West and North Victoria": "WNV",
         "Central South Australia": "CSA",
+        "Northern South Australia": "NSA",
         "South East South Australia": "SESA",
         "Tasmania": "TAS",
     },
@@ -71,6 +80,24 @@ _ECAA_GENERATOR_NEW_COLUMN_MAPPING = {
     "partial_outage_derating_factor_%": "forced_outage_rate_partial_outage_%_of_time",
     "commissioning_date": "generator",
     "closure_year": "generator",
+    # Auxiliary load is published per generator and looked up by Power Station, so
+    # seed the summary's `auxiliary_load_%` column with the generator name.
+    "auxiliary_load_%": "generator",
+    # The summary's own `FOM ($/kW/annum)` cell is a lookup key, not a value, and
+    # AEMO only writes a station name there for thermal plant. Wind, solar and
+    # hydro rows carry a class label ("All Wind", "All Large scale solar PV",
+    # "All Hydro") and two gas rows carry a technology label ("OCGT (small GT)").
+    # `fixed_opex_existing_committed_anticipated_additional_generators` is keyed
+    # solely by Power Station and has no such rows, so the lookup missed and
+    # `_merge_and_set_ecaa_generators_static_properties` turned the leftover
+    # string into pd.NA on 274 of 336 rows. There is no class-level FOM anywhere
+    # in the workbook to reach instead (the Fixed OPEX sheet is 737 per-station
+    # rows, none of them an "All ..." aggregate), so the class labels are AEMO
+    # shorthand for "these are listed individually" and the per-station join is
+    # the intended mapping. Seed from the generator name like the other
+    # Power-Station-keyed lookups above; thermal is unaffected because its
+    # summary cell already held that same station name.
+    "fom_$/kw/annum": "generator",
 }
 
 _NEW_ENTRANT_GENERATOR_NEW_COLUMN_MAPPING = {
@@ -79,7 +106,12 @@ _NEW_ENTRANT_GENERATOR_NEW_COLUMN_MAPPING = {
     # "unit_capacity_mw": "generator_name",
     "lifetime": "generator_name",
     "minimum_stable_level_%": "technology_type",
-    "summer_peak_rating_%": "summer_rating_mw",
+    # new_entrants_summary has no per-row Summer/Winter rating columns. The
+    # static-property lookup against seasonal_ratings_new_entrants uses these
+    # columns as the fuzzy-match key, so `technology_type` seeds all three.
+    "summer_peak_rating_%": "technology_type",
+    "summer_rating_mw": "technology_type",
+    "winter_rating_mw": "technology_type",
     "technology_specific_lcf_%": "regional_build_cost_zone",
 }
 
@@ -97,14 +129,19 @@ _ECAA_STORAGE_NEW_COLUMN_MAPPING = {
 }
 
 _NEW_STORAGE_NEW_COLUMN_MAPPING = {
-    "maximum_capacity_mw": "storage_name",
-    "storage_duration_hours": "storage_name",
-    "round_trip_efficiency_%": "storage_name",
-    "charging_efficiency_%": "storage_name",
-    "discharging_efficiency_%": "storage_name",
-    "lifetime": "storage_name",
+    # v7.5 renamed new-entrant batteries from the generic tech label to
+    # per-subregion names ("NQ Battery - 1h"), so the static-property columns
+    # must be seeded from `technology_type` (the generic "Battery Storage
+    # (Nhr storage)") — which is what the property tables are keyed on — rather
+    # than `storage_name`. In v7.4 the two were identical, so no regression.
+    "maximum_capacity_mw": "technology_type",
+    "storage_duration_hours": "technology_type",
+    "round_trip_efficiency_%": "technology_type",
+    "charging_efficiency_%": "technology_type",
+    "discharging_efficiency_%": "technology_type",
+    "lifetime": "technology_type",
     "technology_specific_lcf_%": "regional_build_cost_zone",
-    "isp_resource_type": "storage_name",
+    "isp_resource_type": "technology_type",
 }
 
 """
@@ -117,16 +154,17 @@ in the new column.
 
 _ECAA_GENERATOR_STATIC_PROPERTY_TABLE_MAP = {
     "maximum_capacity_mw": dict(
-        table=[f"maximum_capacity_{gen_type}" for gen_type in _ECAA_GENERATOR_TYPES],
-        table_lookup="Generator",
-        alternative_lookups=["Project"],
+        table="maximum_capacity_existing_committed_anticipated_additional_generators",
+        table_lookup="Power Station",
         table_value="Installed capacity (MW)",
     ),
     "commissioning_date": dict(
-        table=[f"maximum_capacity_{gen_type}" for gen_type in _ECAA_GENERATOR_TYPES],
-        table_lookup="Generator",
-        alternative_lookups=["Project"],
+        table="maximum_capacity_existing_committed_anticipated_additional_generators",
+        table_lookup="Power Station",
         table_value="Commissioning date",
+        # Confirmed (Committed) dates land in `Commissioning date`; indicative
+        # (Anticipated/Additional) dates land in `Indicative commissioning date`.
+        # Schema normalisation splits the workbook's single date column by Status.
         alternative_values=["Indicative commissioning date"],
     ),
     "maintenance_duration_%": dict(
@@ -136,55 +174,59 @@ _ECAA_GENERATOR_STATIC_PROPERTY_TABLE_MAP = {
     ),
     "minimum_load_mw": dict(
         table="coal_minimum_stable_level",
-        table_lookup="Generating unit",
-        table_value="Minimum Stable Level (MW)",
+        # Keyed by per-unit IASR ID; the value is the technical floor sub-column.
+        table_lookup="IASR ID",
+        table_value="Minimum Stable Level (MW)_Minimum Continuous Operating Level",
     ),
     "fom_$/kw/annum": dict(
         table="fixed_opex_existing_committed_anticipated_additional_generators",
-        table_lookup="Generator",
+        table_lookup="Power Station",
         table_value="Fixed OPEX ($/kW/year)",
     ),
     "vom_$/mwh_sent_out": dict(
         table="variable_opex_existing_committed_anticipated_additional_generators",
-        table_lookup="Generator",
+        # Keyed by "Power Station / Technology" (the cell can be either a
+        # station name or a technology label).
+        table_lookup="Power Station / Technology",
         table_value="Variable OPEX ($/MWh sent out)",
     ),
     "heat_rate": dict(
         table="heat_rates_existing_committed_anticipated_additional_generators",
-        table_lookup="Generator",
+        table_lookup="Power Station",
         table_value="Heat rate (GJ/MWh)",
         new_col_name="heat_rate_gj/mwh",
     ),
     "mlf": dict(
-        table=[
-            f"marginal_loss_factors_{gen_type}" for gen_type in _ECAA_GENERATOR_TYPES
-        ],
-        table_lookup="Generator",
-        alternative_lookups=["Project"],
+        # Single MLF table named (misleadingly)
+        # `marginal_loss_factors_existing_generators` but carrying all ECAA
+        # statuses plus batteries via a `Status` column.
+        table="marginal_loss_factors_existing_generators",
+        table_lookup="Power Station",
         table_value="MLF",
-        alternative_values=["MLF - Generation"],
     ),
     "auxiliary_load_%": dict(
         table="auxiliary_load_existing_committed_anticipated_additional_generators",
-        table_lookup="Fuel/Technology type",
-        table_value="Auxiliary load (% of nameplate capacity)",
+        table_lookup="Power Station",
+        table_value="Auxiliary load (% of generation)",
     ),
+    # Outages live in `other_outages_existing_generators`, which schema
+    # normalisation pivots to a single-year (2025-26) wide form.
     "partial_outage_derating_factor_%": dict(
-        table="outages_2023-2024_existing_generators",
+        table="other_outages_existing_generators",
         table_lookup="Fuel type",
         table_value="Partial Outage Derating Factor (%)",
         generator_status="Existing",
     ),
     "mean_time_to_repair_full_outage": dict(
-        table="outages_2023-2024_existing_generators",
+        table="other_outages_existing_generators",
         table_lookup="Fuel type",
-        table_value="Mean time to repair (hrs)_Full outage",
+        table_value="Full outage MTTR (hrs)",
         generator_status="Existing",
     ),
     "mean_time_to_repair_partial_outage": dict(
-        table="outages_2023-2024_existing_generators",
+        table="other_outages_existing_generators",
         table_lookup="Fuel type",
-        table_value="Mean time to repair (hrs)_Partial outage",
+        table_value="Partial outage MTTR (hrs)",
         generator_status="Existing",
     ),
 }
@@ -207,18 +249,18 @@ corresponding IASR tables and lookup information that can be used to retrieve va
 _NEW_GENERATOR_STATIC_PROPERTY_TABLE_MAP = {
     "summer_peak_rating_%": dict(
         table="seasonal_ratings_new_entrants",
-        table_lookup="Generator type",
+        table_lookup="Technology Type",
         table_value="Summer Peak (% of nameplate)",
     ),
     "summer_rating_mw": dict(
         table="seasonal_ratings_new_entrants",
-        table_lookup="Generator type",
+        table_lookup="Technology Type",
         table_value="Summer Typical (% of nameplate)",
         new_col_name="summer_typical_rating_%",
     ),
     "winter_rating_mw": dict(
         table="seasonal_ratings_new_entrants",
-        table_lookup="Generator type",
+        table_lookup="Technology Type",
         table_value="Winter (% of nameplate)",
         new_col_name="winter_rating_%",
     ),
@@ -234,7 +276,7 @@ _NEW_GENERATOR_STATIC_PROPERTY_TABLE_MAP = {
     # ),
     "maintenance_duration_%": dict(
         table="maintenance_new_entrants",
-        table_lookup="Generator type",
+        table_lookup="Technology Type",
         table_value="Proportion of time out (%)",
     ),
     "fom_$/kw/annum": dict(
@@ -255,13 +297,13 @@ _NEW_GENERATOR_STATIC_PROPERTY_TABLE_MAP = {
     ),
     "mlf": dict(
         table="marginal_loss_factors_new_entrants",
-        table_lookup="Generator",
+        table_lookup="IASR ID",
         table_value="MLF",
     ),
     "auxiliary_load_%": dict(
         table="auxiliary_load_new_entrants",
         table_lookup="Generator",
-        table_value="Auxiliary load (% of nameplate capacity)",
+        table_value="Auxiliary load (% of generation)",
     ),
     "partial_outage_derating_factor_%": dict(
         table="outages_new_entrants",
@@ -271,17 +313,17 @@ _NEW_GENERATOR_STATIC_PROPERTY_TABLE_MAP = {
     "mean_time_to_repair_full_outage": dict(
         table="outages_new_entrants",
         table_lookup="Fuel type",
-        table_value="Mean time to repair (hrs)_Full outage",
+        table_value="Full outage MTTR (hrs)",
     ),
     "mean_time_to_repair_partial_outage": dict(
         table="outages_new_entrants",
         table_lookup="Fuel type",
-        table_value="Mean time to repair (hrs)_Partial outage",
+        table_value="Partial outage MTTR (hrs)",
     ),
     "lifetime": dict(
         table="lead_time_and_project_life",
         table_lookup="Technology",
-        table_value="Technical life (years) 6",
+        table_value="Technical life (years)",
     ),
     "total_lead_time": dict(
         table="lead_time_and_project_life",
@@ -309,43 +351,46 @@ lookup information that can be used to retrieve values.
 """
 
 _ECAA_STORAGE_STATIC_PROPERTY_TABLE_MAP = {
+    # Batteries share the consolidated generators table, so the storage code
+    # reads the same source as the ECAA generator code, then filters by
+    # technology_type containing "battery" downstream.
     "maximum_capacity_mw": dict(
-        table=[f"maximum_capacity_{gen_type}" for gen_type in _ECAA_BATTERY_TYPES],
-        table_lookup="Storage",
-        alternative_lookups=["Project"],
+        table="maximum_capacity_existing_committed_anticipated_additional_generators",
+        table_lookup="Power Station",
         table_value="Installed capacity (MW)",
     ),
     "energy_capacity_mwh": dict(
-        table=[f"maximum_capacity_{gen_type}" for gen_type in _ECAA_BATTERY_TYPES],
-        table_lookup="Storage",
-        alternative_lookups=["Project"],
-        table_value="Energy (MWh)",
+        table="maximum_capacity_existing_committed_anticipated_additional_generators",
+        table_lookup="Power Station",
+        table_value="Storage Capacity (MWh)",
     ),
     "commissioning_date": dict(
-        table=[f"maximum_capacity_{gen_type}" for gen_type in _ECAA_BATTERY_TYPES],
-        table_lookup="Storage",
-        alternative_lookups=["Project"],
-        table_value="Indicative commissioning date",
+        table="maximum_capacity_existing_committed_anticipated_additional_generators",
+        table_lookup="Power Station",
+        # Committed dates sit in `Commissioning date`, indicative ones in
+        # `Indicative commissioning date` (see the ECAA generator map above).
+        table_value="Commissioning date",
+        alternative_values=["Indicative commissioning date"],
     ),
     "fom_$/kw/annum": dict(
         table="fixed_opex_existing_committed_anticipated_additional_generators",
-        table_lookup="Generator",
+        table_lookup="Power Station",
         table_value="Fixed OPEX ($/kW/year)",
     ),
     "round_trip_efficiency_%": dict(
         table="battery_properties",
         table_lookup="storage_name",
-        table_value="Round trip efficiency (utility)",
+        table_value="Round trip efficiency_%",
     ),
     "charging_efficiency_%": dict(
         table="battery_properties",
         table_lookup="storage_name",
-        table_value="Charge efficiency (utility)",
+        table_value="Charge efficiency_%",
     ),
     "discharging_efficiency_%": dict(
         table="battery_properties",
         table_lookup="storage_name",
-        table_value="Discharge efficiency (utility)",
+        table_value="Discharge efficiency_%",
     ),
 }
 
@@ -358,27 +403,27 @@ _NEW_ENTRANT_STORAGE_STATIC_PROPERTY_TABLE_MAP = {
     "lifetime": dict(
         table="lead_time_and_project_life",
         table_lookup="Technology",
-        table_value="Technical life (years) 6",
+        table_value="Technical life (years)",
     ),
     "storage_duration_hours": dict(
         table="battery_properties",
         table_lookup="storage_name",
-        table_value="Energy capacity",
+        table_value="Energy capacity_Hours",
     ),
     "round_trip_efficiency_%": dict(
         table="battery_properties",
         table_lookup="storage_name",
-        table_value="Round trip efficiency (utility)",
+        table_value="Round trip efficiency_%",
     ),
     "charging_efficiency_%": dict(
         table="battery_properties",
         table_lookup="storage_name",
-        table_value="Charge efficiency (utility)",
+        table_value="Charge efficiency_%",
     ),
     "discharging_efficiency_%": dict(
         table="battery_properties",
         table_lookup="storage_name",
-        table_value="Discharge efficiency (utility)",
+        table_value="Discharge efficiency_%",
     ),
 }
 
@@ -392,6 +437,8 @@ _NEW_ENTRANT_STORAGE_STATIC_PROPERTY_TABLE_MAP = {
      `policy_id`: policy corresponding to that parsed table, to be inputted
          into templated table links with the manually_extracted_table
          `policy_generator_types`
+     `row` (optional): text identifying the one target row to keep in a table
+         with several target rows
  """
 _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
     "template_renewable_share_targets": [
@@ -404,6 +451,17 @@ _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
             "csv": "qld_renewable_target_trajectory",
             "region_id": "QLD",
             "policy_id": "qret",
+        },
+        # IASR v7.x tables, one row per target year.
+        {
+            "csv": "vic_renewable_target",
+            "region_id": "VIC",
+            "policy_id": "vret",
+        },
+        {
+            "csv": "sa_renewable_generation_target",
+            "region_id": "SA",
+            "policy_id": "sa_net_renewable",
         },
     ],
     "template_powering_australia_plan": [
@@ -439,6 +497,22 @@ _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
             "region_id": "VIC",
             "policy_id": "vic_offshore_wind",
         },
+        # IASR v7.x names for the three state targets above.
+        {
+            "csv": "nsw_roadmap_storage_power_capacity_trajectory",
+            "region_id": "NSW",
+            "policy_id": "nsw_eir_sto",
+        },
+        {
+            "csv": "vic_storage_target",
+            "region_id": "VIC",
+            "policy_id": "vic_storage",
+        },
+        {
+            "csv": "vic_offshore_wind_target",
+            "region_id": "VIC",
+            "policy_id": "vic_offshore_wind",
+        },
     ],
     "template_renewable_generation_targets": [
         {
@@ -451,11 +525,20 @@ _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
             "region_id": "TAS",
             "policy_id": "tret",
         },
+        # IASR v7.x: the IIO row applies in every scenario except Slower Growth, which
+        # uses the legislated EIR row; ISPyPSA does not model Slower Growth.
+        {
+            "csv": "nsw_roadmap_min_vre_generation_target",
+            "region_id": "NSW",
+            "policy_id": "nsw_iio_gen",
+            "row": "IIO",
+        },
     ],
 }
 
 
-# Subregion flow paths
+# Subregion flow paths, from the IASR 2025-26 sub-region restructure: Victoria split into WNV (Western North Victoria),
+# MEL (Melbourne) and SEV (South East Victoria), and NSA (Northern South Australia) added.
 _SUBREGION_FLOW_PATHS = [
     "CQ-NQ",
     "CQ-GG",
@@ -464,11 +547,17 @@ _SUBREGION_FLOW_PATHS = [
     "CNSW-NNSW",
     "CNSW-SNW",
     "SNSW-CNSW",
-    "VIC-SNSW",
-    "TAS-VIC",
-    "VIC-SESA",
+    "WNV-SNSW",
+    "TAS-SEV",
+    "WNV-SESA",
     "SESA-CSA",
+    "CSA-NSA",
+    "MEL-WNV",
+    "SEV-MEL",
 ]
+
+# ISP cost-scenario suffixes of the flow path and REZ augmentation cost tables.
+_COST_SCENARIOS = ("slower_growth", "step_change", "accelerated_transition")
 
 _FLOW_PATH_AGUMENTATION_TABLES = [
     "flow_path_augmentation_options_" + fp for fp in _SUBREGION_FLOW_PATHS
@@ -478,55 +567,25 @@ _REZ_CONNECTION_AGUMENTATION_TABLES = [
     "rez_augmentation_options_" + region for region in list(_NEM_REGION_IDS)
 ]
 
-_FLOW_PATH_AUGMENTATION_COST_TABLES_PROGRESSIVE_CHANGE = [
-    "flow_path_augmentation_costs_progressive_change_" + fp
-    for fp in _SUBREGION_FLOW_PATHS
-]
+_FLOW_PATH_AUGMENTATION_COST_TABLES = {
+    scenario: [
+        f"flow_path_augmentation_costs_{scenario}_{fp}" for fp in _SUBREGION_FLOW_PATHS
+    ]
+    for scenario in _COST_SCENARIOS
+}
 
-_FLOW_PATH_AUGMENTATION_COST_TABLES_STEP_CHANGE_AND_GREEN_ENERGY_EXPORTS = [
-    "flow_path_augmentation_costs_step_change_and_green_energy_exports_" + fp
-    for fp in _SUBREGION_FLOW_PATHS
-]
-
-_FLOW_PATH_AUGMENTATION_COST_TABLES = (
-    _FLOW_PATH_AUGMENTATION_COST_TABLES_PROGRESSIVE_CHANGE
-    + _FLOW_PATH_AUGMENTATION_COST_TABLES_STEP_CHANGE_AND_GREEN_ENERGY_EXPORTS
-)
-
-_REZ_AUGMENTATION_COST_TABLES_PROGRESSIVE_CHANGE = [
-    "rez_augmentation_costs_progressive_change_" + region
-    for region in list(_NEM_REGION_IDS)
-]
-
-_REZ_AUGMENTATION_COST_TABLES_STEP_CHANGE_AND_GREEN_ENERGY_EXPORTS = [
-    "rez_augmentation_costs_step_change_and_green_energy_exports_" + region
-    for region in list(_NEM_REGION_IDS)
-]
-
-_REZ_AUGMENTATION_COST_TABLES = (
-    _REZ_AUGMENTATION_COST_TABLES_PROGRESSIVE_CHANGE
-    + _REZ_AUGMENTATION_COST_TABLES_STEP_CHANGE_AND_GREEN_ENERGY_EXPORTS
-)
+_REZ_AUGMENTATION_COST_TABLES = {
+    scenario: [
+        f"rez_augmentation_costs_{scenario}_{region}"
+        for region in list(_NEM_REGION_IDS)
+    ]
+    for scenario in _COST_SCENARIOS
+}
 
 _FLOW_PATH_AGUMENTATION_NAME_ADJUSTMENTS = {
     "Notional transfer level increase (MW) Note: Same increase applies to all transfer limit conditions (Peak demand, Summer typical and Winter reference)_Forward direction": "transfer_increase_forward_direction_MW",
     "Notional transfer level increase (MW) Note: Same increase applies to all transfer limit conditions (Peak demand, Summer typical and Winter reference)_Reverse direction": "transfer_increase_reverse_direction_MW",
 }
-
-_PREPATORY_ACTIVITIES_TABLES = [
-    "flow_path_augmentation_costs_step_change_and_green_energy_exports_preparatory_activities",
-    "flow_path_augmentation_costs_progressive_change_preparatory_activities",
-]
-
-_REZ_CONNECTION_PREPATORY_ACTIVITIES_TABLES = [
-    "rez_augmentation_costs_step_change_and_green_energy_exports_preparatory_activities",
-    "rez_augmentation_costs_progressive_change_preparatory_activities",
-]
-
-_ACTIONABLE_ISP_PROJECTS_TABLES = [
-    "flow_path_augmentation_costs_step_change_and_green_energy_exports_actionable_isp_projects",
-    "flow_path_augmentation_costs_progressive_change_actionable_isp_projects",
-]
 
 _PREPATORY_ACTIVITIES_NAME_TO_OPTION_NAME = {
     "500kV QNI Connect (NSW works)": "NNSW–SQ Option 5",
@@ -581,6 +640,7 @@ _FLOW_PATH_CONFIG = {
         "Flow path": "id",
         "Flow Path": "id",
         "Option Name": "option",
+        "Option name": "option",
         "Option": "option",
         "Notional transfer level increase (MW) Note: Same increase applies to all transfer limit conditions (Peak demand, Summer typical and Winter reference)_Forward direction": "forward_capacity_increase",
         "Notional transfer level increase (MW) Note: Same increase applies to all transfer limit conditions (Peak demand, Summer typical and Winter reference)_Reverse direction": "reverse_capacity_increase",
@@ -591,12 +651,7 @@ _FLOW_PATH_CONFIG = {
     },
     "table_names": {
         "augmentation": _FLOW_PATH_AGUMENTATION_TABLES,
-        "cost": {
-            "progressive_change": _FLOW_PATH_AUGMENTATION_COST_TABLES_PROGRESSIVE_CHANGE,
-            "step_change_and_green_energy_exports": _FLOW_PATH_AUGMENTATION_COST_TABLES_STEP_CHANGE_AND_GREEN_ENERGY_EXPORTS,
-        },
-        "prep_activities": _PREPATORY_ACTIVITIES_TABLES,
-        "actionable_projects": _ACTIONABLE_ISP_PROJECTS_TABLES,
+        "cost": _FLOW_PATH_AUGMENTATION_COST_TABLES,
     },
     "mappings": {
         "prep_activities_name_to_option": _PREPATORY_ACTIVITIES_NAME_TO_OPTION_NAME,
@@ -611,9 +666,11 @@ _REZ_CONFIG = {
     "in_coming_column_mappings": {
         "REZ constraint ID": "id",
         "REZ / Constraint ID": "id",
+        "REZ / constraint ID": "id",
         "Option": "option",
         "REZ": "rez",
         "REZ Name": "rez",
+        "REZ name": "rez",
         "Additional network capacity (MW)": "nominal_capacity_increase",
     },
     "out_going_column_mappings": {
@@ -622,11 +679,7 @@ _REZ_CONFIG = {
     },
     "table_names": {
         "augmentation": _REZ_CONNECTION_AGUMENTATION_TABLES,
-        "cost": {
-            "progressive_change": _REZ_AUGMENTATION_COST_TABLES_PROGRESSIVE_CHANGE,
-            "step_change_and_green_energy_exports": _REZ_AUGMENTATION_COST_TABLES_STEP_CHANGE_AND_GREEN_ENERGY_EXPORTS,
-        },
-        "prep_activities": _REZ_CONNECTION_PREPATORY_ACTIVITIES_TABLES,
+        "cost": _REZ_AUGMENTATION_COST_TABLES,
     },
     "prep_activities_mapping": _REZ_PREPATORY_ACTIVITIES_NAME_TO_REZ_AND_OPTION_NAME,
 }
@@ -638,4 +691,5 @@ _VRE_RESOURCE_QUALITY_AND_TECH_CODES = {
     "Wind - offshore (floating)": "WFL",
     "Large scale Solar PV": "SAT",
     "Solar Thermal (15hrs storage)": "CST",
+    "Solar Thermal (16hrs storage)": "CST",
 }

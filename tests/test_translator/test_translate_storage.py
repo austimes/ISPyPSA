@@ -64,6 +64,35 @@ def test_translate_ecaa_batteries_basic(csv_str_to_df):
     assert not extra_cols
 
 
+def test_translate_ecaa_batteries_build_year_from_commissioning_date(
+    csv_str_to_df, caplog
+):
+    """Batteries enter in the financial year of their commissioning date and retire at closure."""
+    ecaa_batteries_csv = """
+    storage_name, sub_region_id, region_id, rez_id, commissioning_date, closure_year, maximum_capacity_mw,  charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  isp_resource_type
+    Existing,     CNSW,          NSW,       ,       ,                   2040,         100,                  95.0,                   95.0,                       2,                      Battery,    Battery__Storage__2h
+    Early,        CNSW,          NSW,       ,       2025-12-01,         2045,         200,                  95.0,                   95.0,                       2,                      Battery,    Battery__Storage__2h
+    Late,         CNSW,          NSW,       ,       2026-08-01,         2046,         300,                  95.0,                   95.0,                       2,                      Battery,    Battery__Storage__2h
+    """
+    ispypsa_tables = {"ecaa_batteries": csv_str_to_df(ecaa_batteries_csv)}
+
+    with caplog.at_level(logging.INFO):
+        result = _translate_ecaa_batteries(ispypsa_tables, [2026])
+
+    expected = csv_str_to_df("""
+    name,      build_year,  lifetime
+    Existing,  2026,        14.0
+    Early,     2026,        19.0
+    """)
+    pd.testing.assert_frame_equal(
+        result[["name", "build_year", "lifetime"]].reset_index(drop=True), expected
+    )
+    assert (
+        "ECAA units commissioning after the final investment period (2026) "
+        "excluded: ['Late']"
+    ) in caplog.text
+
+
 def test_translate_ecaa_batteries_regional_granularity(csv_str_to_df):
     """Test different regional granularity settings."""
     # Create test input data
@@ -155,12 +184,9 @@ def test_translate_new_entrant_batteries_empty_input(caplog):
     """Test that empty input returns empty output."""
     ispypsa_tables = {"new_entrant_batteries": pd.DataFrame()}
     investment_periods = [2025]
-    wacc = 0.05
 
     with caplog.at_level(logging.WARNING):
-        result = _translate_new_entrant_batteries(
-            ispypsa_tables, investment_periods, wacc
-        )
+        result = _translate_new_entrant_batteries(ispypsa_tables, investment_periods)
 
     assert (
         "Templated table 'new_entrant_batteries' is empty - no new entrant batteries will be included in this model."
@@ -173,8 +199,8 @@ def test_translate_new_entrant_batteries_basic(csv_str_to_df, sample_ispypsa_tab
     """Test basic functionality of new entrant batteries translation."""
     # Create test input data
     new_entrant_batteries_csv = """
-    storage_name,          sub_region_id, region_id,       rez_id,     technology_type,                     lifetime,    charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  technology_specific_lcf_%,     connection_cost_$/mw,   fom_$/kw/annum,     isp_resource_type
-    NewBattery1,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          90.0,                   90.0,                       2,                      Battery,    100.0,                         55000.0,                10.0,               Battery__Storage__2h
+    storage_name,          sub_region_id, region_id,       rez_id,     technology_type,                     lifetime,    charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  technology_specific_lcf_%,     connection_cost_$/mw,   fom_$/kw/annum,     isp_resource_type,      wacc
+    NewBattery1,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          90.0,                   90.0,                       2,                      Battery,    100.0,                         55000.0,                10.0,               Battery__Storage__2h,   0.05
     """
 
     ispypsa_tables = {
@@ -182,9 +208,8 @@ def test_translate_new_entrant_batteries_basic(csv_str_to_df, sample_ispypsa_tab
         "new_entrant_build_costs": sample_ispypsa_tables["new_entrant_build_costs"],
     }
     investment_periods = [2025, 2027]
-    wacc = 0.05
 
-    result = _translate_new_entrant_batteries(ispypsa_tables, investment_periods, wacc)
+    result = _translate_new_entrant_batteries(ispypsa_tables, investment_periods)
 
     # Assert expected columns and values
     for templater_name, translated_name in _NEW_ENTRANT_BATTERY_ATTRIBUTES.items():
@@ -206,9 +231,9 @@ def test_translate_new_entrant_batteries_regional_granularity(
 ):
     """Test different regional granularity settings for new entrant batteries."""
     new_entrant_batteries_csv = """
-    storage_name,          sub_region_id, region_id,       rez_id,     technology_type,                     lifetime,    charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  technology_specific_lcf_%,     connection_cost_$/mw,   fom_$/kw/annum,     isp_resource_type
-    NewBattery1,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          90.0,                   90.0,                       2,                      Battery,    100.0,                         55000.0,                10.0,               Battery__Storage__2h
-    NewBattery2,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          95.0,                   95.0,                       2,                      Battery,    100.0,                         55000.0,                7.0,                Battery__Storage__2h
+    storage_name,          sub_region_id, region_id,       rez_id,     technology_type,                     lifetime,    charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  technology_specific_lcf_%,     connection_cost_$/mw,   fom_$/kw/annum,     isp_resource_type,      wacc
+    NewBattery1,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          90.0,                   90.0,                       2,                      Battery,    100.0,                         55000.0,                10.0,               Battery__Storage__2h,   0.05
+    NewBattery2,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          95.0,                   95.0,                       2,                      Battery,    100.0,                         55000.0,                7.0,                Battery__Storage__2h,   0.05
     """
 
     ispypsa_tables = {
@@ -216,23 +241,22 @@ def test_translate_new_entrant_batteries_regional_granularity(
         "new_entrant_build_costs": sample_ispypsa_tables["new_entrant_build_costs"],
     }
     investment_periods = [2025]
-    wacc = 0.05
 
     # Test sub_regions setting
     result_sub = _translate_new_entrant_batteries(
-        ispypsa_tables, investment_periods, wacc, regional_granularity="sub_regions"
+        ispypsa_tables, investment_periods, regional_granularity="sub_regions"
     )
     assert (result_sub["bus"] == "CNSW").all()
 
     # Test nem_regions setting
     result_nem = _translate_new_entrant_batteries(
-        ispypsa_tables, investment_periods, wacc, regional_granularity="nem_regions"
+        ispypsa_tables, investment_periods, regional_granularity="nem_regions"
     )
     assert (result_nem["bus"] == "NSW").all()
 
     # Test single_region setting
     result_single = _translate_new_entrant_batteries(
-        ispypsa_tables, investment_periods, wacc, regional_granularity="single_region"
+        ispypsa_tables, investment_periods, regional_granularity="single_region"
     )
     assert (result_single["bus"] == "NEM").all()
 
@@ -242,9 +266,9 @@ def test_translate_new_entrant_batteries_rez_handling(
 ):
     """Test REZ handling options for new entrant batteries."""
     new_entrant_batteries_csv = """
-    storage_name,          sub_region_id, region_id,       rez_id,     technology_type,                     lifetime,    charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  technology_specific_lcf_%,     connection_cost_$/mw,   fom_$/kw/annum,     isp_resource_type
-    NewBattery1,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          90.0,                   90.0,                       2,                      Battery,    100.0,                         55000.0,                10.0,               Battery__Storage__2h
-    NewBattery2,           CNSW,          NSW,             N3,         Battery__Storage__(2hrs__storage),   20,          95.0,                   95.0,                       2,                      Battery,    100.0,                         55000.0,                7.0,                Battery__Storage__2h
+    storage_name,          sub_region_id, region_id,       rez_id,     technology_type,                     lifetime,    charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  technology_specific_lcf_%,     connection_cost_$/mw,   fom_$/kw/annum,     isp_resource_type,      wacc
+    NewBattery1,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          90.0,                   90.0,                       2,                      Battery,    100.0,                         55000.0,                10.0,               Battery__Storage__2h,   0.05
+    NewBattery2,           CNSW,          NSW,             N3,         Battery__Storage__(2hrs__storage),   20,          95.0,                   95.0,                       2,                      Battery,    100.0,                         55000.0,                7.0,                Battery__Storage__2h,   0.05
     """
 
     ispypsa_tables = {
@@ -252,11 +276,10 @@ def test_translate_new_entrant_batteries_rez_handling(
         "new_entrant_build_costs": sample_ispypsa_tables["new_entrant_build_costs"],
     }
     investment_periods = [2025]
-    wacc = 0.05
 
     # Test discrete_nodes
     result_discrete = _translate_new_entrant_batteries(
-        ispypsa_tables, investment_periods, wacc, rez_handling="discrete_nodes"
+        ispypsa_tables, investment_periods, rez_handling="discrete_nodes"
     )
     assert set(result_discrete["bus"].values) == set(["N3", "CNSW"])
 
@@ -264,7 +287,6 @@ def test_translate_new_entrant_batteries_rez_handling(
     result_attached = _translate_new_entrant_batteries(
         ispypsa_tables,
         investment_periods,
-        wacc,
         regional_granularity="sub_regions",
         rez_handling="attached_to_parent_node",
     )
@@ -298,6 +320,33 @@ def test_add_new_entrant_build_costs(csv_str_to_df, sample_ispypsa_tables):
         expected_result.reset_index(drop=True).sort_values("storage_name"),
         check_dtype=False,
     )
+
+
+def test_add_new_entrant_build_costs_beyond_published_years(
+    csv_str_to_df, sample_ispypsa_tables
+):
+    """Test that a build year beyond the published table holds the last published cost."""
+    batteries_csv = """
+    storage_name,   technology_type,                     build_year
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2029
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2035
+    Battery_2h,     Battery__Storage__(2hrs__storage),   2035
+    """
+    batteries_df = csv_str_to_df(batteries_csv)
+
+    build_costs_df = sample_ispypsa_tables["new_entrant_build_costs"]
+
+    result = _add_new_entrant_battery_build_costs(batteries_df, build_costs_df)
+
+    expected_result_csv = """
+    storage_name,   technology_type,                     build_year,    build_cost_$/mw
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2029,          3500000
+    Battery_4h,     Battery__Storage__(4hrs__storage),   2035,          3500000
+    Battery_2h,     Battery__Storage__(2hrs__storage),   2035,          2500000
+    """
+    expected_result = csv_str_to_df(expected_result_csv)
+
+    pd.testing.assert_frame_equal(result, expected_result, check_dtype=False)
 
 
 def test_add_new_entrant_build_costs_missing_build_year(
@@ -343,19 +392,18 @@ def test_add_new_entrant_build_costs_undefined_build_costs(
 def test_calculate_annuitised_new_entrant_battery_capital_costs(csv_str_to_df):
     """Test that capital costs are correctly annuitised."""
     batteries_csv = """
-    storage_name,       lifetime, fom_$/kw/annum,     connection_cost_$/mw,   build_cost_$/mw, technology_specific_lcf_%
-    Battery_2hr_2024,   30,       15.0,               85000,                  1950000,         100.0
-    Battery_2hr_2026,   25,       20.0,               90000,                  1400000,         95.0
+    storage_name,       lifetime, fom_$/kw/annum,     connection_cost_$/mw,   build_cost_$/mw, technology_specific_lcf_%,   wacc
+    Battery_2hr_2024,   30,       15.0,               85000,                  1950000,         100.0,                       0.05
+    Battery_2hr_2026,   25,       20.0,               90000,                  1400000,         95.0,                        0.05
     """
     batteries_df = csv_str_to_df(batteries_csv)
-    wacc = 0.05  # 5% weighted average cost of capital
 
-    result = _calculate_annuitised_new_entrant_battery_capital_costs(batteries_df, wacc)
+    result = _calculate_annuitised_new_entrant_battery_capital_costs(batteries_df)
 
     expected_result_csv = """
-    storage_name,       lifetime, fom_$/kw/annum,     connection_cost_$/mw,   build_cost_$/mw, technology_specific_lcf_%,   capital_cost
-    Battery_2hr_2024,   30,       15.0,               85000,                  1950000,         100.0,                       147379.67
-    Battery_2hr_2026,   25,       20.0,               90000,                  1400000,         95.0,                        120752.49
+    storage_name,       lifetime, fom_$/kw/annum,     connection_cost_$/mw,   build_cost_$/mw, technology_specific_lcf_%,   wacc,   capital_cost
+    Battery_2hr_2024,   30,       15.0,               85000,                  1950000,         100.0,                       0.05,   147379.67
+    Battery_2hr_2026,   25,       20.0,               90000,                  1400000,         95.0,                        0.05,   120752.49
     """
     expected_result = csv_str_to_df(expected_result_csv)
 

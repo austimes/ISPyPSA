@@ -1,11 +1,727 @@
-Generator name,DUID,Expected Closure Year (Calendar year),QEJP Expected Closure Year (Calendar year) - Phase 1 / Phase2 / Phase
-Kogan Creek,KPP_1,2042,2035
-Braemar,BRAEMAR1,2046,
-Braemar,BRAEMAR2,2046,
-Braemar,BRAEMAR3,2046,
-Condamine A,CPSA,2039,
-White Rock Wind Farm - Stage 1,WRWF1,2038,
-New England Solar Farm - stage 2,,2055,
-Tamworth Solar Farm,,2053,
-Wandoan South Solar Farm - stage 1,WANDSF1,2053,
-Wandoan South BESS,WANDBG1,2051,
+IASR ID,Power Station,Technology Type,Status,Expected Closure Year (Calendar year),Installed capacity (MW)
+BW01,Bayswater,Steam Sub Critical,Existing,2033,660.0
+BW02,Bayswater,Steam Sub Critical,Existing,2033,685.0
+BW03,Bayswater,Steam Sub Critical,Existing,2033,685.0
+BW04,Bayswater,Steam Sub Critical,Existing,2033,685.0
+CALL_B_1,Callide B,Steam Sub Critical,Existing,2031,350.0
+CALL_B_2,Callide B,Steam Sub Critical,Existing,2031,350.0
+CPP_3,Callide C,Steam Super Critical,Existing,2051,424.0
+CPP_4,Callide C,Steam Super Critical,Existing,2051,420.0
+ER01,Eraring,Steam Sub Critical,Existing,2029,720.0
+ER02,Eraring,Steam Sub Critical,Existing,2029,720.0
+ER03,Eraring,Steam Sub Critical,Existing,2029,720.0
+ER04,Eraring,Steam Sub Critical,Existing,2029,720.0
+GSTONE1,Gladstone,Steam Sub Critical,Existing,2029,280.0
+GSTONE2,Gladstone,Steam Sub Critical,Existing,2029,280.0
+GSTONE3,Gladstone,Steam Sub Critical,Existing,2029,280.0
+GSTONE4,Gladstone,Steam Sub Critical,Existing,2029,280.0
+GSTONE5,Gladstone,Steam Sub Critical,Existing,2029,280.0
+GSTONE6,Gladstone,Steam Sub Critical,Existing,2029,280.0
+KPP_1,Kogan Creek,Steam Super Critical,Existing,2042,744.0
+MPP_1,Millmerran,Steam Super Critical,Existing,2051,426.0
+MPP_2,Millmerran,Steam Super Critical,Existing,2051,426.0
+MP1,Mt Piper,Steam Sub Critical,Existing,2040,730.0
+MP2,Mt Piper,Steam Sub Critical,Existing,2040,700.0
+STAN-1,Stanwell,Steam Sub Critical,Existing,2043,365.0
+STAN-2,Stanwell,Steam Sub Critical,Existing,2044,365.0
+STAN-3,Stanwell,Steam Sub Critical,Existing,2045,365.0
+STAN-4,Stanwell,Steam Sub Critical,Existing,2046,365.0
+TARONG#1,Tarong,Steam Sub Critical,Existing,2036,350.0
+TARONG#2,Tarong,Steam Sub Critical,Existing,2036,350.0
+TARONG#3,Tarong,Steam Sub Critical,Existing,2037,350.0
+TARONG#4,Tarong,Steam Sub Critical,Existing,2037,350.0
+TNPS1,Tarong North,Steam Super Critical,Existing,2037,450.0
+VP5,Vales Point B,Steam Sub Critical,Existing,2033,660.0
+VP6,Vales Point B,Steam Sub Critical,Existing,2033,660.0
+LYA1,Loy Yang A Power Station,Steam Sub Critical,Existing,2035,560.0
+LYA2,Loy Yang A Power Station,Steam Sub Critical,Existing,2035,530.0
+LYA3,Loy Yang A Power Station,Steam Sub Critical,Existing,2035,560.0
+LYA4,Loy Yang A Power Station,Steam Sub Critical,Existing,2035,560.0
+LOYYB1,Loy Yang B,Steam Sub Critical,Existing,2047,580.0
+LOYYB2,Loy Yang B,Steam Sub Critical,Existing,2047,580.0
+YWPS1,Yallourn W,Steam Sub Critical,Existing,2028,350.0
+YWPS2,Yallourn W,Steam Sub Critical,Existing,2028,350.0
+YWPS3,Yallourn W,Steam Sub Critical,Existing,2028,375.0
+YWPS4,Yallourn W,Steam Sub Critical,Existing,2028,375.0
+ANGAS1,Angaston,Reciprocating engine,Existing,2070,30.8
+ANGAS2,Angaston,Reciprocating engine,Existing,2070,15.4
+BDL01,Bairnsdale,OCGT (small GT),Existing,2042,47.0
+BDL02,Bairnsdale,OCGT (small GT),Existing,2042,47.0
+BARCALDN,Barcaldine Power Station,OCGT (small GT),Existing,2034,37.0
+BIPS1_01,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BIPS1_02,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BIPS1_03,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BIPS1_04,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BIPS1_05,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BIPS1_06,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BIPS1_07,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BIPS1_08,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BIPS1_09,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BIPS1_10,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BIPS1_11,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BIPS1_12,Barker Inlet Power Station,Reciprocating engine,Existing,2044,17.5
+BBTHREE1,Bell Bay Three,OCGT (large GT),Existing,2040,40.0
+BBTHREE2,Bell Bay Three,OCGT (large GT),Existing,2040,40.0
+BBTHREE3,Bell Bay Three,OCGT (large GT),Existing,2040,40.0
+BOLIVPS1_1,Bolivar Power Station,OCGT (small GT),Existing,2045,32.1
+BOLIVPS1_2,Bolivar Power Station,OCGT (small GT),Existing,2045,32.1
+BOLIVPS1_3,Bolivar Power Station,OCGT (small GT),Existing,2045,32.1
+BOLIVPS1_4,Bolivar Power Station,OCGT (small GT),Existing,2045,32.1
+BRAEMAR1,Braemar,OCGT (large GT),Existing,2046,188.0
+BRAEMAR2,Braemar,OCGT (large GT),Existing,2046,188.0
+BRAEMAR3,Braemar,OCGT (large GT),Existing,2046,188.0
+BRAEMAR5,Braemar 2 Power Station,OCGT (large GT),Existing,2049,173.0
+BRAEMAR6,Braemar 2 Power Station,OCGT (large GT),Existing,2049,173.0
+BRAEMAR7,Braemar 2 Power Station,OCGT (large GT),Existing,2049,173.0
+CG1,Colongra,OCGT (small GT),Existing,2070,181.0
+CG2,Colongra,OCGT (small GT),Existing,2070,181.0
+CG3,Colongra,OCGT (small GT),Existing,2070,181.0
+CG4,Colongra,OCGT (small GT),Existing,2070,181.0
+CPSA_GT1,Condamine A,CCGT - Gas Turbine,Existing,2039,43.7
+CPSA_GT2,Condamine A,CCGT - Gas Turbine,Existing,2039,43.7
+CPSA_ST,Condamine A,CCGT - Steam Turbine,Existing,2039,57.0
+DDPS1_GT1,Darling Downs,CCGT - Gas Turbine,Existing,2045,121.5
+DDPS1_GT2,Darling Downs,CCGT - Gas Turbine,Existing,2045,121.5
+DDPS1_GT3,Darling Downs,CCGT - Gas Turbine,Existing,2045,121.5
+DDPS1_ST,Darling Downs,CCGT - Steam Turbine,Existing,2045,280.0
+DRYCGT1,Dry Creek GT,OCGT (small GT),Existing,2030,52.0
+DRYCGT2,Dry Creek GT,OCGT (small GT),Existing,2030,52.0
+DRYCGT3,Dry Creek GT,OCGT (small GT),Existing,2030,52.0
+AGLHAL01,Hallett GT,OCGT (small GT),Existing,2036,18.9
+AGLHAL02,Hallett GT,OCGT (small GT),Existing,2040,18.9
+AGLHAL03,Hallett GT,OCGT (small GT),Existing,2040,20.8
+AGLHAL04,Hallett GT,OCGT (small GT),Existing,2036,17.0
+AGLHAL05,Hallett GT,OCGT (small GT),Existing,2040,20.8
+AGLHAL06,Hallett GT,OCGT (small GT),Existing,2040,18.0
+AGLHAL07,Hallett GT,OCGT (small GT),Existing,2040,21.8
+AGLHAL08,Hallett GT,OCGT (small GT),Existing,2040,27.0
+AGLHAL09,Hallett GT,OCGT (small GT),Existing,2040,25.6
+AGLHAL10,Hallett GT,OCGT (small GT),Existing,2040,17.0
+AGLHAL11,Hallett GT,OCGT (small GT),Existing,2040,17.0
+AGLHAL12,Hallett GT,OCGT (small GT),Existing,2040,17.0
+AGLHALRE,Hallett GT,OCGT (small GT),Existing,2051,37.2
+HEZ1,Hunter Economic Zone,Reciprocating engine,Existing,2036,20.6
+JLA01,Jeeralang A,OCGT (small GT),Existing,2039,53.0
+JLA02,Jeeralang A,OCGT (small GT),Existing,2039,53.0
+JLA03,Jeeralang A,OCGT (small GT),Existing,2039,53.0
+JLA04,Jeeralang A,OCGT (small GT),Existing,2039,53.0
+JLB01,Jeeralang B,OCGT (small GT),Existing,2039,76.0
+JLB02,Jeeralang B,OCGT (small GT),Existing,2039,76.0
+JLB03,Jeeralang B,OCGT (small GT),Existing,2039,76.0
+LADBROK1,Ladbroke Grove,OCGT (small GT),Existing,2035,40.0
+LADBROK2,Ladbroke Grove,OCGT (small GT),Existing,2035,40.0
+LNGS1,Laverton North,OCGT (large GT),Existing,2070,156.0
+LNGS2,Laverton North,OCGT (large GT),Existing,2070,156.0
+LONSDALE,Lonsdale,Reciprocating engine,Existing,2070,20.2
+MINTARO,Mintaro GT,OCGT (small GT),Existing,2030,90.0
+MORTLK11,Mortlake,OCGT (large GT),Existing,2047,292.0
+MORTLK12,Mortlake,OCGT (large GT),Existing,2047,292.0
+MSTUART1,Mt Stuart,OCGT (small GT),Existing,2033,146.0
+MSTUART2,Mt Stuart,OCGT (small GT),Existing,2033,146.0
+MSTUART3,Mt Stuart,OCGT (small GT),Existing,2044,131.5
+NPS,Newport,CCGT - Steam Turbine,Existing,2039,500.0
+OAKEY1,Oakey Power Station,OCGT (large GT),Existing,2050,173.0
+OAKEY2,Oakey Power Station,OCGT (large GT),Existing,2050,173.0
+OsborneGT,Osborne,CCGT - Gas Turbine,Existing,2027,118.0
+OsborneST,Osborne,CCGT - Steam Turbine,Existing,2027,62.0
+PPCCGTGT1,Pelican Point,CCGT - Gas Turbine,Existing,2037,179.0
+PPCCGTGT2,Pelican Point,CCGT - Gas Turbine,Existing,2037,179.0
+PPCCGTST,Pelican Point,CCGT - Steam Turbine,Existing,2037,171.0
+POR01-1,Port Lincoln GT,OCGT (small GT),Existing,2028,25.0
+POR01-2,Port Lincoln GT,OCGT (small GT),Existing,2028,25.0
+POR01-3,Port Lincoln GT,OCGT (small GT),Existing,2028,23.5
+PTSTAN1_1,Port Stanvac 1,Reciprocating engine,Existing,2070,28.3
+PTSTAN1_2,Port Stanvac 1,Reciprocating engine,Existing,2070,28.3
+QPS1,Quarantine,OCGT (small GT),Existing,2053,29.0
+QPS2,Quarantine,OCGT (small GT),Existing,2054,24.0
+QPS3,Quarantine,OCGT (small GT),Existing,2054,29.0
+QPS4,Quarantine,OCGT (small GT),Existing,2055,24.0
+QPS5,Quarantine,OCGT (small GT),Existing,2044,128.0
+ROMA_7,Roma,OCGT (small GT),Existing,2034,40.0
+ROMA_8,Roma,OCGT (small GT),Existing,2034,40.0
+SITHE01,Smithfield Energy Facility,OCGT (small GT),Existing,2044,125.699999999999
+SNAPPER1_1,Snapper Point Power Station,OCGT (small GT),Existing,2046,30.8
+SNAPPER1_2,Snapper Point Power Station,OCGT (small GT),Existing,2046,30.8
+SNAPPER1_3,Snapper Point Power Station,OCGT (small GT),Existing,2046,30.8
+SNAPPER1_4,Snapper Point Power Station,OCGT (small GT),Existing,2046,30.8
+SNAPPER1_5,Snapper Point Power Station,OCGT (small GT),Existing,2046,30.8
+SNUG1,Snuggery,OCGT (small GT),Existing,2028,21.0
+SNUG2,Snuggery,OCGT (small GT),Existing,2028,21.0
+SNUG3,Snuggery,OCGT (small GT),Existing,2028,21.0
+AGLSOM01,Somerton,OCGT (small GT),Existing,2033,42.5
+AGLSOM02,Somerton,OCGT (small GT),Existing,2033,42.5
+AGLSOM03,Somerton,OCGT (small GT),Existing,2033,42.5
+AGLSOM04,Somerton,OCGT (small GT),Existing,2033,42.5
+SWAN_E,Swanbank E GT,CCGT,Existing,2036,385.0
+TALWA1,Tallawarra,CCGT,Existing,2043,420.0
+Tallawarra B,Tallawarra B,OCGT (large GT),Existing,2053,320.0
+TVCC201_GT,Tamar Valley Combined Cycle,CCGT - Gas Turbine,Existing,2050,140.0
+TVCC201_ST,Tamar Valley Combined Cycle,CCGT - Steam Turbine,Existing,2050,68.0
+TVPP104,Tamar Valley Peaking,OCGT (large GT),Existing,2050,58.0
+TORRB1,Torrens Island B,CCGT - Steam Turbine,Existing,2026,200.0
+TORRB2,Torrens Island B,CCGT - Steam Turbine,Existing,2028,200.0
+TORRB3,Torrens Island B,CCGT - Steam Turbine,Existing,2028,200.0
+TORRB4,Torrens Island B,CCGT - Steam Turbine,Existing,2028,200.0
+YABULU,Townsville Power Station,CCGT - Gas Turbine,Existing,2046,160.0
+YABULU2,Townsville Power Station,CCGT - Steam Turbine,Existing,2046,84.0
+URANQ11,Uranquinty,OCGT (large GT),Existing,2044,173.0
+URANQ12,Uranquinty,OCGT (large GT),Existing,2044,173.0
+URANQ13,Uranquinty,OCGT (large GT),Existing,2044,173.0
+URANQ14,Uranquinty,OCGT (large GT),Existing,2044,173.0
+VPGS1,Valley Power,OCGT (small GT),Existing,2070,50.0
+VPGS2,Valley Power,OCGT (small GT),Existing,2070,50.0
+VPGS3,Valley Power,OCGT (small GT),Existing,2070,50.0
+VPGS4,Valley Power,OCGT (small GT),Existing,2070,50.0
+VPGS5,Valley Power,OCGT (small GT),Existing,2070,50.0
+VPGS6,Valley Power,OCGT (small GT),Existing,2070,50.0
+YARWUN_1,Yarwun Cogen,CCGT,Existing,2050,180.0
+BARRON-1,Barron Gorge,Hydro,Existing,2063,35.0
+BARRON-2,Barron Gorge,Hydro,Existing,2063,35.0
+BASTYAN,Bastyan,Hydro,Existing,2100,79.9
+BLOWERNG,Blowering,Hydro,Existing,2070,80.0
+BOGONG1,Bogong / Mackay,Hydro,Existing,2057,70.0
+BOGONG2,Bogong / Mackay,Hydro,Existing,2057,70.0
+MCKAY11,Bogong / Mackay,Hydro,Existing,2057,26.7
+MCKAY12,Bogong / Mackay,Hydro,Existing,2057,26.7
+MCKAY13,Bogong / Mackay,Hydro,Existing,2057,26.7
+MCKAY14,Bogong / Mackay,Hydro,Existing,2057,26.7
+MCKAY15,Bogong / Mackay,Hydro,Existing,2057,26.7
+MCKAY16,Bogong / Mackay,Hydro,Existing,2057,26.7
+LI111-1,Catagunya / Liapootah / Wayatinah,Hydro,Existing,2100,27.9
+LI112-2,Catagunya / Liapootah / Wayatinah,Hydro,Existing,2100,27.9
+LI113-3,Catagunya / Liapootah / Wayatinah,Hydro,Existing,2100,31.5
+CA111-1,Catagunya / Liapootah / Wayatinah,Hydro,Existing,2100,27.0
+CA112-2,Catagunya / Liapootah / Wayatinah,Hydro,Existing,2100,24.0
+WY111-1,Catagunya / Liapootah / Wayatinah,Hydro,Existing,2100,12.8
+WY111-2,Catagunya / Liapootah / Wayatinah,Hydro,Existing,2100,12.8
+WY111-3,Catagunya / Liapootah / Wayatinah,Hydro,Existing,2100,12.8
+CETHANA,Cethana,Hydro,Existing,2100,85.0
+DARTM1,Dartmouth,Hydro,Existing,2057,185.0
+DEVILS_G,Devils Gate,Hydro,Existing,2100,60.0
+EILDON1,Eildon,Hydro,Existing,2057,67.5
+EILDON2,Eildon,Hydro,Existing,2057,67.5
+FISHER,Fisher,Hydro,Existing,2100,43.2
+GO181-1,Gordon,Hydro,Existing,2100,144.0
+GO182-2,Gordon,Hydro,Existing,2100,144.0
+GO183-3,Gordon,Hydro,Existing,2100,144.0
+GUTHEGA1,Guthega,Hydro,Existing,2070,30.0
+GUTHEGA2,Guthega,Hydro,Existing,2070,30.0
+HUMENSW,Hume Dam NSW,Hydro,Existing,2057,29.0
+HUMEV,Hume Dam VIC,Hydro,Existing,2057,29.0
+JBUTTERS,John Butters,Hydro,Existing,2100,144.0
+KAREEYA1,Kareeya,Hydro,Existing,2057,21.6
+KAREEYA2,Kareeya,Hydro,Existing,2057,21.6
+KAREEYA3,Kareeya,Hydro,Existing,2057,21.6
+KAREEYA4,Kareeya,Hydro,Existing,2057,21.6
+LK_ECHO,Lake Echo,Hydro,Existing,2100,32.4
+LM111-1,Lemonthyme / Wilmot,Hydro,Existing,2100,51.0
+WI111-1,Lemonthyme / Wilmot,Hydro,Existing,2100,30.6
+MACKNTSH,Mackintosh,Hydro,Existing,2100,79.9
+MEADOWBK,Meadowbank,Hydro,Existing,2100,40.0
+MURRAY01,Murray 1,Hydro,Existing,2070,95.0
+MURRAY02,Murray 1,Hydro,Existing,2070,95.0
+MURRAY03,Murray 1,Hydro,Existing,2070,95.0
+MURRAY04,Murray 1,Hydro,Existing,2070,95.0
+MURRAY05,Murray 1,Hydro,Existing,2070,95.0
+MURRAY06,Murray 1,Hydro,Existing,2070,95.0
+MURRAY07,Murray 1,Hydro,Existing,2070,95.0
+MURRAY08,Murray 1,Hydro,Existing,2070,95.0
+MURRAY09,Murray 1,Hydro,Existing,2070,95.0
+MURRAY10,Murray 1,Hydro,Existing,2070,95.0
+MURRAY11,Murray 2,Hydro,Existing,2070,150.0
+MURRAY12,Murray 2,Hydro,Existing,2070,150.0
+MURRAY13,Murray 2,Hydro,Existing,2070,150.0
+MURRAY14,Murray 2,Hydro,Existing,2070,150.0
+PO161-1,Poatina,Hydro,Existing,2100,50.0
+PO162-2,Poatina,Hydro,Existing,2100,50.0
+PO163-3,Poatina,Hydro,Existing,2100,50.0
+PO164-4,Poatina,Hydro,Existing,2100,50.0
+PO165-5,Poatina,Hydro,Existing,2100,50.0
+PO166-6,Poatina,Hydro,Existing,2100,50.0
+REECE1,Reece,Hydro,Existing,2100,115.6
+REECE2,Reece,Hydro,Existing,2100,115.6
+SHGEN01,Shoalhaven,Pumped Hydro (48hrs storage),Existing,2069,41.0
+SHGEN02,Shoalhaven,Pumped Hydro (48hrs storage),Existing,2069,41.0
+SHGEN03,Shoalhaven,Pumped Hydro (48hrs storage),Existing,2069,82.5
+SHGEN04,Shoalhaven,Pumped Hydro (48hrs storage),Existing,2069,82.5
+TA111-1,Tarraleah,Hydro,Existing,2100,15.0
+TA111-2,Tarraleah,Hydro,Existing,2100,15.0
+TA111-3,Tarraleah,Hydro,Existing,2100,15.0
+TA112-4,Tarraleah,Hydro,Existing,2100,15.0
+TA112-5,Tarraleah,Hydro,Existing,2100,15.0
+TA112-6,Tarraleah,Hydro,Existing,2100,15.0
+TR111-1,Trevallyn,Hydro,Existing,2100,20.0
+TR111-2,Trevallyn,Hydro,Existing,2100,20.0
+TR112-3,Trevallyn,Hydro,Existing,2100,26.5
+TR112-4,Trevallyn,Hydro,Existing,2100,26.5
+TRIBUTE,Tribute,Hydro,Existing,2100,82.8
+TUMUT3_01,Tumut 3,Hydro,Existing,2070,250.0
+TUMUT3_02,Tumut 3,Hydro,Existing,2070,250.0
+TUMUT3_03,Tumut 3,Hydro,Existing,2070,250.0
+TUMUT3_04,Tumut 3,Hydro,Existing,2070,250.0
+TUMUT3_05,Tumut 3,Hydro,Existing,2070,250.0
+TUMUT3_06,Tumut 3,Hydro,Existing,2070,250.0
+TU111-1,Tungatinah,Hydro,Existing,2100,25.0
+TU112-2,Tungatinah,Hydro,Existing,2100,25.0
+TU113-3,Tungatinah,Hydro,Existing,2100,25.0
+TU114-4,Tungatinah,Hydro,Existing,2100,25.0
+TU115-5,Tungatinah,Hydro,Existing,2100,25.0
+TUMUT1_01,Upper Tumut,Hydro,Existing,2070,82.0
+TUMUT1_02,Upper Tumut,Hydro,Existing,2070,82.0
+TUMUT1_03,Upper Tumut,Hydro,Existing,2070,82.0
+TUMUT1_04,Upper Tumut,Hydro,Existing,2070,82.0
+TUMUT2_01,Upper Tumut,Hydro,Existing,2070,72.0
+TUMUT2_02,Upper Tumut,Hydro,Existing,2070,72.0
+TUMUT2_03,Upper Tumut,Hydro,Existing,2070,72.0
+TUMUT2_04,Upper Tumut,Hydro,Existing,2070,72.0
+WKIEWA1_1,West Kiewa,Hydro,Existing,2057,17.0
+WKIEWA1_2,West Kiewa,Hydro,Existing,2057,17.0
+WKIEWA2_1,West Kiewa,Hydro,Existing,2057,17.0
+WKIEWA2_2,West Kiewa,Hydro,Existing,2057,17.0
+W/HOE#1,Wivenhoe,Pumped Hydro (10hrs storage),Existing,2084,285.0
+W/HOE#2,Wivenhoe,Pumped Hydro (10hrs storage),Existing,2084,285.0
+BANN1,Bannerton Solar Park,Large scale Solar PV,Existing,2049,100.0
+BERYLSF1,Beryl Solar Farm,Large scale Solar PV,Existing,2049,98.4
+BOWWPV1,Bolivar Waste Water Treatment Solar Farm,Large scale Solar PV,Existing,2041,8.3
+BOMENSF1,Bomen Solar Farm,Large scale Solar PV,Existing,2050,121.0
+BROKENH1,Broken Hill Solar Farm,Large scale Solar PV,Existing,2043,53.2
+BNGSF1,Bungala One Solar Farm,Large scale Solar PV,Existing,2044,135.0
+BNGSF2,Bungala Two Solar Farm,Large scale Solar PV,Existing,2044,135.0
+CHILDSF1,Childers Solar Farm,Large scale Solar PV,Existing,2049,64.4
+CLARESF1,Clare Solar Farm,Large scale Solar PV,Existing,2047,110.4
+CLERMSF1,Clermont Solar Farm,Large scale Solar PV,Existing,2049,92.5
+COLEASF1,Coleambally Solar Farm,Large scale Solar PV,Existing,2043,150.3
+CSPVPS1,Collinsville Solar Farm,Large scale Solar PV,Existing,2044,42.5
+DDSF1,Darling Downs Solar Farm,Large scale Solar PV,Existing,2036,121.0
+DARLSF1,Darlington Point Solar Farm,Large scale Solar PV,Existing,2055,275.4
+DAYDSF1,Daydream Solar Farm,Large scale Solar PV,Existing,2048,167.8
+EMERASF1,Emerald Solar Farm,Large scale Solar PV,Existing,2048,72.0
+FINLYSF1,Finley Solar Farm,Large scale Solar PV,Existing,2049,162.4
+GANNSF1,Gannawarra Solar Farm,Large scale Solar PV,Existing,2048,55.0
+GLENSF1,Glenrowan Solar Farm,Large scale Solar PV,Existing,2053,126.0
+GLRWNSF1,Glenrowan West Solar Farm,Large scale Solar PV,Existing,2051,132.0
+GOONSF1,Goonumbla Solar Farm,Large scale Solar PV,Existing,2050,69.8
+GULLRSF1,Gullen Range Solar Farm,Large scale Solar PV,Existing,2100,10.0
+GNNDHSF1,Gunnedah Solar Farm,Large scale Solar PV,Existing,2056,129.6
+HAMISF1,Hamilton Solar Farm,Large scale Solar PV,Existing,2048,57.5
+HVWWPV1,Happy Valley Reservoir,Large scale Solar PV,Existing,2041,11.0
+HAUGHT11,Haughton Solar Farm,Large scale Solar PV,Existing,2050,132.8
+HAYMSF1,Hayman Solar Farm,Large scale Solar PV,Existing,2048,57.8
+HILLSTN1,Hillston Sun Farm,Large scale Solar PV,Existing,2046,110.0
+HUGSF1,Hughenden Solar Farm,Large scale Solar PV,Existing,2048,21.1
+JEMALNG1,Jemalong Solar,Large scale Solar PV,Existing,2050,55.0
+JUNEESF1,Junee Solar Farm,Large scale Solar PV,Existing,2050,36.1
+KARSF1,Karadoc Solar Farm,Large scale Solar PV,Existing,2048,104.5
+KIAMSF1,Kiamal Solar Farm stage 1,Large scale Solar PV,Existing,2049,199.5
+KSP1,Kidston Solar Farm,Large scale Solar PV,Existing,2037,50.0
+LILYSF1,Lilyvale Solar Farm,Large scale Solar PV,Existing,2048,118.4
+LIMOSF11,Limondale Solar Farm 1,Large scale Solar PV,Existing,2050,230.0
+LIMOSF21,Limondale Solar Farm 2,Large scale Solar PV,Existing,2050,29.0
+LRSF1,Longreach Solar Farm,Large scale Solar PV,Existing,2043,15.0
+MANSLR1,Manildra Solar Farm,Large scale Solar PV,Existing,2048,50.0
+MAPS2PV1,Mannum Adelaide Pumping Station No 2 - MAPL2 (Palmer),Large scale Solar PV,Existing,2041,16.5
+MAPS3PV1,Mannum Adelaide Pumping Station No 3 - MAPL3 (Tungkillo),Large scale Solar PV,Existing,2041,16.5
+MARYRSF1,Maryrorough Solar Farm,Large scale Solar PV,Existing,2048,34.5
+MIDDLSF1,Middlemount Solar Farm,Large scale Solar PV,Existing,2050,30.0
+MOLNGSF1,Molong Solar Farm,Large scale Solar PV,Existing,2045,36.1
+MOREESF1,Moree Solar Farm,Large scale Solar PV,Existing,2046,56.0
+MWPS1PV1,Morgan To Whyalla Pipeline No 1 PS And Water Filtration Plant,Large scale Solar PV,Existing,2041,5.5
+MWPS2PV1,Morgan To Whyalla Pipeline No 2 PS,Large scale Solar PV,Existing,2041,5.5
+MWPS3PV1,Morgan To Whyalla Pipeline No 3 PS,Large scale Solar PV,Existing,2041,8.3
+MWPS4PV1,Morgan To Whyalla Pipeline No 4 PS,Large scale Solar PV,Existing,2041,5.5
+MOUSF1,Moura Solar Farm,Large scale Solar PV,Existing,2057,99.0
+MBPS2PV1,Murray Bridge - Onkaparinga Pipeline Pump 2,Large scale Solar PV,Existing,2041,13.8
+NEVERSF1,Nevertire Solar Farm,Large scale Solar PV,Existing,2049,104.6
+NEWENSF1,New England Solar Farm,Large scale Solar PV,Existing,2073,200.0
+NEWENSF2,New England Solar Farm,Large scale Solar PV,Existing,2073,200.0
+NUMURSF1,Numurkah Solar Farm,Large scale Solar PV,Existing,2044,67.0
+NYNGAN1,Nyngan Solar Plant,Large scale Solar PV,Existing,2042,102.4
+OAKEY1SF,Oakey 1 Solar Farm,Large scale Solar PV,Existing,2043,25.0
+OAKEY2SF,Oakey 2 Solar Farm,Large scale Solar PV,Existing,2049,55.6
+PARSF1,Parkes Solar Farm,Large scale Solar PV,Existing,2042,49.5
+PAREPS1,Port Augusta Renewable Energy Park - Solar,Large scale Solar PV,Existing,2047,99.0
+RRSF1,Ross River Solar Farm,Large scale Solar PV,Existing,2043,128.0
+RUGBYR1,Rugby Run Solar Farm,Large scale Solar PV,Existing,2049,65.0
+SMCSF1,Sun Metals Corporation Solar Farm,Large scale Solar PV,Existing,2042,143.0
+SUNRSF1,Sunraysia Solar Farm,Large scale Solar PV,Existing,2049,228.8
+SUNTPSF1,Suntop Solar Farm,Large scale Solar PV,Existing,2056,158.4
+SRSF1,Susan River Solar Farm,Large scale Solar PV,Existing,2049,85.3
+TBSF1,Tailem Bend Solar Farm,Large scale Solar PV,Existing,2049,108.0
+WARWSF1,Warwick Solar Farm - stage 1,Large scale Solar PV,Existing,2046,32.0
+WARWSF2,Warwick Solar Farm - stage 2,Large scale Solar PV,Existing,2046,32.0
+WELLSF1,Wellington Solar Farm,Large scale Solar PV,Existing,2051,216.5
+WEMENSF1,Wemen Solar Farm,Large scale Solar PV,Existing,2049,97.5
+WSTWYSF1,West Wyalong Solar Farm,Large scale Solar PV,Existing,2058,105.3
+WDGPH1,Western Downs Green Power Hub,Large scale Solar PV,Existing,2046,400.8
+WRSF1,White Rock Solar Farm,Large scale Solar PV,Existing,2043,20.0
+WHITSF1,Whitsunday Solar Farm,Large scale Solar PV,Existing,2048,57.5
+WINTSF1,Winton Solar Farm,Large scale Solar PV,Existing,2051,85.0
+WOOLGSF1,Woolooga Solar Farm,Large scale Solar PV,Existing,2058,222.5
+YARANSF1,Yarranlea Solar Farm,Large scale Solar PV,Existing,2044,121.0
+YATSF1,Yatpool Solar Farm,Large scale Solar PV,Existing,2050,94.0
+ARWF1,Ararat Wind Farm,Wind,Existing,2047,240.0
+BALDHWF1,Bald Hills Wind Farm,Wind,Existing,2040,106.6
+BANGOWF1,Bango 973 Wind Farm,Wind,Existing,2045,159.0
+BANGOWF2,Bango 999 Wind Farm,Wind,Existing,2045,84.8
+BRYB1WF1,Berrybank Wind Farm,Wind,Existing,2051,180.6
+BRYB2WF2,Berrybank Wind Farm,Wind,Existing,2052,109.2
+BOCORWF1,Boco Rock Wind Farm,Wind,Existing,2040,113.0
+BODWF1,Bodangora Wind Farm,Wind,Existing,2049,113.2
+BULGANA1,Bulgana Green Power Hub - Wind Farm,Wind,Existing,2049,200.8
+CNUNDAWF,Canunda Wind Farm,Wind,Existing,2035,46.0
+CAPTL_WF,Capital Wind Farm,Wind,Existing,2040,140.7
+CATHROCK,Cathedral Rocks Wind Farm,Wind,Existing,2030,62.0
+CTHLWF1,Cattle Hill Wind Farm,Wind,Existing,2044,144.0
+CHALLHWF,Challicum Hills Wind Farm,Wind,Existing,2030,52.5
+CHYTWF1,Cherry Tree Wind Farm,Wind,Existing,2050,57.6
+CLEMGPWF,Clements Gap Wind Farm,Wind,Existing,2039,56.7
+COLWF01,Collector Wind Farm,Wind,Existing,2046,226.8
+COOPGWF1,Coopers Gap Wind Farm,Wind,Existing,2044,452.9
+CROOKWF2,Crookwell 2 Wind Farm,Wind,Existing,2043,96.0
+CROWLWF1,Crowlands Wind Farm,Wind,Existing,2044,80.0
+CRURWF1,Crudine Ridge Wind Farm,Wind,Existing,2041,141.7
+CULLRGWF,Cullerin Range Wind Farm,Wind,Existing,2038,30.0
+DULAWF1,Dulacca Wind Farm,Wind,Existing,2053,172.9
+DUNDWF1,Dundonnell Wind Farm,Wind,Existing,2045,168.0
+DUNDWF2,Dundonnell Wind Farm,Wind,Existing,2045,46.2
+DUNDWF3,Dundonnell Wind Farm,Wind,Existing,2045,121.8
+ELAINWF1,Elaine Wind Farm,Wind,Existing,2049,83.6
+GRANWF1,Granville Harbour Wind Farm,Wind,Existing,2055,111.6
+GULLRWF1,Gullen Range Wind Farm,Wind,Existing,2100,165.5
+GULLRWF2,Gullen Range Wind Farm 2,Wind,Existing,2120,110.7
+GUNNING1,Gunning Wind Farm,Wind,Existing,2036,46.5
+NBHWF1,Hallett 4 North Brown Hill Wind Farm,Wind,Existing,2036,132.3
+BLUFF1,Hallett 5 The Bluff Wind Farm,Wind,Existing,2036,52.5
+HALLWF1,Hallett Stage 1 Brown Hill Wind Farm,Wind,Existing,2043,94.5
+HALLWF2,Hallett Stage 2 Hallett Hill Wind Farm,Wind,Existing,2035,71.4
+HDWF1,Hornsdale Wind Farm Stage 1,Wind,Existing,2056,102.4
+HDWF2,Hornsdale Wind Farm Stage 2,Wind,Existing,2057,102.4
+HDWF3,Hornsdale Wind Farm Stage 3,Wind,Existing,2057,112.0
+KIATAWF1,Kiata Wind Farm,Wind,Existing,2042,31.1
+LKBONNY1,Lake Bonney 1 Wind Farm,Wind,Existing,2035,80.5
+LKBONNY2,Lake Bonney 2 Wind Farm,Wind,Existing,2038,159.0
+LKBONNY3,Lake Bonney 3 Wind Farm,Wind,Existing,2040,39.0
+LGAPWF1,Lincoln Gap Wind Farm - stage 1,Wind,Existing,2045,126.0
+LGAPWF2,Lincoln Gap Wind Farm - stage 2,Wind,Existing,2045,86.4
+MACARTH1,Macarthur Wind Farm,Wind,Existing,2038,420.0
+MOORAWF1,Moorabool Wind Farm,Wind,Existing,2044,312.0
+MRTLSWF1,Mortlake South Wind Farm,Wind,Existing,2047,157.5
+MLWF1,Mortons Lane Wind Farm,Wind,Existing,2042,19.5
+MEWF1,Mount Emerald Wind Farm,Wind,Existing,2043,180.7
+MTMILLAR,Mount Millar Wind Farm,Wind,Existing,2035,72.5
+MERCER01,Mt Mercer Wind Farm,Wind,Existing,2043,131.2
+MUWAWF1,Murra Warra Wind Farm - stage 1,Wind,Existing,2049,225.7
+MUWAWF2,Murra Warra Wind Farm - stage 2,Wind,Existing,2052,209.0
+MUSSELR1,Musselroe Wind Farm,Wind,Existing,2050,168.0
+OAKLAND1,Oaklands Hill Wind Farm,Wind,Existing,2037,67.2
+PAREPW1,Port Augusta Renewable Energy Park - Wind,Wind,Existing,2052,201.0
+PORTWF,Portland Wind Farm,Wind,Existing,2040,151.8
+SALTCRK1,Salt Creek Wind Farm,Wind,Existing,2043,54.0
+SAPHWF1,Sapphire Wind Farm,Wind,Existing,2043,270.0
+STWF1,Silverton Wind Farm,Wind,Existing,2043,198.9
+SNOWNTH1,Snowtown S2 Wind Farm,Wind,Existing,2039,144.0
+SNOWSTH1,Snowtown S2 Wind Farm,Wind,Existing,2039,126.0
+SNOWTWN1,Snowtown Wind Farm,Wind,Existing,2033,98.7
+STARHLWF,Starfish Hill Wind Farm,Wind,Existing,2033,33.0
+STOCKYD1,Stockyard Hill Wind Farm,Wind,Existing,2045,527.6
+TARALGA1,Taralga Wind Farm,Wind,Existing,2040,106.8
+WATERLWF,Waterloo Wind Farm,Wind,Existing,2051,130.8
+WPWF,Wattle Point Wind Farm,Wind,Existing,2031,90.8
+WAUBRAWF,Waubra Wind Farm,Wind,Existing,2034,192.0
+WRWF1,White Rock Wind Farm - Stage 1,Wind,Existing,2038,175.0
+WGWF1,Willogoleche Wind Farm,Wind,Existing,2043,119.8
+WOODLWN1,Woodlawn Wind Farm,Wind,Existing,2041,48.3
+WOOLNTH1,Woolnorth Wind Farm,Wind,Existing,2050,138.0
+YSWF1,Yaloak South Wind Farm,Wind,Existing,2047,28.7
+YAMBUKWF,Yambuk Wind Farm,Wind,Existing,2031,30.0
+YENDWF1,Yendon Wind Farm,Wind,Existing,2049,144.4
+Tully Sugar Mill Biomass,Tully Sugar Mill Biomass,Biomass,Existing,2050,32.0
+HUNTER1,Hunter Power Station,OCGT (large GT),Committed,2064,375.0
+HUNTER2,Hunter Power Station,OCGT (large GT),Committed,2064,375.0
+Kidston Pumped Storage Hydro 1,Kidston,Pumped Hydro (10hrs storage),Committed,2065,125.0
+Kidston Pumped Storage Hydro 2,Kidston,Pumped Hydro (10hrs storage),Committed,2065,125.0
+SNO2PH01,Snowy 2.0,Pumped Hydro (1wk storage),Committed,2129,363.0
+SNO2PH02,Snowy 2.0,Pumped Hydro (1wk storage),Committed,2129,371.0
+SNO2PH03,Snowy 2.0,Pumped Hydro (1wk storage),Committed,2129,363.0
+SNO2PH04,Snowy 2.0,Pumped Hydro (1wk storage),Committed,2129,371.0
+SNO2PH05,Snowy 2.0,Pumped Hydro (1wk storage),Committed,2129,363.0
+SNO2PH06,Snowy 2.0,Pumped Hydro (1wk storage),Committed,2129,371.0
+ADPPV1,Adelaide Desalination Plant Solar Farm,Large scale Solar PV,Existing,2041,11.0
+AVLSF1,Avonlie Solar Farm,Large scale Solar PV,Existing,2058,254.1
+BLUEGSF1,Bluegrass Solar Farm,Large scale Solar PV,Existing,2057,148.0
+Broadsound Solar Farm,Broadsound Solar Farm,Large scale Solar PV,Committed,2056,368.0
+Bundaberg Solar Farm,Bundaberg Solar Farm,Large scale Solar PV,Committed,2055,78.0
+COHUNSF1,Cohuna Solar Farm,Large scale Solar PV,Existing,2045,31.2
+COLUMSF1,Columboola Solar Farm,Large scale Solar PV,Existing,2046,217.3
+CRWASF1,Corowa Solar Farm,Large scale Solar PV,Existing,2051,36.1
+Culcairn Solar Farm,Culcairn Solar Farm,Large scale Solar PV,Existing,2060,349.7
+EDENVSF1,Edenvale Solar Park,Large scale Solar PV,Existing,2053,180.0
+GANGARR1,Gangarri Solar Farm,Large scale Solar PV,Committed,2051,162.0
+GIRGSF,Girgarre Solar Farm,Large scale Solar PV,Existing,2054,93.5
+Goorambat East Solar Farm,Goorambat East Solar Farm,Large scale Solar PV,Committed,2061,250.0
+KEPSF1,Kennedy Energy Park Solar Farm,Large scale Solar PV,Existing,2046,15.0
+KINGASF1,Kingaroy Solar Farm,Large scale Solar PV,Existing,2050,40.0
+Lockhart Hybrid Facility - Solar,Lockhart Hybrid Facility - Solar,Large scale Solar PV,Committed,2056,10.0
+MANSF2,Mannum Solar Farm 2,Large scale Solar PV,Committed,2058,30.0
+METZSF1,Metz Solar Farm,Large scale Solar PV,Existing,2052,135.0
+QPSF,Quorn Park Solar Farm,Large scale Solar PV,Committed,2055,96.8
+SEBSF1,Sebastopol Solar Farm,Large scale Solar PV,Existing,2052,90.0
+Stubbo Solar Farm,Stubbo Solar Farm,Large scale Solar PV,Existing,2073,400.0
+TB2SF1,Tailem Bend Solar Farm - stage 2,Large scale Solar PV,Committed,2053,105.0
+Tilbuster Solar Farm,Tilbuster Solar Farm,Large scale Solar PV,Anticipated,2058,249.3
+WAGGNSF1,Wagga North Solar Farm,Large scale Solar PV,Committed,2050,55.8
+WLWLSF1,Walla Walla Solar Farm,Large scale Solar PV,Existing,2054,152.2
+WLWLSF2,Walla Walla Solar Farm,Large scale Solar PV,Existing,2054,152.2
+WANDSF1,Wandoan South Solar Farm - stage 1,Large scale Solar PV,Committed,2053,160.0
+WELNSF1,Wellington North Solar Farm (Lightsource),Large scale Solar PV,Existing,2064,436.8
+WOLARSF1,Wollar Solar Farm,Large scale Solar PV,Existing,2054,280.0
+WUNUSF1,Wunghnu Solar Farm,Large scale Solar PV,Committed,2065,93.5
+WYASF1,Wyalong Solar Farm,Large scale Solar PV,Existing,2057,62.3
+CLRKCWF1,Clarke Creek Wind Farm,Wind,Committed,2049,346.5
+CLRKCWF2,Clarke Creek Wind Farm,Wind,Committed,2049,103.5
+CROOKWF3,Crookwell 3 Wind Farm,Wind,Existing,2054,57.6
+FLYCRKWF,Flyers Creek Wind Farm,Wind,Existing,2063,145.5
+GPWFEST1,Golden Plains Wind Farm East,Wind,Committed,2055,248.0
+GPWFEST2,Golden Plains Wind Farm East,Wind,Committed,2055,260.4
+GPWFEST3,Golden Plains Wind Farm East,Wind,Committed,2055,248.0
+GSWF1A,Goyder South Wind Farm 1A,Wind,Existing,2048,209.0
+GSWF1B,Goyder South Wind Farm 1B,Wind,Existing,2049,203.5
+HD1WF1,Hawkesdale Wind Farm,Wind,Existing,2054,96.6
+KABANWF1,Kaban Green Power Hub - Wind Farm,Wind,Existing,2048,156.8
+KEPWF1,Kennedy Energy Park Wind Farm,Wind,Existing,2046,43.2
+MacIntyre Wind Farm,MacIntyre Wind Farm,Wind,Committed,2054,923.4
+MTGELWF1,Mt Gellibrand Wind Farm,Wind,Existing,2043,138.7
+RYANCWF1,Ryan Corner Wind Farm,Wind,Existing,2054,218.4
+Rye Park Wind Farm,Rye Park Wind Farm,Wind,Existing,2048,396.0
+Wambo Wind Farm,Wambo Wind Farm,Wind,Committed,2055,252.0
+Aldoga Solar Farm,Aldoga Solar Farm,Large scale Solar PV,Existing,2051,387.8
+Aramara Solar Farm,Aramara Solar Farm,Large scale Solar PV,Anticipated,2054,132.0
+Banksia Solar Farm,Banksia Solar Farm,Large scale Solar PV,Committed,2057,70.4
+Derby Solar Farm,Derby Solar Farm,Large scale Solar PV,Anticipated,2057,95.1
+Frasers Solar Farm,Frasers Solar Farm,Large scale Solar PV,Anticipated,2054,77.0
+Goulburn River Solar Farm,Goulburn River Solar Farm,Large scale Solar PV,Committed,2067,588.0
+Horsham Solar Farm,Horsham Solar Farm,Large scale Solar PV,Committed,2066,118.8
+Maryvale Solar Farm,Maryvale Solar Farm,Large scale Solar PV,Anticipated,2062,172.0
+Mortlake Energy Hub Solar Farm,Mortlake Energy Hub Solar Farm,Large scale Solar PV,Anticipated,2068,333.6
+Munna Creek Solar Farm,Munna Creek Solar Farm,Large scale Solar PV,Committed,2053,154.0
+New England Solar Farm 2,New England Solar Farm - Stage 2,Large scale Solar PV,Anticipated,2075,320.0
+Punch's Creek Renewable Energy Solar Farm,Punch's Creek Renewable Energy Solar Farm,Large scale Solar PV,Anticipated,2056,798.8
+GBWF1,Gawara Baya Wind Farm,Wind,Anticipated,2055,408.0
+Uungula Wind Farm,Uungula Wind Farm,Wind,Committed,2057,414.0
+Woolsthorpe Wind Farm,Woolsthorpe Wind Farm,Wind,Anticipated,2063,72.0
+BALB1,Ballarat Energy Storage System,Battery storage (1hr storage),Existing,2033,30.1
+BOWWBA1,Bolivar Waste Water Treatment BESS,Battery storage (2hrs storage),Existing,2045,3.1
+BBATTERY,Bouldercombe Battery project,Battery storage (2hrs storage),Existing,2042,50.0
+BULBES1,Bulgana Green Power Hub BESS,Battery storage (2hrs storage),Existing,2049,20.0
+DALNTH1,Dalrymple BESS,Battery storage (1hr storage),Existing,2030,30.0
+DPNTB1,Darlington Point Energy Storage System,Battery storage (2hrs storage),Existing,2051,25.0
+GANNB1,Gannawarra Energy Storage System,Battery storage (2hrs storage),Existing,2033,25.5
+HVWWBA1,Happy Valley Reservoir BESS,Battery storage (2hrs storage),Existing,2041,5.5
+HPR1,Hornsdale Power Reserve Unit 1,Battery storage (1hr storage),Existing,2057,150.0
+LBBG1,Lake Bonney BESS,Battery storage (2hrs storage),Existing,2034,28.8
+PIBESS1,Philip Island BESS,Battery storage (2hrs storage),Existing,2038,5.0
+QBYNB1,Queanbeyan BESS,Battery storage (2hrs storage),Existing,2033,10.0
+RANGEB1,Rangebank BESS,Battery storage (2hrs storage),Existing,2044,200.0
+RESS1G,Riverina Energy Storage System 1,Battery storage (2hrs storage),Existing,2051,60.0
+RIVNB2,Riverina Energy Storage System 2,Battery storage (2hrs storage),Existing,2051,65.0
+VBB1,Victorian Big Battery,Battery storage (2hrs storage),Existing,2041,300.0
+WALGRV1,Wallgrove Grid Battery project,Battery storage (2hrs storage),Existing,2036,61.2
+WANDB1,Wandoan South BESS,Battery storage (2hrs storage),Existing,2051,100.0
+ADPBA1,Adelaide Desalination Plant BESS,Battery storage (2hrs storage),Existing,2041,7.8
+BLYTHB1,Blyth BESS,Battery storage (2hrs storage),Existing,2044,200.3
+BHBG1,Broken Hill BESS,Battery storage (1hr storage),Existing,2043,60.3
+CAPBES1,Capital Battery,Battery storage (2hrs storage),Existing,2048,100.0
+CHBESSG1,Chinchilla BESS,Battery storage (2hrs storage),Existing,2038,100.0
+CBWWBA1,Christies Beach Wastewater Treatment Plant BESS,Battery storage (2hrs storage),Existing,2045,2.2
+Clements Gap BESS,Clements Gap BESS,Battery storage (2hrs storage),Committed,2046,60.0
+Eraring Big Battery,Eraring Big Battery,Battery storage (2hrs storage),Existing,2045,460.0
+GREENB1,Greenbank BESS,Battery storage (2hrs storage),Existing,2044,200.0
+HBESS1,Hazelwood BESS,Battery storage (1hr storage),Existing,2043,200.1
+Koorangie Energy Storage System,Koorangie Energy Storage System,Battery storage (2hrs storage),Existing,2055,185.0
+LaTrobe Valley BESS,LaTrobe Valley BESS,Battery storage (2hrs storage),Existing,2045,97.9
+Liddell BESS,Liddell BESS,Battery storage (2hrs storage),Committed,2046,500.0
+Lockhart Hybrid Facility - Battery,Lockhart Hybrid Facility - Battery,Battery storage (2hrs storage),Committed,2056,10.0
+Melbourne Renewable Energy Hub - Side A,Melbourne Renewable Energy Hub - Side A,Battery storage (2hrs storage),Existing,2050,648.0
+QPBESS,Quorn Park BESS,Battery storage (2hrs storage),Committed,2045,27.6
+TB2BG1,Tailem Bend Battery Project,Battery storage (2hrs storage),Committed,2048,41.5
+Tarong BESS,Tarong BESS,Battery storage (2hrs storage),Committed,2045,300.0
+Templers BESS,Templers BESS,Battery storage (2hrs storage),Committed,2050,111.0
+TIB1,Torrens Island BESS,Battery storage (1hr storage),Existing,2043,250.7
+ULBESS,Ulinda Park BESS,Battery storage (2hrs storage),Existing,2065,155.0
+WTAHB1,Waratah Super Battery,Battery storage (2hrs storage),Committed,2065,843.8
+WDBESS1,Western Downs Battery,Battery storage (2hrs storage),Committed,2048,254.8
+Aldoga BESS Stage 1,Aldoga BESS Stage 1,Battery storage (1hr storage),Additional policy-supported project,2049,400.0
+Brendale BESS,Brendale BESS,Battery storage (2hrs storage),Committed,2066,205.0
+Bungama Solar BESS,Bungama Solar BESS,Battery storage (2hrs storage),Committed,2056,150.0
+Eraring Big Battery 2,Eraring Big Battery 2,Battery storage (4hrs storage),Committed,2057,240.0
+GBBATT1,Gawara Baya Wind Farm BESS,Battery storage (2hrs storage),Anticipated,2055,104.0
+Gnarwarre BESS,Gnarwarre BESS,Battery storage (2hrs storage),Committed,2054,470.4
+Limondale BESS,Limondale BESS,Battery storage (8hrs storage),Committed,2046,50.0
+LGAPBS1,Lincoln Gap Wind Farm BESS,Battery storage (1hr storage),Committed,2045,10.8
+Mannum BESS,Mannum BESS,Battery storage (2hrs storage),Existing,2044,100.0
+Maryvale Solar Farm BESS,Maryvale Solar Farm BESS,Battery storage (2hrs storage),Anticipated,2062,172.0
+Mortlake Battery,Mortlake Battery,Battery storage (2hrs storage),Committed,2056,300.0
+Mortlake Energy Hub BESS,Mortlake Energy Hub BESS,Battery storage (4hrs storage),Anticipated,2068,316.1
+Mt Fox BESS,Mt Fox BESS,Battery storage (2hrs storage),Additional policy-supported project,2049,300.0
+New England Solar Farm BESS,New England Solar Farm BESS,Battery storage (2hrs storage),Committed,2075,200.0
+ORANA,Orana BESS,Battery storage (4hrs storage),Committed,2066,416.6
+Richmond Valley BESS,Richmond Valley BESS,Battery storage (8hrs storage),Anticipated,2047,275.0
+Silver City Energy Storage,Silver City Energy Storage,Battery storage (8hrs storage),Anticipated,2058,200.0
+Smithfield BESS,Smithfield BESS,Battery storage (2hrs storage),Existing,2040,86.4
+Stanwell BESS,Stanwell BESS,Battery storage (4hrs storage),Anticipated,2046,300.0
+Swanbank BESS,Swanbank BESS,Battery storage (2hrs storage),Anticipated,2045,266.3
+TRGBESS,Terang BESS,Battery storage (2hrs storage),Committed,2056,144.4
+Wooreen Energy Storage System,Wooreen Energy Storage System,Battery storage (4hrs storage),Committed,2047,350.6
+Kogan Gas,Brigalow GT,OCGT (large GT),Anticipated,2059,400.0
+Fulham Solar Farm,Fulham Solar Farm,Large scale Solar PV,Committed,2063,79.9
+Solar River Solar Farm,Solar River Solar Farm,Large scale Solar PV,Anticipated,2056,255.8
+Coppabella Wind Farm,Coppabella Wind Farm,Wind,Anticipated,2057,289.8
+Derby Solar Project BESS,Derby Solar Project BESS,Battery storage (1hr storage),Additional policy-supported project,2057,95.0
+Fulham Solar Farm BESS,Fulham Solar Farm BESS,Battery storage (2hrs storage),Committed,2063,64.1
+Goulburn River BESS,Goulburn River BESS,Battery storage (4hrs storage),Anticipated,2054,450.0
+Hallett BESS,Hallett BESS,Battery storage (4hrs storage),Anticipated,2047,50.0
+Horsham Solar Farm BESS,Horsham Solar Farm BESS,Battery storage (2hrs storage),Additional policy-supported project,2047,100.0
+Limestone Coast West BESS,Limestone Coast West BESS,Battery storage (2hrs storage),Additional policy-supported project,2047,336.0
+Solar River Solar Farm BESS,Solar River Solar Farm BESS,Battery storage (4hrs storage),Anticipated,2053,256.0
+Springvale Energy Hub BESS,Springvale Energy Hub BESS,Battery storage (2hrs storage),Anticipated,2046,123.52
+Mornington BESS,Mornington BESS,Battery storage (2hrs storage),Committed,2046,240.0
+Tamworth BESS,Tamworth BESS,Battery storage (1hr storage),Anticipated,2047,100.0
+Tamworth BESS 2,Tamworth BESS,Battery storage (2hrs storage),Anticipated,2047,100.0
+Borumba Pumped Hydro,Borumba Pumped Hydro,Pumped Hydro (24hrs storage),Anticipated,2134,
+Broadsound BESS,Broadsound BESS,Battery storage (2hrs storage),Anticipated,2056,240.0
+Calala BESS 1,Calala BESS 1,Battery storage (2hrs storage),Committed,2052,108.1
+Calala BESS 2,Calala BESS 2,Battery storage (2hrs storage),Committed,2052,158.3
+Glanmire Solar Farm BESS,Glanmire Solar Farm BESS,Battery storage (2hrs storage),Anticipated,2067,60.0
+Bullyard Solar Farm,Bullyard Solar Farm,Large scale Solar PV,Anticipated,2057,97.0
+Glanmire Solar Farm,Glanmire Solar Farm,Large scale Solar PV,Anticipated,2067,60.0
+Ravenswood Solar Farm,Ravenswood Solar Farm,Large scale Solar PV,Additional policy-supported project,2084,467.7
+Lockyer Valley GT,Lockyer Valley GT,OCGT (small GT),Anticipated,2068,117.0
+Boulder Creek Wind Farm,Boulder Creek Wind Farm,Wind,Committed,2067,221.2
+Inverleigh Wind Farm,Inverleigh Wind Farm,Wind,Anticipated,2057,91.5
+Port Latta Wind Farm,Port Latta Wind Farm,Wind,Anticipated,2058,21.0
+Valley of the Winds Wind Farm,Valley of the Winds,Wind,Anticipated,2080,936.0
+Woolooga BESS,Woolooga BESS,Battery storage (2hrs storage),Committed,2051,281.0
+Supernode BESS 1,Supernode BESS 1,Battery storage (4hrs storage),Committed,2051,259.9
+Supernode BESS 2,Supernode BESS 2,Battery storage (4hrs storage),Committed,2051,259.9
+Golden Plains West Wind Farm,Golden Plains West Wind Farm,Wind,Committed,2057,557.1
+Lotus Creek Wind Farm,Lotus Creek Wind Farm,Wind,Committed,2048,285.2
+Barnawartha Solar Farm BESS,Barnawartha Solar Farm BESS,Battery storage (2hrs storage),Additional policy-supported project,2047,64.0
+Barwon Solar Farm BESS,Barwon Solar Farm BESS,Battery storage (2hrs storage),Additional policy-supported project,2068,250.0
+Bungama BESS,Bungama BESS,Battery storage (2hrs storage),Additional policy-supported project,2045,200.0
+Elaine Solar Farm BESS,Elaine Solar Farm BESS,Battery storage (2hrs storage),Anticipated,2068,125.0
+Ganymirra Solar Power Station BESS,Ganymirra Solar Power Station BESS,Battery storage (4hrs storage),Anticipated,2059,150.0
+Junction Rivers Wind Farm BESS,Junction Rivers Wind Farm BESS,Battery storage (4hrs storage),Additional policy-supported project,2060,237.6
+Majors Creek Solar Power Station BESS,Majors Creek Power Station BESS,Battery storage (4hrs storage),Anticipated,2059,150.0
+West Mokoan Solar Farm BESS,West Mokoan Solar Farm BESS,Battery storage (4hrs storage),Anticipated,2069,299.0
+Griffith BESS,Griffith BESS,Battery storage (8hrs storage),Additional policy-supported project,2048,100.0
+Stoney Creek BESS,Stoney Creek BESS,Battery storage (8hrs storage),Anticipated,2047,125.0
+Barnawartha Solar Farm,Barnawartha Solar Farm,Large scale Solar PV,Additional policy-supported project,2057,64.0
+Barwon Solar Farm,Barwon Solar Farm,Large scale Solar PV,Anticipated,2068,250.0
+Campbells Forest Solar Farm,Campbells Forest Solar Farm,Large scale Solar PV,Additional policy-supported project,2054,205.0
+Elaine Solar Farm,Elaine Solar Farm,Large scale Solar PV,Anticipated,2057,125.0
+Ganymirra Solar Power Station,Ganymirra Solar Power Station,Large scale Solar PV,Anticipated,2059,150.0
+Hopeland Solar Farm,Hopeland Solar Farm,Large scale Solar PV,Additional policy-supported project,2058,327.6
+Majors Creek Solar Power Station,Majors Creek Power Station,Large scale Solar PV,Anticipated,2059,180.0
+Sandy Creek Solar Farm,Sandy Creek Solar Farm,Large scale Solar PV,Anticipated,2070,700.0
+West Mokoan Solar Farm,West Mokoan Solar Farm,Large scale Solar PV,Anticipated,2069,401.0
+Phoenix Pumped Hydro Project,Phoenix Pumped Hydro Project,Pumped Hydro (10hrs storage),Additional policy-supported project,2122,810.0
+Goyder North Wind Farm 1,Goyder North Wind Farm 1,Wind,Anticipated,2059,300.0
+Junction Rivers Wind Farm,Junction Rivers Wind Farm,Wind,Additional policy-supported project,2060,595.2
+Kentbruck Green Power Hub Wind Farm,Kentbruck Green Power Hub Wind Farm,Wind,Additional policy-supported project,2057,600.0
+Palmer Wind Farm,Palmer Wind Farm,Wind,Additional policy-supported project,2058,274.0
+Spicers Creek Wind Farm,Spicers Creek Wind Farm,Wind,Additional policy-supported project,2058,702.0
+Thunderbolt Wind Farm,Thunderbolt Wind Farm,Wind,Additional policy-supported project,2065,210.0
+Haughton Solar Farm Stage 2,Haughton Solar Farm Stage 2,Large scale Solar PV,Anticipated,2048,309.1
+Lancaster Solar Farm,Lancaster Solar Farm,Large scale Solar PV,Committed,2056,79.8
+Bennetts Creek BESS,Bennetts Creek BESS,Battery storage (2hrs storage),Committed,2048,176.4
+Northern Midlands Solar Farm,Northern Midlands Solar Farm,Large scale Solar PV,Anticipated,2057,360.8
+Hay Sun Farm,Hay Sun Farm,Large scale Solar PV,Anticipated,2055,110.0
+MOKOSF1,Mokoan Solar Farm,Large scale Solar PV,Existing,2055,46.0
+Kiamal BESS,Kiamal BESS,Battery storage (4hrs storage),Additional policy-supported project,2057,220.2
+Pine Lodge BESS,Pine Lodge BESS,Battery storage (2hrs storage),Committed,2046,250.0
+Dubbo GT,Dubbo Firming Power Station,OCGT (small GT),Anticipated,2065,57.0
+Axedale Solar Farm,Axedale Solar Farm,Large scale Solar PV,Anticipated,2058,139.9
+Bendemeer Energy Hub Solar Farm,Bendemeer Energy Hub Solar Farm,Large scale Solar PV,Additional policy-supported project,2059,200.0
+Blind Creek Solar Farm,Blind Creek Solar Farm,Large scale Solar PV,Committed,2053,299.7
+Bundey Solar Farm,Bundey Solar Farm,Large scale Solar PV,Additional policy-supported project,2057,475.0
+Corop Solar Farm,Corop Solar Farm,Large scale Solar PV,Additional policy-supported project,2057,400.0
+Dunedoo Solar Farm,Dunedoo Solar Farm,Large scale Solar PV,Anticipated,2057,55.0
+Fosterville Solar Farm,Fosterville Solar Farm,Large scale Solar PV,Anticipated,2058,80.5
+Fraser Coast Hybrid Solar Farm,Fraser Coast Hybrid Solar Farm,Large scale Solar PV,Anticipated,2056,310.8
+GUSF1,Gunsynd Solar Farm,Large scale Solar PV,Committed,2061,123.0
+Guthries Gap Solar Power Station,Guthries Gap Solar Power Station,Large scale Solar PV,Anticipated,2059,300.0
+Kerang Solar Plant,Kerang Solar Plant,Large scale Solar PV,Existing,2050,30.0
+Lower Wonga Solar Farm,Lower Wonga Solar Farm,Large scale Solar PV,Anticipated,2068,281.0
+Marulan Solar Farm,Marulan Solar Farm,Large scale Solar PV,Anticipated,2060,207.2
+Merino Solar Farm,Merino Solar Farm,Large scale Solar PV,Additional policy-supported project,2059,338.0
+Middlebrook Solar Farm,Middlebrook Solar Farm,Large scale Solar PV,Anticipated,2064,320.3
+Moama Solar Farm,Moama Solar Farm,Large scale Solar PV,Anticipated,2067,17.8
+Mulwala Solar Farm,Mulwala Solar Farm,Large scale Solar PV,Committed,2056,25.1
+Nowingi Solar Power Station,Nowingi Solar Power Station,Large scale Solar PV,Additional policy-supported project,2058,360.0
+Smoky Creek Solar Power Station,Smoky Creek Solar Power Station,Large scale Solar PV,Anticipated,2059,300.0
+Wandoan South Solar Farm - Stage 2,Wandoan South Solar Farm - Stage 2,Large scale Solar PV,Committed,2052,240.0
+Winton North Solar Farm,Winton North Solar Farm,Large scale Solar PV,Anticipated,2057,100.0
+Bell Bay Wind Farm,Bell Bay Wind Farm,Wind,Additional policy-supported project,2060,227.9
+Carmodys Hill Wind Farm,Carmodys Hill Wind Farm,Wind,Committed,2064,256.2
+Goyder North Wind Farm 2,Goyder North Wind Farm 2,Wind,Anticipated,2059,300.0
+Hexham Wind Farm,Hexham Wind Farm,Wind,Additional policy-supported project,2065,720.8
+Willogoleche Wind Farm 2,Willogoleche Wind Farm 2,Wind,Additional policy-supported project,2057,108.0
+Armidale East BESS,Armidale East BESS,Battery storage (4hrs storage),Additional policy-supported project,2047,449.4
+Axedale Solar Farm BESS,Axedale Solar Farm BESS,Battery storage (2hrs storage),Anticipated,2058,49.9
+Bannaby BESS,Bannaby BESS,Battery storage (8hrs storage),Additional policy-supported project,2049,700.0
+Baranduda BESS,Baranduda BESS,Battery storage (4hrs storage),Anticipated,2058,544.4
+Bellambi Heights BESS,Bellambi Heights BESS,Battery storage (2hrs storage),Committed,2047,204.0
+Bendemeer Energy Hub BESS,Bendemeer Energy Hub BESS,Battery storage (2hrs storage),Additional policy-supported project,2047,150.0
+Blackstone BESS,Blackstone BESS,Battery storage (2hrs storage),Anticipated,2048,266.3
+Blackstone BESS 2,Blackstone BESS 2,Battery storage (2hrs storage),Anticipated,2048,266.3
+Blind Creek Solar Farm BESS,Blind Creek Solar Farm BESS,Battery storage (2hrs storage),Committed,2053,245.7
+Bowmans Creek BESS,Bowmans Creek BESS,Battery storage (8hrs storage),Additional policy-supported project,2049,250.0
+Bulabul BESS 1,Bulabul BESS 1,Battery storage (2hrs storage),Committed,2065,300.0
+Bulabul BESS 2,Bulabul BESS 2,Battery storage (4hrs storage),Additional policy-supported project,2048,200.0
+Bundey Solar Farm BESS 1,Bundey Solar Farm BESS 1,Battery storage (4hrs storage),Additional policy-supported project,2049,300.0
+Bundey Solar Farm BESS 2,Bundey Solar Farm BESS 2,Battery storage (4hrs storage),Additional policy-supported project,2049,300.0
+Bundey Solar Farm BESS 3,Bundey Solar Farm BESS 3,Battery storage (1hr storage),Additional policy-supported project,2049,600.0
+Capricorn BESS,Capricorn BESS,Battery storage (4hrs storage),Additional policy-supported project,2055,372.4
+Carmodys Hill BESS,Carmodys Hill BESS,Battery storage (2hrs storage),Anticipated,2070,122.9
+Corop Solar Farm BESS,Corop Solar Farm BESS,Battery storage (2hrs storage),Additional policy-supported project,2048,400.0
+Culcairn BESS,Culcairn BESS,Battery storage (4hrs storage),Anticipated,2053,200.0
+Deer Park BESS,Deer Park BESS,Battery storage (4hrs storage),Additional policy-supported project,2065,275.3
+Ebor BESS,Ebor BESS,Battery storage (8hrs storage),Additional policy-supported project,2048,100.0
+Elaine BESS,Elaine BESS,Battery storage (4hrs storage),Committed,2069,309.6
+Emeroo BESS,Emeroo BESS,Battery storage (1hr storage),Anticipated,2048,325.6
+Fosterville Solar Farm BESS,Fosterville Solar Farm BESS,Battery storage (2hrs storage),Anticipated,2058,119.0
+Fraser Coast Hybrid BESS,Fraser Coast Hybrid BESS,Battery storage (1hr storage),Anticipated,2056,210.6
+Golden Plains BESS,Golden Plains BESS,Battery storage (4hrs storage),Anticipated,2047,149.5
+Goulburn River Solar Farm BESS,Goulburn River Solar Farm BESS,Battery storage (8hrs storage),Committed,2052,49.8
+Goyder BESS,Goyder BESS,Battery storage (4hrs storage),Anticipated,2053,199.3
+Great Western Battery,Great Western Battery,Battery storage (8hrs storage),Anticipated,2053,500.0
+Guthries Gap Solar Power Station BESS,Guthries Gap Solar Power Station BESS,Battery storage (4hrs storage),Anticipated,2059,300.0
+Joel Joel BESS,Joel Joel BESS,Battery storage (4hrs storage),Anticipated,2048,318.6
+Kingswood BESS,Kingswood BESS,Battery storage (8hrs storage),Additional policy-supported project,2050,250.0
+Koolunga BESS,Koolunga BESS,Battery storage (4hrs storage),Additional policy-supported project,2050,215.6
+Lindley BESS,Lindley BESS,Battery storage (2hrs storage),Anticipated,2057,126.0
+Little River BESS,Little River BESS,Battery storage (4hrs storage),Anticipated,2048,448.9
+Lower Wonga BESS,Lower Wonga BESS,Battery storage (4hrs storage),Anticipated,2053,281.0
+Marulan BESS,Marulan BESS,Battery storage (4hrs storage),Anticipated,2060,81.2
+Merino Solar Farm BESS,Merino Solar Farm BESS,Battery storage (4hrs storage),Additional policy-supported project,2049,309.1
+Middlebrook Solar Farm BESS,Middlebrook Solar Farm BESS,Battery storage (2hrs storage),Anticipated,2064,320.0
+Mt Piper BESS,Mt Piper BESS,Battery storage (4hrs storage),Anticipated,2048,252.0
+Noblevale BESS,Noblevale BESS,Battery storage (4hrs storage),Anticipated,2054,200.0
+Nowingi Solar Power Station BESS,Nowingi Solar Power Station BESS,Battery storage (4hrs storage),Additional policy-supported project,2058,300.0
+Pelican Point BESS,Pelican Point BESS,Battery storage (2hrs storage),Committed,2047,200.0
+Punchs Creek Solar Farm BESS,Punchs Creek Solar Farm BESS,Battery storage (1hr storage),Additional policy-supported project,2048,200.0
+Reeves Plains Power Station BESS,Reeves Plains Power Station BESS,Battery storage (4hrs storage),Anticipated,2048,250.0
+Smoky Creek Solar Power Station BESS,Smoky Creek Solar Power Station BESS,Battery storage (4hrs storage),Anticipated,2059,300.0
+Summerfield BESS 1,Summerfield BESS 1,Battery storage (4hrs storage),Committed,2046,153.7
+Summerfield BESS 2,Summerfield BESS 2,Battery storage (4hrs storage),Committed,2046,153.7
+Supernode BESS 3,Supernode BESS 3,Battery storage (4hrs storage),Anticipated,2053,260.3
+Swallow Tail BESS,Swallow Tail BESS,Battery storage (4hrs storage),Additional policy-supported project,2048,375.0
+Tailem Bend BESS - Stage 3,Tailem Bend BESS - Stage 3,Battery storage (2hrs storage),Committed,2047,204.0
+Teebar Creek BESS,Teebar Creek BESS,Battery storage (4hrs storage),Anticipated,2053,400.0
+Tomago BESS,Tomago BESS,Battery storage (4hrs storage),Anticipated,2047,500.5
+Wagga North BESS,Wagga North BESS,Battery storage (4hrs storage),Anticipated,2055,105.0
+WDBESS2,Western Downs Battery,Battery storage (2hrs storage),Committed,2048,254.8
+Williamsdale BESS,Williamsdale BESS,Battery storage (2hrs storage),Committed,2046,250.0
+Yabulu BESS,Yabulu BESS,Battery storage (2hrs storage),Anticipated,2050,200.0
+Yanco BESS,Yanco BESS,Battery storage (4hrs storage),Anticipated,2048,318.6
+Mugga Lane Renewable Hybrid,Mugga Lane Renewable Hybrid,Biomass,Committed,2044,36.0
