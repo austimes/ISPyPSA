@@ -45,9 +45,10 @@ _HYDRO_MONTHLY_CF = {
 #
 # Source: AEMO 2026 ISP Step Change modelled conventional-hydro generation
 # ("Annual generation and emissions 2026 ISP.xlsx", sheet 'SC Gen', column
-# 'Hydro', sensitivity FP20403_260508a; PHES is reported separately in that
-# workbook and is modelled separately here as StorageUnits). The trajectory
-# declines from ~16.7 TWh (2027) to ~9.8 TWh (2050).
+# 'Hydro', sensitivity FP20403_260508a). That workbook reports pumped hydro (PHES)
+# separately, so the budget excludes it. ISPyPSA's templater drops every unit the IASR
+# labels pumped hydro, so a caller that needs existing or new PHES adds it. The
+# trajectory declines from ~16.7 TWh (2027) to ~9.8 TWh (2050).
 #
 # Each figure is a NEM-wide annual total, so it only describes a network that
 # covers the whole NEM. A run filtered to a subset of regions models only part
