@@ -242,7 +242,8 @@ def _add_hydro_energy_budget_constraint(
     highest-value hours rather than dispatching hydro at its `p_max_pu`
     ceiling in every hour. The budget is the AEMO 2026 ISP Step Change
     conventional-hydro generation for that financial year (see
-    `_HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY` for the source).
+    `_HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY` for the source), whatever the run's
+    scenario; the translator warns when the scenario is not Step Change.
 
     The budget is a NEM-wide annual total and the NEM-wide hydro capacity it
     belongs to is not recoverable from the pypsa-friendly tables, which are

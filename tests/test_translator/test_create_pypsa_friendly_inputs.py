@@ -9,7 +9,10 @@ from ispypsa.translator import (
     create_pypsa_friendly_timeseries_inputs,
     list_translator_output_files,
 )
-from ispypsa.translator.create_pypsa_friendly import _flatten_generator_traces
+from ispypsa.translator.create_pypsa_friendly import (
+    _flatten_generator_traces,
+    _warn_hydro_budget_is_step_change,
+)
 from ispypsa.translator.generators import (
     _translate_ecaa_generators,
     _translate_new_entrant_generators,
@@ -550,3 +553,18 @@ def _mean_vre_availability(timeseries_dir: Path) -> pd.Series:
     return pd.Series(
         {file.stem: pd.read_parquet(file)["p_max_pu"].mean() for file in trace_files}
     )
+
+
+def test_warns_hydro_budget_is_step_change_for_other_scenarios(caplog):
+    with caplog.at_level("WARNING"):
+        _warn_hydro_budget_is_step_change("Progressive Change")
+    assert (
+        "Hydro annual energy budget is AEMO's Step Change modelled hydro "
+        "generation, applied unchanged to the Progressive Change scenario"
+    ) in caplog.text
+
+
+def test_no_hydro_budget_warning_for_step_change(caplog):
+    with caplog.at_level("WARNING"):
+        _warn_hydro_budget_is_step_change("Step Change")
+    assert "Hydro annual energy budget" not in caplog.text

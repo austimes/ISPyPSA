@@ -170,6 +170,19 @@ def _append_custom_constraints(
         )
 
 
+def _warn_hydro_budget_is_step_change(scenario: str) -> None:
+    """Warns that the hydro annual energy budget is AEMO's Step Change hydro whatever the scenario.
+
+    `pypsa_build.generators` caps hydro at AEMO's Step Change modelled generation, so
+    other scenarios inherit that trajectory.
+    """
+    if scenario != "Step Change":
+        logging.warning(
+            "Hydro annual energy budget is AEMO's Step Change modelled hydro "
+            f"generation, applied unchanged to the {scenario} scenario"
+        )
+
+
 def create_pypsa_friendly_inputs(
     config: ModelConfig, ispypsa_tables: dict[str, pd.DataFrame]
 ) -> dict[str, pd.DataFrame]:
@@ -204,6 +217,8 @@ def create_pypsa_friendly_inputs(
         pypsa friendly format table docs)
     """
     pypsa_inputs = {}
+
+    _warn_hydro_budget_is_step_change(config.scenario)
 
     pypsa_inputs["investment_period_weights"] = _create_investment_period_weightings(
         config.temporal.capacity_expansion.investment_periods,
