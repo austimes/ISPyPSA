@@ -3,6 +3,7 @@ import re
 
 import pandas as pd
 
+from .dynamic_generator_properties import _ISP_TO_V74_SCENARIO
 from .mappings import _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP
 
 
@@ -28,7 +29,9 @@ def _template_energy_policy_targets(
     # The 7.8 IASR has no Powering Australia Plan table, so its template is empty.
     power_aus_plan = pd.DataFrame(columns=["FY", "policy_id", "pct"])
 
-    renewable_generation_targets = _template_renewable_generation_targets(iasr_tables)
+    renewable_generation_targets = _template_renewable_generation_targets(
+        iasr_tables, scenario
+    )
 
     technology_capacity_targets = _template_technology_capacity_targets(iasr_tables)
 
@@ -194,7 +197,7 @@ def _extract_calendar_year_gw_targets(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _template_renewable_generation_targets(
-    iasr_tables: dict[str, pd.DataFrame],
+    iasr_tables: dict[str, pd.DataFrame], scenario: str
 ) -> pd.DataFrame:
     """Creates ISPyPSA templates for renewable generation targets.
     Uses TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP to identify files and their corresponding regions.
@@ -202,6 +205,8 @@ def _template_renewable_generation_targets(
     Args:
         iasr_tables: Dict of tables from the IASR workbook that have been parsed using
             `isp-workbook-parser`.
+        scenario: Scenario obtained from the model configuration, which picks the
+            target row of tables with one row per scenario group
 
     Returns:
         `pd.DataFrame`: Template containing renewable capacity trajectories with columns for
@@ -223,8 +228,9 @@ def _template_renewable_generation_targets(
 
         # if exists, remove the "Notes" row
         df = df[~df.iloc[:, 0].str.contains("Notes", case=False)]
-        if "row" in target:
-            df = df[df.iloc[:, 0].str.contains(target["row"])]
+        if "row_by_scenario" in target:
+            row = target["row_by_scenario"][_ISP_TO_V74_SCENARIO[scenario]]
+            df = df[df.iloc[:, 0].str.contains(row)]
 
         renewable_gen_target = df.melt(
             id_vars=df.columns[0], var_name="FY", value_name="capacity_gwh"

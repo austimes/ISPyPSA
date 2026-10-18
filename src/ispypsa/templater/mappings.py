@@ -437,8 +437,8 @@ _NEW_ENTRANT_STORAGE_STATIC_PROPERTY_TABLE_MAP = {
      `policy_id`: policy corresponding to that parsed table, to be inputted
          into templated table links with the manually_extracted_table
          `policy_generator_types`
-     `row` (optional): text identifying the one target row to keep in a table
-         with several target rows
+     `row_by_scenario` (optional): for a table with several target rows, text
+         identifying the one row to keep in each IASR scenario
  """
 _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
     "template_renewable_share_targets": [
@@ -476,13 +476,17 @@ _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
             "region_id": "TAS",
             "policy_id": "tret",
         },
-        # The IIO row applies in every scenario except Slower Growth, which uses the
-        # legislated EIR row; ISPyPSA does not model Slower Growth.
+        # AEMO applies the legislated EIR row in Slower Growth and the IIO row in the
+        # other scenarios. Either row sets the one NSW Roadmap generation constraint.
         {
             "csv": "nsw_roadmap_min_vre_generation_target",
             "region_id": "NSW",
             "policy_id": "nsw_iio_gen",
-            "row": "IIO",
+            "row_by_scenario": {
+                "Slower Growth": "EIR",
+                "Step Change": "IIO",
+                "Accelerated Transition": "IIO",
+            },
         },
     ],
 }

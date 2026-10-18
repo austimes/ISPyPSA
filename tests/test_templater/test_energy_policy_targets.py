@@ -105,7 +105,7 @@ def test_template_technology_capacity_targets(workbook_table_cache_test_path: Pa
 def test_template_renewable_generation_targets(workbook_table_cache_test_path: Path):
     """Test the renewable generation targets template creation"""
     iasr_tables = read_csvs(workbook_table_cache_test_path)
-    df = _template_renewable_generation_targets(iasr_tables)
+    df = _template_renewable_generation_targets(iasr_tables, "Step Change")
 
     # Check basic DataFrame structure
     expected_columns = ["FY", "region_id", "capacity_mwh"]
@@ -191,8 +191,9 @@ def test_template_renewable_share_targets_iasr_v7_tables(csv_str_to_df):
     pd.testing.assert_frame_equal(result, expected)
 
 
-def test_template_renewable_generation_targets_keeps_nsw_iio_row(csv_str_to_df):
-    iasr_tables = {
+@pytest.fixture
+def renewable_generation_tables(csv_str_to_df):
+    return {
         "nsw_roadmap_min_vre_generation_target": csv_str_to_df("""
             Financial__year,                                2028-29,  2029-30
             NSW__EIR__Generation__Target__(GWh),            ,         33600
@@ -205,13 +206,34 @@ def test_template_renewable_generation_targets_keeps_nsw_iio_row(csv_str_to_df):
         """),
     }
 
-    result = _template_renewable_generation_targets(iasr_tables)
+
+def test_template_renewable_generation_targets_keeps_nsw_iio_row(
+    renewable_generation_tables, csv_str_to_df
+):
+    result = _template_renewable_generation_targets(
+        renewable_generation_tables, "Step Change"
+    )
 
     expected = csv_str_to_df("""
         FY,       region_id,  policy_id,    capacity_mwh
         2029_30,  TAS,        tret,         15750000.0
         2028_29,  NSW,        nsw_iio_gen,  29199000.0
         2029_30,  NSW,        nsw_iio_gen,  43291000.0
+    """)
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_template_renewable_generation_targets_keeps_nsw_eir_row_in_slower_growth(
+    renewable_generation_tables, csv_str_to_df
+):
+    result = _template_renewable_generation_targets(
+        renewable_generation_tables, "Progressive Change"
+    )
+
+    expected = csv_str_to_df("""
+        FY,       region_id,  policy_id,    capacity_mwh
+        2029_30,  TAS,        tret,         15750000.0
+        2029_30,  NSW,        nsw_iio_gen,  33600000.0
     """)
     pd.testing.assert_frame_equal(result, expected)
 

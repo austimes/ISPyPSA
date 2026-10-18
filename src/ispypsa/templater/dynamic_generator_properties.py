@@ -17,8 +17,8 @@ from ispypsa.templater.helpers import (
 from .helpers import _fuzzy_match_names, _snakecase_string
 from .lists import _ECAA_GENERATOR_TYPES
 
-# ISP scenario (config name) → scenario name used in the IASR fuel-price and
-# WACC tables. The workbook calls the lower-ambition "Progressive Change"
+# ISP scenario (config name) → scenario name used in the IASR fuel-price, WACC
+# and policy target tables. The workbook calls the lower-ambition "Progressive Change"
 # scenario "Slower Growth" and the highest-ambition "Green Energy Exports"
 # scenario "Accelerated Transition". The mapping mirrors the cost-scenario
 # dispatch in `flow_paths._determine_cost_scenario`.
