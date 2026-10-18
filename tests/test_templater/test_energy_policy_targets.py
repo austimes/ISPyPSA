@@ -1,15 +1,14 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from ispypsa.data_fetch import read_csvs
 from ispypsa.templater.energy_policy_targets import (
-    _template_powering_australia_plan,
     _template_renewable_generation_targets,
     _template_renewable_share_targets,
     _template_technology_capacity_targets,
 )
-from ispypsa.templater.lists import _ISP_SCENARIOS
 
 
 def test_template_renewable_share_targets(workbook_table_cache_test_path: Path):
@@ -54,34 +53,6 @@ def test_template_renewable_share_targets(workbook_table_cache_test_path: Path):
 
     assert vic_policy_2024 == "vret"
     assert sa_policy_2026 == "sa_net_renewable"
-
-
-def test_template_powering_australia_plan(csv_str_to_df):
-    """Test the Powering Australia Plan template creation"""
-
-    df_full = csv_str_to_df("""
-        Financial__year,       2027-28,  2028-29,            2029-30
-        Step__Change,          ,         71.0,               82.0
-        Progressive__Change,   63.0,     66.0,               82.0
-        Green__Energy__Exports,,         75.57142857142857,  82.0
-        Notes,                 ,         ,                   Target__year
-    """)
-    for scenario in _ISP_SCENARIOS:
-        df = _template_powering_australia_plan(df_full, scenario)
-
-        # Check basic DataFrame structure
-        expected_columns = ["FY", "pct", "policy_id"]
-        assert all(col in df.columns for col in expected_columns)
-
-        # Check data types
-        assert df["FY"].dtype == "object"  # String type
-        assert df["pct"].dtype == "float64"
-        assert all(df["pct"].between(0, 100))
-
-        # Check that FY format is correct (YYYY_YY)
-        assert all(df["FY"].str.match(r"\d{4}_\d{2}"))
-
-        assert not df.isnull().any().any()
 
 
 def test_template_technology_capacity_targets(workbook_table_cache_test_path: Path):
@@ -178,6 +149,10 @@ def test_template_technology_capacity_targets_iasr_v7_tables(csv_str_to_df):
             Financial__year,                 2029-30
             NSW__EIR__Storage__Target__(MW),  2000
         """),
+        "vic_storage_target": csv_str_to_df("""
+            Calendar__year,  All__scenarios
+            2030,            2.6__GW
+        """),
     }
 
     result = _template_technology_capacity_targets(iasr_tables)
@@ -187,6 +162,7 @@ def test_template_technology_capacity_targets_iasr_v7_tables(csv_str_to_df):
         2029_30,  2000.0,       NSW,        nsw_eir_sto
         2031_32,  2000.0,       VIC,        vic_offshore_wind
         2039_40,  9000.0,       VIC,        vic_offshore_wind
+        2029_30,  2600.0,       VIC,        vic_storage
     """)
     pd.testing.assert_frame_equal(result, expected)
 
@@ -222,13 +198,31 @@ def test_template_renewable_generation_targets_keeps_nsw_iio_row(csv_str_to_df):
             NSW__EIR__Generation__Target__(GWh),            ,         33600
             NSW__IIO__Modelled__Generation__Target__(GWh),  29199,    43291
         """),
+        "tas_renewable_target_trajectory": csv_str_to_df("""
+            Financial__year,                2029-30
+            Generation__target__(GWh),      15750
+            Notes,                          Target__year
+        """),
     }
 
     result = _template_renewable_generation_targets(iasr_tables)
 
     expected = csv_str_to_df("""
         FY,       region_id,  policy_id,    capacity_mwh
+        2029_30,  TAS,        tret,         15750000.0
         2028_29,  NSW,        nsw_iio_gen,  29199000.0
         2029_30,  NSW,        nsw_iio_gen,  43291000.0
     """)
     pd.testing.assert_frame_equal(result, expected)
+
+
+def test_template_renewable_share_targets_raises_on_missing_table(csv_str_to_df):
+    iasr_tables = {
+        "vic_renewable_target": csv_str_to_df("""
+            Calendar__year,  All__scenarios
+            2030,            65.0
+        """),
+    }
+
+    with pytest.raises(KeyError, match="sa_renewable_generation_target"):
+        _template_renewable_share_targets(iasr_tables)

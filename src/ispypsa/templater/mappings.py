@@ -443,17 +443,6 @@ _NEW_ENTRANT_STORAGE_STATIC_PROPERTY_TABLE_MAP = {
 _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
     "template_renewable_share_targets": [
         {
-            "csv": "vic_renewable_target_trajectory",
-            "region_id": "VIC",
-            "policy_id": "vret",
-        },
-        {
-            "csv": "qld_renewable_target_trajectory",
-            "region_id": "QLD",
-            "policy_id": "qret",
-        },
-        # IASR v7.x tables, one row per target year.
-        {
             "csv": "vic_renewable_target",
             "region_id": "VIC",
             "policy_id": "vret",
@@ -464,40 +453,7 @@ _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
             "policy_id": "sa_net_renewable",
         },
     ],
-    "template_powering_australia_plan": [
-        {
-            "csv": "powering_australia_plan_trajectory",
-            "region_id": "NEM",
-            "policy_id": "power_aus",
-        },
-    ],
     "template_technology_capacity_targets": [
-        {
-            "csv": "capacity_investment_scheme_renewable_trajectory",
-            "region_id": "NEM",
-            "policy_id": "cis_generator",
-        },
-        {
-            "csv": "capacity_investment_scheme_storage_trajectory",
-            "region_id": "NEM",
-            "policy_id": "cis_storage",
-        },
-        {
-            "csv": "nsw_roadmap_storage_trajectory",
-            "region_id": "NSW",
-            "policy_id": "nsw_eir_sto",
-        },
-        {
-            "csv": "vic_storage_target_trajectory",
-            "region_id": "VIC",
-            "policy_id": "vic_storage",
-        },
-        {
-            "csv": "vic_offshore_wind_target_trajectory",
-            "region_id": "VIC",
-            "policy_id": "vic_offshore_wind",
-        },
-        # IASR v7.x names for the three state targets above.
         {
             "csv": "nsw_roadmap_storage_power_capacity_trajectory",
             "region_id": "NSW",
@@ -516,17 +472,12 @@ _TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP = {
     ],
     "template_renewable_generation_targets": [
         {
-            "csv": "nsw_roadmap_renewable_trajectory",
-            "region_id": "NSW",
-            "policy_id": "nsw_eir_gen",
-        },
-        {
             "csv": "tas_renewable_target_trajectory",
             "region_id": "TAS",
             "policy_id": "tret",
         },
-        # IASR v7.x: the IIO row applies in every scenario except Slower Growth, which
-        # uses the legislated EIR row; ISPyPSA does not model Slower Growth.
+        # The IIO row applies in every scenario except Slower Growth, which uses the
+        # legislated EIR row; ISPyPSA does not model Slower Growth.
         {
             "csv": "nsw_roadmap_min_vre_generation_target",
             "region_id": "NSW",

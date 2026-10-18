@@ -1,6 +1,5 @@
 import logging
 import re
-from pathlib import Path
 
 import pandas as pd
 
@@ -18,7 +17,7 @@ def _template_energy_policy_targets(
         scenario: Scenario obtained from the model configuration
 
     Returns:
-        `dict[pd.DataFrame]`: Templates for renewable share targets, powering australia share targets (by scenario)
+        `dict[pd.DataFrame]`: Templates for renewable share targets, the (empty) Powering Australia Plan,
             renewable generation targets, and technology capacity targets
     """
     logging.info("Creating templates for energy policy targets")
@@ -26,18 +25,8 @@ def _template_energy_policy_targets(
     # Create templates for energy policy targets
     renewable_share_targets = _template_renewable_share_targets(iasr_tables)
 
-    # Powering Australia Plan was dropped from v7.4 IASR. Emit empty template
-    # if the source table is absent.
-    if "powering_australia_plan_trajectory" in iasr_tables:
-        power_aus_plan = _template_powering_australia_plan(
-            iasr_tables["powering_australia_plan_trajectory"], scenario
-        )
-    else:
-        logging.warning(
-            "Energy policy target source missing in IASR cache: "
-            "['powering_australia_plan_trajectory'] — emitting empty template"
-        )
-        power_aus_plan = pd.DataFrame(columns=["FY", "policy_id", "pct"])
+    # The 7.8 IASR has no Powering Australia Plan table, so its template is empty.
+    power_aus_plan = pd.DataFrame(columns=["FY", "policy_id", "pct"])
 
     renewable_generation_targets = _template_renewable_generation_targets(iasr_tables)
 
@@ -54,7 +43,7 @@ def _template_energy_policy_targets(
 def _template_renewable_share_targets(
     iasr_tables: dict[str, pd.DataFrame],
 ) -> pd.DataFrame:
-    """Creates ISPyPSA templates for renewable share targets from trajectory CSVs.
+    """Creates ISPyPSA templates for renewable share targets from the yearly target tables.
     Uses TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP to identify files and their
         corresponding regions.
 
@@ -74,21 +63,8 @@ def _template_renewable_share_targets(
         "template_renewable_share_targets"
     ]
 
-    missing = sorted(t["csv"] for t in target_files if t["csv"] not in iasr_tables)
-    if missing:
-        logging.warning(
-            f"Renewable share target sources missing in IASR cache: {missing}"
-        )
-
     for target in target_files:
-        if target["csv"] not in iasr_tables:
-            continue
-        df = iasr_tables[target["csv"]]
-        if "All scenarios" in df.columns:
-            df = _extract_yearly_share_targets(df)
-        else:
-            df = df.melt(id_vars=df.columns[0], var_name="FY", value_name="pct")
-            df = df[df[df.columns[0]].str.contains("share", case=False)]
+        df = _extract_yearly_share_targets(iasr_tables[target["csv"]])
         df["region_id"] = target["region_id"]
         df["policy_id"] = target["policy_id"]
         df["pct"] = df["pct"].astype(float)
@@ -96,9 +72,6 @@ def _template_renewable_share_targets(
         state_renewable_share_targets.append(
             df[["FY", "region_id", "policy_id", "pct"]]
         )
-
-    if not state_renewable_share_targets:
-        return pd.DataFrame(columns=["FY", "region_id", "policy_id", "pct"])
 
     merged_state_renewable_share_targets = pd.concat(
         state_renewable_share_targets, ignore_index=True
@@ -138,54 +111,10 @@ def _financial_year_ending_in(calendar_years: pd.Series) -> pd.Series:
     )
 
 
-def _template_powering_australia_plan(
-    power_aus_plan: Path | str, scenario: str
-) -> pd.DataFrame:
-    """Creates ISPyPSA template for the Powering Australia Plan renewable share
-    trajectories for selected scenarios.
-
-    Args:
-        powering_aus: pd.DataFrame table from IASR workbook specifying Powering Australia Plan renewable share targets.
-        scenario: Scenario obtained from the model configuration
-
-    Returns:
-        `pd.DataFrame`: Template containing Powering Australia Plan targets
-            with columns for financial year, policy_id and percentage values in
-            decimal form for the selected scenario
-    """
-    logging.info("Creating template for Powering Australia Plan")
-
-    # Remove rows containing "Notes" in the first column
-    power_aus_plan = power_aus_plan[
-        ~power_aus_plan.iloc[:, 0].str.contains("Notes", case=False, na=False)
-    ]
-
-    # Filter for rows where the first column matches the specified scenario
-    power_aus_plan = power_aus_plan[power_aus_plan.iloc[:, 0].eq(scenario)]
-
-    # Drop the first column (scenario name) to keep only year values
-    power_aus_plan = power_aus_plan.iloc[:, 1:].reset_index(drop=True)
-
-    # Melt the dataframe, excluding the first column from id_vars
-    power_aus_plan = power_aus_plan.melt(var_name="FY", value_name="pct").dropna(
-        subset=["pct"]
-    )
-
-    # Convert percentage to decimal if needed
-    power_aus_plan["pct"] = power_aus_plan["pct"].astype(float)
-
-    power_aus_plan["FY"] = power_aus_plan["FY"].str.replace("-", "_")
-
-    # append new column which is the policy_id
-    power_aus_plan["policy_id"] = "power_aus"
-    return power_aus_plan
-
-
 def _template_technology_capacity_targets(
     iasr_tables: dict[str, pd.DataFrame],
 ) -> pd.DataFrame:
-    """Creates ISPyPSA templates for technology capacity targets including
-    CIS renewable target and storage and offshore wind trajectories.
+    """Creates ISPyPSA templates for the state storage and offshore wind capacity targets.
     Uses TEMPLATE_RENEWABLE_ENERGY_TARGET_MAP to identify
     files and their corresponding regions.
 
@@ -203,15 +132,7 @@ def _template_technology_capacity_targets(
         "template_technology_capacity_targets"
     ]
 
-    missing = sorted(t["csv"] for t in target_files if t["csv"] not in iasr_tables)
-    if missing:
-        logging.warning(
-            f"Technology capacity target sources missing in IASR cache: {missing}"
-        )
-
     for target in target_files:
-        if target["csv"] not in iasr_tables:
-            continue
         df = iasr_tables[target["csv"]]
         if df.columns[0] == "Calendar year":
             values_df = _extract_calendar_year_gw_targets(df)
@@ -223,9 +144,6 @@ def _template_technology_capacity_targets(
         values_df["policy_id"] = target["policy_id"]
 
         technology_capacity_targets.append(values_df)
-
-    if not technology_capacity_targets:
-        return pd.DataFrame(columns=["FY", "region_id", "policy_id", "capacity_mw"])
 
     merged_technology_capacity_targets = pd.concat(
         technology_capacity_targets, ignore_index=True
@@ -297,15 +215,7 @@ def _template_renewable_generation_targets(
         "template_renewable_generation_targets"
     ]
 
-    missing = sorted(t["csv"] for t in target_files if t["csv"] not in iasr_tables)
-    if missing:
-        logging.warning(
-            f"Renewable generation target sources missing in IASR cache: {missing}"
-        )
-
     for target in target_files:
-        if target["csv"] not in iasr_tables:
-            continue
         df = iasr_tables[target["csv"]]
         # Check for GWh in row indices
         if not df.iloc[:, 0].str.contains("GWh", case=False).any():
@@ -329,9 +239,6 @@ def _template_renewable_generation_targets(
         renewable_generation_targets.append(
             renewable_gen_target[["FY", "region_id", "policy_id", "capacity_mwh"]]
         )
-
-    if not renewable_generation_targets:
-        return pd.DataFrame(columns=["FY", "region_id", "policy_id", "capacity_mwh"])
 
     # Combine all dataframes
     merged_renewable_generation_targets = pd.concat(
