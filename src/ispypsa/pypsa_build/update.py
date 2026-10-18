@@ -21,6 +21,10 @@ def update_network_timeseries(
     but may also be useful in other circumstances, such as when running a capacity
     expansion model with different reference year cycles.
 
+    Wind and solar get their new traces and Water generators the seasonal hydro
+    ceiling. The annual hydro energy budget is not split across rolling-horizon
+    windows, so each window may use up to the whole year's budget.
+
     Examples:
         >>> import pandas as pd
         >>> from pathlib import Path

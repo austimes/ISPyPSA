@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 import pypsa
 import pytest
@@ -5,6 +7,7 @@ import pytest
 from ispypsa.pypsa_build.generators import (
     _add_generator_to_network,
     _add_hydro_energy_budget_constraint,
+    _update_generator_availability_timeseries,
 )
 
 
@@ -266,3 +269,20 @@ def test_add_hydro_energy_budget_constraint_no_op_without_water_generators():
     _add_hydro_energy_budget_constraint(network)
 
     assert network.global_constraints.empty
+
+
+def test_update_generator_availability_timeseries_sets_water_seasonal_ceiling():
+    """Test new snapshots give Water generators the monthly hydro ceiling, not the
+    PyPSA default of 1."""
+    network = pypsa.Network()
+    network.add("Bus", "test_bus")
+    network.add("Generator", "hydro_1", bus="test_bus", carrier="Water", p_nom=100)
+    network.snapshots = pd.MultiIndex.from_arrays(
+        [[2025, 2025], pd.to_datetime(["2025-01-01 12:00", "2025-07-01 12:00"])]
+    )
+
+    _update_generator_availability_timeseries(
+        "hydro_1", "Water", network, Path("unused"), Path("unused")
+    )
+
+    assert network.generators_t.p_max_pu["hydro_1"].to_list() == [0.25, 0.40]

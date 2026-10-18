@@ -330,6 +330,8 @@ def _update_generator_availability_timeseries(
         trace_data = _get_trace_data(name, path_to_wind_traces)
     elif carrier == "Solar":
         trace_data = _get_trace_data(name, path_to_solar_traces)
+    elif carrier == "Water":
+        trace_data = _build_seasonal_hydro_trace(network.snapshots)
     else:
         trace_data = None
 
