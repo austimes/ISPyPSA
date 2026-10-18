@@ -509,7 +509,8 @@ one financial year, with columns:
 
 In each investment period the model buys the annual fuel its Gas generators burn (dispatch weighted by snapshot
 weightings, times heat rate) from the tranches, filling cheaper tranches first, so fuel cost rises with total gas use.
-The curve is added by `build_pypsa_network`.
+The curve is added by `build_pypsa_network` and applies in capacity expansion only: `update_network_timeseries` does
+not re-add it, so the operational phase sees unlimited gas at the IASR price.
 
 Default: none, which leaves gas supply unlimited at the IASR price.
 
