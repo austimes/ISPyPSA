@@ -267,7 +267,7 @@ def _merge_and_set_new_battery_static_properties(
         # if col is an opex column, use separate function to handle merging in:
         if re.search("^[fv]om_", col):
             data = iasr_tables[table_attrs["table"]]
-            df, col = _process_and_merge_opex(df, data, col, table_attrs)
+            df, col = _process_and_merge_opex(df, data, col)
         else:
             if type(table_attrs["table"]) is list:
                 data = [iasr_tables[table] for table in table_attrs["table"]]
@@ -333,83 +333,43 @@ def _process_and_merge_opex(
     df: pd.DataFrame,
     table_data: pd.DataFrame,
     col_name: str,
-    table_attrs: dict,
 ) -> tuple[pd.DataFrame, str]:
     """Processes and merges in fixed or variable OPEX values for new entrant storage.
 
-    In v6.0 of the IASR workbook the base values for all OPEX are found in
-    the column "NSW Low" or the relevant table, all other values are calculated
-    from this base value multiplied by the O&M locational cost factor. This function
-    merges in the post-LCF calculated values provided in the IASR workbook.
-
     Args:
         df: New entrant storage template with opex column(s) filled in
-        table_data: OPEX table data to merge in
+        table_data: OPEX table data to merge in, with a single `Base value` column
         col_name: Name of the column to merge in, one of `'fom_$/kw/annum'` or `'vom_$/mwh_sent_out'`
-        table_attrs: Dictionary of attributes for the table to merge in
 
     Returns:
         tuple[pd.DataFrame, str]: Updated dataframe with merged in values and `col_name`
             returned for use in `_merge_table_data`.
     """
-    # v7.4 shape: single `Base value` column. Compute opex = base × O&M LCF.
+    # Single `Base value` column. Compute opex = base × O&M LCF.
     # See `static_new_generator_properties._compute_opex_from_base_and_lcf`
     # for the same logic on new entrant generators.
-    if any("base value" in c.lower() for c in table_data.columns):
-        base_value_col = next(
-            c for c in table_data.columns if "base value" in c.lower()
-        )
-        # Identifier in v7.4 storage opex tables is either Technology Type
-        # (fixed_opex) or Generator (variable_opex).
-        id_col_in_table = (
-            "Technology Type"
-            if "Technology Type" in table_data.columns
-            else "Generator"
-        )
-        base = table_data.set_index(id_col_in_table)[base_value_col]
-        # v7.5+ renamed new-entrant batteries' storage_name to per-subregion
-        # labels ("NQ Battery - 1h") and moved the generic tech label the opex
-        # table is keyed on to technology_type. Key on technology_type (== the
-        # generic storage_name in v7.4, so no regression) and standardise
-        # "storage" capitalisation on both sides so v7.8's "Battery storage"
-        # matches the summary's "Battery Storage" — otherwise the map misses
-        # and every new-entrant battery gets a NaN OPEX (then NaN capital cost,
-        # then dropped in translation: the whole new-entrant storage fleet
-        # silently disappears from the model).
-        base.index = _standardise_storage_capitalisation(
-            pd.Series(base.index, dtype="object")
-        ).values
-        base_dict = base.to_dict()
-        key_col = (
-            "technology_type" if "technology_type" in df.columns else "storage_name"
-        )
-        df[col_name] = _standardise_storage_capitalisation(df[key_col]).map(base_dict)
-        return df, col_name
-    # v6.0 shape: per-region cost columns + identifier lookup.
-    df[col_name] = df["storage_name"] + " " + df[col_name]
-    table_data = table_data.rename(
-        columns={
-            col: col.replace(f"{table_attrs['table_col_prefix']}_", "")
-            for col in table_data.columns
-        }
+    base_value_col = next(c for c in table_data.columns if "base value" in c.lower())
+    # Identifier in v7.4 storage opex tables is either Technology Type
+    # (fixed_opex) or Generator (variable_opex).
+    id_col_in_table = (
+        "Technology Type" if "Technology Type" in table_data.columns else "Generator"
     )
-    # standardise capitalisation of "storage" first:
-    table_data[table_attrs["table_lookup"]] = _standardise_storage_capitalisation(
-        table_data[table_attrs["table_lookup"]]
-    )
-    opex_table = table_data.melt(
-        id_vars=[table_attrs["table_lookup"]],
-        var_name="cost_region",
-        value_name="opex_value",
-    )
-    # add column with same storage + cost_region mapping as df[col_name]:
-    opex_table["mapping"] = (
-        opex_table[table_attrs["table_lookup"]] + " " + opex_table["cost_region"]
-    )
-    opex_replacement_dict = (
-        opex_table[["mapping", "opex_value"]].set_index("mapping").squeeze().to_dict()
-    )
-    df[col_name] = df[col_name].replace(opex_replacement_dict)
+    base = table_data.set_index(id_col_in_table)[base_value_col]
+    # v7.5+ renamed new-entrant batteries' storage_name to per-subregion
+    # labels ("NQ Battery - 1h") and moved the generic tech label the opex
+    # table is keyed on to technology_type. Key on technology_type (== the
+    # generic storage_name in v7.4, so no regression) and standardise
+    # "storage" capitalisation on both sides so v7.8's "Battery storage"
+    # matches the summary's "Battery Storage" — otherwise the map misses
+    # and every new-entrant battery gets a NaN OPEX (then NaN capital cost,
+    # then dropped in translation: the whole new-entrant storage fleet
+    # silently disappears from the model).
+    base.index = _standardise_storage_capitalisation(
+        pd.Series(base.index, dtype="object")
+    ).values
+    base_dict = base.to_dict()
+    key_col = "technology_type" if "technology_type" in df.columns else "storage_name"
+    df[col_name] = _standardise_storage_capitalisation(df[key_col]).map(base_dict)
     return df, col_name
 
 

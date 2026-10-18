@@ -228,7 +228,7 @@ def _merge_and_set_new_generators_static_properties(
         # if col is an opex column, use separate function to handle merging in:
         if re.search("^[fv]om_", col):
             data = iasr_tables[table_attrs["table"]]
-            df, col = _process_and_merge_opex(df, data, col, table_attrs, iasr_tables)
+            df, col = _compute_opex_from_base_and_lcf(df, iasr_tables, data, col)
         else:
             if type(table_attrs["table"]) is list:
                 data = [iasr_tables[table] for table in table_attrs["table"]]
@@ -296,68 +296,13 @@ def _merge_table_data(
     return df, col
 
 
-def _process_and_merge_opex(
-    df: pd.DataFrame,
-    table_data: pd.DataFrame,
-    col_name: str,
-    table_attrs: dict,
-    iasr_tables: dict[str, pd.DataFrame] | None = None,
-) -> tuple[pd.DataFrame, str]:
-    """Processes and merges in fixed or variable OPEX values for new entrant generators.
-
-    Two shapes are supported (detected from the table columns):
-
-    v6.0: per-region cost columns (e.g. `Fixed OPEX ($/kW sent out/year)_NSW Low`).
-        Values are pre-multiplied per (region, cost-band). Templater maps
-        `regional_build_cost_zone` → the matching column.
-
-    v7.4: single `Base value` column.
-        OPEX is computed as `base × O&M LCF / 100` where the LCF comes from
-        `locational_cost_factors` keyed by the generator's sub-region. The
-        workbook has no per-region cost bands (Low/Medium/High) in this shape.
-    """
-    if any("base value" in c.lower() for c in table_data.columns):
-        return _compute_opex_from_base_and_lcf(df, iasr_tables, table_data, col_name)
-    # update the mapping in this column to include generator name and the cost region initially given
-    df[col_name] = df["generator_name"] + " " + df[col_name]
-    table_data = table_data.rename(
-        columns={
-            col: col.replace(f"{table_attrs['table_col_prefix']}_", "")
-            for col in table_data.columns
-        }
-    )
-    opex_table = table_data.melt(
-        id_vars=[table_attrs["table_lookup"]],
-        var_name="cost_region",
-        value_name="opex_value",
-    )
-    # add column with same generator + cost_region mapping as df[col_name]:
-    opex_table["mapping"] = (
-        opex_table[table_attrs["table_lookup"]] + " " + opex_table["cost_region"]
-    )
-    opex_replacement_dict = (
-        opex_table[["mapping", "opex_value"]].set_index("mapping").squeeze().to_dict()
-    )
-    # use fuzzy matching in case of slight differences in generator names:
-    where_str = df[col_name].apply(lambda x: isinstance(x, str))
-    df.loc[where_str, col_name] = _fuzzy_match_names(
-        df.loc[where_str, col_name],
-        opex_replacement_dict.keys(),
-        f"merging in the new entrant generator static property {col_name}",
-        not_match="existing",
-        threshold=90,
-    )
-    df[col_name] = df[col_name].replace(opex_replacement_dict)
-    return df, col_name
-
-
 def _compute_opex_from_base_and_lcf(
     df: pd.DataFrame,
     iasr_tables: dict[str, pd.DataFrame],
     base_table: pd.DataFrame,
     col_name: str,
 ) -> tuple[pd.DataFrame, str]:
-    """v7.4 OPEX flow: `opex = base value × O&M LCF / 100`.
+    """Computes new entrant OPEX as `base value × O&M LCF / 100`.
 
     The base table's identifier column is `Technology Type` (fixed_opex_new_entrants)
     or `Generator` (variable_opex_new_entrants) — auto-detected. The summary df's

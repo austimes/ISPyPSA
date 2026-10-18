@@ -10,7 +10,6 @@ from ispypsa.templater.helpers import (
     _assert_no_nan_load_bearing_column,
     _convert_financial_year_columns_to_float,
     _manual_remove_footnotes_from_generator_names,
-    _rez_name_to_id_mapping,
     _standardise_storage_capitalisation,
 )
 
@@ -519,10 +518,10 @@ def _template_new_entrant_wind_and_solar_connection_costs(
     """Creates a new entrant wind and solar connection cost template
 
     Reads the version-naive consolidated `connection_cost_forecast_wind_and_solar`
-    table (REZ names + Scenario + Connection capacity (MVA) + FY $ columns),
+    table (REZ names + Scenario + Connection capacity (MVA) + REZ ID + FY $ columns),
     filters to the active scenario, computes $/MW per FY, appends the system
-    strength cost from `connection_costs_for_wind_and_solar`, and maps REZ
-    names to IDs.
+    strength cost from `connection_costs_for_wind_and_solar`, and keys the rows
+    by REZ ID.
 
     Args:
         iasr_tables: Dict of tables from the IASR workbook that have been parsed using
@@ -536,30 +535,19 @@ def _template_new_entrant_wind_and_solar_connection_costs(
     forecasts = _filter_forecast_to_scenario(
         iasr_tables["connection_cost_forecast_wind_and_solar"], scenario
     )
-    # Source-id-first: v7.x publishes a clean `REZ ID` column — key by it directly.
-    # The FINAL 2026 ISP names V3 and V4 identically ("Western Victoria"), so
-    # deriving the id from the name collapses both onto one id (V4) and loses V3's
-    # connection costs. v6.0 has no `REZ ID` column, so fall back to the
-    # (unique-in-v6.0) REZ name. Mirrors the source-id-first handling in
-    # `static_new_generator_properties._add_rez_id_column`.
-    key_col = "REZ ID" if "REZ ID" in forecasts.columns else "REZ names"
-    forecasts = forecasts.set_index(key_col)
+    # Key by the source `REZ ID` column, not the name: the FINAL 2026 ISP names V3
+    # and V4 identically ("Western Victoria"), so deriving the id from the name
+    # collapses both onto one id (V4) and loses V3's connection costs.
+    forecasts = forecasts.set_index("REZ ID")
     forecasts = _convert_per_mva_columns_to_per_mw(forecasts)
     forecasts = _append_system_strength_cost(
-        forecasts, iasr_tables["connection_costs_for_wind_and_solar"], key_col
+        forecasts, iasr_tables["connection_costs_for_wind_and_solar"], "REZ ID"
     )
     forecasts = forecasts.replace("Note 1", np.nan).reset_index()
-    if key_col == "REZ ID":
-        # Downstream keys connection costs by REZ ID (matches
-        # `new_entrant_generators.connection_cost_region_id`); the colliding name
-        # column is replaced by the unambiguous id.
-        forecasts["REZ names"] = forecasts.pop("REZ ID")
-    else:
-        forecasts["REZ names"] = _rez_name_to_id_mapping(
-            forecasts["REZ names"],
-            "REZ names",
-            iasr_tables["renewable_energy_zones"],
-        )
+    # Downstream keys connection costs by REZ ID (matches
+    # `new_entrant_generators.connection_cost_region_id`); the colliding name
+    # column is replaced by the unambiguous id.
+    forecasts["REZ names"] = forecasts.pop("REZ ID")
     return forecasts
 
 

@@ -14,19 +14,11 @@ def _template_rez_build_limits(
     """Create a template for renewable energy zones that contains data on resource and
     transmission limits and transmission expansion costs.
 
-    v6.0 carried both resource limits (wind/solar capacity) and REZ-to-grid
-    transmission limits + expansion costs in a single `initial_build_limits`
-    table. v7.x split these across `initial_resource_limits` and
-    `initial_transmission_limits`. The templater reads transmission columns
-    from the latter when present (v7.4) and otherwise falls back to the same
-    `initial_resource_limits` DataFrame (v6.0, where both sets of columns
-    live in the same renamed table).
-
     Args:
         iasr_tables: dict of IASR tables from `isp-workbook-parser`. Reads
-            `initial_resource_limits` for resource columns, and optionally
-            `initial_transmission_limits` if AEMO publishes transmission
-            data in a separate table (v7.4+).
+            `initial_resource_limits` for resource columns,
+            `initial_transmission_limits` for transmission limits and expansion
+            costs, and `renewable_energy_zones` for each REZ's ISP sub-region.
         scenario: ISP scenario to generate template inputs based on.
 
     Returns:
@@ -116,39 +108,23 @@ def _template_rez_build_limits(
 def _merge_resource_and_transmission_limits(
     iasr_tables: dict[str, pd.DataFrame],
 ) -> pd.DataFrame:
-    """Combine `initial_resource_limits` with the transmission columns AEMO now
-    publishes separately in `initial_transmission_limits` (v7.4+), and bring in
-    the per-REZ ISP sub-region from `renewable_energy_zones` if it isn't already
-    in the resource table.
-
-    For v6.0 caches both the transmission columns and the ISP sub-region live
-    in `initial_resource_limits` (the renamed file from v6.0's
-    `initial_build_limits`), so the cross-table merges are no-ops.
-    """
-    resource_df = iasr_tables["initial_resource_limits"].copy()
-    if "initial_transmission_limits" in iasr_tables:
-        transmission_df = iasr_tables["initial_transmission_limits"].copy()
-        transmission_cols = [
-            col for col in transmission_df.columns if col != "REZ name"
-        ]
-        resource_df = resource_df.merge(
-            transmission_df[transmission_cols], on="REZ ID", how="left"
-        )
-    if "ISP sub-region" not in resource_df.columns:
-        rez_df = iasr_tables["renewable_energy_zones"][["ID", "ISP sub-region"]]
-        resource_df = resource_df.merge(
-            rez_df, left_on="REZ ID", right_on="ID", how="left"
-        ).drop(columns="ID")
-    return resource_df
+    """Combine `initial_resource_limits` with the transmission columns of
+    `initial_transmission_limits` and the per-REZ ISP sub-region from
+    `renewable_energy_zones`."""
+    resource_df = iasr_tables["initial_resource_limits"]
+    transmission_df = iasr_tables["initial_transmission_limits"]
+    transmission_cols = [col for col in transmission_df.columns if col != "REZ name"]
+    resource_df = resource_df.merge(
+        transmission_df[transmission_cols], on="REZ ID", how="left"
+    )
+    rez_df = iasr_tables["renewable_energy_zones"][["ID", "ISP sub-region"]]
+    resource_df = resource_df.merge(rez_df, left_on="REZ ID", right_on="ID", how="left")
+    return resource_df.drop(columns="ID")
 
 
 def _process_transmission_limit(data):
     """Replace 0.0 MW Transmission limits with nan if there is not a cost given for
-    expansion.
-
-    v7.4 made the Tranche 1 expansion-cost column suffix explicit; v6.0 caches
-    get the same suffix added via the schema normalisation column rename.
-    """
+    expansion."""
     cols = [
         "rez_transmission_network_limit_peak_demand",
         "rez_transmission_network_limit_summer_typical",

@@ -470,18 +470,11 @@ def test_process_and_merge_opex(csv_str_to_df, workbook_table_cache_test_path: P
 
     new_entrant_fixed_opex = iasr_tables["fixed_opex_new_entrants"]
 
-    table_attrs = dict(
-        table="fixed_opex_new_entrants",
-        table_lookup="Generator",
-        table_col_prefix="Fixed OPEX ($/kW sent out/year)",
-    )
-
     # Execute function for fixed O&M costs
     result_df, result_col = _process_and_merge_opex(
         new_entrant_storage_df.copy(),
         new_entrant_fixed_opex,
         "fom_$/kw/annum",
-        table_attrs,
     )
 
     # Expected result for fixed O&M costs
@@ -506,21 +499,10 @@ def test_process_and_merge_opex(csv_str_to_df, workbook_table_cache_test_path: P
         columns=["storage_name", "technology_type", "fom_$/kw/annum"]
     )
     result_empty_df, result_empty_col = _process_and_merge_opex(
-        empty_df, new_entrant_fixed_opex, "fom_$/kw/annum", table_attrs
+        empty_df, new_entrant_fixed_opex, "fom_$/kw/annum"
     )
     assert result_empty_df.empty
     assert result_empty_col == "fom_$/kw/annum"
-
-    # Test edge case: Empty opex table
-    empty_opex = pd.DataFrame(
-        columns=["Generator", "Fixed OPEX ($/kW sent out/year)_NSW Low"]
-    )
-    result_empty_opex_df, result_empty_opex_col = _process_and_merge_opex(
-        new_entrant_storage_df.copy(), empty_opex, "fom_$/kw/annum", table_attrs
-    )
-    # Should return original dataframe with values unchanged
-    assert "fom_$/kw/annum" in result_empty_opex_df.columns
-    assert result_empty_opex_col == "fom_$/kw/annum"
 
 
 def test_calculate_and_merge_tech_specific_lcfs(
@@ -700,14 +682,8 @@ def test_process_and_merge_opex_keys_on_technology_type_for_per_subregion_names(
             "Base value ($/kW/year)": [9.16, 12.34],
         }
     )
-    table_attrs = dict(
-        table="fixed_opex_new_entrants",
-        table_lookup="Generator",
-        table_col_prefix="Fixed OPEX ($/kW sent out/year)",
-    )
-
     result, result_col = _process_and_merge_opex(
-        storage_df.copy(), fixed_opex, "fom_$/kw/annum", table_attrs
+        storage_df.copy(), fixed_opex, "fom_$/kw/annum"
     )
 
     expected = csv_str_to_df("""
