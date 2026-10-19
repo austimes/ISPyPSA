@@ -84,8 +84,8 @@ def test_core_functionality_and_triggers(
     for file in expected_demand_files:
         assert (demand_dir / file).exists(), f"Missing demand file: {file}"
 
-    assert (solar_dir / "Tamworth Solar Farm.parquet").exists()
-    assert (wind_dir / "Wambo Wind Farm.parquet").exists()
+    assert (solar_dir / "Moree Solar Farm.parquet").exists()
+    assert (wind_dir / "White Rock Wind Farm - Stage 1.parquet").exists()
 
     # Get timestamps from first run
     first_run_timestamps = get_file_timestamps(output_dir)

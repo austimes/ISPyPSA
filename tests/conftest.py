@@ -124,7 +124,7 @@ def sample_ispypsa_tables(csv_str_to_df):
                 "Large scale Solar PV",
                 "Wind",
             ],
-            "connection_cost_rez/_region_id": [
+            "connection_cost_region_id": [
                 "NSW",
                 "NSW",
                 "Central-West Orana",
@@ -134,6 +134,7 @@ def sample_ispypsa_tables(csv_str_to_df):
             ],
             "fom_$/kw/annum": [12.0, 15.0, 20.0, 30.0, 20.0, 30.0],
             "technology_specific_lcf_%": [100.0, 103.0, 107.0, 105.0, 101.0, 99.0],
+            "wacc": [0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
             "isp_resource_type": [
                 "CCGT",
                 "OCGT (small GT)",
@@ -262,11 +263,16 @@ def sample_ispypsa_tables(csv_str_to_df):
 
     # New entrant battery table:
     new_entrant_batteries_csv = """
-    storage_name,          sub_region_id, region_id,       rez_id,     technology_type,                     lifetime,    charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  technology_specific_lcf_%,     connection_cost_$/mw,   fom_$/kw/annum,     isp_resource_type
-    NewBattery1,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          90.0,                   90.0,                       2,                      Battery,    100.0,                         55000.0,                10.0,               Battery__Storage__2h
-    NewBattery2,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          95.0,                   95.0,                       2,                      Battery,    100.0,                         55000.0,                7.0,                Battery__Storage__2h
+    storage_name,          sub_region_id, region_id,       rez_id,     technology_type,                     lifetime,    charging_efficiency_%,  discharging_efficiency_%,   storage_duration_hours, fuel_type,  technology_specific_lcf_%,     connection_cost_$/mw,   fom_$/kw/annum,     isp_resource_type,      wacc
+    NewBattery1,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          90.0,                   90.0,                       2,                      Battery,    100.0,                         55000.0,                10.0,               Battery__Storage__2h,   0.05
+    NewBattery2,           CNSW,          NSW,             ,           Battery__Storage__(2hrs__storage),   20,          95.0,                   95.0,                       2,                      Battery,    100.0,                         55000.0,                7.0,                Battery__Storage__2h,   0.05
     """
     tables["new_entrant_batteries"] = csv_str_to_df(new_entrant_batteries_csv)
+
+    tables["transmission_wacc"] = csv_str_to_df("""
+    regulated_transmission_wacc
+    0.06
+    """)
 
     return tables
 
@@ -307,7 +313,7 @@ def sample_model_config():
         scenario="Step Change",
         wacc=0.06,
         discount_rate=0.05,
-        iasr_workbook_version="6.0",
+        iasr_workbook_version="7.8",
         solver="highs",
         temporal=TemporalConfig(
             year_type="fy",
@@ -458,6 +464,15 @@ def sample_generator_translator_tables(csv_str_to_df):
 
 @pytest.fixture
 def translated_generator_column_order():
+    # The translator also emits isp_capture_rate, isp_residual_co2_t_per_mwh and
+    # isp_captured_co2_t_per_mwh as physical quantities for emissions accounting.
+    # These are derived (technology_type → capture_rate, carrier × heat_rate →
+    # residual/captured t/MWh) and captured is 0 for non-CCS plants by construction.
+    _EMISSION_COLS = [
+        "isp_capture_rate",
+        "isp_residual_co2_t_per_mwh",
+        "isp_captured_co2_t_per_mwh",
+    ]
     translated_column_orders = dict(
         ecaa_column_order=[
             "name",
@@ -475,6 +490,7 @@ def translated_generator_column_order():
             "isp_vom_$/mwh_sent_out",
             "isp_heat_rate_gj/mwh",
             "isp_rez_id",
+            *_EMISSION_COLS,
         ],
         new_entrant_column_order=[
             "name",
@@ -495,6 +511,7 @@ def translated_generator_column_order():
             "isp_heat_rate_gj/mwh",
             "isp_resource_type",
             "isp_rez_id",
+            *_EMISSION_COLS,
         ],
     )
 

@@ -16,7 +16,7 @@ def test_create_ispypsa_inputs_template_sub_regions(
     workbook_table_cache_test_path: Path,
 ):
     iasr_tables = read_csvs(workbook_table_cache_test_path)
-    manual_tables = load_manually_extracted_tables("6.0")
+    manual_tables = load_manually_extracted_tables("7.8")
     template_tables = create_ispypsa_inputs_template(
         "Step Change", "sub_regions", iasr_tables, manual_tables
     )
@@ -36,7 +36,7 @@ def test_create_ispypsa_inputs_template_sub_regions(
 
 def test_create_ispypsa_inputs_template_regions(workbook_table_cache_test_path: Path):
     iasr_tables = read_csvs(workbook_table_cache_test_path)
-    manual_tables = load_manually_extracted_tables("6.0")
+    manual_tables = load_manually_extracted_tables("7.8")
     template_tables = create_ispypsa_inputs_template(
         "Step Change", "nem_regions", iasr_tables, manual_tables
     )
@@ -57,7 +57,7 @@ def test_create_ispypsa_inputs_template_single_regions(
     workbook_table_cache_test_path: Path,
 ):
     iasr_tables = read_csvs(workbook_table_cache_test_path)
-    manual_tables = load_manually_extracted_tables("6.0")
+    manual_tables = load_manually_extracted_tables("7.8")
     template_tables = create_ispypsa_inputs_template(
         "Step Change", "single_region", iasr_tables, manual_tables
     )

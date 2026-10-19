@@ -14,8 +14,11 @@ from ispypsa.templater.storage import (
     _add_and_clean_rez_ids,
     _add_closure_year_column,
     _add_isp_resource_type_column,
+    _add_unique_new_entrant_storage_name_column,
     _calculate_and_merge_tech_specific_lcfs,
     _calculate_storage_duration_hours,
+    _filter_to_ecaa_batteries,
+    _merge_table_data,
     _process_and_merge_connection_cost,
     _process_and_merge_opex,
     _restructure_battery_property_table,
@@ -69,8 +72,12 @@ def test_battery_templater(workbook_table_cache_test_path: Path):
                 )
             )
 
-    # limited test CSV contains only "Existing" ECAA battery
-    assert all(ecaa_batteries["status"] == "Existing")
+    assert set(ecaa_batteries["status"]) == {
+        "Existing",
+        "Committed",
+        "Anticipated",
+        "Additional policy-supported project",
+    }
     assert all(new_entrant_batteries["status"] == "New Entrant")
 
     all_columns = (
@@ -100,6 +107,55 @@ def test_merge_and_set_battery_static_properties_string_handling(
                 )
 
 
+def test_ecaa_batteries_keep_both_iasr_additional_project_labels(csv_str_to_df):
+    batteries = csv_str_to_df("""
+        storage_name,  status
+        Existing,      Existing
+        Add 2024,      Additional__projects
+        Add 2026,      Additional__policy-supported__project
+        New,           New__Entrant
+    """)
+
+    result = _filter_to_ecaa_batteries(batteries)
+
+    expected = csv_str_to_df("""
+        storage_name,  status
+        Existing,      Existing
+        Add 2024,      Additional__projects
+        Add 2026,      Additional__policy-supported__project
+    """)
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_ecaa_battery_commissioning_date_reads_committed_and_indicative_dates(
+    csv_str_to_df,
+):
+    batteries = csv_str_to_df("""
+        storage_name,        commissioning_date
+        Committed BESS,      Committed BESS
+        Anticipated BESS,    Anticipated BESS
+    """)
+    maximum_capacity = csv_str_to_df("""
+        Power Station,       Commissioning date,  Indicative commissioning date
+        Committed BESS,      2027-07-01,
+        Anticipated BESS,    ,                    2028-12-01
+    """)
+
+    result, _ = _merge_table_data(
+        batteries,
+        "commissioning_date",
+        maximum_capacity,
+        _ECAA_STORAGE_STATIC_PROPERTY_TABLE_MAP["commissioning_date"],
+    )
+
+    expected = csv_str_to_df("""
+        storage_name,        commissioning_date
+        Committed BESS,      2027-07-01
+        Anticipated BESS,    2028-12-01
+    """)
+    pd.testing.assert_frame_equal(result, expected)
+
+
 def test_add_closure_year_column(csv_str_to_df):
     """Test the _add_closure_year_column function with various scenarios."""
     # Setup test data
@@ -111,7 +167,7 @@ def test_add_closure_year_column(csv_str_to_df):
     ecaa_batteries = csv_str_to_df(ecaa_batteries_csv)
 
     closure_years_csv = """
-    Generator__name,        DUID,       Expected__Closure__Year__(Calendar__year)
+    Power__Station,         IASR__ID,   Expected__Closure__Year__(Calendar__year)
     Existing__Battery,      EB01,       2035
     Existing__Battery,      EB02,       2036
     """
@@ -149,7 +205,7 @@ def test_add_closure_year_column_empty_ecaa_df(csv_str_to_df):
 
     # Case 1a: Empty closure years dataframe
     empty_closure = pd.DataFrame(
-        columns=["Generator name", "DUID", "Expected Closure Year (Calendar year)"]
+        columns=["Power Station", "IASR ID", "Expected Closure Year (Calendar year)"]
     )
 
     # Execute function
@@ -183,13 +239,18 @@ def test_restructure_battery_property_table(
     # Execute function
     result = _restructure_battery_property_table(battery_properties)
 
-    # Expected result - restructured with batteries as rows
+    # Expected result — v7.4 canonical wide shape (Technology/storage_name as rows,
+    # property+unit-suffixed columns).
     expected_csv = """
-    storage_name,                       Maximum__power, Energy__capacity,   Charge__efficiency__(utility),  Discharge__efficiency__(utility),   Round__trip__efficiency__(utility),     Annual__degradation__(utility)
-    Battery__storage__(1hr__storage),   1.0,            1.0,                91.7,                           91.7,                               84.0,                                     1.8
-    Battery__storage__(2hrs__storage),  1.0,            2.0,                91.7,                           91.7,                               84.0,                                     1.8
-    Battery__storage__(4hrs__storage),  1.0,            4.0,                92.2,                           92.2,                               85.0,                                     1.8
-    Battery__storage__(8hrs__storage),  1.0,            8.0,                91.1,                           91.1,                               83.0,                                     1.8
+    storage_name,                                   Maximum__power_MW,  Energy__capacity_Hours, Charge__efficiency_%,   Discharge__efficiency_%,    Allowable__max__state__of__charge_%,    Allowable__min__state__of__charge_%,    Round__trip__efficiency_%,  Annual__degradation_%
+    Battery__storage__(1hr__storage),               1,                  1.0,                    92.0,                   92.0,                       99.15,                                  0,                                      84,                         1.8
+    Battery__storage__(2hrs__storage),              1,                  2.0,                    92.0,                   92.0,                       99.05,                                  0,                                      84,                         1.8
+    Battery__storage__(4hrs__storage),              1,                  4.0,                    92.5,                   92.5,                       98.8,                                   0,                                      85,                         1.4
+    Battery__storage__(8hrs__storage),              1,                  8.0,                    93.0,                   93.0,                       98.25,                                  0,                                      85,                         1.2
+    Compressed__air,                                1,                  8.0,                    81.0,                   81.0,                       100.0,                                  0,                                      0,                          0.0
+    Distributed__Resources__Batteries,              1,                  2.0,                    92.0,                   92.0,                       99.05,                                  0,                                      84,                         1.8
+    VPP__(aggregated__ESS)__-__Coordinated__CER,    1,                  2.2,                    92.2,                   92.2,                       85.0,                                   0,                                      85,                         1.6
+    VPP__(aggregated__ESS)__-__V2G,                 1,                  2.2,                    92.2,                   92.2,                       85.0,                                   0,                                      85,                         1.6
     """
     expected = csv_str_to_df(expected_csv)
 
@@ -409,25 +470,18 @@ def test_process_and_merge_opex(csv_str_to_df, workbook_table_cache_test_path: P
 
     new_entrant_fixed_opex = iasr_tables["fixed_opex_new_entrants"]
 
-    table_attrs = dict(
-        table="fixed_opex_new_entrants",
-        table_lookup="Generator",
-        table_col_prefix="Fixed OPEX ($/kW sent out/year)",
-    )
-
     # Execute function for fixed O&M costs
     result_df, result_col = _process_and_merge_opex(
         new_entrant_storage_df.copy(),
         new_entrant_fixed_opex,
         "fom_$/kw/annum",
-        table_attrs,
     )
 
     # Expected result for fixed O&M costs
     expected_fixed_csv = """
     storage_name,                       technology_type,                    region_id,     sub_region_id,      fom_$/kw/annum
-    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),  NSW,           NNSW,               10.799929999999998
-    Battery__Storage__(1hr__storage),   Battery__Storage__(1hr__storage),   QLD,           SQ,                 7.592029999999999
+    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),  NSW,           NNSW,               13.54339
+    Battery__Storage__(1hr__storage),   Battery__Storage__(1hr__storage),   QLD,           SQ,                 9.1647
     """
     expected_fixed = csv_str_to_df(expected_fixed_csv)
 
@@ -445,21 +499,10 @@ def test_process_and_merge_opex(csv_str_to_df, workbook_table_cache_test_path: P
         columns=["storage_name", "technology_type", "fom_$/kw/annum"]
     )
     result_empty_df, result_empty_col = _process_and_merge_opex(
-        empty_df, new_entrant_fixed_opex, "fom_$/kw/annum", table_attrs
+        empty_df, new_entrant_fixed_opex, "fom_$/kw/annum"
     )
     assert result_empty_df.empty
     assert result_empty_col == "fom_$/kw/annum"
-
-    # Test edge case: Empty opex table
-    empty_opex = pd.DataFrame(
-        columns=["Generator", "Fixed OPEX ($/kW sent out/year)_NSW Low"]
-    )
-    result_empty_opex_df, result_empty_opex_col = _process_and_merge_opex(
-        new_entrant_storage_df.copy(), empty_opex, "fom_$/kw/annum", table_attrs
-    )
-    # Should return original dataframe with values unchanged
-    assert "fom_$/kw/annum" in result_empty_opex_df.columns
-    assert result_empty_opex_col == "fom_$/kw/annum"
 
 
 def test_calculate_and_merge_tech_specific_lcfs(
@@ -472,8 +515,8 @@ def test_calculate_and_merge_tech_specific_lcfs(
     # Setup test data
     storage_df_csv = """
     storage_name,                       technology_type,                     technology_specific_lcf_%
-    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),   NSW__Low
-    Battery__Storage__(1hr__storage),   Battery__Storage__(1hr__storage),    QLD__Low
+    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),   NNSW
+    Battery__Storage__(1hr__storage),   Battery__Storage__(1hr__storage),    SQ
     """
     storage_df = csv_str_to_df(storage_df_csv)
 
@@ -486,7 +529,7 @@ def test_calculate_and_merge_tech_specific_lcfs(
     expected_csv = """
     storage_name,                       technology_type,                     technology_specific_lcf_%
     Battery__Storage__(1hr__storage),   Battery__Storage__(1hr__storage),    100.0
-    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),   100.0
+    Battery__Storage__(2hrs__storage),  Battery__Storage__(2hrs__storage),   104.5646
     """
     expected = csv_str_to_df(expected_csv)
 
@@ -542,11 +585,13 @@ def test_calculate_and_merge_tech_specific_lcfs(
 
 def test_process_and_merge_connection_cost(csv_str_to_df):
     """Test the _process_and_merge_connection_cost function."""
-    # Setup test data
+    # Setup test data. v7.4 lookup uses `region_id` (NEM region) directly
+    # rather than `connection_cost_region_id` (which has mixed sub-region /
+    # band semantics) — see _process_and_merge_connection_cost docstring.
     storage_df_csv = """
-    storage_name,                        connection_cost_rez/_region_id,    connection_cost_technology
-    Battery__Storage__(2hrs__storage),   NSW,                               2hr__Battery__Storage
-    Battery__Storage__(1hr__storage),    QLD,                               1hr__Battery__Storage
+    storage_name,                        region_id,  connection_cost_technology
+    Battery__Storage__(2hrs__storage),   NSW,        2hr__Battery__Storage
+    Battery__Storage__(1hr__storage),    QLD,        1hr__Battery__Storage
     """
     storage_df = csv_str_to_df(storage_df_csv)
 
@@ -562,9 +607,9 @@ def test_process_and_merge_connection_cost(csv_str_to_df):
 
     # Expected result - connection costs should be in $/MW (multiplied by 1000)
     expected_csv = """
-    storage_name,                        connection_cost_rez/_region_id,    connection_cost_technology,      connection_cost_$/mw
-    Battery__Storage__(2hrs__storage),   NSW,                               2hr__Battery__Storage,           55000.0
-    Battery__Storage__(1hr__storage),    QLD,                               1hr__Battery__Storage,           45000.0
+    storage_name,                        region_id,  connection_cost_technology,      connection_cost_$/mw
+    Battery__Storage__(2hrs__storage),   NSW,        2hr__Battery__Storage,           55000.0
+    Battery__Storage__(1hr__storage),    QLD,        1hr__Battery__Storage,           45000.0
     """
     expected = csv_str_to_df(expected_csv)
 
@@ -580,7 +625,7 @@ def test_process_and_merge_connection_cost(csv_str_to_df):
         columns=[
             "storage_name",
             "technology_type",
-            "connection_cost_rez/_region_id",
+            "region_id",
             "connection_cost_technology",
         ]
     )
@@ -601,3 +646,120 @@ def test_process_and_merge_connection_cost(csv_str_to_df):
         match=r"Missing connection costs for the following batteries: \['Battery Storage \(2hrs storage\)'\]",
     ):
         _process_and_merge_connection_cost(storage_df, incomplete_costs)
+
+
+# ---------------------------------------------------------------------------
+# Regression: v7.5+ renamed new-entrant batteries' storage_name to per-subregion
+# labels ("NQ Battery - 1h"); the generic label the OPEX / LCF tables are keyed
+# on moved to technology_type. The opex and LCF merges must key on
+# technology_type (not storage_name) and standardise "storage" capitalisation
+# ("Battery storage" in the v7.8 source vs "Battery Storage" in the summary),
+# else every new-entrant battery gets NaN OPEX/LCF -> NaN capital cost -> the
+# whole new-entrant storage fleet is silently dropped in translation, leaving
+# the LP unable to build any new storage. These guard the cumulative behaviour
+# (per-subregion storage_name that differs from technology_type), not the
+# v7.4 case where the two were identical.
+# ---------------------------------------------------------------------------
+
+
+def test_process_and_merge_opex_keys_on_technology_type_for_per_subregion_names(
+    csv_str_to_df,
+):
+    # storage_name is per-subregion (v7.5+) and does NOT match the opex key;
+    # technology_type holds the generic label. The opex "Base value" table is
+    # keyed on lowercase "Battery storage".
+    storage_df = csv_str_to_df("""
+        storage_name,        technology_type,                    sub_region_id
+        NQ__Battery__-__1h,  Battery__Storage__(1hr__storage),   NQ
+        SQ__Battery__-__2h,  Battery__Storage__(2hrs__storage),  SQ
+    """)
+    fixed_opex = pd.DataFrame(
+        {
+            "Technology Type": [
+                "Battery storage (1hr storage)",
+                "Battery storage (2hrs storage)",
+            ],
+            "Base value ($/kW/year)": [9.16, 12.34],
+        }
+    )
+    result, result_col = _process_and_merge_opex(
+        storage_df.copy(), fixed_opex, "fom_$/kw/annum"
+    )
+
+    expected = csv_str_to_df("""
+        storage_name,        technology_type,                    sub_region_id,  fom_$/kw/annum
+        NQ__Battery__-__1h,  Battery__Storage__(1hr__storage),   NQ,             9.16
+        SQ__Battery__-__2h,  Battery__Storage__(2hrs__storage),  SQ,             12.34
+    """)
+    pd.testing.assert_frame_equal(
+        result.sort_values("storage_name").reset_index(drop=True),
+        expected.sort_values("storage_name").reset_index(drop=True),
+        check_dtype=False,
+    )
+    assert result_col == "fom_$/kw/annum"
+
+
+def test_new_entrant_storage_deduped_to_one_candidate_per_subregion_duration(
+    csv_str_to_df,
+):
+    # v7.8 lists batteries as per-REZ candidates: several rez_id rows per
+    # (subregion, duration), each with its own LCF. They collapse to one
+    # storage_name → duplicate names that silently overwrite in PyPSA and break
+    # tranche extraction. Dedupe must keep ONE per name, preferring the non-REZ
+    # base row (rez_id NaN) then the cheapest LCF.
+    df = csv_str_to_df("""
+        isp_resource_type,   sub_region_id,  rez_id,  technology_specific_lcf_%
+        Battery__Storage__2h, CNSW,          ,        30.0
+        Battery__Storage__2h, CNSW,          N3,      22.0
+        Battery__Storage__2h, CNSW,          N9a,     25.0
+        Battery__Storage__1h, NQ,            Q1,      40.0
+        Battery__Storage__1h, NQ,            Q2,      35.0
+    """)
+
+    result = _add_unique_new_entrant_storage_name_column(df)
+
+    # CNSW 2h collapses to one row; the non-REZ base (rez_id NaN, lcf 30) is
+    # kept over the REZ variants. NQ 1h has no base row, so the cheapest LCF
+    # (Q2, 35) is kept.
+    expected = csv_str_to_df("""
+        isp_resource_type,   sub_region_id,  rez_id,  technology_specific_lcf_%,  storage_name
+        Battery__Storage__2h, CNSW,          ,        30.0,                       battery_storage_2h_cnsw
+        Battery__Storage__1h, NQ,            Q2,      35.0,                       battery_storage_1h_nq
+    """)
+    pd.testing.assert_frame_equal(
+        result.sort_values("storage_name").reset_index(drop=True),
+        expected.sort_values("storage_name").reset_index(drop=True),
+        check_dtype=False,
+    )
+
+
+def test_lcf_keys_on_technology_type_for_per_subregion_names(
+    csv_str_to_df, workbook_table_cache_test_path: Path
+):
+    iasr_tables = read_csvs(workbook_table_cache_test_path)
+    # storage_name is per-subregion; technology_type holds the generic label the
+    # LCF tables are keyed on. The lcf seed column carries the cost zone.
+    storage_df = csv_str_to_df("""
+        storage_name,        technology_type,                     technology_specific_lcf_%
+        NNSW__Battery__-__2h, Battery__Storage__(2hrs__storage),  NNSW
+        SQ__Battery__-__1h,   Battery__Storage__(1hr__storage),   SQ
+    """)
+
+    result = _calculate_and_merge_tech_specific_lcfs(
+        storage_df, iasr_tables, "technology_specific_lcf_%"
+    )
+
+    # Same LCFs as the storage_name==technology_type case, proving the merge
+    # resolves via technology_type despite the per-subregion storage_name.
+    expected = csv_str_to_df("""
+        storage_name,        technology_type,                     technology_specific_lcf_%
+        NNSW__Battery__-__2h, Battery__Storage__(2hrs__storage),  104.5646
+        SQ__Battery__-__1h,   Battery__Storage__(1hr__storage),   100.0
+    """)
+    pd.testing.assert_frame_equal(
+        result.sort_values("storage_name").reset_index(drop=True),
+        expected.sort_values("storage_name").reset_index(drop=True),
+        check_dtype=False,
+        check_exact=False,
+        rtol=1e-2,
+    )

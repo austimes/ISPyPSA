@@ -55,7 +55,7 @@ pip install or a python package manager can install ISPyPSA
 3. Edit the yaml config file so that the paths section matches your environment:
       - `parsed_traces_directory`: Base directory where trace data will be downloaded.
          Choose a directory on a drive with at least 30 GB of free space.
-      - `workbook_path`: Path where the ISP Excel workbook file will be downloaded (must end with `.xlsx`).
+      - `workbook_path`: Path where the ISP Excel workbook file will be downloaded (must end with `.xlsm`).
          You need to give a complete file path and name, not just a path to a directory.
       - `parsed_workbook_cache`: Where extracted workbook data should be cached. This
          could be anywhere but a subdirectory in your new directory is a good idea.
@@ -80,7 +80,7 @@ pip install or a python package manager can install ISPyPSA
         parsed_traces_directory: "data/trace_data"
 
         # The path to the ISP workbook Excel file
-        workbook_path: "data/2024-isp-inputs-and-assumptions-workbook.xlsx"
+        workbook_path: "data/2026-isp-inputs-and-assumptions-workbook.xlsm"
 
         # The path to the workbook table cache directory
         parsed_workbook_cache: "data/workbook_table_cache"

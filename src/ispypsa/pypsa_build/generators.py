@@ -1,3 +1,4 @@
+import logging
 import re
 from pathlib import Path
 
@@ -5,6 +6,106 @@ import pandas as pd
 import pypsa
 
 from ispypsa.translator.helpers import convert_to_numeric_if_possible
+
+# Monthly capacity-factor profile for conventional (non-pumped) hydro, applied
+# as a static p_max_pu series for Water-carrier generators. ISPyPSA does not
+# load hydro availability traces, so without this constraint the LP dispatches
+# Water generators at ~85-100% CF (unbounded by anything except p_nom), inflating
+# annual hydro generation by ~4x vs realistic levels.
+#
+# Values derived from AEMO Generation Information NEM monthly hydro generation
+# (long-run averages, NSW + Tas hydro dominate the fleet). Annual mean of ~0.37,
+# inside the realistic 30-45% CF band for Australian conventional hydro. This
+# applies uniformly to all Water-carrier generators (Tumut, Murray, Eildon,
+# Bendeela, etc.); per-generator CF differentiation requires AEMO Gen Info
+# per-facility data which is out of scope for this fix.
+_HYDRO_MONTHLY_CF = {
+    1: 0.25,
+    2: 0.25,  # peak summer - low inflows
+    3: 0.35,
+    4: 0.35,
+    5: 0.35,  # autumn
+    6: 0.40,
+    7: 0.40,
+    8: 0.40,  # winter - peak inflows
+    9: 0.45,
+    10: 0.45,
+    11: 0.45,  # spring - snowmelt
+    12: 0.30,  # early summer
+}
+
+
+# NEM-wide annual conventional-hydro energy budget (MWh) by financial year,
+# used to cap total annual Water-carrier generation via a GlobalConstraint
+# (see `_add_hydro_energy_budget_constraint`). `_HYDRO_MONTHLY_CF` above is only a
+# ceiling on instantaneous output; paired with hydro's near-zero marginal cost, the
+# LP dispatches Water generators at ~that ceiling in almost every hour, which
+# overstates annual hydro generation because real hydro is water-limited, not just
+# capacity-limited.
+#
+# Source: AEMO 2026 ISP Step Change modelled conventional-hydro generation
+# ("Annual generation and emissions 2026 ISP.xlsx", sheet 'SC Gen', column
+# 'Hydro', sensitivity FP20403_260508a). That workbook reports pumped hydro (PHES)
+# separately, so the budget excludes it. ISPyPSA's templater drops every unit the IASR
+# labels pumped hydro, so a caller that needs existing or new PHES adds it. The
+# trajectory declines from ~16.7 TWh (2027) to ~9.8 TWh (2050).
+#
+# Each figure is a NEM-wide annual total, so it only describes a network that
+# covers the whole NEM. A run filtered to a subset of regions models only part
+# of the hydro fleet, and applying the NEM-wide total to it would leave that
+# fleet effectively uncapped, so the constraint is skipped on such runs.
+_HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY = {
+    2027: 16_669_580.0,
+    2028: 15_495_760.0,
+    2029: 15_517_830.0,
+    2030: 12_988_940.0,
+    2031: 13_099_010.0,
+    2032: 12_685_670.0,
+    2033: 12_164_150.0,
+    2034: 12_471_840.0,
+    2035: 14_362_580.0,
+    2036: 13_483_620.0,
+    2037: 13_301_300.0,
+    2038: 14_846_830.0,
+    2039: 13_635_800.0,
+    2040: 12_769_520.0,
+    2041: 10_776_160.0,
+    2042: 9_830_530.0,
+    2043: 10_737_040.0,
+    2044: 10_726_160.0,
+    2045: 11_001_850.0,
+    2046: 9_187_630.0,
+    2047: 9_972_260.0,
+    2048: 11_812_520.0,
+    2049: 11_380_730.0,
+    2050: 9_833_820.0,
+}
+
+
+def _hydro_annual_budget_mwh(period: int) -> float:
+    """AEMO SC hydro budget for a financial year, clamped to the published
+    2027-2050 range (a 2025/2026 chain period uses the 2027 value)."""
+    years = sorted(_HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY)
+    clamped = min(max(int(period), years[0]), years[-1])
+    return _HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY[clamped]
+
+
+def _build_seasonal_hydro_trace(snapshots: pd.MultiIndex) -> pd.DataFrame:
+    """Build a wind/solar-shaped trace DataFrame for Water-carrier generators.
+
+    PyPSA's network.snapshots MultiIndex levels are unnamed by default while
+    ISPyPSA's trace DataFrames use named columns ("investment_periods",
+    "snapshots") that get_set_index'd downstream. Construct by position to
+    work either way."""
+    investment_period_level = snapshots.get_level_values(0)
+    timestep_level = snapshots.get_level_values(1)
+    return pd.DataFrame(
+        {
+            "investment_periods": investment_period_level,
+            "snapshots": timestep_level,
+            "p_max_pu": [_HYDRO_MONTHLY_CF[m] for m in timestep_level.month],
+        }
+    )
 
 
 def _get_trace_data(generator_name: str, path_to_traces: Path):
@@ -75,6 +176,8 @@ def _add_generator_to_network(
         trace_data = _get_trace_data(generator_definition["name"], path_to_wind_traces)
     elif generator_definition["carrier"] == "Solar":
         trace_data = _get_trace_data(generator_definition["name"], path_to_solar_traces)
+    elif generator_definition["carrier"] == "Water":
+        trace_data = _build_seasonal_hydro_trace(network.snapshots)
     else:
         trace_data = None
 
@@ -129,6 +232,59 @@ def _add_generators_to_network(
     )
 
 
+def _add_hydro_energy_budget_constraint(
+    network: pypsa.Network, filtered_to_regions: list[str] | None = None
+) -> None:
+    """Caps total annual Water-carrier generation at AEMO's modelled budget.
+
+    Adds a PyPSA `GlobalConstraint` (type "operational_limit") per investment
+    period, so the LP must allocate a limited annual water budget to its
+    highest-value hours rather than dispatching hydro at its `p_max_pu`
+    ceiling in every hour. The budget is the AEMO 2026 ISP Step Change
+    conventional-hydro generation for that financial year (see
+    `_HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY` for the source), whatever the run's
+    scenario; the translator warns when the scenario is not Step Change.
+
+    The budget is a NEM-wide annual total and the NEM-wide hydro capacity it
+    belongs to is not recoverable from the pypsa-friendly tables, which are
+    already region-filtered, so the budget cannot be scaled to the modelled
+    share of the fleet. It is therefore skipped, with a warning, whenever the
+    caller reports that the run models only a subset of regions. Does nothing
+    if the network has no Water generators.
+
+    Args:
+        network: The `pypsa.Network` object, with generators already added.
+        filtered_to_regions: NEM regions or ISP sub-regions the run is filtered
+            to, or None for an unfiltered whole-of-NEM run.
+
+    Returns: None
+    """
+    water_capacity_mw = network.generators.loc[
+        network.generators["carrier"] == "Water", "p_nom"
+    ].sum()
+    if water_capacity_mw == 0:
+        return
+
+    if filtered_to_regions:
+        logging.warning(
+            f"Run is filtered to regions {sorted(filtered_to_regions)}, so the NEM-wide "
+            "annual conventional-hydro energy budget is not applied and hydro is "
+            "limited only by its capacity factor ceiling."
+        )
+        return
+
+    for period, years in network.investment_period_weightings["years"].items():
+        network.add(
+            "GlobalConstraint",
+            f"water_annual_energy_budget_aemo2026sc_{period}",
+            type="operational_limit",
+            carrier_attribute="Water",
+            sense="<=",
+            constant=_hydro_annual_budget_mwh(period) * years,
+            investment_period=period,
+        )
+
+
 def _add_custom_constraint_generators_to_network(
     network: pypsa.Network, generators: pd.DataFrame
 ) -> None:
@@ -174,6 +330,8 @@ def _update_generator_availability_timeseries(
         trace_data = _get_trace_data(name, path_to_wind_traces)
     elif carrier == "Solar":
         trace_data = _get_trace_data(name, path_to_solar_traces)
+    elif carrier == "Water":
+        trace_data = _build_seasonal_hydro_trace(network.snapshots)
     else:
         trace_data = None
 

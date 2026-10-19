@@ -10,7 +10,7 @@ paths:
   parsed_traces_directory: ENV
 
   # The path to the ISP workbook Excel file
-  workbook_path: "../isp-workbook-parser/workbooks/6.0/2024-isp-inputs-and-assumptions-workbook.xlsx"
+  workbook_path: "../isp-workbook-parser/workbooks/7.8/2026-isp-inputs-and-assumptions-workbook.xlsm"
 
   # The path to the workbook table cache directory
   parsed_workbook_cache: "ispypsa_runs/workbook_table_cache"
@@ -25,7 +25,7 @@ paths:
   run_directory: "ispypsa_runs"
 
 # The version of IASR workbook that the template inputs are generated from.
-iasr_workbook_version: "6.0"
+iasr_workbook_version: "7.8"
 
 # The ISP scenario for which to generate ISPyPSA inputs
 # Options (descriptions lifted from the 2024 ISP):

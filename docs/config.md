@@ -95,11 +95,12 @@ Examples:
 The version of IASR workbook that the template inputs are generated from. The workbook
 version is used to retrieve IASR data which has been manually extracted (rather than via
 isp-workbook-parser) and packaged with ISPyPSA. Some data needs to be manually extracted
-because of the formatting of the IASR workbook.
+because of the formatting of the IASR workbook. Only the 2026 ISP Final workbook ("7.8") is
+supported.
 
 Examples:
 
-```iasr_workbook_version: "6.0"```
+```iasr_workbook_version: "7.8"```
 
 ### scenario
 
@@ -119,8 +120,10 @@ Examples:
 
 ### wacc
 
-Weighted average cost of capital for annuitisation of generation and transmission costs,
-as a fraction, i.e. 0.07 is 7%.
+Weighted average cost of capital as a fraction, i.e. 0.07 is 7%. The config validator requires it, but building
+the model does not use it: new entrant generators and batteries are annuitised at the per-technology rate in the
+IASR `wacc` table for the configured scenario, and flow path and REZ transmission expansion at that table's regulated
+electricity transmission rate.
 
 Examples:
 
@@ -321,6 +324,52 @@ Examples:
 
 ```named_representative_weeks: [residual-peak-demand, minimum-demand]```
 
+#### temporal.capacity_expansion.aggregation.scale_sampled_vre_to_full_year
+
+Whether to scale each wind and solar availability trace so its capacity factor over the sampled
+(representative week) snapshots matches its capacity factor over the full modelled years. This follows the AEMO ISP
+Methodology (June 2025, p. 41), which scales VRE profiles so sampled and underlying capacity factors align.
+
+In each investment period, the sampled `p_max_pu` values are scaled so their snapshot-weighted mean equals the mean of
+the same trace (and reference years) over every snapshot in the period. Availability is capped at 1, and energy lost
+to the cap is spread over the uncapped snapshots in proportion to their availability. Generators whose target cannot
+be met because the cap binds are logged at INFO level. The same key under `temporal.operational.aggregation` applies
+to the operational phase.
+
+Options:
+
+- false (default): Sampled traces are used unscaled.
+- true: Sampled wind and solar traces are scaled to their full-year capacity factor.
+
+Examples:
+
+```scale_sampled_vre_to_full_year: true```
+
+#### temporal.capacity_expansion.aggregation.weight_snapshots_to_full_year_demand
+
+Whether to re-weight the sampled snapshots so that, in each investment period, they still sum to 8760 hours and their
+weighted demand equals 8760 times the mean demand over every snapshot of the period. With equal weights, named weeks
+(such as `peak-demand`) count as many times as each representative week, so the weighted sample overstates annual
+demand energy. Demand values, and with them peak demand in MW, are unchanged.
+
+The weights are set in two steps. First, snapshots outside the numbered representative weeks (the named weeks) take
+their own share of the year, and representative-week snapshots share the remaining hours. Then every weight is scaled
+by a factor linear in the mean demand of its block of consecutive sampled snapshots (linear calibration), the least
+change that meets both totals. A `ValueError` is raised if any weight would not be positive. Requires
+`representative_weeks`, and at least two sampled blocks per investment period. The `objective` and `generators`
+weights change; `stores` weights do not. When `scale_sampled_vre_to_full_year` is also set, wind and solar traces are
+scaled against the new weights, so their weighted energy still matches the full year. The same key under
+`temporal.operational.aggregation` applies to the operational phase.
+
+Options:
+
+- false (default): Every sampled snapshot in an investment period has the same weight.
+- true: Sampled snapshots are weighted to the full-year demand energy.
+
+Examples:
+
+```weight_snapshots_to_full_year_demand: true```
+
 ### temporal.operational
 
 The temporal settings for the operational phase of the modelling.
@@ -429,6 +478,113 @@ Not free and must be installed by the user:
 Examples:
 
 ```solver: highs```
+
+## Fuel pricing and supply
+
+### fuel_pricing.blend_biomethane_into_gas
+
+Whether the Gas carrier's price includes AEMO's mandated biomethane blend. AEMO blends biomethane into the gas price
+trajectory, so the gas price rises with the blend share. Set to false to price Gas from the IASR gas price tables
+alone, for example when a separate bioenergy model carries the biomethane.
+
+Options:
+
+- true (default): Gas is priced with the biomethane blend, as AEMO does.
+- false: Gas is priced from the gas price tables alone.
+
+Examples:
+
+```blend_biomethane_into_gas: false```
+
+### gas_supply_curve.curve_csv
+
+Path to a CSV defining a stepped annual supply curve for the fuel burnt by Gas generators. Each row is one tranche in
+one financial year, with columns:
+
+- `tranche`: tranche label.
+- `financial_year`: financial year ending, matching the investment period labels; every investment period needs rows.
+- `cap_pj`: annual quantity of the tranche in PJ, blank for an uncapped tranche. Every investment period needs at
+  least one uncapped backstop tranche, so the curve prices scarcity instead of making the model infeasible.
+- `adder_$/gj`: premium in real AUD/GJ above the IASR fuel price already in the generators' marginal costs.
+
+In each investment period the model buys the annual fuel its Gas generators burn (dispatch weighted by snapshot
+weightings, times heat rate) from the tranches, filling cheaper tranches first, so fuel cost rises with total gas use.
+The curve is added by `build_pypsa_network` and applies in capacity expansion only: `update_network_timeseries` does
+not re-add it, so the operational phase sees unlimited gas at the IASR price.
+
+Default: none, which leaves gas supply unlimited at the IASR price.
+
+Examples:
+
+```curve_csv: "data/gas_supply_curve.csv"```
+
+### biomass_supply_curve.curve_csv
+
+As `gas_supply_curve.curve_csv`, for the feedstock burnt by Biomass generators.
+
+Default: none, which leaves biomass supply unlimited at the IASR price.
+
+Examples:
+
+```curve_csv: "data/biomass_supply_curve.csv"```
+
+## Policy targets
+
+### enforce_technology_capacity_targets
+
+Whether to enforce the templated `technology_capacity_targets` table (the Victorian
+offshore wind and storage targets and the NSW Roadmap long-duration storage target)
+as minimum installed capacity constraints. Each constraint requires the capacity of
+the target's technology in the target's NEM region, existing plus new build, to meet
+the latest target due by that investment period. A target for calendar year Y applies
+from investment period Y (the financial year ending 30 June Y), matching AEMO's ISP,
+which reports capacity at 1 July; a target due in financial year Y-1 to Y applies from
+investment period Y.
+
+Requires `sub_regions` or `nem_regions` regional granularity. The state renewable
+generation targets are enforced separately by `enforce_state_generation_targets`.
+
+Default: false
+
+Examples:
+
+```enforce_technology_capacity_targets: true```
+
+### enforce_state_generation_targets
+
+Whether to enforce the state renewable generation targets AEMO applies in its ISP, as
+defined on the `Energy Policy Targets` sheet of the 2026 IASR workbook. Each target
+binds from the investment period ending the financial year it is due in (a calendar
+year Y target from period Y) and the latest target due holds after it; values between
+target years are not interpolated.
+
+| Target | Constraint per investment period |
+| ------ | -------------------------------- |
+| NSW Roadmap (`nsw_iio_gen`, IIO trajectory) | Sum over eligible NSW solar, wind and biomass of capacity x available energy per MW >= target |
+| VRET (`vret`) | (renewables + distributed PV) / (renewables + distributed PV + thermal) >= share, Victoria |
+| TRET (`tret`) | Tasmanian hydro, solar and wind generation + distributed PV >= target |
+| SA net 100% renewable (`sa_net_renewable`) | Net exports - fossil-fuel generation >= 0, South Australia |
+
+- Generation terms are annual dispatch: dispatch weighted by the generator snapshot
+  weightings of the period's snapshots, which sum to 8,760 hours, undiscounted.
+- A generator's available energy per MW is its `p_max_pu` summed with the same
+  weightings, i.e. its capacity factor over the modelled year times 8,760 hours. AEMO
+  does not publish its generator coefficients.
+- Distributed PV (rooftop PV and PV non-scheduled generation) is netted off demand,
+  so it enters as a constant: the mean of the `OPSO_MODELLING_PVLITE` demand trace
+  minus the `OPSO_MODELLING` trace, over the full financial year, times 8,760 hours.
+  The parsed trace directory must hold both demand types.
+- The NSW target excludes every generator the IASR lists as existing, standing in for
+  AEMO's exclusion of capacity existing or committed in November 2019.
+- Net exports are link flows across the region's border; links are lossless.
+
+Requires `sub_regions` or `nem_regions` regional granularity.
+
+Default: false
+
+Examples:
+
+```enforce_state_generation_targets: true```
 
 ## Plotting
 

@@ -9,7 +9,10 @@ from ispypsa.translator import (
     create_pypsa_friendly_timeseries_inputs,
     list_translator_output_files,
 )
-from ispypsa.translator.create_pypsa_friendly import _flatten_generator_traces
+from ispypsa.translator.create_pypsa_friendly import (
+    _flatten_generator_traces,
+    _warn_hydro_budget_is_step_change,
+)
 from ispypsa.translator.generators import (
     _translate_ecaa_generators,
     _translate_new_entrant_generators,
@@ -39,7 +42,13 @@ class DummyConfigOne:
                         "investment_periods": [2025, 2026],  # Two investment periods
                         "reference_year_cycle": [2018],
                         "aggregation": type(
-                            "obj", (object,), {"representative_weeks": [1]}
+                            "obj",
+                            (object,),
+                            {
+                                "representative_weeks": [1],
+                                "scale_sampled_vre_to_full_year": False,
+                                "weight_snapshots_to_full_year_demand": False,
+                            },
                         ),
                     },
                 ),
@@ -52,7 +61,13 @@ class DummyConfigOne:
                         "horizon": 336,
                         "overlap": 48,
                         "aggregation": type(
-                            "obj", (object,), {"representative_weeks": [1, 2]}
+                            "obj",
+                            (object,),
+                            {
+                                "representative_weeks": [1, 2],
+                                "scale_sampled_vre_to_full_year": False,
+                                "weight_snapshots_to_full_year_demand": False,
+                            },
                         ),
                     },
                 ),
@@ -196,7 +211,13 @@ class DummyConfigTwo:
                         "investment_periods": [2025],
                         "reference_year_cycle": [2011],
                         "aggregation": type(
-                            "obj", (object,), {"representative_weeks": [1]}
+                            "obj",
+                            (object,),
+                            {
+                                "representative_weeks": [1],
+                                "scale_sampled_vre_to_full_year": False,
+                                "weight_snapshots_to_full_year_demand": False,
+                            },
                         ),
                     },
                 ),
@@ -209,7 +230,13 @@ class DummyConfigTwo:
                         "horizon": 336,
                         "overlap": 48,
                         "aggregation": type(
-                            "obj", (object,), {"representative_weeks": [1, 2]}
+                            "obj",
+                            (object,),
+                            {
+                                "representative_weeks": [1, 2],
+                                "scale_sampled_vre_to_full_year": False,
+                                "weight_snapshots_to_full_year_demand": False,
+                            },
                         ),
                     },
                 ),
@@ -220,6 +247,9 @@ class DummyConfigTwo:
             (object,),
             {"nodes": type("obj", (object,), {"regional_granularity": "sub_regions"})},
         )
+        # The fuel-pricing block: the biomethane blend is on when the
+        # block is absent from the config.
+        self.fuel_pricing = type("obj", (object,), {"blend_biomethane_into_gas": True})
 
 
 def test_create_pypsa_friendly_timeseries_inputs_capacity_expansion(
@@ -273,7 +303,6 @@ def test_create_pypsa_friendly_timeseries_inputs_capacity_expansion(
     translated_new_entrant_generators = _translate_new_entrant_generators(
         sample_ispypsa_tables,
         config.temporal.capacity_expansion.investment_periods,
-        config.discount_rate,
         config.network.nodes.regional_granularity,
     )
 
@@ -386,7 +415,6 @@ def test_create_pypsa_friendly_timeseries_inputs_operational(
     translated_new_entrant_generators = _translate_new_entrant_generators(
         sample_ispypsa_tables,
         config.temporal.capacity_expansion.investment_periods,
-        config.discount_rate,
         config.network.nodes.regional_granularity,
     )
 
@@ -466,3 +494,77 @@ def test_flatten_generator_traces_none_input():
     """Test _flatten_generator_traces returns None when input is None."""
     result = _flatten_generator_traces(None)
     assert result is None
+
+
+def test_scale_sampled_vre_to_full_year_matches_full_year_capacity_factors(
+    tmp_path,
+    sample_ispypsa_tables: dict[str, pd.DataFrame],
+):
+    """With the flag on, sampled VRE traces keep the mean availability of the full year."""
+    parsed_trace_path = Path(__file__).parent.parent / Path("trace_data/isp_2024")
+    ecaa_generators = sample_ispypsa_tables["ecaa_generators"]
+    sample_ispypsa_tables["ecaa_generators"] = ecaa_generators.loc[
+        ecaa_generators["generator"].isin(
+            ["Moree Solar Farm", "Bodangora Wind Farm", "Bayswater", "Eraring"]
+        )
+    ].reset_index()
+    config = DummyConfigTwo()
+    generators = pd.concat(
+        [
+            _translate_ecaa_generators(
+                sample_ispypsa_tables, [2025], "sub_regions", "fy"
+            ),
+            _translate_new_entrant_generators(
+                sample_ispypsa_tables, [2025], "sub_regions"
+            ),
+        ],
+        ignore_index=True,
+    )
+    full_year_config = DummyConfigTwo()
+    full_year_config.temporal.capacity_expansion.aggregation.representative_weeks = None
+    scaled_config = DummyConfigTwo()
+    scaled_config.temporal.capacity_expansion.aggregation.scale_sampled_vre_to_full_year = True
+
+    for run_config, run_dir in [(full_year_config, "full"), (scaled_config, "scaled")]:
+        create_pypsa_friendly_timeseries_inputs(
+            run_config,
+            "capacity_expansion",
+            sample_ispypsa_tables,
+            generators,
+            parsed_trace_path,
+            tmp_path / run_dir,
+        )
+
+    pd.testing.assert_series_equal(
+        _mean_vre_availability(tmp_path / "scaled"),
+        _mean_vre_availability(tmp_path / "full"),
+        rtol=1e-5,
+    )
+
+
+def _mean_vre_availability(timeseries_dir: Path) -> pd.Series:
+    """Mean p_max_pu of every solar and wind trace written to a timeseries directory."""
+    trace_files = sorted(
+        [
+            *timeseries_dir.glob("solar_traces/*.parquet"),
+            *timeseries_dir.glob("wind_traces/*.parquet"),
+        ]
+    )
+    return pd.Series(
+        {file.stem: pd.read_parquet(file)["p_max_pu"].mean() for file in trace_files}
+    )
+
+
+def test_warns_hydro_budget_is_step_change_for_other_scenarios(caplog):
+    with caplog.at_level("WARNING"):
+        _warn_hydro_budget_is_step_change("Progressive Change")
+    assert (
+        "Hydro annual energy budget is AEMO's Step Change modelled hydro "
+        "generation, applied unchanged to the Progressive Change scenario"
+    ) in caplog.text
+
+
+def test_no_hydro_budget_warning_for_step_change(caplog):
+    with caplog.at_level("WARNING"):
+        _warn_hydro_budget_is_step_change("Step Change")
+    assert "Hydro annual energy budget" not in caplog.text

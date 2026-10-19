@@ -4,6 +4,7 @@ import re
 import pandas as pd
 import pytest
 
+from ispypsa.translator.helpers import _annuitised_investment_costs
 from ispypsa.translator.links import (
     _translate_existing_flow_path_capacity_to_links,
     _translate_expansion_costs_to_links,
@@ -107,6 +108,51 @@ def test_translate_expansion_costs_to_links(csv_str_to_df):
         )
 
 
+def test_translate_expansion_costs_to_links_beyond_published_years(csv_str_to_df):
+    """Test that an investment period beyond the published cost columns still gets a link."""
+    flow_path_expansion_costs_csv = """
+    flow_path,     additional_network_capacity_mw,  2025_26_$/mw,  2026_27_$/mw
+    NodeA-NodeB,   500,                             1200,          1500
+    """
+    flow_path_expansion_costs = csv_str_to_df(flow_path_expansion_costs_csv)
+
+    existing_links_csv = """
+    isp_name,    name,                 carrier,  bus0,    bus1,    p_nom
+    NodeA-NodeB, NodeA-NodeB_existing, AC,       NodeA,   NodeB,   1000
+    """
+    existing_links_df = csv_str_to_df(existing_links_csv)
+
+    result = _translate_expansion_costs_to_links(
+        flow_path_expansion_costs,
+        existing_links_df,
+        [2027, 2032],
+        "fy",
+        0.07,
+        30,
+        id_column="flow_path",
+        match_column="isp_name",
+    )
+
+    expected_result_csv = """
+    isp_name,    name,                 bus0,   bus1,  carrier, p_nom,  p_nom_extendable,  p_min_pu,  build_year,  lifetime
+    NodeA-NodeB, NodeA-NodeB_exp_2027, NodeA, NodeB,  AC,      0.0,    True,              -1.0,      2027,        INF
+    NodeA-NodeB, NodeA-NodeB_exp_2032, NodeA, NodeB,  AC,      0.0,    True,              -1.0,      2032,        INF
+    """
+    expected_result = csv_str_to_df(expected_result_csv)
+
+    # The 2032 link is priced from the last published year (2026_27, $1,500/MW),
+    # so both links annuitise to that year's cost.
+    last_published_cost = _annuitised_investment_costs(1500.0, 0.07, 30)
+    assert result["capital_cost"].to_list() == pytest.approx(
+        [last_published_cost, last_published_cost]
+    )
+    pd.testing.assert_frame_equal(
+        result.drop(columns="capital_cost").sort_values("name").reset_index(drop=True),
+        expected_result.sort_values("name").reset_index(drop=True),
+        check_dtype=False,
+    )
+
+
 def test_translate_expansion_costs_to_links_empty(csv_str_to_df):
     """Test that empty flow path expansion costs result in empty DataFrame."""
     # Create empty DataFrame
@@ -181,8 +227,9 @@ def test_translate_expansion_costs_to_links_no_matching_years(csv_str_to_df):
     """
     existing_links_df = csv_str_to_df(existing_links_csv)
 
-    # Investment periods don't include 2026
-    investment_periods = [2027, 2028]
+    # Investment periods sit before the published cost year. A period after it
+    # would instead be held at the last published cost, so it would not be empty.
+    investment_periods = [2024, 2025]
     year_type = "fy"
     wacc = 0.07
     asset_lifetime = 30

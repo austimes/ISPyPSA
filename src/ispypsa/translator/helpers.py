@@ -1,5 +1,7 @@
+import logging
 import re
 
+import numpy as np
 import pandas as pd
 
 
@@ -70,6 +72,35 @@ def _get_commissioning_or_build_year_as_int(
         return max(commissioning_year, default_build_year)
 
 
+def _years_from_build_to_closure(ecaa_units: pd.DataFrame) -> pd.Series:
+    """Return each ECAA unit's lifetime from its build year to its closure year.
+
+    Expects the build year in `commissioning_date` (as an int) and a
+    `closure_year` column where values <= 0 mean no closure year, which gives an
+    infinite lifetime.
+    """
+    closure_year = ecaa_units["closure_year"]
+    lifetime = closure_year - ecaa_units["commissioning_date"]
+    return lifetime.where(closure_year > 0, np.inf).astype(float)
+
+
+def _drop_units_built_after_final_period(
+    ecaa_units: pd.DataFrame, name_column: str, final_period: int
+) -> pd.DataFrame:
+    """Drop ECAA units whose build year falls after the final investment period.
+
+    Such units are never active in any modelled period, so keeping them would only
+    add idle capacity to the network.
+    """
+    late = ecaa_units["commissioning_date"] > final_period
+    if late.any():
+        logging.info(
+            f"ECAA units commissioning after the final investment period "
+            f"({final_period}) excluded: {sorted(ecaa_units.loc[late, name_column])}"
+        )
+    return ecaa_units[~late]
+
+
 def _get_financial_year_int_from_string(
     input_string: str, quantity: str, year_type: str = "fy"
 ) -> int:
@@ -134,6 +165,44 @@ def _add_investment_periods_as_build_years(
     df["build_year"] = df["build_year"].astype("int64")
 
     return df
+
+
+def _extend_trajectory_to_periods(
+    long_df: pd.DataFrame, year_col: str, investment_periods: list[int]
+) -> pd.DataFrame:
+    """Hold a trajectory-valued input at its last published year for later periods.
+
+    AEMO's IASR trajectory tables stop at a published horizon, so an investment
+    period beyond that horizon has no row at all. Rather than dropping the period
+    or failing, the last published year's rows are copied and relabelled to each
+    later period, which is an authored extension of AEMO's data and is logged as
+    such. Periods inside the published span are left untouched.
+
+    Args:
+        long_df: long-format trajectory table with one row per entity and year.
+        year_col: name of the integer year column in long_df.
+        investment_periods: list of investment years the model needs rows for.
+
+    Returns:
+        pd.DataFrame: long_df with held rows appended for each period beyond the
+            last published year.
+    """
+    if long_df.empty:
+        return long_df
+    last_published = int(long_df[year_col].max())
+    beyond_published = [int(p) for p in investment_periods if int(p) > last_published]
+    if not beyond_published:
+        return long_df
+    logging.warning(
+        f"Trajectory held at FY{last_published} for investment periods beyond the "
+        f"published data: {sorted(beyond_published)}"
+    )
+    last_published_rows = long_df[long_df[year_col] == last_published]
+    held = [
+        last_published_rows.assign(**{year_col: period})
+        for period in sorted(beyond_published)
+    ]
+    return pd.concat([long_df, *held], ignore_index=True)
 
 
 def convert_to_numeric_if_possible(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:

@@ -77,11 +77,11 @@ def test_template_sub_regional_flow_path_costs_simple_least_cost_option():
     # Compose iasr_tables dict
     iasr_tables = {
         "flow_path_augmentation_options_NNSW-SQ": aug_table_nnsw_sq,
-        "flow_path_augmentation_options_TAS-VIC": aug_table_tas_vic,
-        "flow_path_augmentation_costs_progressive_change_NNSW-SQ": cost_table_nnsw_sq,
-        "flow_path_augmentation_costs_progressive_change_TAS-VIC": cost_table_tas_vic,
-        "flow_path_augmentation_costs_progressive_change_preparatory_activities": prep_acts,
-        "flow_path_augmentation_costs_progressive_change_actionable_isp_projects": actionable_isp,
+        "flow_path_augmentation_options_TAS-SEV": aug_table_tas_vic,
+        "flow_path_augmentation_costs_slower_growth_NNSW-SQ": cost_table_nnsw_sq,
+        "flow_path_augmentation_costs_slower_growth_TAS-SEV": cost_table_tas_vic,
+        "flow_path_augmentation_costs_slower_growth_preparatory_activities": prep_acts,
+        "flow_path_augmentation_costs_slower_growth_actionable_isp_projects": actionable_isp,
     }
     scenario = "Progressive Change"
     # Run function
@@ -169,11 +169,11 @@ def test_template_sub_regional_flow_path_costs_prep_and_actionable_chosen():
     # Compose iasr_tables dict
     iasr_tables = {
         "flow_path_augmentation_options_NNSW-SQ": aug_table_nnsw_sq,
-        "flow_path_augmentation_options_TAS-VIC": aug_table_tas_vic,
-        "flow_path_augmentation_costs_progressive_change_NNSW-SQ": cost_table_nnsw_sq,
-        "flow_path_augmentation_costs_progressive_change_TAS-VIC": cost_table_tas_vic,
-        "flow_path_augmentation_costs_progressive_change_preparatory_activities": prep_acts,
-        "flow_path_augmentation_costs_progressive_change_actionable_isp_projects": actionable_isp,
+        "flow_path_augmentation_options_TAS-SEV": aug_table_tas_vic,
+        "flow_path_augmentation_costs_slower_growth_NNSW-SQ": cost_table_nnsw_sq,
+        "flow_path_augmentation_costs_slower_growth_TAS-SEV": cost_table_tas_vic,
+        "flow_path_augmentation_costs_slower_growth_preparatory_activities": prep_acts,
+        "flow_path_augmentation_costs_slower_growth_actionable_isp_projects": actionable_isp,
     }
     scenario = "Progressive Change"
     # Run function
@@ -235,9 +235,9 @@ def test_template_sub_regional_flow_path_costs_use_first_year_with_valid_costs()
     )
     iasr_tables = {
         "flow_path_augmentation_options_NNSW-SQ": aug_table_nnsw_sq,
-        "flow_path_augmentation_options_TAS-VIC": aug_table_tas_vic,
-        "flow_path_augmentation_costs_progressive_change_NNSW-SQ": cost_table_nnsw_sq,
-        "flow_path_augmentation_costs_progressive_change_TAS-VIC": cost_table_tas_vic,
+        "flow_path_augmentation_options_TAS-SEV": aug_table_tas_vic,
+        "flow_path_augmentation_costs_slower_growth_NNSW-SQ": cost_table_nnsw_sq,
+        "flow_path_augmentation_costs_slower_growth_TAS-SEV": cost_table_tas_vic,
     }
     scenario = "Progressive Change"
     result = _template_sub_regional_flow_path_costs(iasr_tables, scenario)
@@ -254,6 +254,32 @@ def test_template_sub_regional_flow_path_costs_use_first_year_with_valid_costs()
     assert tas_vic_row["additional_network_capacity_mw"].iloc[0] == 100
     assert abs(tas_vic_row["2024_25_$/mw"].iloc[0] - (10 / 100)) < 1e-6
     assert abs(tas_vic_row["2025_26_$/mw"].iloc[0] - (100 / 100)) < 1e-6
+
+
+def test_least_cost_options_survive_renamed_ids_and_options(csv_str_to_df):
+    aug_table = csv_str_to_df("""
+        id,        option,                                nominal_capacity_increase
+        NNSW-SQ,   NNSW-SQ Option 1,                      700
+        NNSW-SQ,   NNSW-SQ Option 2,                      3000
+        WNV-SNSW,  WNV-SNSW Option 1 (Project VNI West),  1890
+    """)
+    cost_table = csv_str_to_df("""
+        id,             option,                 2024_25,  2025_26
+        NNSW–SQ,  NNSW–SQ Option 1,  700000,   800000
+        NNSW-SQ,        NNSW-SQ Option 2,       600000,   900000
+        VIC-SNSW,       WNV-SNSW Option 1,      1890000,  1890000
+    """)
+
+    result = _get_least_cost_options(aug_table, cost_table, _FLOW_PATH_CONFIG)
+
+    expected = csv_str_to_df("""
+        flow_path,  option,                                additional_network_capacity_mw,  2024_25_$/mw,  2025_26_$/mw
+        NNSW-SQ,    NNSW-SQ Option 2,                      3000,                            200.0,         300.0
+        WNV-SNSW,   WNV-SNSW Option 1 (Project VNI West),  1890,                            1000.0,        1000.0
+    """)
+    pd.testing.assert_frame_equal(
+        result.reset_index(drop=True), expected, check_dtype=False
+    )
 
 
 def test_get_least_cost_options_logs_unmatched(caplog):
@@ -317,7 +343,7 @@ def test_get_cleaned_flow_path_cost_tables_logs_missing_tables(caplog):
     Test that _get_cost_table logs a warning when cost tables are missing.
     """
     # Only provide one of the required cost tables
-    cost_scenario = "progressive_change"
+    cost_scenario = "slower_growth"
     cost_table_names = _FLOW_PATH_CONFIG["table_names"]["cost"][cost_scenario]
     present_table = cost_table_names[0]
     iasr_tables = {
@@ -391,7 +417,7 @@ def test_template_sub_regional_flow_path_costs_no_year_columns():
                 "reverse_capacity_increase": [100],
             }
         ),
-        "flow_path_augmentation_costs_step_change_and_green_energy_exports_NNSW-SQ": pd.DataFrame(
+        "flow_path_augmentation_costs_step_change_NNSW-SQ": pd.DataFrame(
             {
                 "Flow path": ["NNSW-SQ"],
                 "Option Name": ["Option 1"],
@@ -414,7 +440,7 @@ def test_get_prep_activities_missing_flow_path_mapping(csv_str_to_df):
     prep_acts = csv_str_to_df(prep_acts_csv)
 
     iasr_tables = {
-        "flow_path_augmentation_costs_progressive_change_preparatory_activities": prep_acts
+        "flow_path_augmentation_costs_slower_growth_preparatory_activities": prep_acts
     }
 
     # This should raise ValueError about missing mapping
@@ -422,7 +448,7 @@ def test_get_prep_activities_missing_flow_path_mapping(csv_str_to_df):
         ValueError,
         match="Missing mapping values for the flow paths provided: \\['Unknown Flow Path'\\]",
     ):
-        _get_prep_activities_table(iasr_tables, "progressive_change", _FLOW_PATH_CONFIG)
+        _get_prep_activities_table(iasr_tables, "slower_growth", _FLOW_PATH_CONFIG)
 
 
 def test_get_prep_activities_missing_option_name_mapping(csv_str_to_df):
@@ -445,7 +471,7 @@ def test_get_prep_activities_missing_option_name_mapping(csv_str_to_df):
     prep_acts = csv_str_to_df(prep_acts_csv)
 
     iasr_tables = {
-        "flow_path_augmentation_costs_progressive_change_preparatory_activities": prep_acts
+        "flow_path_augmentation_costs_slower_growth_preparatory_activities": prep_acts
     }
 
     # This should raise ValueError about missing option name mapping
@@ -453,7 +479,7 @@ def test_get_prep_activities_missing_option_name_mapping(csv_str_to_df):
         ValueError,
         match="Missing mapping values for the option names provided: \\['Test Option'\\]",
     ):
-        _get_prep_activities_table(iasr_tables, "progressive_change", custom_config)
+        _get_prep_activities_table(iasr_tables, "slower_growth", custom_config)
 
 
 def test_get_actionable_projects_missing_flow_path_mapping(csv_str_to_df):
@@ -466,7 +492,7 @@ def test_get_actionable_projects_missing_flow_path_mapping(csv_str_to_df):
     actionable = csv_str_to_df(actionable_csv)
 
     iasr_tables = {
-        "flow_path_augmentation_costs_progressive_change_actionable_isp_projects": actionable
+        "flow_path_augmentation_costs_slower_growth_actionable_isp_projects": actionable
     }
 
     # This should raise ValueError about missing mapping
@@ -474,9 +500,7 @@ def test_get_actionable_projects_missing_flow_path_mapping(csv_str_to_df):
         ValueError,
         match="Missing mapping values for the flow paths provided: \\['Unknown Project'\\]",
     ):
-        _get_actionable_projects_table(
-            iasr_tables, "progressive_change", _FLOW_PATH_CONFIG
-        )
+        _get_actionable_projects_table(iasr_tables, "slower_growth", _FLOW_PATH_CONFIG)
 
 
 def test_get_actionable_projects_missing_option_name_mapping(csv_str_to_df):
@@ -499,7 +523,7 @@ def test_get_actionable_projects_missing_option_name_mapping(csv_str_to_df):
     actionable = csv_str_to_df(actionable_csv)
 
     iasr_tables = {
-        "flow_path_augmentation_costs_progressive_change_actionable_isp_projects": actionable
+        "flow_path_augmentation_costs_slower_growth_actionable_isp_projects": actionable
     }
 
     # This should raise ValueError about missing option name mapping
@@ -507,7 +531,7 @@ def test_get_actionable_projects_missing_option_name_mapping(csv_str_to_df):
         ValueError,
         match="Missing mapping values for the option names provided: \\['Test Option'\\]",
     ):
-        _get_actionable_projects_table(iasr_tables, "progressive_change", custom_config)
+        _get_actionable_projects_table(iasr_tables, "slower_growth", custom_config)
 
 
 def test_template_rez_transmission_costs_missing_rez_mapping(csv_str_to_df):
@@ -521,7 +545,7 @@ def test_template_rez_transmission_costs_missing_rez_mapping(csv_str_to_df):
     prep_acts = csv_str_to_df(prep_acts_csv)
 
     iasr_tables = {
-        "rez_augmentation_costs_progressive_change_preparatory_activities": prep_acts
+        "rez_augmentation_costs_slower_growth_preparatory_activities": prep_acts
     }
 
     # This should raise ValueError about missing REZ mapping
@@ -529,7 +553,7 @@ def test_template_rez_transmission_costs_missing_rez_mapping(csv_str_to_df):
         ValueError,
         match="Missing mapping values for the REZ names provided: \\['Unknown REZ'\\]",
     ):
-        _get_prep_activities_table(iasr_tables, "progressive_change", _REZ_CONFIG)
+        _get_prep_activities_table(iasr_tables, "slower_growth", _REZ_CONFIG)
 
 
 def test_find_first_year_with_complete_costs_raises_error_when_no_year_all_non_na(

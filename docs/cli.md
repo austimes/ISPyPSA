@@ -110,13 +110,13 @@ ispypsa config=config.yaml download_workbook
 **Usage with direct parameters (no config file needed):**
 
 ```bash
-ispypsa workbook_version=6.0 workbook_path=data/workbooks/6.0.xlsx download_workbook
+ispypsa workbook_version=7.8 workbook_path=data/workbooks/7.8.xlsm download_workbook
 ```
 
 **Parameters (if not using config):**
 
-- `workbook_version` (required): Version of workbook to download (e.g., "6.0")
-- `workbook_path` (required): Full path where workbook should be saved (must end with .xlsx)
+- `workbook_version` (required): Version of workbook to download (only "7.8" is available)
+- `workbook_path` (required): Full path where workbook should be saved (must end with .xlsm)
 
 **Outputs:**
 
