@@ -378,3 +378,44 @@ def test_create_expansion_limit_constraints_duplicate_constraints(csv_str_to_df)
         rhs.sort_values(["constraint_name", "rhs"]).reset_index(drop=True),
         expected_rhs.sort_values(["constraint_name", "rhs"]).reset_index(drop=True),
     )
+
+
+def test_create_expansion_limit_constraints_stacked_steps(csv_str_to_df):
+    """Each stacked step gets its own limit, and a step needing another a prerequisite constraint."""
+    links = csv_str_to_df("""
+    isp_name,  name,               p_nom_extendable
+    PATH1,     PATH1_existing,     False
+    PATH1,     PATH1_s1_exp_2025,  True
+    PATH1,     PATH1_s2_exp_2025,  True
+    PATH1,     PATH1_s2_exp_2030,  True
+    """)
+    flow_paths = csv_str_to_df("""
+    flow_path,  option,     step,  prerequisites,  additional_network_capacity_mw
+    PATH1,      Option 2,   1,     Option 1,       500
+    PATH1,      Option 1,   2,     ,               1000
+    """)
+
+    lhs, rhs = _create_expansion_limit_constraints(links, None, flow_paths, None)
+
+    # Step 1 (500 MW) can be built only in proportion to step 2 (1000 MW) built in any year.
+    expected_lhs = csv_str_to_df("""
+    constraint_name,           variable_name,      component,  attribute,  coefficient
+    PATH1_s1_expansion_limit,  PATH1_s1_exp_2025,  Link,       p_nom,      1.0
+    PATH1_s2_expansion_limit,  PATH1_s2_exp_2025,  Link,       p_nom,      1.0
+    PATH1_s2_expansion_limit,  PATH1_s2_exp_2030,  Link,       p_nom,      1.0
+    PATH1_s1_prerequisite_1,   PATH1_s1_exp_2025,  Link,       p_nom,      1000.0
+    PATH1_s1_prerequisite_1,   PATH1_s2_exp_2025,  Link,       p_nom,      -500.0
+    PATH1_s1_prerequisite_1,   PATH1_s2_exp_2030,  Link,       p_nom,      -500.0
+    """)
+    pd.testing.assert_frame_equal(
+        lhs.reset_index(drop=True), expected_lhs, check_dtype=False
+    )
+    expected_rhs = csv_str_to_df("""
+    constraint_name,           rhs,   constraint_type
+    PATH1_s1_expansion_limit,  500,   <=
+    PATH1_s2_expansion_limit,  1000,  <=
+    PATH1_s1_prerequisite_1,   0,     <=
+    """)
+    pd.testing.assert_frame_equal(
+        rhs.reset_index(drop=True), expected_rhs, check_dtype=False
+    )

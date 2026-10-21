@@ -9,6 +9,7 @@ from ispypsa.config import (
 from ispypsa.translator.helpers import (
     _add_investment_periods_as_build_years,
     _annuitised_investment_costs,
+    _step_suffix,
 )
 from ispypsa.translator.links import _translate_time_varying_expansion_costs
 from ispypsa.translator.mappings import (
@@ -311,6 +312,7 @@ def _format_expansion_generators(
     """
     expansion_generators["name"] = (
         expansion_generators["constraint_name"]
+        + _step_suffix(expansion_generators)
         + "_exp_"
         + expansion_generators["build_year"].astype(str)
     )
@@ -587,6 +589,9 @@ def _create_expansion_limit_constraints(
         rez_connections: DataFrame specifying the total
             additional capacity allowed on flow paths.
 
+    Stacked options (a ``step`` column) each get their own limit, named
+    ``<isp_name>_s<step>_expansion_limit``, and their prerequisite constraints.
+
     Returns: Two DataFrames, the first specifying the lhs values of the custom
         constraints created, and the second the rhs values.
     """
@@ -598,6 +603,10 @@ def _create_expansion_limit_constraints(
     lhs = _finalise_expansion_limit_lhs(lhs_parts)
 
     rhs_parts = []
+    if flow_paths is not None and "step" in flow_paths:
+        flow_paths = _name_limits_by_step(
+            flow_paths.rename(columns={"flow_path": "isp_name"})
+        )
     flow_path_rhs = _process_rhs_components(flow_paths)
     _append_if_not_empty(rhs_parts, flow_path_rhs)
     rez_connections = _get_isp_names_for_rez_connection(rez_connections, links)
@@ -606,7 +615,78 @@ def _create_expansion_limit_constraints(
     rhs = _finalise_expansion_limit_rhs(rhs_parts)
     rhs = _filter_rhs_by_lhs_constraints(rhs, lhs)
 
-    return lhs, rhs
+    stacked = [
+        t
+        for t in (flow_paths, rez_connections)
+        if t is not None and "prerequisites" in t
+    ]
+    steps = pd.concat(stacked) if stacked else pd.DataFrame(columns=["prerequisites"])
+    if steps["prerequisites"].isna().all():
+        return lhs, rhs
+    prerequisite_lhs, prerequisite_rhs = _create_prerequisite_constraints(steps, lhs)
+    return pd.concat([lhs, prerequisite_lhs]), pd.concat([rhs, prerequisite_rhs])
+
+
+def _name_limits_by_step(costs: pd.DataFrame) -> pd.DataFrame:
+    """Suffix each option's ``isp_name`` (its expansion limit name) with its stacked step,
+    keeping the transmission's own name as ``transmission``."""
+    return costs.assign(
+        transmission=costs["isp_name"], isp_name=costs["isp_name"] + _step_suffix(costs)
+    )
+
+
+def _create_prerequisite_constraints(
+    steps: pd.DataFrame, expansion_lhs: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Build each stacked step at most in proportion to each clause of its prerequisites.
+
+    For step S of M_S MW needing any of the steps P (M_P MW together), the constraint
+    ``M_P * built(S) - M_S * built(P) <= 0`` makes S fully available only once P is fully
+    built. Built capacity is the step's expansion limit LHS, summed over build years.
+
+    Args:
+        steps: stacked options with ``isp_name`` (step limit name), ``transmission``,
+            ``option``, ``prerequisites`` (clauses joined by "; ", options of a clause
+            by " or ") and ``additional_network_capacity_mw`` columns.
+        expansion_lhs: expansion limit LHS terms, named ``<isp_name>_expansion_limit``.
+
+    Returns: The LHS and RHS of the constraints, named
+        ``<isp_name>_prerequisite_<clause number>``.
+    """
+    limit_of = dict(zip(zip(steps["transmission"], steps["option"]), steps["isp_name"]))
+    mw_of = dict(zip(steps["isp_name"], steps["additional_network_capacity_mw"]))
+    terms = expansion_lhs.assign(
+        limit=expansion_lhs["constraint_name"].str.removesuffix("_expansion_limit")
+    )
+    lhs = pd.concat(
+        _create_prerequisite_clause_lhs(
+            f"{step.isp_name}_prerequisite_{number}",
+            step.isp_name,
+            [limit_of[(step.transmission, option)] for option in clause.split(" or ")],
+            mw_of,
+            terms,
+        )
+        for step in steps.dropna(subset=["prerequisites"]).itertuples()
+        for number, clause in enumerate(step.prerequisites.split("; "), start=1)
+    ).drop(columns="limit")
+    rhs = pd.DataFrame({"constraint_name": lhs["constraint_name"].unique()})
+    return lhs, rhs.assign(rhs=0.0, constraint_type="<=")
+
+
+def _create_prerequisite_clause_lhs(
+    name: str,
+    limit: str,
+    required: list[str],
+    mw_of: dict[str, float],
+    terms: pd.DataFrame,
+) -> pd.DataFrame:
+    """LHS of one prerequisite constraint: the step's terms weighted by the required
+    steps' MW, less the required steps' terms weighted by the step's MW."""
+    own = terms[terms["limit"] == limit].assign(
+        coefficient=sum(mw_of[r] for r in required)
+    )
+    needed = terms[terms["limit"].isin(required)].assign(coefficient=-mw_of[limit])
+    return pd.concat([own, needed]).assign(constraint_name=name)
 
 
 def _get_isp_names_for_rez_connection(
@@ -636,9 +716,10 @@ def _get_isp_names_for_rez_connection(
         rez_connections.loc[rez_connections["isp_name"].isna(), "isp_name"] = (
             rez_connections["rez_constraint_id"]
         )
-        rez_connections = rez_connections.loc[
-            :, ["isp_name", "additional_network_capacity_mw"]
-        ]
+        rez_connections = _name_limits_by_step(rez_connections).filter(
+            ["isp_name", "additional_network_capacity_mw"]
+            + ["transmission", "option", "prerequisites"]
+        )
 
     return rez_connections
 
@@ -693,6 +774,7 @@ def _create_expansion_limit_lhs_for_links(
         return pd.DataFrame()
 
     links = links.loc[links["p_nom_extendable"], ["isp_name", "name"]]
+    links["isp_name"] = _strip_build_year(links["name"])
     links = links.rename(columns=_CUSTOM_CONSTRAINT_ATTRIBUTES)
     links["component"] = "Link"
     links["attribute"] = "p_nom"
@@ -715,11 +797,18 @@ def _create_expansion_limit_lhs_for_generators(
         return pd.DataFrame()
 
     generators_lhs = constraint_generators.loc[:, ["isp_name", "name"]]
+    generators_lhs["isp_name"] = _strip_build_year(generators_lhs["name"])
     generators_lhs = generators_lhs.rename(columns=_CUSTOM_CONSTRAINT_ATTRIBUTES)
     generators_lhs["component"] = "Generator"
     generators_lhs["attribute"] = "p_nom"
     generators_lhs["coefficient"] = 1.0
     return generators_lhs
+
+
+def _strip_build_year(names: pd.Series) -> pd.Series:
+    """Expansion limit name of each expansion component: its name without the build year,
+    e.g. ``CNSW-SNW_s2_exp_2030`` -> ``CNSW-SNW_s2`` (a stacked step) or ``CNSW-SNW``."""
+    return names.str.replace(r"_exp_\d+$", "", regex=True)
 
 
 def _finalise_expansion_limit_rhs(

@@ -196,6 +196,9 @@ class ModelConfig(BaseModel):
     # Enforce the templated state renewable generation targets (NSW Roadmap, VRET,
     # TRET and SA net 100% renewable) as custom constraints.
     enforce_state_generation_targets: bool = False
+    # Offer every IASR augmentation option of a flow path or REZ as a cost staircase
+    # rather than only the least-cost option.
+    stack_transmission_options: bool = False
     filter_by_nem_regions: list[str] | None = None
     filter_by_isp_sub_regions: list[str] | None = None
     solver: Literal[

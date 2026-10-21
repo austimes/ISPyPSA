@@ -461,6 +461,7 @@ def create_ispypsa_inputs_from_config() -> None:
         manually_extracted_tables,
         filter_to_nem_regions=config.filter_by_nem_regions,
         filter_to_isp_sub_regions=config.filter_by_isp_sub_regions,
+        stack_transmission_options=config.stack_transmission_options,
     )
     write_csvs(template, input_tables_dir)
 
