@@ -1,6 +1,7 @@
 import logging
 import re
 
+import numpy as np
 import pandas as pd
 
 from .helpers import (
@@ -182,6 +183,7 @@ def _clean_capability_column_names(capability_df: pd.DataFrame) -> pd.DataFrame:
 def _template_sub_regional_flow_path_costs(
     iasr_tables: dict[str, pd.DataFrame],
     scenario: str,
+    stack_options: bool = False,
 ) -> pd.DataFrame:
     """
     Process flow path augmentation options and cost forecasts to find the least cost
@@ -201,6 +203,8 @@ def _template_sub_regional_flow_path_costs(
                   columns
         scenario: str specifying the scenario name (e.g., "Step Change",
             "Progressive Change").
+        stack_options: offer every option as a cost staircase rather than only the
+            least-cost option (see `process_transmission_costs`).
 
     Returns:
         pd.DataFrame containing the least cost option for each flow path. Columns:
@@ -213,6 +217,7 @@ def _template_sub_regional_flow_path_costs(
         iasr_tables=iasr_tables,
         scenario=scenario,
         config=_FLOW_PATH_CONFIG,
+        stack_options=stack_options,
     )
 
 
@@ -220,6 +225,7 @@ def _template_rez_transmission_costs(
     iasr_tables: dict[str, pd.DataFrame],
     scenario: str,
     possible_rez_or_constraint_names,
+    stack_options: bool = False,
 ) -> pd.DataFrame:
     """
     Process REZ augmentation options and cost forecasts to find least cost options for
@@ -237,6 +243,8 @@ def _template_rez_transmission_costs(
         possible_rez_or_constraint_names: list of possible names that cost data should
             map to. The cost data is known to contain typos so the names in the cost
             data are fuzzy match to the names provided in this input variable.
+        stack_options: offer every option as a cost staircase rather than only the
+            least-cost option (see `process_transmission_costs`).
 
     Returns:
         pd.DataFrame containing the least cost option for each REZ. Columns:
@@ -249,6 +257,7 @@ def _template_rez_transmission_costs(
         iasr_tables=iasr_tables,
         scenario=scenario,
         config=_REZ_CONFIG,
+        stack_options=stack_options,
     )
 
     # Match cost-table REZ/constraint ids to the modelled REZ ids + custom
@@ -301,6 +310,7 @@ def process_transmission_costs(
     iasr_tables: dict[str, pd.DataFrame],
     scenario: str,
     config: dict,
+    stack_options: bool = False,
 ) -> pd.DataFrame:
     """
     Generic function to process transmission costs (flow path or REZ).
@@ -314,6 +324,8 @@ def process_transmission_costs(
               rez or flow path specific names
             - table_names: dict with augmentation and cost table lists
             - mappings: dict with mappings for preparatory activities and other data
+        stack_options: offer every option as a cost staircase (`_get_stacked_options`)
+            rather than only the least-cost option.
 
     Returns:
         pd.DataFrame containing the least cost options with standardized column
@@ -329,12 +341,9 @@ def process_transmission_costs(
         iasr_tables=iasr_tables, cost_scenario=cost_scenario, config=config
     )
 
-    # Find the least cost options
-    final_costs = _get_least_cost_options(
-        aug_table=aug_table, cost_table=cost_table, config=config
-    )
-
-    return final_costs
+    if stack_options:
+        return _get_stacked_options(aug_table, cost_table, config)
+    return _get_least_cost_options(aug_table, cost_table, config)
 
 
 def _determine_cost_scenario(scenario: str) -> str:
@@ -510,31 +519,69 @@ def _get_least_cost_options(
     """
     year_cols = _get_year_columns(cost_table)
     cost_table = _match_cost_names_to_augmentation(cost_table, aug_table)
+    options = _get_options_with_cost_per_mw(aug_table, cost_table, year_cols)
+    least_cost_options = options.loc[options.groupby("id")["cost_per_mw"].idxmin()]
+    return _get_costs_per_mw_by_year(
+        cost_table,
+        least_cost_options[["id", "option", "nominal_capacity_increase"]],
+        year_cols,
+        config,
+    )
+
+
+def _get_stacked_options(
+    aug_table: pd.DataFrame, cost_table: pd.DataFrame, config: dict
+) -> pd.DataFrame:
+    """Offer each transmission's augmentation options as a cost staircase, one step per option.
+
+    Steps are numbered from the cheapest per MW, compared as in `_get_least_cost_options`. Of
+    each group in ``config["alternatives"]`` only the cheapest per MW is kept, and
+    ``prerequisites`` names the options that must be built before each (`_add_prerequisites`).
+
+    Returns:
+        pd.DataFrame as `_get_least_cost_options`, one row per step, plus ``step`` and
+        ``prerequisites`` columns.
+    """
+    year_cols = _get_year_columns(cost_table)
+    cost_table = _match_cost_names_to_augmentation(cost_table, aug_table)
+    offered = _get_options_with_cost_per_mw(aug_table, cost_table, year_cols)
+    # An option adding no MW (infinite cost per MW) cannot be a step.
+    offered = offered[np.isfinite(offered["cost_per_mw"])]
+    steps = _keep_cheapest_alternatives(offered, config["alternatives"])
+    steps = _add_prerequisites(steps, offered, aug_table)
+    steps = steps.sort_values(["id", "cost_per_mw", "option"])
+    steps["step"] = steps.groupby("id").cumcount() + 1
+    step_cols = ["id", "option", "step", "prerequisites", "nominal_capacity_increase"]
+    costs = _get_costs_per_mw_by_year(cost_table, steps[step_cols], year_cols, config)
+    id_col = config["out_going_column_mappings"]["id"]
+    return costs.sort_values([id_col, "step"]).reset_index(drop=True)
+
+
+def _get_options_with_cost_per_mw(
+    aug_table: pd.DataFrame, cost_table: pd.DataFrame, year_cols: list[str]
+) -> pd.DataFrame:
+    """Augmentation options with a cost row, with their cost per MW in the first year
+    with complete costs for all options of the transmission."""
     valid_costs_df = _find_first_year_with_complete_costs(cost_table, year_cols)
-    transmission_analysis = pd.merge(
-        aug_table, valid_costs_df, on=["id", "option"], how="inner"
-    )
-    _log_unmatched_transmission_options(
-        aug_table, valid_costs_df, transmission_analysis
-    )
-    transmission_analysis["cost_per_mw"] = (
-        transmission_analysis["cost"]
-        / transmission_analysis["nominal_capacity_increase"]
-    )
+    options = pd.merge(aug_table, valid_costs_df, on=["id", "option"], how="inner")
+    _log_unmatched_transmission_options(aug_table, valid_costs_df, options)
+    options["cost_per_mw"] = options["cost"] / options["nominal_capacity_increase"]
     # Drop rows where cost_per_mw can't be computed (NaN capacity or cost).
     # v7.4 publishes some secondary REZ constraints (e.g. SWNSW1, NSA1) in the
     # cost table without matching capacity-increase entries — these are
     # intra-region constraint rows, not expansion options.
-    transmission_analysis = transmission_analysis.dropna(subset=["cost_per_mw"])
-    least_cost_options = transmission_analysis.loc[
-        transmission_analysis.groupby("id")["cost_per_mw"].idxmin()
-    ]
-    final_costs = pd.merge(
-        cost_table,
-        least_cost_options[["id", "option", "nominal_capacity_increase"]],
-        on=["id", "option"],
-        how="inner",
-    )
+    return options.dropna(subset=["cost_per_mw"])
+
+
+def _get_costs_per_mw_by_year(
+    cost_table: pd.DataFrame,
+    options: pd.DataFrame,
+    year_cols: list[str],
+    config: dict,
+) -> pd.DataFrame:
+    """Cost rows of the chosen options, each financial year's cost divided by the option's
+    capacity into a ``<year>_$/mw`` column."""
+    final_costs = pd.merge(cost_table, options, on=["id", "option"], how="inner")
     # Divide each financial year column by capacity and rename with _$/mw suffix
     for year_col in year_cols:
         new_col = f"{year_col}_$/mw"
@@ -542,8 +589,121 @@ def _get_least_cost_options(
             final_costs[year_col] / final_costs["nominal_capacity_increase"]
         )
         final_costs.drop(columns=year_col, inplace=True)
-    final_costs = final_costs.rename(columns=config["out_going_column_mappings"])
-    return final_costs
+    return final_costs.rename(columns=config["out_going_column_mappings"])
+
+
+def _keep_cheapest_alternatives(
+    options: pd.DataFrame, alternatives: dict[str, list[list[str]]]
+) -> pd.DataFrame:
+    """Keep only the cheapest option per MW of each group of alternative options.
+
+    Args:
+        options: options with ``id``, ``option`` and ``cost_per_mw`` columns.
+        alternatives: per transmission id, groups of option names (hyphenated, without
+            bracketed descriptor) of which at most one can be built.
+    """
+    group_of = {
+        (id_, option): group[0]
+        for id_, groups in alternatives.items()
+        for group in groups
+        for option in group
+    }
+    keys = zip(options["id"], _match_key(options["option"]))
+    options = options.assign(alternative=[group_of.get(k, k[1]) for k in keys])
+    kept = options.loc[options.groupby(["id", "alternative"])["cost_per_mw"].idxmin()]
+    dropped = sorted(
+        set(zip(options["id"], options["option"]))
+        - set(zip(kept["id"], kept["option"]))
+    )
+    if dropped:
+        logging.info(f"Alternative options dropped for a cheaper one per MW: {dropped}")
+    return kept.drop(columns="alternative")
+
+
+def _add_prerequisites(
+    steps: pd.DataFrame, offered: pd.DataFrame, aug_table: pd.DataFrame
+) -> pd.DataFrame:
+    """Replace each step's IASR prerequisite text with the options it requires, dropping
+    steps whose prerequisite is not kept.
+
+    Clauses are joined with ``"; "`` (all required) and the options of one clause with
+    ``" or "`` (any one suffices). Only options of the same transmission count: one with no
+    cost row (committed or anticipated, e.g. HumeLink) is assumed built, and one offered
+    but dropped as a dearer alternative drops the steps needing it, repeatedly so the
+    stages of a dropped stage go too.
+    """
+    keys = list(zip(steps["id"], steps["option"]))
+    clauses = {
+        key: _parse_prerequisite_clauses(
+            text, key[0], aug_table.loc[aug_table["id"] == key[0], "option"]
+        )
+        for key, text in zip(keys, steps["prerequisites"])
+    }
+    offered_keys = set(zip(offered["id"], offered["option"]))
+    built = set(zip(aug_table["id"], aug_table["option"])) - offered_keys
+    kept = set(keys)
+    while True:
+        resolved = {
+            key: _resolve_clauses(key, clauses[key], kept, built) for key in kept
+        }
+        unmet = {key for key, clauses_left in resolved.items() if clauses_left is None}
+        if not unmet:
+            break
+        kept -= unmet
+    _log_dropped_stages(set(keys) - kept)
+    steps = steps[[key in kept for key in keys]]
+    return steps.assign(
+        prerequisites=[
+            "; ".join(" or ".join(clause) for clause in resolved[key]) or np.nan
+            for key in zip(steps["id"], steps["option"])
+        ]
+    )
+
+
+def _parse_prerequisite_clauses(
+    text: str, id_: str, options: pd.Series
+) -> list[list[str]]:
+    """Options of transmission `id_` named by its IASR prerequisite text, as clauses of
+    alternatives; clauses naming anything else (other paths, descriptions) are left out.
+
+    e.g. ``"SQ-CQ Option 2, CQ-GG Option 2, SQ-CQ Option 7"`` gives
+    ``[["SQ-CQ Option 2"], ["SQ-CQ Option 7"]]``, and REZ ``T3`` text ``"T3 Option 1 or T3
+    Option 1A"`` gives ``[["Option 1", "Option 1A"]]``.
+    """
+    name_of = dict(zip(_match_key(options), options))
+    name_of |= {f"{id_} {key}": name for key, name in name_of.items()}
+    clauses = []
+    for clause in str(text).split(","):
+        names = list(_match_key(pd.Series(clause.split(" or "))).str.strip(" ."))
+        # A bare option number takes the first name's prefix: "MEL-WNV Option 1 or 2".
+        names = [n if " " in n else f"{names[0].rsplit(' ', 1)[0]} {n}" for n in names]
+        if all(name in name_of for name in names):
+            clauses.append([name_of[name] for name in names])
+    return clauses
+
+
+def _resolve_clauses(
+    key: tuple[str, str], clauses: list[list[str]], kept: set, built: set
+) -> list[list[str]] | None:
+    """A step's clauses reduced to kept options, leaving out clauses met by an option
+    assumed built; None when a clause has neither."""
+    resolved = []
+    for clause in clauses:
+        if any((key[0], option) in built for option in clause):
+            continue
+        options = [option for option in clause if (key[0], option) in kept]
+        if not options:
+            return None
+        resolved.append(options)
+    return resolved
+
+
+def _log_dropped_stages(dropped: set[tuple[str, str]]) -> None:
+    """Log the steps dropped because an option they require was not kept."""
+    if dropped:
+        logging.info(
+            f"Options dropped as a prerequisite option is not kept: {sorted(dropped)}"
+        )
 
 
 def _clean_augmentation_table_column_names(

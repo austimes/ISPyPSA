@@ -9,6 +9,7 @@ from ispypsa.templater.flow_paths import (
     _get_cost_table,
     _get_least_cost_options,
     _get_prep_activities_table,
+    _get_stacked_options,
     _template_sub_regional_flow_path_costs,
 )
 from ispypsa.templater.mappings import _FLOW_PATH_CONFIG, _REZ_CONFIG
@@ -577,3 +578,61 @@ def test_find_first_year_with_complete_costs_raises_error_when_no_year_all_non_n
         match="No year found with all non-NA costs for transmissions: \\['B'\\]",
     ):
         _find_first_year_with_complete_costs(cost_data, year_cols)
+
+
+def _stacked_flow_path_tables(csv_str_to_df):
+    """Augmentation and cost tables of one flow path with staged, alternative and committed options."""
+    aug_table = csv_str_to_df("""
+        id,   option,         nominal_capacity_increase,  prerequisites
+        A-B,  A-B Option 0,   900,
+        A-B,  A-B Option 1,   1000,
+        A-B,  A-B Option 2,   500,                        A-B Option 1
+        A-B,  A-B Option 3a,  2000,
+        A-B,  A-B Option 3b,  2000,
+        A-B,  A-B Option 4,   800,                        A-B Option 3b
+        A-B,  A-B Option 5,   300,                        A-B Option 0__or__1
+    """)
+    cost_table = csv_str_to_df("""
+        id,   option,         2024_25
+        A-B,  A-B Option 1,   500000
+        A-B,  A-B Option 2,   100000
+        A-B,  A-B Option 3a,  2000000
+        A-B,  A-B Option 3b,  3000000
+        A-B,  A-B Option 4,   80000
+        A-B,  A-B Option 5,   240000
+    """)
+    return aug_table, cost_table
+
+
+def test_get_stacked_options_staircase(csv_str_to_df):
+    aug_table, cost_table = _stacked_flow_path_tables(csv_str_to_df)
+    config = _FLOW_PATH_CONFIG | {
+        "alternatives": {"A-B": [["A-B Option 3a", "A-B Option 3b"]]}
+    }
+
+    result = _get_stacked_options(aug_table, cost_table, config)
+
+    # Option 3b loses to its cheaper alternative 3a, taking its stage Option 4 with it;
+    # Option 0 has no cost row so is assumed built, meeting Option 5's prerequisite.
+    expected = csv_str_to_df("""
+        flow_path,  option,         step,  prerequisites,  additional_network_capacity_mw,  2024_25_$/mw
+        A-B,        A-B Option 2,   1,     A-B Option 1,   500,                             200.0
+        A-B,        A-B Option 1,   2,     ,               1000,                            500.0
+        A-B,        A-B Option 5,   3,     ,               300,                             800.0
+        A-B,        A-B Option 3a,  4,     ,               2000,                            1000.0
+    """)
+    pd.testing.assert_frame_equal(result, expected, check_dtype=False)
+
+
+def test_get_least_cost_options_unchanged_by_staircase_inputs(csv_str_to_df):
+    aug_table, cost_table = _stacked_flow_path_tables(csv_str_to_df)
+
+    result = _get_least_cost_options(aug_table, cost_table, _FLOW_PATH_CONFIG)
+
+    expected = csv_str_to_df("""
+        flow_path,  option,        additional_network_capacity_mw,  2024_25_$/mw
+        A-B,        A-B Option 4,  800,                             100.0
+    """)
+    pd.testing.assert_frame_equal(
+        result.reset_index(drop=True), expected, check_dtype=False
+    )

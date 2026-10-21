@@ -586,6 +586,20 @@ Examples:
 
 ```enforce_state_generation_targets: true```
 
+## Transmission options
+
+### stack_transmission_options
+
+Whether to offer every IASR augmentation option of each flow path and REZ connection as a step of a cost staircase,
+rather than only its least-cost option. See [Transmission](method.md#transmission) for how alternatives and
+prerequisites are handled.
+
+Default: false
+
+Examples:
+
+```stack_transmission_options: true```
+
 ## Plotting
 
 ### create_plots

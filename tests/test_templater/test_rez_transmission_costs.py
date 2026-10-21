@@ -7,6 +7,7 @@ from ispypsa.templater.flow_paths import (
     _get_augmentation_table,
     _get_cost_table,
     _get_least_cost_options,
+    _get_stacked_options,
     _template_rez_transmission_costs,
     process_transmission_costs,
 )
@@ -280,3 +281,42 @@ def test_template_rez_transmission_costs_use_first_year_with_valid_costs():
     assert swv_row["additional_network_capacity_mw"].iloc[0] == 100
     assert abs(swv_row["2024_25_$/mw"].iloc[0] - (10 / 100)) < 1e-6
     assert abs(swv_row["2025_26_$/mw"].iloc[0] - (100 / 100)) < 1e-6
+
+
+def test_get_stacked_rez_options_resolve_prerequisites(csv_str_to_df):
+    aug_table = csv_str_to_df("""
+        id,  option,     nominal_capacity_increase
+        N1,  Option 1,   100
+        N1,  Option 1A,  100
+        N1,  Option 2,   200
+        N1,  Option 3,   100
+        N2,  Option 1,   50
+    """)
+    aug_table["prerequisites"] = [
+        np.nan,
+        np.nan,
+        "N1 Option 1 or N1 Option 1A",
+        "N1 Option 2, V1 Option 1",
+        "N1 Option 1 or VNI West",
+    ]
+    cost_table = csv_str_to_df("""
+        id,  option,     2024_25
+        N1,  Option 1,   100
+        N1,  Option 1A,  50
+        N1,  Option 2,   400
+        N1,  Option 3,   300
+        N2,  Option 1,   50
+    """)
+    config = _REZ_CONFIG | {"alternatives": {"N1": [["Option 1", "Option 1A"]]}}
+
+    result = _get_stacked_options(aug_table, cost_table, config)
+
+    # Only same-REZ options bind: V1 Option 1 and the VNI West alternative are left out.
+    expected = csv_str_to_df("""
+        rez_constraint_id,  option,     step,  prerequisites,  additional_network_capacity_mw,  2024_25_$/mw
+        N1,                 Option 1A,  1,     ,               100,                             0.5
+        N1,                 Option 2,   2,     Option 1A,      200,                             2.0
+        N1,                 Option 3,   3,     Option 2,       100,                             3.0
+        N2,                 Option 1,   1,     ,               50,                              1.0
+    """)
+    pd.testing.assert_frame_equal(result, expected, check_dtype=False)
