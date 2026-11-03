@@ -821,6 +821,27 @@ def _get_cleaned_cost_tables(
         cost_table[forecast_year_cols[0]], errors="coerce"
     )
     cost_table = cost_table.dropna(subset=forecast_year_cols, how="all")
+    return _carry_last_published_cost_over_zeros(cost_table, forecast_year_cols)
+
+
+def _carry_last_published_cost_over_zeros(
+    cost_table: pd.DataFrame, year_cols: list[str]
+) -> pd.DataFrame:
+    """Replace each zero cost with the option's cost in its last earlier non-zero year.
+
+    A zero marks an unpublished year, not a free build: the v7.8 IASR costs CQ-NQ Option 4
+    (1,000 MW) at 0 $ from 2049-50, after $1.2 billion in 2048-49. A zero with no earlier
+    cost becomes NaN, so the option is offered from its first published year.
+    """
+    costs = cost_table[year_cols]
+    zero = costs.eq(0)
+    rows = cost_table[zero.any(axis=1)]
+    filled = sorted(set(zip(rows["id"], rows["option"])))
+    if filled:
+        logging.info(
+            f"Zero transmission costs replaced by the last published cost: {filled}"
+        )
+    cost_table[year_cols] = costs.mask(zero).ffill(axis=1).where(zero, costs)
     return cost_table
 
 

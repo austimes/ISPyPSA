@@ -636,3 +636,45 @@ def test_get_least_cost_options_unchanged_by_staircase_inputs(csv_str_to_df):
     pd.testing.assert_frame_equal(
         result.reset_index(drop=True), expected, check_dtype=False
     )
+
+
+def test_get_cost_table_carries_last_published_cost_over_zeros(csv_str_to_df, caplog):
+    table_name = _FLOW_PATH_CONFIG["table_names"]["cost"]["step_change"][0]
+    iasr_tables = {
+        table_name: csv_str_to_df("""
+            id,   option,        2047_48,  2048_49,  2049_50,  2050_51
+            A-B,  A-B Option 1,  300,      200,      0,        0
+            A-B,  A-B Option 2,  0,        500,      600,      700
+            A-B,  A-B Option 3,  100,      100,      100,      100
+        """)
+    }
+
+    with caplog.at_level("INFO"):
+        result = _get_cost_table(iasr_tables, "step_change", _FLOW_PATH_CONFIG)
+
+    expected = csv_str_to_df("""
+        id,   option,        2047_48,  2048_49,  2049_50,  2050_51
+        A-B,  A-B Option 1,  300,      200,      200,      200
+        A-B,  A-B Option 2,  ,         500,      600,      700
+        A-B,  A-B Option 3,  100,      100,      100,      100
+    """)
+    pd.testing.assert_frame_equal(result, expected, check_dtype=False)
+    assert (
+        "Zero transmission costs replaced by the last published cost: "
+        "[('A-B', 'A-B Option 1'), ('A-B', 'A-B Option 2')]"
+    ) in caplog.text
+
+
+def test_get_cost_table_logs_no_zero_costs_when_all_published(csv_str_to_df, caplog):
+    table_name = _FLOW_PATH_CONFIG["table_names"]["cost"]["step_change"][0]
+    iasr_tables = {
+        table_name: csv_str_to_df("""
+            id,   option,        2049_50
+            A-B,  A-B Option 1,  100
+        """)
+    }
+
+    with caplog.at_level("INFO"):
+        _get_cost_table(iasr_tables, "step_change", _FLOW_PATH_CONFIG)
+
+    assert "Zero transmission costs" not in caplog.text
