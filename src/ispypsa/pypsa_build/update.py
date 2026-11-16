@@ -5,7 +5,10 @@ import pypsa
 
 from ispypsa.pypsa_build.buses import _update_buses_demand_timeseries
 from ispypsa.pypsa_build.custom_constraints import _add_custom_constraints
-from ispypsa.pypsa_build.generators import _update_generators_availability_timeseries
+from ispypsa.pypsa_build.generators import (
+    _add_hydro_monthly_energy_constraints,
+    _update_generators_availability_timeseries,
+)
 
 
 def update_network_timeseries(
@@ -21,8 +24,9 @@ def update_network_timeseries(
     but may also be useful in other circumstances, such as when running a capacity
     expansion model with different reference year cycles.
 
-    Wind and solar get their new traces and Water generators the seasonal hydro
-    ceiling. The annual hydro energy budget is not split across rolling-horizon
+    Wind and solar get their new traces and Water generators their monthly energy
+    limits over the new snapshots, so a window covering part of a month gets that
+    part's share. The annual hydro energy budget is not split across rolling-horizon
     windows, so each window may use up to the whole year's budget.
 
     Examples:
@@ -96,6 +100,8 @@ def update_network_timeseries(
     # The underlying linopy model needs to get built again here so that the new time
     # series data is used in the linopy model rather than the old data.
     network.optimize.create_model(multi_investment_periods=True)
+
+    _add_hydro_monthly_energy_constraints(network)
 
     # As we rebuilt the linopy model now we need to re add custom constrains.
     _add_custom_constraints(

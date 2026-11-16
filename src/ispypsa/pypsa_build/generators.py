@@ -7,11 +7,15 @@ import pypsa
 
 from ispypsa.translator.helpers import convert_to_numeric_if_possible
 
-# Monthly capacity-factor profile for conventional (non-pumped) hydro, applied
-# as a static p_max_pu series for Water-carrier generators. ISPyPSA does not
-# load hydro availability traces, so without this constraint the LP dispatches
-# Water generators at ~85-100% CF (unbounded by anything except p_nom), inflating
-# annual hydro generation by ~4x vs realistic levels.
+# Monthly capacity-factor profile for conventional (non-pumped) hydro, applied as
+# a monthly energy limit per Water-carrier generator (see
+# `_add_hydro_monthly_energy_constraints`): each month a generator may produce at
+# most its p_nom times the month's factor times the month's weighted hours. ISPyPSA
+# does not load hydro inflow traces, so without this limit the LP dispatches Water
+# generators at ~85-100% CF (unbounded by anything except p_nom), inflating annual
+# hydro generation by ~4x vs realistic levels. The factor limits energy, not hourly
+# output: hydro may run at its full availability in any hour, so it can follow
+# peaks, as long as its month's energy stays within the limit.
 #
 # Values derived from AEMO Generation Information NEM monthly hydro generation
 # (long-run averages, NSW + Tas hydro dominate the fleet). Annual mean of ~0.37,
@@ -37,11 +41,10 @@ _HYDRO_MONTHLY_CF = {
 
 # NEM-wide annual conventional-hydro energy budget (MWh) by financial year,
 # used to cap total annual Water-carrier generation via a GlobalConstraint
-# (see `_add_hydro_energy_budget_constraint`). `_HYDRO_MONTHLY_CF` above is only a
-# ceiling on instantaneous output; paired with hydro's near-zero marginal cost, the
-# LP dispatches Water generators at ~that ceiling in almost every hour, which
-# overstates annual hydro generation because real hydro is water-limited, not just
-# capacity-limited.
+# (see `_add_hydro_energy_budget_constraint`). The monthly limits from
+# `_HYDRO_MONTHLY_CF` above are per generator; paired with hydro's near-zero marginal
+# cost, the LP uses each of them in full, which overstates annual hydro generation
+# because the NEM's real hydro output is lower than its monthly ceilings add to.
 #
 # Source: AEMO 2026 ISP Step Change modelled conventional-hydro generation
 # ("Annual generation and emissions 2026 ISP.xlsx", sheet 'SC Gen', column
@@ -90,21 +93,53 @@ def _hydro_annual_budget_mwh(period: int) -> float:
     return _HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY[clamped]
 
 
-def _build_seasonal_hydro_trace(snapshots: pd.MultiIndex) -> pd.DataFrame:
-    """Build a wind/solar-shaped trace DataFrame for Water-carrier generators.
+def _add_hydro_monthly_energy_constraints(network: pypsa.Network) -> None:
+    """Caps each Water-carrier generator's energy in each month of each investment
+    period at its p_nom times the month's `_HYDRO_MONTHLY_CF` times the month's
+    weighted hours.
 
-    PyPSA's network.snapshots MultiIndex levels are unnamed by default while
-    ISPyPSA's trace DataFrames use named columns ("investment_periods",
-    "snapshots") that get_set_index'd downstream. Construct by position to
-    work either way."""
-    investment_period_level = snapshots.get_level_values(0)
-    timestep_level = snapshots.get_level_values(1)
-    return pd.DataFrame(
-        {
-            "investment_periods": investment_period_level,
-            "snapshots": timestep_level,
-            "p_max_pu": [_HYDRO_MONTHLY_CF[m] for m in timestep_level.month],
-        }
+    This is the energy a monthly capacity-factor ceiling on hourly output would
+    permit, so seasonal hydro energy matches that formulation while hourly output
+    is limited only by the generator's availability (its static p_max_pu). Water
+    generators have a fixed p_nom. Needs the linopy model to be built, and does
+    nothing if the network has no Water generators.
+
+    Args:
+        network: The `pypsa.Network` object, with its linopy model created.
+
+    Returns: None
+    """
+    water = network.generators.index[network.generators["carrier"] == "Water"]
+    if water.empty:
+        return
+    months = _snapshot_months(network.snapshots)
+    for period, month in months.drop_duplicates():
+        in_month = (months == (period, month)).to_numpy()
+        _add_hydro_energy_constraint_for_month(network, water, in_month, period, month)
+
+
+def _snapshot_months(snapshots: pd.MultiIndex) -> pd.Series:
+    """The (investment period, calendar month) of each snapshot, by position."""
+    periods = snapshots.get_level_values(0)
+    months = snapshots.get_level_values(1).month
+    return pd.Series(list(zip(periods, months)))
+
+
+def _add_hydro_energy_constraint_for_month(
+    network: pypsa.Network, water: pd.Index, in_month, period: int, month: int
+) -> None:
+    """Adds one month's energy limit for every Water generator."""
+    weights = network.snapshot_weightings.loc[in_month, "generators"]
+    dispatch = network.model["Generator-p"].sel(name=water).isel(snapshot=in_month)
+    energy = (dispatch * weights).sum("snapshot")
+    limit = (
+        network.generators.loc[water, "p_nom"]
+        * _HYDRO_MONTHLY_CF[month]
+        * weights.sum()
+    )
+    network.model.add_constraints(
+        energy <= limit.rename_axis("name").to_xarray(),
+        name=f"water_monthly_energy_{period}_{month:02d}",
     )
 
 
@@ -176,8 +211,6 @@ def _add_generator_to_network(
         trace_data = _get_trace_data(generator_definition["name"], path_to_wind_traces)
     elif generator_definition["carrier"] == "Solar":
         trace_data = _get_trace_data(generator_definition["name"], path_to_solar_traces)
-    elif generator_definition["carrier"] == "Water":
-        trace_data = _build_seasonal_hydro_trace(network.snapshots)
     else:
         trace_data = None
 
@@ -330,8 +363,6 @@ def _update_generator_availability_timeseries(
         trace_data = _get_trace_data(name, path_to_wind_traces)
     elif carrier == "Solar":
         trace_data = _get_trace_data(name, path_to_solar_traces)
-    elif carrier == "Water":
-        trace_data = _build_seasonal_hydro_trace(network.snapshots)
     else:
         trace_data = None
 

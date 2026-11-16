@@ -13,6 +13,7 @@ from ispypsa.pypsa_build.generators import (
     _add_custom_constraint_generators_to_network,
     _add_generators_to_network,
     _add_hydro_energy_budget_constraint,
+    _add_hydro_monthly_energy_constraints,
 )
 from ispypsa.pypsa_build.initialise import _initialise_network
 from ispypsa.pypsa_build.investment_period_weights import _add_investment_period_weights
@@ -98,6 +99,8 @@ def build_pypsa_network(
 
     # The underlying linopy model needs to get built so we can add custom constraints.
     network.optimize.create_model(multi_investment_periods=True)
+
+    _add_hydro_monthly_energy_constraints(network)
 
     if "custom_constraints_rhs" in pypsa_friendly_tables:
         _add_custom_constraints(
