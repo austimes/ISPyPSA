@@ -7,15 +7,19 @@ import pypsa
 
 from ispypsa.translator.helpers import convert_to_numeric_if_possible
 
-# Monthly capacity-factor profile for conventional (non-pumped) hydro, applied as
-# a monthly energy limit per Water-carrier generator (see
-# `_add_hydro_monthly_energy_constraints`): each month a generator may produce at
-# most its p_nom times the month's factor times the month's weighted hours. ISPyPSA
-# does not load hydro inflow traces, so without this limit the LP dispatches Water
+# Monthly capacity-factor profile for conventional (non-pumped) hydro. ISPyPSA does
+# not load hydro inflow traces, so without a limit the LP dispatches Water
 # generators at ~85-100% CF (unbounded by anything except p_nom), inflating annual
-# hydro generation by ~4x vs realistic levels. The factor limits energy, not hourly
-# output: hydro may run at its full availability in any hour, so it can follow
-# peaks, as long as its month's energy stays within the limit.
+# hydro generation by ~4x vs realistic levels. The config's `hydro_hourly_ceiling`
+# picks how the profile applies:
+#
+# - "monthly_cf" (default): a static p_max_pu series, so every hour is capped at
+#   the month's factor. Hydro cannot follow peaks above that factor.
+# - "availability": the hourly ceiling is the generator's own availability (its
+#   static p_max_pu) and each month's energy is capped at p_nom times the month's
+#   factor times the month's weighted hours (see
+#   `_add_hydro_monthly_energy_constraints`), the energy "monthly_cf" permits, so
+#   hydro can follow peaks with seasonal energy unchanged.
 #
 # Values derived from AEMO Generation Information NEM monthly hydro generation
 # (long-run averages, NSW + Tas hydro dominate the fleet). Annual mean of ~0.37,
@@ -91,6 +95,24 @@ def _hydro_annual_budget_mwh(period: int) -> float:
     years = sorted(_HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY)
     clamped = min(max(int(period), years[0]), years[-1])
     return _HYDRO_ANNUAL_ENERGY_BUDGET_MWH_BY_FY[clamped]
+
+
+def _build_seasonal_hydro_trace(snapshots: pd.MultiIndex) -> pd.DataFrame:
+    """Build a wind/solar-shaped trace DataFrame for Water-carrier generators.
+
+    PyPSA's network.snapshots MultiIndex levels are unnamed by default while
+    ISPyPSA's trace DataFrames use named columns ("investment_periods",
+    "snapshots") that get_set_index'd downstream. Construct by position to
+    work either way."""
+    investment_period_level = snapshots.get_level_values(0)
+    timestep_level = snapshots.get_level_values(1)
+    return pd.DataFrame(
+        {
+            "investment_periods": investment_period_level,
+            "snapshots": timestep_level,
+            "p_max_pu": [_HYDRO_MONTHLY_CF[m] for m in timestep_level.month],
+        }
+    )
 
 
 def _add_hydro_monthly_energy_constraints(network: pypsa.Network) -> None:
@@ -189,6 +211,7 @@ def _add_generator_to_network(
     path_to_solar_traces: Path,
     path_to_wind_traces: Path,
     path_to_marginal_costs: Path,
+    hydro_hourly_ceiling: str = "monthly_cf",
 ) -> None:
     """Adds a generator to a pypsa.Network based on a dict containing PyPSA Generator
     attributes.
@@ -202,6 +225,8 @@ def _add_generator_to_network(
         network: The `pypsa.Network` object
         path_to_solar_traces: `pathlib.Path` for directory containing solar traces
         path_to_wind_traces: `pathlib.Path` for directory containing wind traces
+        hydro_hourly_ceiling: "monthly_cf" caps Water generators' hourly output at
+            `_HYDRO_MONTHLY_CF`; "availability" leaves it at their static p_max_pu.
 
     Returns: None
     """
@@ -211,6 +236,11 @@ def _add_generator_to_network(
         trace_data = _get_trace_data(generator_definition["name"], path_to_wind_traces)
     elif generator_definition["carrier"] == "Solar":
         trace_data = _get_trace_data(generator_definition["name"], path_to_solar_traces)
+    elif (
+        generator_definition["carrier"] == "Water"
+        and hydro_hourly_ceiling == "monthly_cf"
+    ):
+        trace_data = _build_seasonal_hydro_trace(network.snapshots)
     else:
         trace_data = None
 
@@ -236,6 +266,7 @@ def _add_generators_to_network(
     network: pypsa.Network,
     generators: pd.DataFrame,
     path_to_timeseries_data: Path,
+    hydro_hourly_ceiling: str = "monthly_cf",
 ) -> None:
     """Adds the generators in a pypsa-friendly `pd.DataFrame` to the `pypsa.Network`.
 
@@ -244,6 +275,7 @@ def _add_generators_to_network(
         generators:  `pd.DataFrame` with `PyPSA` style `Generator` attributes.
         path_to_timeseries_data: `pathlib.Path` that points to the directory containing
             timeseries data
+        hydro_hourly_ceiling: see `_add_generator_to_network`.
     Returns: None
     """
     path_to_solar_traces = path_to_timeseries_data / Path("solar_traces")
@@ -260,6 +292,7 @@ def _add_generators_to_network(
             path_to_solar_traces,
             path_to_wind_traces,
             path_to_marginal_costs,
+            hydro_hourly_ceiling,
         ),
         axis=1,
     )
@@ -342,6 +375,7 @@ def _update_generator_availability_timeseries(
     network: pypsa.Network,
     path_to_solar_traces: Path,
     path_to_wind_traces: Path,
+    hydro_hourly_ceiling: str = "monthly_cf",
 ) -> None:
     """Updates the timeseries availability of the generator in the `pypsa.Network`.
 
@@ -355,6 +389,7 @@ def _update_generator_availability_timeseries(
         network: The `pypsa.Network` object
         path_to_solar_traces: `pathlib.Path` for directory containing solar traces
         path_to_wind_traces: `pathlib.Path` for directory containing wind traces
+        hydro_hourly_ceiling: see `_add_generator_to_network`.
 
     Returns: None
     """
@@ -363,6 +398,8 @@ def _update_generator_availability_timeseries(
         trace_data = _get_trace_data(name, path_to_wind_traces)
     elif carrier == "Solar":
         trace_data = _get_trace_data(name, path_to_solar_traces)
+    elif carrier == "Water" and hydro_hourly_ceiling == "monthly_cf":
+        trace_data = _build_seasonal_hydro_trace(network.snapshots)
     else:
         trace_data = None
 
@@ -375,6 +412,7 @@ def _update_generators_availability_timeseries(
     network: pypsa.Network,
     generators: pd.DataFrame,
     path_to_timeseries_data: Path,
+    hydro_hourly_ceiling: str = "monthly_cf",
 ) -> None:
     """Updates the timeseries availability of the generators in the pypsa-friendly `
     pd.DataFrame` in the `pypsa.Network`.
@@ -384,6 +422,7 @@ def _update_generators_availability_timeseries(
         generators:  `pd.DataFrame` with `PyPSA` style `Generator` attributes.
         path_to_timeseries_data: `pathlib.Path` that points to the directory containing
             timeseries data
+        hydro_hourly_ceiling: see `_add_generator_to_network`.
     Returns: None
     """
     path_to_solar_traces = path_to_timeseries_data / Path("solar_traces")
@@ -395,6 +434,7 @@ def _update_generators_availability_timeseries(
             network,
             path_to_solar_traces,
             path_to_wind_traces,
+            hydro_hourly_ceiling,
         ),
         axis=1,
     )

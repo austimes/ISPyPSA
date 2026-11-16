@@ -16,6 +16,7 @@ def update_network_timeseries(
     pypsa_friendly_input_tables: dict[str, pd.DataFrame],
     snapshots: pd.DataFrame,
     pypsa_friendly_timeseries_location: Path,
+    hydro_hourly_ceiling: str = "monthly_cf",
 ) -> None:
     """
     Update the time series data in a pypsa.Network instance.
@@ -24,7 +25,8 @@ def update_network_timeseries(
     but may also be useful in other circumstances, such as when running a capacity
     expansion model with different reference year cycles.
 
-    Wind and solar get their new traces and Water generators their monthly energy
+    Wind and solar get their new traces. Water generators get the seasonal hydro
+    ceiling or, with `hydro_hourly_ceiling` "availability", their monthly energy
     limits over the new snapshots, so a window covering part of a month gets that
     part's share. The annual hydro energy budget is not split across rolling-horizon
     windows, so each window may use up to the whole year's budget.
@@ -70,6 +72,7 @@ def update_network_timeseries(
             begin.
         pypsa_friendly_timeseries_location: `Path` to `PyPSA` friendly time series
             data (add link to timeseries data docs).
+        hydro_hourly_ceiling: see `build_pypsa_network`.
 
     Returns: None
     """
@@ -90,6 +93,7 @@ def update_network_timeseries(
         network,
         pypsa_friendly_input_tables["generators"],
         pypsa_friendly_timeseries_location,
+        hydro_hourly_ceiling,
     )
     _update_buses_demand_timeseries(
         network,
@@ -101,7 +105,8 @@ def update_network_timeseries(
     # series data is used in the linopy model rather than the old data.
     network.optimize.create_model(multi_investment_periods=True)
 
-    _add_hydro_monthly_energy_constraints(network)
+    if hydro_hourly_ceiling == "availability":
+        _add_hydro_monthly_energy_constraints(network)
 
     # As we rebuilt the linopy model now we need to re add custom constrains.
     _add_custom_constraints(

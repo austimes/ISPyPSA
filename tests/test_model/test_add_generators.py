@@ -272,9 +272,9 @@ def test_add_hydro_energy_budget_constraint_no_op_without_water_generators():
     assert network.global_constraints.empty
 
 
-def test_update_generator_availability_timeseries_leaves_water_at_its_availability():
-    """Test new snapshots give Water generators no hourly ceiling below their static
-    p_max_pu: the monthly profile limits their energy, not their output."""
+def test_update_generator_availability_timeseries_sets_water_seasonal_ceiling():
+    """Test new snapshots give Water generators the monthly hydro ceiling, not the
+    PyPSA default of 1."""
     network = pypsa.Network()
     network.add("Bus", "test_bus")
     network.add("Generator", "hydro_1", bus="test_bus", carrier="Water", p_nom=100)
@@ -284,6 +284,23 @@ def test_update_generator_availability_timeseries_leaves_water_at_its_availabili
 
     _update_generator_availability_timeseries(
         "hydro_1", "Water", network, Path("unused"), Path("unused")
+    )
+
+    assert network.generators_t.p_max_pu["hydro_1"].to_list() == [0.25, 0.40]
+
+
+def test_update_generator_availability_timeseries_leaves_water_at_its_availability():
+    """Test that with the "availability" ceiling new snapshots give Water generators
+    no hourly ceiling below their static p_max_pu."""
+    network = pypsa.Network()
+    network.add("Bus", "test_bus")
+    network.add("Generator", "hydro_1", bus="test_bus", carrier="Water", p_nom=100)
+    network.snapshots = pd.MultiIndex.from_arrays(
+        [[2025, 2025], pd.to_datetime(["2025-01-01 12:00", "2025-07-01 12:00"])]
+    )
+
+    _update_generator_availability_timeseries(
+        "hydro_1", "Water", network, Path("unused"), Path("unused"), "availability"
     )
 
     assert "hydro_1" not in network.generators_t.p_max_pu.columns

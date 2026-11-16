@@ -25,6 +25,7 @@ def build_pypsa_network(
     pypsa_friendly_tables: dict[str : pd.DataFrame],
     path_to_pypsa_friendly_timeseries_data: Path,
     filtered_to_regions: list[str] | None = None,
+    hydro_hourly_ceiling: str = "monthly_cf",
 ):
     """Creates a `pypsa.Network` based on set of pypsa friendly input tables.
 
@@ -56,6 +57,9 @@ def build_pypsa_network(
         filtered_to_regions: NEM regions or ISP sub-regions the inputs were filtered
             to, or None for an unfiltered whole-of-NEM run. Constraints defined as
             NEM-wide totals are skipped when the run covers only part of the NEM.
+        hydro_hourly_ceiling: "monthly_cf" caps conventional hydro's hourly output at
+            its month's capacity factor; "availability" lets it run to its
+            availability in any hour and caps its monthly energy instead.
 
     Returns:
         pypsa.Network: A PyPSA network object ready for optimisation.
@@ -83,6 +87,7 @@ def build_pypsa_network(
         network,
         pypsa_friendly_tables["generators"],
         path_to_pypsa_friendly_timeseries_data,
+        hydro_hourly_ceiling,
     )
 
     _add_hydro_energy_budget_constraint(network, filtered_to_regions)
@@ -100,7 +105,8 @@ def build_pypsa_network(
     # The underlying linopy model needs to get built so we can add custom constraints.
     network.optimize.create_model(multi_investment_periods=True)
 
-    _add_hydro_monthly_energy_constraints(network)
+    if hydro_hourly_ceiling == "availability":
+        _add_hydro_monthly_energy_constraints(network)
 
     if "custom_constraints_rhs" in pypsa_friendly_tables:
         _add_custom_constraints(
