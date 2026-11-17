@@ -27,9 +27,11 @@ def update_network_timeseries(
 
     Wind and solar get their new traces. Water generators get the seasonal hydro
     ceiling or, with `hydro_hourly_ceiling` "availability", their monthly energy
-    limits over the new snapshots, so a window covering part of a month gets that
-    part's share. The annual hydro energy budget is not split across rolling-horizon
-    windows, so each window may use up to the whole year's budget.
+    limits using the new snapshot weights. A window covering part of a month gets
+    that part's share. These monthly limits apply to `optimize.solve_model`;
+    PyPSA's rolling-horizon optimiser rebuilds the model and drops them unless
+    the caller re-adds them. The annual hydro energy budget is not split across
+    rolling-horizon windows, so each window may use up to the whole year's budget.
 
     Examples:
         >>> import pandas as pd
@@ -67,9 +69,10 @@ def update_network_timeseries(
             format. (add link to pypsa friendly format table docs)
         snapshots: a pd.DataFrame containing the columns 'investment_periods' (int)
             defining the investment a modelled inteval belongs to and 'snapshots'
-            (datetime) defining each time interval modelled. 'investment_periods'
-            periods are refered to by the year (financial or calander) in which they
-            begin.
+            (datetime) defining each time interval modelled. Financial-year periods
+            use the calendar year in which the financial year ends. With
+            `hydro_hourly_ceiling` "availability", include the "objective",
+            "generators" and "stores" snapshot weight columns, as for a new build.
         pypsa_friendly_timeseries_location: `Path` to `PyPSA` friendly time series
             data (add link to timeseries data docs).
         hydro_hourly_ceiling: see `build_pypsa_network`.
@@ -89,6 +92,10 @@ def update_network_timeseries(
     if isinstance(network.snapshots, pd.MultiIndex) and network.snapshots.name is None:
         network._snapshots_data.index.name = "snapshot"
     network.set_investment_periods(snapshots["investment_periods"].unique())
+    if hydro_hourly_ceiling == "availability":
+        network.snapshot_weightings = snapshots.rename(
+            columns={"investment_periods": "period", "snapshots": "timestep"}
+        ).set_index(["period", "timestep"])
     _update_generators_availability_timeseries(
         network,
         pypsa_friendly_input_tables["generators"],

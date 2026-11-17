@@ -216,9 +216,10 @@ def _add_generator_to_network(
     """Adds a generator to a pypsa.Network based on a dict containing PyPSA Generator
     attributes.
 
-    If the carrier of a generator is Wind or Solar then a dynamic maximum availability
-    for the generator is applied (via `p_max_pu`). Otherwise, the nominal capacity of the
-    generator is used to apply a static maximum availability.
+    Wind and Solar generators use availability traces via `p_max_pu`. Water
+    generators use the monthly capacity-factor series by default. With
+    `hydro_hourly_ceiling` "availability", Water uses its input static `p_max_pu`,
+    as other generators do.
 
     Args:
         generator_definition: dict containing pypsa Generator parameters
@@ -427,6 +428,8 @@ def _update_generators_availability_timeseries(
     """
     path_to_solar_traces = path_to_timeseries_data / Path("solar_traces")
     path_to_wind_traces = path_to_timeseries_data / Path("wind_traces")
+    if hydro_hourly_ceiling == "availability":
+        _restore_hydro_availability(network, generators)
     generators.apply(
         lambda row: _update_generator_availability_timeseries(
             row["name"],
@@ -437,4 +440,17 @@ def _update_generators_availability_timeseries(
             hydro_hourly_ceiling,
         ),
         axis=1,
+    )
+
+
+def _restore_hydro_availability(
+    network: pypsa.Network, generators: pd.DataFrame
+) -> None:
+    """Replace any seasonal hourly ceilings with the input hydro availability."""
+    water = generators.loc[generators["carrier"] == "Water"].set_index("name")
+    network.generators_t.p_max_pu.drop(
+        columns=water.index, errors="ignore", inplace=True
+    )
+    network.generators.loc[water.index, "p_max_pu"] = (
+        water["p_max_pu"].fillna(1.0) if "p_max_pu" in water else 1.0
     )
