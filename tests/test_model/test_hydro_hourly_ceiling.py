@@ -61,6 +61,40 @@ def test_default_hydro_ceiling_matches_explicit_monthly_cf(hydro_inputs, tmp_pat
     )
 
 
+def test_hydro_dispatch_respects_individual_energy_and_availability_limits(
+    hydro_inputs, tmp_path, csv_str_to_df
+):
+    """Cap one unit by its monthly energy and another by its hourly availability."""
+    hydro_inputs["snapshots"] = csv_str_to_df("""
+        investment_periods, snapshots,           generators, objective, stores
+        2025,               2024-07-01 12:00:00,  1.0,        1.0,       1.0
+        2025,               2024-07-01 13:00:00,  1.0,        1.0,       1.0
+    """)
+    hydro_inputs["investment_period_weights"] = csv_str_to_df("""
+        period, years, objective
+        2025,   1,     1.0
+    """)
+    demand = hydro_inputs["snapshots"][["investment_periods", "snapshots"]].assign(
+        p_set=[200.0, 0.0]
+    )
+    demand["snapshots"] = pd.to_datetime(demand["snapshots"])
+    demand_dir = tmp_path / "demand_traces"
+    demand_dir.mkdir()
+    demand.to_parquet(demand_dir / "bus1.parquet")
+
+    network = build_pypsa_network(
+        hydro_inputs, tmp_path, hydro_hourly_ceiling="availability"
+    )
+    status, condition = network.optimize.solve_model(solver_name="highs")
+
+    assert (status, condition) == ("ok", "optimal")
+    expected = pd.DataFrame(
+        {"hydro_1": [80.0, 0.0], "hydro_2": [30.0, 0.0], "gas": [90.0, 0.0]},
+        index=network.snapshots,
+    ).rename_axis(columns="name")
+    pd.testing.assert_frame_equal(network.generators_t.p, expected)
+
+
 def test_hydro_monthly_limits_use_calendar_months_and_generator_weights(
     hydro_inputs, tmp_path, csv_str_to_df
 ):
@@ -115,6 +149,8 @@ def test_hydro_timeseries_update_matches_build(
     snapshots = hydro_inputs["snapshots"].copy()
     if updated_mode == "availability":
         snapshots.loc[:, "generators"] = [1.0, 3.0, 2.0, 6.0] * 2
+        snapshots.loc[:, "objective"] = [2.0, 3.0, 4.0, 5.0] * 2
+        snapshots.loc[:, "stores"] = [0.25, 0.75, 0.5, 1.5] * 2
     inputs = {**hydro_inputs, "snapshots": snapshots}
     expected = build_pypsa_network(inputs, tmp_path, hydro_hourly_ceiling=updated_mode)
 
