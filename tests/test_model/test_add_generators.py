@@ -7,6 +7,7 @@ import pytest
 from ispypsa.pypsa_build.generators import (
     _add_generator_to_network,
     _add_hydro_energy_budget_constraint,
+    _add_hydro_monthly_energy_constraints,
     _update_generator_availability_timeseries,
 )
 
@@ -286,3 +287,79 @@ def test_update_generator_availability_timeseries_sets_water_seasonal_ceiling():
     )
 
     assert network.generators_t.p_max_pu["hydro_1"].to_list() == [0.25, 0.40]
+
+
+def test_update_generator_availability_timeseries_leaves_water_at_its_availability():
+    """Test that with the "availability" ceiling new snapshots give Water generators
+    no hourly ceiling below their static p_max_pu."""
+    network = pypsa.Network()
+    network.add("Bus", "test_bus")
+    network.add("Generator", "hydro_1", bus="test_bus", carrier="Water", p_nom=100)
+    network.snapshots = pd.MultiIndex.from_arrays(
+        [[2025, 2025], pd.to_datetime(["2025-01-01 12:00", "2025-07-01 12:00"])]
+    )
+
+    _update_generator_availability_timeseries(
+        "hydro_1", "Water", network, Path("unused"), Path("unused"), "availability"
+    )
+
+    assert "hydro_1" not in network.generators_t.p_max_pu.columns
+    assert network.generators.loc["hydro_1", "p_max_pu"] == 1.0
+
+
+def _hydro_network(load_mw: list[float]) -> pypsa.Network:
+    """A 100 MW hydro generator and dearer gas serving a load over two January and
+    two July hours of one investment period, each hour weighted 2."""
+    network = pypsa.Network()
+    network.set_snapshots(
+        pd.MultiIndex.from_arrays(
+            [
+                [2025] * 4,
+                pd.to_datetime(
+                    [
+                        "2025-01-01 08:00",
+                        "2025-01-01 20:00",
+                        "2025-07-01 08:00",
+                        "2025-07-01 20:00",
+                    ]
+                ),
+            ]
+        )
+    )
+    network.investment_periods = [2025]
+    network.snapshot_weightings.loc[:, :] = 2.0
+    network.add("Bus", "test_bus")
+    network.add("Load", "load", bus="test_bus", p_set=load_mw)
+    network.add("Generator", "hydro_1", bus="test_bus", carrier="Water", p_nom=100)
+    network.add("Generator", "gas", bus="test_bus", p_nom=1000, marginal_cost=100)
+    network.optimize.create_model(multi_investment_periods=True)
+    return network
+
+
+def test_add_hydro_monthly_energy_constraints_lets_hydro_peak_within_its_month():
+    """Test hydro meets a peak hour above its old monthly ceiling while its weighted
+    energy in each month stays within that ceiling's energy."""
+    network = _hydro_network(load_mw=[90.0, 0.0, 90.0, 0.0])
+
+    _add_hydro_monthly_energy_constraints(network)
+    network.optimize.solve_model(solver_name="highs")
+
+    # January's 0.25 over 4 weighted hours allows 100 MWh, July's 0.40 allows 160
+    # MWh: 50 MW and 80 MW in each month's one hour of load, above 25 and 40 MW.
+    dispatch = network.generators_t.p["hydro_1"].to_list()
+    assert dispatch == pytest.approx([50.0, 0.0, 80.0, 0.0])
+    assert {c for c in network.model.constraints if c.startswith("water")} == {
+        "water_monthly_energy_2025_01",
+        "water_monthly_energy_2025_07",
+    }
+
+
+def test_add_hydro_monthly_energy_constraints_no_op_without_water_generators():
+    """Test no constraint is added when the network has no Water generators."""
+    network = _hydro_network(load_mw=[90.0, 0.0, 90.0, 0.0])
+    network.remove("Generator", "hydro_1")
+    network.optimize.create_model(multi_investment_periods=True)
+
+    _add_hydro_monthly_energy_constraints(network)
+
+    assert not any(c.startswith("water") for c in network.model.constraints)

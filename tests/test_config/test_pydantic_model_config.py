@@ -115,6 +115,34 @@ def get_valid_config():
     }
 
 
+def test_hydro_hourly_ceiling_defaults_to_monthly_cf():
+    """Keep the seasonal hourly ceiling unless availability is explicitly selected."""
+    model = ModelConfig(**get_valid_config())
+
+    assert model.hydro_hourly_ceiling == "monthly_cf"
+
+
+@pytest.mark.parametrize("ceiling", ["monthly_cf", "availability"])
+def test_hydro_hourly_ceiling_accepts_supported_modes(ceiling):
+    """Accept both supported hydro ceiling modes."""
+    config = get_valid_config()
+    config["hydro_hourly_ceiling"] = ceiling
+
+    model = ModelConfig(**config)
+
+    assert model.hydro_hourly_ceiling == ceiling
+
+
+@pytest.mark.parametrize("ceiling", ["invalid", None, True])
+def test_hydro_hourly_ceiling_rejects_invalid_modes(ceiling):
+    """Reject unsupported names and values of the wrong type."""
+    config = get_valid_config()
+    config["hydro_hourly_ceiling"] = ceiling
+
+    with pytest.raises(ValidationError, match="hydro_hourly_ceiling"):
+        ModelConfig(**config)
+
+
 # Test case modifiers
 def invalid_scenario(config):
     config["scenario"] = "BAU"

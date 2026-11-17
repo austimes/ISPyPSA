@@ -586,6 +586,30 @@ Examples:
 
 ```enforce_state_generation_targets: true```
 
+## Conventional hydro
+
+### hydro_hourly_ceiling
+
+How monthly capacity factors limit conventional hydro (`Water` generators).
+
+| Value | Hourly output limit | Monthly energy limit per generator |
+| --- | --- | --- |
+| `monthly_cf` | The month's capacity factor times nominal capacity | Implied by the hourly limit |
+| `availability` | Input static `p_max_pu` times nominal capacity | The month's capacity factor times nominal capacity times weighted hours |
+
+Default: `monthly_cf`, preserving the seasonal hourly ceiling.
+
+With `availability`, hydro can meet peaks above the month's capacity factor while staying within its monthly energy budget.
+Monthly limits use generator snapshot weights, independently for each investment period. The existing NEM-wide annual hydro
+budget still applies to unfiltered runs. Pumped-storage units are unaffected.
+
+Monthly limits require the model built by `build_pypsa_network` or `update_network_timeseries` to be solved with
+`network.optimize.solve_model()`. PyPSA's rolling-horizon optimiser rebuilds the model and drops these limits.
+
+```yaml
+hydro_hourly_ceiling: availability
+```
+
 ## Transmission options
 
 ### stack_transmission_options
