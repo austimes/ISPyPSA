@@ -10,10 +10,12 @@ from ispypsa.pypsa_build.carriers import _add_carriers_to_network
 from ispypsa.pypsa_build.custom_constraints import _add_custom_constraints
 from ispypsa.pypsa_build.fuel_supply_curve import _add_fuel_supply_curve
 from ispypsa.pypsa_build.generators import (
+    HydroHourlyCeiling,
     _add_custom_constraint_generators_to_network,
     _add_generators_to_network,
     _add_hydro_energy_budget_constraint,
     _add_hydro_monthly_energy_constraints,
+    _check_hydro_hourly_ceiling,
 )
 from ispypsa.pypsa_build.initialise import _initialise_network
 from ispypsa.pypsa_build.investment_period_weights import _add_investment_period_weights
@@ -25,7 +27,7 @@ def build_pypsa_network(
     pypsa_friendly_tables: dict[str : pd.DataFrame],
     path_to_pypsa_friendly_timeseries_data: Path,
     filtered_to_regions: list[str] | None = None,
-    hydro_hourly_ceiling: str = "monthly_cf",
+    hydro_hourly_ceiling: HydroHourlyCeiling = "monthly_cf",
 ):
     """Creates a `pypsa.Network` based on set of pypsa friendly input tables.
 
@@ -64,6 +66,7 @@ def build_pypsa_network(
     Returns:
         pypsa.Network: A PyPSA network object ready for optimisation.
     """
+    _check_hydro_hourly_ceiling(hydro_hourly_ceiling)
     network = _initialise_network(pypsa_friendly_tables["snapshots"])
 
     _add_investment_period_weights(

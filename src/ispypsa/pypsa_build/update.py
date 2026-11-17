@@ -6,7 +6,9 @@ import pypsa
 from ispypsa.pypsa_build.buses import _update_buses_demand_timeseries
 from ispypsa.pypsa_build.custom_constraints import _add_custom_constraints
 from ispypsa.pypsa_build.generators import (
+    HydroHourlyCeiling,
     _add_hydro_monthly_energy_constraints,
+    _check_hydro_hourly_ceiling,
     _update_generators_availability_timeseries,
 )
 
@@ -16,7 +18,7 @@ def update_network_timeseries(
     pypsa_friendly_input_tables: dict[str, pd.DataFrame],
     snapshots: pd.DataFrame,
     pypsa_friendly_timeseries_location: Path,
-    hydro_hourly_ceiling: str = "monthly_cf",
+    hydro_hourly_ceiling: HydroHourlyCeiling = "monthly_cf",
 ) -> None:
     """
     Update the time series data in a pypsa.Network instance.
@@ -79,6 +81,7 @@ def update_network_timeseries(
 
     Returns: None
     """
+    _check_hydro_hourly_ceiling(hydro_hourly_ceiling)
     snapshots["snapshots"] = pd.to_datetime(snapshots["snapshots"])
     snapshots_as_indexes = pd.MultiIndex.from_arrays(
         [snapshots["investment_periods"], snapshots["snapshots"]]

@@ -199,3 +199,20 @@ def test_hydro_update_with_new_snapshots_and_default_availability(
         assert network.model.constraints[name].data.equals(
             expected.model.constraints[name].data
         )
+
+
+def test_unsupported_hydro_ceiling_is_rejected_before_the_network_changes(
+    hydro_inputs, tmp_path
+):
+    """A misspelt mode raises instead of silently applying no hydro limit."""
+    with pytest.raises(ValueError, match="hydro_hourly_ceiling must be one of"):
+        build_pypsa_network(hydro_inputs, tmp_path, hydro_hourly_ceiling="availablity")
+
+    network = build_pypsa_network(hydro_inputs, tmp_path)
+    before = network.generators_t.p_max_pu.copy()
+    snapshots = hydro_inputs["snapshots"].copy()
+    with pytest.raises(ValueError, match="hydro_hourly_ceiling must be one of"):
+        update_network_timeseries(
+            network, hydro_inputs, snapshots, tmp_path, "availablity"
+        )
+    pd.testing.assert_frame_equal(network.generators_t.p_max_pu, before)

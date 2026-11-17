@@ -1,11 +1,24 @@
 import logging
 import re
 from pathlib import Path
+from typing import Literal, get_args
 
 import pandas as pd
 import pypsa
 
 from ispypsa.translator.helpers import convert_to_numeric_if_possible
+
+HydroHourlyCeiling = Literal["monthly_cf", "availability"]
+
+
+def _check_hydro_hourly_ceiling(hydro_hourly_ceiling: str) -> None:
+    """Raise a `ValueError` for a `hydro_hourly_ceiling` other than the two modes."""
+    if hydro_hourly_ceiling not in get_args(HydroHourlyCeiling):
+        raise ValueError(
+            f"hydro_hourly_ceiling must be one of {get_args(HydroHourlyCeiling)}, "
+            f"got {hydro_hourly_ceiling!r}"
+        )
+
 
 # Monthly capacity-factor profile for conventional (non-pumped) hydro. ISPyPSA does
 # not load hydro inflow traces, so without a limit the LP dispatches Water
@@ -211,7 +224,7 @@ def _add_generator_to_network(
     path_to_solar_traces: Path,
     path_to_wind_traces: Path,
     path_to_marginal_costs: Path,
-    hydro_hourly_ceiling: str = "monthly_cf",
+    hydro_hourly_ceiling: HydroHourlyCeiling = "monthly_cf",
 ) -> None:
     """Adds a generator to a pypsa.Network based on a dict containing PyPSA Generator
     attributes.
@@ -267,7 +280,7 @@ def _add_generators_to_network(
     network: pypsa.Network,
     generators: pd.DataFrame,
     path_to_timeseries_data: Path,
-    hydro_hourly_ceiling: str = "monthly_cf",
+    hydro_hourly_ceiling: HydroHourlyCeiling = "monthly_cf",
 ) -> None:
     """Adds the generators in a pypsa-friendly `pd.DataFrame` to the `pypsa.Network`.
 
@@ -376,7 +389,7 @@ def _update_generator_availability_timeseries(
     network: pypsa.Network,
     path_to_solar_traces: Path,
     path_to_wind_traces: Path,
-    hydro_hourly_ceiling: str = "monthly_cf",
+    hydro_hourly_ceiling: HydroHourlyCeiling = "monthly_cf",
 ) -> None:
     """Updates the timeseries availability of the generator in the `pypsa.Network`.
 
@@ -413,7 +426,7 @@ def _update_generators_availability_timeseries(
     network: pypsa.Network,
     generators: pd.DataFrame,
     path_to_timeseries_data: Path,
-    hydro_hourly_ceiling: str = "monthly_cf",
+    hydro_hourly_ceiling: HydroHourlyCeiling = "monthly_cf",
 ) -> None:
     """Updates the timeseries availability of the generators in the pypsa-friendly `
     pd.DataFrame` in the `pypsa.Network`.
