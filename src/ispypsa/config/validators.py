@@ -196,6 +196,13 @@ class ModelConfig(BaseModel):
     # Enforce the templated state renewable generation targets (NSW Roadmap, VRET,
     # TRET and SA net 100% renewable) as custom constraints.
     enforce_state_generation_targets: bool = False
+    # Offer every IASR augmentation option of a flow path or REZ as a cost staircase
+    # rather than only the least-cost option.
+    stack_transmission_options: bool = False
+    # How conventional hydro's monthly capacity factors apply: "monthly_cf" caps every
+    # hour at the month's factor; "availability" caps each month's energy instead, so
+    # hydro can follow peaks with the same seasonal energy.
+    hydro_hourly_ceiling: Literal["monthly_cf", "availability"] = "monthly_cf"
     filter_by_nem_regions: list[str] | None = None
     filter_by_isp_sub_regions: list[str] | None = None
     solver: Literal[

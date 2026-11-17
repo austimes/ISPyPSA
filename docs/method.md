@@ -261,6 +261,19 @@ to retire.
 [flow_path_expansion_costs](tables/ispypsa.md#flow_path_expansion_costs) and
 [rez_transmission_expansion_costs](tables/ispypsa.md#rez_transmission_expansion_costs) sets a limit on the total
 expansion allowed for each flow path and REZ connection.
+- By default each flow path and REZ connection offers only its least-cost IASR augmentation option (the lowest cost
+per MW in the first year with costs for all its options). With
+[stack_transmission_options](config.md#stack_transmission_options) every option is offered as a step of a cost
+staircase instead: one row per step in the expansion cost tables (`step` 1 is the cheapest per MW), each with its own
+expansion links, capacity limit (`<name>_s<step>_expansion_limit`) and cost trajectory.
+    - Of each group of alternative options (variants of one corridor or project that cannot both be built, listed in
+    `templater/mappings.py`) only the cheapest per MW is offered.
+    - A staged option can be built only in proportion to its prerequisite steps, from the IASR "Pre-requisite options"
+    column: for step S of $M_S$ MW needing steps P of $M_P$ MW, $M_P \times built_S \le M_S \times built_P$
+    (constraint `<name>_s<step>_prerequisite_<n>`). Prerequisites on other flow paths or REZs are not modelled, a
+    prerequisite option without a cost row (committed or anticipated) is assumed built, and an option whose
+    prerequisite lost to a cheaper alternative is dropped.
+    - Options without a cost row for the scenario stay out, as by default.
 - Where REZ export limits are set by [custom constraints](#custom-constraints) the expansion of the REZ connection is
 modelled as relaxing the custom constraint limit.
 

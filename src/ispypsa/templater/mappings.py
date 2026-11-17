@@ -588,6 +588,50 @@ _ACTIONABLE_ISP_PROJECTS_OPTION_NAME_TO_FLOW_PATH = {
     "TAS-VIC Option 2 (Project Marinus Stage 2)": "TAS-VIC",
 }
 
+# Groups of augmentation options of one flow path or REZ of which at most one can be built
+# (variants of one corridor or project), read from the option descriptions and prerequisites
+# of the IASR 7.8 augmentation option tables. Stacked options keep the cheapest per MW.
+_FLOW_PATH_ALTERNATIVE_OPTIONS = {
+    "CNSW-SNW": [
+        ["CNSW-SNW Option 6a", "CNSW-SNW Option 6b"],  # one Eraring-Bayswater line
+        ["H-Newcastle", "H-Dapto"],  # one hydrogen port connection
+        # Sydney Ring South; SNSW-CNSW Options 3 and 4 need "Option 3 or Option 4"
+        ["CNSW-SNW Option 3 - Stage 1", "CNSW-SNW Option 4"],
+    ],
+    "CQ-GG": [["CQ-GG Option 1", "CQ-GG Option 2"]],  # Option 4 needs "1 or 2"
+    "CSA-NSA": [  # one Bundey-Yunta-Narcoona line at 275, 330 or 500 kV
+        ["CSA-NSA Option 1", "CSA-NSA Option 2", "CSA-NSA Option 3"]
+        + ["CSA-NSA Option 4 Stage 1"]
+    ],
+    "MEL-WNV": [["MEL-WNV Option 1", "MEL-WNV Option 2"]],  # Option 3 needs "1 or 2"
+    "NNSW-SQ": [  # one QNI-path line: 330 kV single or double circuit, or 500 kV
+        ["NNSW-SQ Option 1", "NNSW-SQ Option 2", "NNSW-SQ Option 5"]
+    ],
+    "SESA-CSA": [  # one Bundey-Krongart line: 500 kV, 275 kV or HVDC
+        ["SESA-CSA Option 2", "SESA-CSA Option 3", "SESA-CSA Option 4"]
+    ],
+    "SEV-MEL": [  # a Rowville or Cranbourne transformer, with or without series impedance
+        ["SEV-MEL Option 1", "SEV-MEL Option 2", "SEV-MEL Option 3", "SEV-MEL Option 4"]
+    ],
+    "SNSW-CNSW": [
+        ["SNSW-CNSW Option 3", "SNSW-CNSW Option 4"]
+    ],  # double/single circuit
+    "SQ-CQ": [["SQ-CQ Option 3", "SQ-CQ Option 5"]],  # REZ Q9 needs "Option 5 or 6"
+    "TAS-SEV": [["TAS-SEV Option 2", "TAS-SEV Option 2A"]],  # Marinus Stage 2 or 2A
+    "WNV-SESA": [  # one Krongart-Heywood line: 275 kV, 500 kV or HVDC
+        ["WNV-SESA Option 1", "WNV-SESA Option 2", "WNV-SESA Option 3"]
+    ],
+}
+
+_REZ_ALTERNATIVE_OPTIONS = {
+    "MN1": [["Option 1", "Option 2", "Option 3", "Option 4"]],  # 1,200-1,300 MW designs
+    "N13": [["Option 2", "Option 3"]],  # 2,400 MW after VNI West
+    "SQ1": [["Option 1", "Option 2"]],  # 1,100 MW designs
+    # South West Victoria routes; 1C and 5 extend 1A, 3C extends 3A to 3B's size
+    "SWV1": [["Option 1A", "Option 2B", "Option 3A", "Option 3B", "Option 4"]],
+    "T3": [["Option 1", "Option 1A"]],  # Option 2 needs "Option 1 or Option 1A"
+}
+
 # Transmission cost processing configurations
 _FLOW_PATH_CONFIG = {
     "transmission_type": "flow_path",
@@ -599,6 +643,7 @@ _FLOW_PATH_CONFIG = {
         "Option": "option",
         "Notional transfer level increase (MW) Note: Same increase applies to all transfer limit conditions (Peak demand, Summer typical and Winter reference)_Forward direction": "forward_capacity_increase",
         "Notional transfer level increase (MW) Note: Same increase applies to all transfer limit conditions (Peak demand, Summer typical and Winter reference)_Reverse direction": "reverse_capacity_increase",
+        "Pre-requisite options": "prerequisites",
     },
     "out_going_column_mappings": {
         "id": "flow_path",
@@ -608,6 +653,7 @@ _FLOW_PATH_CONFIG = {
         "augmentation": _FLOW_PATH_AGUMENTATION_TABLES,
         "cost": _FLOW_PATH_AUGMENTATION_COST_TABLES,
     },
+    "alternatives": _FLOW_PATH_ALTERNATIVE_OPTIONS,
     "mappings": {
         "prep_activities_name_to_option": _PREPATORY_ACTIVITIES_NAME_TO_OPTION_NAME,
         "option_to_id": _PREPATORY_ACTIVITIES_OPTION_NAME_TO_FLOW_PATH,
@@ -627,6 +673,7 @@ _REZ_CONFIG = {
         "REZ Name": "rez",
         "REZ name": "rez",
         "Additional network capacity (MW)": "nominal_capacity_increase",
+        "Pre-requisite options": "prerequisites",
     },
     "out_going_column_mappings": {
         "id": "rez_constraint_id",
@@ -636,6 +683,7 @@ _REZ_CONFIG = {
         "augmentation": _REZ_CONNECTION_AGUMENTATION_TABLES,
         "cost": _REZ_AUGMENTATION_COST_TABLES,
     },
+    "alternatives": _REZ_ALTERNATIVE_OPTIONS,
     "prep_activities_mapping": _REZ_PREPATORY_ACTIVITIES_NAME_TO_REZ_AND_OPTION_NAME,
 }
 

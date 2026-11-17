@@ -461,6 +461,7 @@ def create_ispypsa_inputs_from_config() -> None:
         manually_extracted_tables,
         filter_to_nem_regions=config.filter_by_nem_regions,
         filter_to_isp_sub_regions=config.filter_by_isp_sub_regions,
+        stack_transmission_options=config.stack_transmission_options,
     )
     write_csvs(template, input_tables_dir)
 
@@ -523,6 +524,7 @@ def create_and_run_capacity_expansion_model() -> None:
         pypsa_friendly_input_tables,
         capacity_expansion_timeseries_location,
         config.filter_by_nem_regions or config.filter_by_isp_sub_regions,
+        config.hydro_hourly_ceiling,
     )
 
     # Save before optimising incase solving fails and you want a copy
@@ -614,6 +616,7 @@ def create_and_run_operational_model() -> None:
         pypsa_friendly_input_tables,
         pypsa_friendly_input_tables["operational_snapshots"],
         operational_timeseries_location,
+        config.hydro_hourly_ceiling,
     )
 
     # Fix optimal capacities from capacity expansion

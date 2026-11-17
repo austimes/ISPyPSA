@@ -72,6 +72,7 @@ def create_ispypsa_inputs_template(
     manually_extracted_tables: dict[str : pd.DataFrame],
     filter_to_nem_regions: list[str] = None,
     filter_to_isp_sub_regions: list[str] = None,
+    stack_transmission_options: bool = False,
 ) -> dict[str : pd.DataFrame]:
     """Creates a template set of [`ISPyPSA` input tables](tables/ispypsa.md).
 
@@ -117,6 +118,8 @@ def create_ispypsa_inputs_template(
         filter_to_isp_sub_regions: Optional list of ISP sub-region IDs
             (e.g., ['CNSW', 'VIC', 'TAS']) to filter the template to. Cannot be
             specified together with filter_to_nem_regions.
+        stack_transmission_options: offer every flow path and REZ augmentation
+            option as a cost staircase rather than only the least-cost option.
 
     Returns:
         dictionary of dataframes in the [`ISPyPSA` format](tables/ispypsa.md)
@@ -170,8 +173,7 @@ def create_ispypsa_inputs_template(
         )
 
         template["flow_path_expansion_costs"] = _template_sub_regional_flow_path_costs(
-            iasr_tables,
-            scenario,
+            iasr_tables, scenario, stack_transmission_options
         )
 
     elif regional_granularity == "nem_regions":
@@ -207,6 +209,7 @@ def create_ispypsa_inputs_template(
         iasr_tables,
         scenario,
         possible_rez_or_constraint_names,
+        stack_transmission_options,
     )
 
     template["ecaa_generators"] = _template_ecaa_generators_static_properties(

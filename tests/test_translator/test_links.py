@@ -446,3 +446,41 @@ def test_translate_expansion_costs_to_links_invalid_year_type(csv_str_to_df):
             id_column="flow_path",
             match_column="name",
         )
+
+
+def test_translate_expansion_costs_to_links_names_stacked_steps(csv_str_to_df):
+    """Each stacked option step gets its own expansion link per investment period."""
+    flow_path_expansion_costs = csv_str_to_df("""
+    flow_path,    option,    step,  additional_network_capacity_mw,  2026_27_$/mw
+    NodeA-NodeB,  Option 2,  1,     500,                             1000
+    NodeA-NodeB,  Option 1,  2,     900,                             2000
+    """)
+    existing_links_df = csv_str_to_df("""
+    isp_name,    name,                 carrier,  bus0,   bus1,   p_nom
+    NodeA-NodeB, NodeA-NodeB_existing, AC,       NodeA,  NodeB,  1000
+    """)
+
+    result = _translate_expansion_costs_to_links(
+        flow_path_expansion_costs,
+        existing_links_df,
+        [2027],
+        "fy",
+        0.07,
+        30,
+        id_column="flow_path",
+        match_column="isp_name",
+    )
+
+    expected = csv_str_to_df("""
+    isp_name,     name,                    capital_cost
+    NodeA-NodeB,  NodeA-NodeB_s1_exp_2027, 1000
+    NodeA-NodeB,  NodeA-NodeB_s2_exp_2027, 2000
+    """)
+    expected["capital_cost"] = expected["capital_cost"].map(
+        lambda cost: _annuitised_investment_costs(cost, 0.07, 30)
+    )
+    pd.testing.assert_frame_equal(
+        result[["isp_name", "name", "capital_cost"]].reset_index(drop=True),
+        expected,
+        check_dtype=False,
+    )

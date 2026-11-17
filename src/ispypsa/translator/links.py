@@ -5,6 +5,7 @@ from ispypsa.config import ModelConfig
 from ispypsa.translator.helpers import (
     _annuitised_investment_costs,
     _extend_trajectory_to_periods,
+    _step_suffix,
 )
 from ispypsa.translator.mappings import _LINK_ATTRIBUTES
 
@@ -150,7 +151,10 @@ def _translate_expansion_costs_to_links(
 
     # Directly modify df_merged to create the expansion links
     df_merged["name"] = (
-        df_merged["isp_name"] + "_exp_" + df_merged["investment_year"].astype(str)
+        df_merged["isp_name"]
+        + _step_suffix(df_merged)
+        + "_exp_"
+        + df_merged["investment_year"].astype(str)
     )
     df_merged["p_nom"] = 0.0
     df_merged["p_nom_extendable"] = True

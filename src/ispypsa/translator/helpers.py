@@ -167,6 +167,14 @@ def _add_investment_periods_as_build_years(
     return df
 
 
+def _step_suffix(expansion_costs: pd.DataFrame) -> pd.Series | str:
+    """Name suffix ``_s<step>`` of each stacked transmission option, or "" when the
+    options are not stacked (no ``step`` column)."""
+    if "step" not in expansion_costs:
+        return ""
+    return "_s" + expansion_costs["step"].astype(str)
+
+
 def _extend_trajectory_to_periods(
     long_df: pd.DataFrame, year_col: str, investment_periods: list[int]
 ) -> pd.DataFrame:
